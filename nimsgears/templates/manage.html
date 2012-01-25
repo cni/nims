@@ -9,22 +9,97 @@
 <head>
   <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
   <title>NIMS</title>
+
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
+  <!--<script type="text/javascript" src="${tg.url('/javascript/jquery.js')}"></script>>
+  <script type="text/javascript" src="${tg.url('/javascript/tablesorter.js')}"></script>
+  <script type="text/javascript" src="${tg.url('/javascript/tablesorter_filter.js')}"></script>
+  <script type="text/javascript" src="${tg.url('/javascript/uicore.js')}"></script>-->
+  <script type="text/javascript" src="${tg.url('/javascript/manage.js')}"></script>
+  <style>
+    #feedback { font-size: 1.4em; }
+    tr .ui-selecting { background: #FECA40; }
+    tr .ui-selected { background: #F39814; color: white; }
+    tr { list-style-type: none; margin: 0; padding: 0; width: 60%; }
+  .bloop {
+      background-color:red;
+  }
+  </style>
+
+  <script type="text/javascript">
+    var epoch_columns_flags = new Array();
+    <py:for each="flag in epoch_columns_flags">
+      epoch_columns_flags.push("${flag}");
+    </py:for>
+
+    $(document).ready(function() {
+      setupCallbacks();
+      //setupDraggable($("#t2 tr"), $("#t1 tr"));
+      //setupDroppable($("#t2 tr"), $("#t1 tr"));
+      $("th").click(function() { sortTable($(this), 1);});
+    }); // document ready
+
+  </script>
+
 </head>
 
 <body>
 
   <h2>Manage</h2>
 
-  <p>The data provided in the template call is:
-  <table>
-      <py:for each="key, value in params.iteritems()">
-      <tr>
-          <td>${key}</td>
-          <td>${value}</td>
-      </tr>
-      </py:for>
-  </table>
-  </p>
+  <p>This page allows you to view and make changes to your data.</p>
 
+  <table>
+  <tr>
+  <td style="vertical-align:top; width:20%;">
+
+    <table id="experiments" class="tablesorte" border="0" cellpadding="0" cellspacing="1">
+      <thead height = "50">
+        <tr>
+        <th py:for="col in columns">${col}</th>
+        <th>Expand</th>
+        </tr>
+      </thead>
+      <tbody id="t1">
+        <py:for each="exp in exp_list">
+          <tr id="exp_${exp[0]}"> <!-- set id for expand queries done on rows later -->
+                <td py:for="param in exp[1:]">${param}</td>
+                <td><span class="exp_detail"> >> </span></td>
+          </tr>
+        </py:for>
+      </tbody>
+    </table>
+
+  </td>
+  <td style="vertical-align:top; width:40%;">
+
+    <table id="sessions" class="tablesorte" border="0" cellpadding="0" cellspacing="1">
+      <thead height = "50">
+        <tr>
+        <th py:for="col in session_columns">${col}</th>
+        <th>Expand</th>
+        </tr>
+      </thead>
+      <tbody id="t2">
+      </tbody>
+    </table>
+
+  </td>
+  <td style="vertical-align:top; width:40%;">
+
+    <table id="epochs" class="tablesorte" border="0" cellpadding="0" cellspacing="1">
+      <thead height = "50">
+        <tr>
+          <th py:for="col in epoch_columns">${col}</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+
+  </td>
+  </tr>
+  </table>
 </body>
 </html>
