@@ -1,0 +1,28 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://genshi.edgewall.org/"
+    xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<xi:include href="master.html" />
+
+<head>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
+<title>NIMS Login</title>
+</head>
+
+<body onLoad="document.loginform.login.select()">
+
+  <py:with vars="flash=tg.flash_obj.render('flash', use_js=False)">
+    <div py:if="flash" py:replace="Markup(flash)" />
+  </py:with>
+
+  <h2>Login</h2>
+  <form class="loginform" action="${tg.url('/login_handler', params=dict(came_from=came_from.encode('utf-8'), __logins=login_counter.encode('utf-8')))}" method="post" accept-charset="UTF-8" name="loginform">
+    <p><label for="loginusername">Username:</label><input type="text" id="loginusername" name="login" class="text"></input></p>
+    <p><label for="loginpassword">Password:</label><input type="password" id="loginpassword" name="password" class="text"></input>
+    <input type="submit" id="submit" value="Login" /></p>
+  </form>
+
+</body>
+</html>

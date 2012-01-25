@@ -1,0 +1,29 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
+
+  <xi:include href="master.html" />
+
+<head>
+  <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
+  <title>NIMS</title>
+</head>
+
+<body onLoad="document.prefsform.comment.select()">
+
+  <py:with vars="flash=tg.flash_obj.render('flash', use_js=False)">
+    <div py:if="flash" py:replace="Markup(flash)" />
+  </py:with>
+
+  <h2>User Activation for User ID "${tg.identity.user.id}"</h2>
+
+  <form class="prefsform" action="${tg.url('/auth/activate')}" method="post" accept-charset="UTF-8" name="prefsform">
+    <p py:for="p, v in prefs.iteritems()"><label>${v[0]}</label><input type="text" name="${p}" value="${v[1]}" /></p>
+    <p><label>Comments:</label><textarea name="comment" id="comment" onFocus="var t=this; setTimeout(function() {t.select()}, 0)">Tell us about yourself and why you would like to be activated.</textarea></p>
+    <p><input type="submit" id="submit" value="Request Activation" /></p>
+  </form>
+
+</body>
+</html>

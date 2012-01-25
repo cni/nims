@@ -1,0 +1,79 @@
+NIMS: Neurobiological Image Management System
+=============================================
+
+NIMS is a scientific data management system, specifically designed for neuroimaging data. It is implemented in Python, based on TurboGears. NIMS is open-source software, released under the MIT license (see below for details).
+
+
+NIMS Development on Ubuntu
+--------------------------
+Set up a virtual python environment:
+
+    sudo apt-get install build-essential python-dev python-setuptools python-virtualenv
+    virtualenv --no-site-packages tg2
+    cd tg2
+    source bin/activate
+
+Install iPython and the TurboGears development tools:
+
+    easy_install ipython readline
+    easy_install -i http://tg.gy/current/index/ tg.devtools
+
+Clone NIMS from GitHub and install its dependencies:
+
+    git clone git@github.com:cni/nims.git
+    cd nims
+    python setup.py develop
+
+Optionally, add PostgreSQL and LDAP support:
+
+    sudo apt-get install libpq-dev postgresql-common
+    easy_install psycopg2
+
+    sudo apt-get install libldap2-dev libsasl2-dev
+    easy_install python-ldap
+
+Generate a development database and start the paste web server:
+
+    paster setup-app development.ini
+    paster serve --reload development.ini
+
+
+NIMS Deployment on FreeBSD and Apache
+-------------------------------------
+
+Set up a virtual python environment:
+
+    mkdir /usr/local/pythonenv
+    virtualenv --no-site-packages /usr/local/pythonenv/tg2
+    source /usr/local/pythonenv/tg2/bin/activate
+
+Clone NIMS from GitHub and install its dependencies:
+
+    cd /usr/local/www/apache22
+    git clone git@github.com:cni/nims.git
+    easy_install -i http://tg.gy/current/index/ TurboGears2
+    python nims/setup.py develop
+
+Add PostgreSQL and LDAP support:
+
+    portmaster databases/postgresql84-client net/py-ldap2
+    easy_install psycopg2
+    CPATH=/usr/local/include:/usr/local/include/sasl LIBRARY_PATH=/usr/local/lib easy_install python-ldap
+
+Configure and restart Apache:
+
+    ln -s $PWD/nims/apache.conf /usr/local/etc/apache22/Includes/nims.conf
+    /usr/local/etc/rc.d/apache22 restart
+
+
+License
+-------
+Copyright (c) 2012 Robert Dougherty
+Copyright (c) 2012 Gunnar Schaefer
+Copyright (c) 2012 Reno Bowen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

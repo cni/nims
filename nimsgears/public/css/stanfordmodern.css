@@ -1,0 +1,634 @@
+/*----------------------------------------------------------------
+[Table of contents]
+
+ 1.Global
+ 2.Layout
+ 3.Sidebars
+ 4.Header
+ 5.Navigation
+ 6.Footer
+ 7.Page Elements
+ 8.CSS Support
+ 9.CSS Block Image Set
+ 10.MediaLinks
+ 11.Advanced Styles (Portal, Topic)
+ 12.Print CSS
+----------------------------------------------------------------*/
+
+/* 1.GLOBAL */
+
+/* Base Formatting --------------------------------- */
+pre {font-size: 1.2em; font-weight: bold;}
+code {font-size: 1.2em; font-weight: bold;}
+/* Hide from IE5-mac. Only IE-win sees this. \*/
+* html pre {font-size: 1em; font-weight: bold;}
+*:first-child+html pre {font-size: 1em; font-weight: bold;}
+* html code {font-size: 1em; font-weight: bold;}
+*:first-child+html code {font-size: 1em; font-weight: bold;}
+/* End hide from IE5-mac */
+form {margin: 0px;}
+map {margin: 0px;}
+.inline {display: inline;}
+.inline-end {margin-top: 15px;}
+
+/* Horizontal Rule --------------------------------- */
+hr {background: #eae9e6; color: #eae9e6; border: none; height: 1px; margin: 0; padding: 0;}
+hr.brown {background: #D0A760; color: #D0A760; border: none; height: 1px; margin: 0; padding: 0;} 
+hr.gold {background: #E7D19A; color: #E7D19A; border: none; height: 1px; margin: 0; padding: 0;} 
+hr.red {background: #820000; color: #820000; border: none; height: 1px; margin: 0; padding: 0;} 
+
+/* Default Link --------------------------------- */
+sup a {text-decoration: none;}
+sub a {text-decoration: none;}
+
+/* Unordered List --------------------------------- */
+ul {list-style: square; margin-top:0px;}
+ul li {margin-bottom: 0px;}
+ul.linebreak {list-style: square;}
+ul.linebreak li {margin-bottom: 0.5em;}
+ul.linebreak ol li {margin-bottom: 0px;}
+ul.square {list-style: square;}
+ul.square li {margin-bottom: 0px;}
+ul.square-linebreak {list-style: square;}
+ul.square-linebreak li {margin-bottom: 0.5em;}
+ul.square-linebreak ol li {margin-bottom: 0px;}
+ul.disc {list-style: disc;}
+ul.disc li {margin-bottom: 0px;}
+ul.disc-linebreak {list-style: disc;}
+ul.disc-linebreak li {margin-bottom: 0.5em;}
+ul.disc-linebreak ol li {margin-bottom: 0px;}
+ul.circle {list-style: circle;}
+ul.circle li {margin-bottom: 0px;}
+ul.circle-linebreak {list-style: circle;}
+ul.circle-linebreak li {margin-bottom: 0.5em;}
+ul.circle-linebreak ol li {margin-bottom: 0px;}
+ul.uncheck, ul li.uncheck {list-style-image: url("https://www.stanford.edu/stanfordmodern/images/unchecked-box-bullet.gif");}
+ul.uncheck li {margin-bottom: 0px;}
+ul.uncheck-linebreak {list-style-image: url("https://www.stanford.edu/stanfordmodern/images/unchecked-box-bullet.gif");}
+ul.uncheck-linebreak li {margin-bottom: 0.5em;}
+ul.uncheck-linebreak ol li {margin-bottom: 0px;}
+ul.check, ul li.check {list-style-image: url("https://www.stanford.edu/stanfordmodern/images/checked-box-bullet.gif");}
+ul.check li {margin-bottom: 0px;}
+ul.check-linebreak {list-style-image: url("https://www.stanford.edu/stanfordmodern/images/checked-box-bullet.gif");}
+ul.check-linebreak li {margin-bottom: 0.5em;}
+ul.check-linebreak ol li {margin-bottom: 0px;}
+ul.none {list-style: none;}
+ul.none li {margin-bottom: 0px;}
+ul.none-linebreak {list-style: none;}
+ul.none-linebreak li {margin-bottom: 0.5em;}
+ul.none-linebreak ol li {margin-bottom: 0px;}
+
+/* Ordered List --------------------------------- */
+ol {list-style: decimal; margin-top: 0px;}
+ol li {margin-bottom: 0px;}
+ol.linebreak {list-style: decimal;}
+ol.linebreak li {margin-bottom: 0.5em;}
+ol.linebreak ul li {margin-bottom: 0px;}
+ol.decimal {list-style: decimal;}
+ol.decimal li {margin-bottom: 0px;}
+ol.decimal-linebreak {list-style: decimal;}
+ol.decimal-linebreak li {margin-bottom: 0.5em;}
+ol.decimal-linebreak ul li {margin-bottom: 0px;}
+ol.lroman {list-style: lower-roman;}
+ol.lroman li {margin-bottom: 0px;}
+ol.lroman-linebreak {list-style: lower-roman;}
+ol.lroman-linebreak li {margin-bottom: 0.5em;}
+ol.lroman-linebreak ul li {margin-bottom: 0px;}
+ol.uroman {list-style: upper-roman;}
+ol.uroman li {margin-bottom: 0px;}
+ol.uroman-linebreak {list-style: upper-roman;}
+ol.uroman-linebreak li {margin-bottom: 0.5em;}
+ol.uroman-linebreak ul li {margin-bottom: 0px;}
+ol.lalpha {list-style: lower-alpha;}
+ol.lalpha li {margin-bottom: 0px;}
+ol.lalpha-linebreak {list-style: lower-alpha;}
+ol.lalpha-linebreak li {margin-bottom: 0.5em;}
+ol.lalpha-linebreak ul li {margin-bottom: 0px;}
+ol.ualpha {list-style: upper-alpha;}
+ol.ualpha li {margin-bottom: 0px;}
+ol.ualpha-linebreak {list-style: upper-alpha;}
+ol.ualpha-linebreak li {margin-bottom: 0.5em;}
+ol.ualpha-linebreak ul li {margin-bottom: 0px;}
+
+/* Definition Lists --------------------------------- */
+dl dt {margin-top: 0px; margin-bottom: 0px;}
+dl dd {margin-top: 0px; margin-bottom: 0.5em;}
+dl.linebreak dd {margin-top: 0px; margin-bottom: 1em;}
+dl.nobreak dd {margin-top: 0px; margin-bottom: 0px;}
+
+/* Table --------------------------------- */
+table.sitemap {background: transparent; width: 100%; border: none; padding: 3px; line-height: 1.5em; margin-top: 0px;}
+table.sitemap th {text-align: left; padding-bottom: 0.3em; padding-top: 1em; color: #820000;}
+table.sitemap td {padding-left: 1em; vertical-align: top;}
+table.noborder {background: transparent; margin: 0px 0px 15px 0px; border: none;}
+table.noborder th {text-align: center; background: transparent; color: #333; padding: 0px 10px 0px 0px; border: none;}
+table.noborder td {background: transparent; color: #333; padding: 0px 10px 0px 0px; vertical-align: top; border: none;}
+table.noborder td ul {padding: 0px 0px 0px 0.8em; margin: 0px 0px 0px 0.8em;}
+table.noborder td ol {padding: 0px 0px 0px 1em; margin: 0px 0px 0px 1em;}
+table.red-header {width: 100%; background: #bbb; margin: 0px 0px 15px 0px; border: 1px solid #bbb; border-collapse:collapse;}
+table.red-header th {text-align: center; background: #820000; color: #fff; padding: 2px; border: 1px solid #bbb;}
+table.red-header th a {color: #fff; text-decoration:underline;}
+table.red-header th a:link {color: #fff;}
+table.red-header th a:visited {color: #fff;}
+table.red-header th a:hover {color: #fff;}
+table.red-header th a:active {color: #fff;}
+table.red-header td {background: #fff; color: #333; padding: 2px; vertical-align: top; border: 1px solid #bbb;}
+table.red-header td ul {padding: 0px 0px 0px 0.8em; margin: 0px 0px 0px 0.8em;}
+table.red-header td ol {padding: 0px 0px 0px 1em; margin: 0px 0px 0px 1em;}
+table.gray-header {width: 100%; background: #bbb; margin: 0px 0px 15px 0px; border: 1px solid #bbb; border-collapse:collapse;}
+table.gray-header th {text-align: center; background: #ccc; color: #666; padding: 2px; border: 1px solid #bbb;}
+table.gray-header th a {color: #666; text-decoration:underline;}
+table.gray-header th a:link {color: #666;}
+table.gray-header th a:visited {color: #666;}
+table.gray-header th a:hover {color: #666;}
+table.gray-header th a:active {color: #666;}
+table.gray-header td {background: #fff; color: #333; padding: 2px; vertical-align: top; border: 1px solid #bbb;}
+table.gray-header td ul {padding: 0px 0px 0px 0.8em; margin: 0px 0px 0px 0.8em;}
+table.gray-header td ol {padding: 0px 0px 0px 1em; margin: 0px 0px 0px 1em;}
+table.gold-header {width: 100%; background: #bbb; margin: 0px 0px 15px 0px; border: 1px solid #bbb; border-collapse:collapse;}
+table.gold-header th {text-align: center; background: #eee3c1; color: #666; padding: 2px; border: 1px solid #bbb;}
+table.gold-header th a {color: #666; text-decoration:underline;}
+table.gold-header th a:link {color: #666;}
+table.gold-header th a:visited {color: #666;}
+table.gold-header th a:hover {color: #666;}
+table.gold-header th a:active {color: #666;}
+table.gold-header td {background: #fff; color: #333; padding: 2px; vertical-align: top; border: 1px solid #bbb;}
+table.gold-header td ul {padding: 0px 0px 0px 0.8em; margin: 0px 0px 0px 0.8em;}
+table.gold-header td ol {padding: 0px 0px 0px 1em; margin: 0px 0px 0px 1em;}
+table th.side-header, table th.side-header-vertical {background: #F7F6EC; color: #5a5a5a;}
+table th.alternate {background: #eee;}
+table tr.alternate td {background: #eee;}
+table td.alternate {background: #eee;}
+
+/* Images--------------------------------- */
+img {border: 0px;}
+.right-noborder {float: right; margin: 0px 0px 5px 10px;}
+.right-border {float: right; margin: 0px 0px 5px 10px; border: 1px solid #bbb;}
+.left-noborder {float: left; margin: 0px 10px 5px 0px;}
+.left-border {float: left; margin: 0px 10px 5px 0px; border: 1px solid #bbb;}
+
+/* Text--------------------------------- */
+.last {margin: 0px; padding: 0px;}
+.box h1, .box h2, .box h3, .box h4, .box h5 {margin-top: 0px;}
+.color-box h1, .color-box h2, .color-box h3, .color-box h4, .color-box h5 {margin-top: 0px;}
+.center-box h1, .center-box h2, .center-box h3, .center-box h4, .center-box h5 {margin-top: 0px;}
+.left-box h1, .left-box h2, .left-box h3, .left-box h4, .left-box h5 {margin-top: 0px;}
+.right-box h1, .right-box h2, .right-box h3, .right-box h4, .right-box h5 {margin-top: 0px;}
+
+/* Font Settings--------------------------------- */
+.largest {font-size: 1.3em;}
+.larger {font-size: 1.2em;}
+.large {font-size: 1.1em;}
+.medium {font-size: 1em;}
+.small {font-size: 0.9em;}
+.smaller {font-size: 0.8em;}
+.smallest {font-size: 0.7em;}
+.important {color: #820000; font-weight: bold;}
+.highlight {background: #ffc; padding: 0px 2px 0px 2px;}
+.select {color: #820000;}
+.downloadable {font-size: 0.85em; font-weight: bold; text-transform: capitalize;}
+
+/* Box--------------------------------- */
+.box {border:1px solid #eee3c1; padding: 5px; width: auto; margin: 0px 0px 15px 0px; background: #fff;}
+.color-box {border:1px solid #eee3c1; padding: 5px; width: auto; margin: 0px 0px 15px 0px; background: #f6f3e5;}
+.center-box {border:1px solid #eee3c1; padding: 5px; width: 80%; margin: 0px auto 15px auto; background: #fff;}
+.left-box {border:1px solid #eee3c1; padding: 5px; width: 200px; float: left; margin: 0px 10px 15px 0px; background: #fff;}
+.right-box {border:1px solid #eee3c1; padding: 5px; width: 200px; float: right; margin: 0px 0px 15px 10px; background: #fff;}
+
+/* Sitemap and links --------------------------------- */
+#sitemap {background-color: transparent;}
+#sitemap a {font-size: 0.9em; font-weight: bold; text-decoration: none; color: #5a5a5a;}
+#sitemap a:link {text-decoration: none;}
+#sitemap a:visited {text-decoration: none;}
+#sitemap a:hover {text-decoration: underline; color: #820000;}
+#sitemap a:active {text-decoration: underline; color: #820000;}
+
+/* Alphabetical anchor navigation for long index or glossary pages --------------------------------- */
+#alphanav {line-height: 15px; text-align: center; margin-top: -10px; font-size: 1em; color: #666;}
+#alphanav a {text-decoration: none; color: #039;}
+#alphanav a:visited {text-decoration: none; color: #039;}
+
+/* Inline content images --------------------------------- */
+.image_caption { padding: 5px; text-align: center; border: 2px solid #e1e1e1; background: #fff; margin-left: 5px;margin-bottom: 4px }
+.image_caption p { font-family: arial,helvetica,sans-serif; font-size: 11px; line-height: 1.15em; color: #3F3C30 }
+.image_caption img { border: 0px solid #fff; margin-bottom: 5px }
+.image_caption_left { margin: 0 11px 11px 0; float: left }
+.image_caption_right { margin: 0 0 11px 11px; float: right }
+.image_caption_top_nowrap { margin: 0 0 11px 0; float: none }
+.imagecaption_nowrap { margin: 11px 0 11px 0; float: none }
+
+/* Link List / Zebra Rows / Sort By --------------------------------- */
+.sortcategories { float: right; clear: both } 
+.sortcategories a  { border-bottom: none } 
+
+/* Linklist is a class to help enforce zebra striping on data tables --------------------------------- */
+.linklist { margin-bottom: 20px }
+.linklist { width: 765px ! important; margin-left: 0 ! important; padding-left: 0 ! important; clear: both ! important }
+.linklist .odd { background-color:  #f8f6ea ! important }
+.linklist .even { background-color:  #eee6cb ! important }
+.linklist .data a { width: 750px ! important; display: block ! important; padding-top: 10px ! important;  padding-left: 15px ! important; border-bottom: none ! important; font-size: 12px ! important; letter-spacing: 1px ! important;list-style-type: none ! important  }
+.linklist .data { width: 765px  ! important; list-style-type : none ! important; margin: 0 ! important; padding: 0 ! important }
+.linklist .data li { list-style-type: none ! important; list-style-image: none  ! important }
+
+/* Pull Quotes --------------------------------- */
+.pullquote {width: 35%; color: #666; font-family: Georgia, Times, serif; font-size : 120%; line-height : 150%; font-weight : bold; font-style : italic; margin:0px 0px 10px 10px; background: url("https://www.stanford.edu/stanfordmodern/images/closequote.gif") no-repeat bottom right !important; background /**/:url(); /* removing quote graphic in IE5+ */ padding:0px 25px 0px 0px;}
+.pullquote:first-letter {background: url("https://www.stanford.edu/stanfordmodern/images/openquote.gif") no-repeat left top !important; padding:5px 2px 10px 35px!important; padding /**/:0px; 	/* resetting padding in IE5+ */	background /**/: url(); /* removing quote graphic in IE5+ */}
+
+/* Content Specific Formatting --------------------------------- */
+body {background: #fff; color: #3f3c30; font: 0.78em Arial, Helvetica, sans-serif; margin: 0; padding: 0;}
+h1, h2, h3, h4, h5, h6 {font-weight: 400; margin: 0; padding: 0; color: #565245;}
+
+h1 {font-family: Georgia, "Times New Roman", Times, serif; font-size: 2.8em; font-weight: normal; color: #565245; padding: 10px 0px 10px 0px;}
+h2 {font-family: Georgia, "Times New Roman", Times, serif; font-size: 1.5em; color: #820000; margin: 1em 0em 0.4em 0em; line-height: 1.2em; letter-spacing: 0.05em;}
+h3 {font-family: Georgia, "Times New Roman", Times, serif; font-size: 1.4em; color: #565245; margin: 1em 0em 0.4em 0em; line-height: 1.2em; letter-spacing: 0.04em;}
+h4 {font-family: Georgia, "Times New Roman", Times, serif; font-size: 1.3em; color: #820000; margin: 1em 0em 0.4em 0em; line-height: 1.2em; letter-spacing: 0.03em;}
+h5 {font-family: Georgia, "Times New Roman", Times, serif; font-size: 1.2em; color: #565245; margin: 1em 0em 0.4em 0em; line-height: 1.2em; letter-spacing: 0.02em;}
+
+a {text-decoration: none; border-bottom: 1px dotted #81785a; color: #565347;}
+a:focus {outline:1px #8a887d dotted;}
+a:hover {color: #820000;}
+
+p {font-size: 1em; line-height: 1.5em; margin: 0 0 1em 0;}
+blockquote {margin: 1.25em; padding: 1.25em 1.25em 0 1.25em;}
+em {padding: 0 3px 0 0;}
+hr {background: #eae9e6; color: #eae9e6; border: none; height: 1px; margin: 0; padding: 0;}
+img {border: none; outline: none;}
+#center img {max-width: 100% !important;}
+
+dl { margin: .5em 0 1em; padding: 0; line-height: 1.5em;}
+dl dt {margin: 0 0 .5em 0;}
+dl dd { margin: 0 0 .5em 1.5em;}
+ol { margin: .5em 0 1em 1.5em; padding: 0; line-height: 1.5em;}
+ol li {margin: 0px 0px 0.5em 0.5em; padding: 0px;}
+ul { margin: .5em 0 1em 1.5em; padding: 0; line-height: 1.5em;}
+ul li {margin: 0px 0px 0.5em 0.5em; padding: 0px;}
+
+table { margin: 1em 0; width: 100%; border: 0px;}
+thead th { color: #494949; font-weight: 700; border: 0px;}
+tbody { border: 0px;}
+th a:link, th a:visited { color: #7f7f7f; }
+td, th { padding: .3em .5em;}
+
+quote, code { margin: .5em 0;}
+input { color: #494949; font: 1em Verdana, sans-serif;}
+textarea, select { color: #494949; font: 1em Verdana, sans-serif;}
+fieldset { background: #fff; border: 1px solid #eee3c1; margin: 1em 0; padding: 0 1em;}
+fieldset legend a {border: 0px;}
+fieldset legend {color: #333;}
+
+/* 2.LAYOUT */
+
+#layout {background: url("https://www.stanford.edu/stanfordmodern/images/body_bg2.jpg") 0px 0px repeat-x;}
+#wrapper {position: relative; margin: 0 auto; padding: 0px; width: 960px; min-width: 960px;}
+body.wide #wrapper {margin: 0px auto; padding: 0px; width: 95%;}
+#container {clear: both; margin: 0px 0px 0px 0px; padding: 15px 0px 20px 0px;}
+body.nav #container, body.drawer #container {border-top: 1px solid #eae9e6;}
+#content {margin: 15px 0px 2px 0px; position: relative;}
+body.nav #content {margin: 2px 0px;}
+body.portal #content {margin: 15px 0px 2px 0px;}
+
+/* 1 column */
+#center {margin: 0px 0px 15px 0px; padding: 0px 0px 15px 0px; }
+
+/* 3 columns */
+body.two-sidebars #center {float: left; margin: 0px 0px 15px 0px; padding: 0 15px; width: 580px; border: 0px; position: relative; left: 175px;}
+body.two-sidebars.wide #center {width: 62.7%; padding: 0px 1% 15px 1%; border-left: 1px solid #eae9e6; border-right: 1px solid #eae9e6; left: 17.5%;}
+body.two-sidebars #content {background-image: url("https://www.stanford.edu/stanfordmodern/images/bg-two-sidebars.gif"); background-repeat: repeat-y;}
+body.two-sidebars.wide #content {background-image: none;}
+
+/* 2 columns - sidebar-left */
+body.sidebar-left #center {float: left; margin: 0px 0px 15px 0px; padding: 0px 0px 0px 15px; width: 770px; border: 0px; position: relative; left: 175px;}
+body.sidebar-left.wide #center {float: left; margin: 0px; padding: 0px 0px 0px 1%; width: 81.3%; border-left: 1px solid #eae9e6; left: 17.5%;}
+body.sidebar-left #content {background-image: url("https://www.stanford.edu/stanfordmodern/images/bg-sidebar-left.gif"); background-repeat: repeat-y;}
+body.sidebar-left #content #sidebar-right {display: none;}
+body.sidebar-left.wide #content {background-image: none;}
+
+/* 2 columns - sidebar-right */
+body.sidebar-right #center {float: left; margin: 0px 0px 15px 0px; padding: 0px 15px 0px 0px; width: 770px; border: 0px;}
+body.sidebar-right.wide #center {margin: 0px; padding: 0px 1% 0px 0px; width: 81.3%; border-right: 1px solid #eae9e6;}
+body.sidebar-right #content {background-image: url("https://www.stanford.edu/stanfordmodern/images/bg-sidebar-right.gif"); background-repeat: repeat-y;}
+body.sidebar-right #content #sidebar-left {display: none;}
+body.sidebar-right.wide #content {background-image: none;}
+
+/* 3.SIDEBARS */
+.sidebar {width: 159px; margin: 0px; padding: 0px;}
+.sidebar ul {margin: .35em 0 1.5em 0; padding: 0;}
+.sidebar ul ul {margin-left: 0;}
+.sidebar ul li {line-height: 1.4em; background: transparent url("https://www.stanford.edu/stanfordmodern/images/raquo.gif") no-repeat 0px .4em; list-style-image: none; list-style-type: none; margin: .15em 0 .15em 0; padding: 0 0 .4em 1em;}
+.sidebar ul li a {color: #565347;}
+.sidebar dl { margin: 0 0 1.5em 0; padding: 0; line-height: 1.5em;}
+.sidebar dl dt {margin: 0 0 0.25em 0; font-size: 1.1em;}
+.sidebar dl dd {margin: 0px 0px 1em 0px;}
+.sidebar p {margin: 0px 0px 1.5em 0px;}
+
+.sidebar ul.nav {margin: 0px 0px 2em 0px; padding: 0px;}
+.sidebar ul.nav li {list-style: none; list-style-image: none; background-image: none; padding: 10px 0px; margin: 0px; border-bottom: 1px solid #eae9e6;}
+.sidebar ul.nav li a {color: #565347; border-bottom: none;}
+.sidebar ul.nav li a:hover {border-bottom: 1px dotted #565347;}
+.sidebar ul.nav li li{padding: 5px 0px 0px 10px; border-bottom: none;}
+.sidebar ul.nav ul ul {margin: 0;}
+.sidebar ul.nav li.current a, .sidebar a.current {color: #820000; font-weight: bold;}
+
+#sidebar-left {display: none; float: left; margin: 0px 0px 10px 0px; padding: 0px 15px 0px 0px; font-size: 0.9em; position:relative; left: -610px;}
+body.sidebar-left #sidebar-left {left: -785px}
+body.two-sidebars #sidebar-left, body.sidebar-left #sidebar-left {display: block;}
+#sidebar-left h2 {font-size: 1em; line-height: 1.3em; color: #820000; margin: 0px 0px 8px 0px; padding: 0px 0px 2px 0px; border-bottom: 6px solid #820000; letter-spacing: 2px; font-weight: normal; text-transform: uppercase;}
+body.wide #sidebar-left {width: 16.5%; padding: 0px 1% 0px 0px; left: -64.9%;}
+body.sidebar-left.wide #sidebar-left {left: -82.5%;}
+
+#sidebar-right {display: none; float: right; margin: 0px 0px 10px -1px; padding: 0px 0px 150px 15px; font-size: 0.9em; background-image: url("https://www.stanford.edu/stanfordmodern/images/seal.jpg"); background-repeat: no-repeat; background-position: 65% 98%;}
+body.two-sidebars #sidebar-right, body.sidebar-right #sidebar-right {display: block;}
+#sidebar-right h2 {font-size: 1em; line-height: 1.3em; color: #3f3c30; margin: 0px 0px 8px 0px; padding: 0px 0px 2px 0px; border-bottom: 6px solid #3f3c30; letter-spacing: 2px; font-weight: normal; text-transform: uppercase;}
+body.wide #sidebar-right {width: 16.5%; margin: 0px; padding: 0px 0px 150px 1%; background-position: 50% 98%;}
+
+/* 4.HEADER */
+
+#header {margin: 0; padding: 0; height: 90px; min-width: 960px;}
+#header a {border: 0px;}
+#header #logo {float: left; padding: 15px 11px 0 0;}
+#header #site {float: left; margin: 22px 0px 0px 0px; padding: 0px 0px 0px 17px; width: 450px; height: 47px; border-left: 1px solid #c18a65;}
+#header #name {margin: -0.4em 0px 0px 0px;}
+#header #name a {font-size: 24px; color: #ddcf99; font-variant: small-caps; font-family: Georgia, "Times New Roman", Times, serif; letter-spacing: 0.05em;}
+#header #slogan {margin: 0px; font-size: 18px; color: #ddcf99; font-variant: small-caps; font-family: Georgia, "Times New Roman", Times, serif; letter-spacing: 0.05em;}
+#header #cse-search-box {float: right; margin: 25px 0px 0px 0px; padding: 0px; width: 191px;}
+/* Header Stanford Search Box */
+#javascript {display: block;}
+#header #cse-search-box .searchbox {background: url("https://www.stanford.edu/stanfordmodern/images/search_box_bg.png") no-repeat left top; height: 24px; margin: 0; padding: 0px 0px 0px 3px;}
+#header #cse-search-box input {width: 150px; color: #3f3c30; margin: 3px 0px 0px 6px; padding: 0; border: 0; outline: none; height: 15px; float: left;}
+#header #cse-search-box input.form-submit {border: 0; background: url("https://www.stanford.edu/stanfordmodern/images/search_button.gif") no-repeat top left; height: 20px; width: 20px; text-indent: -9999px;  margin-left: 3px; margin-top: 1px; float: right; cursor: pointer; color: transparent; text-transform: capitalize;}
+
+/* 5.NAVIGATION */
+
+/* Navigation */
+#nav {display: none; clear: both; margin: 0px auto 0px auto; padding: 10px 0px; background-image: none; position: relative; min-width: 800px;}
+body.nav #nav {display: block;}
+body.wide #nav {margin: 0px;}
+body.drawer #nav {display: block; margin: 10px 0px 0px 150px; padding: 0px;}
+
+#nav ul {margin: 0px; padding: 0px;}
+#nav ul ul {display: none;}
+body.wide #nav ul {margin: 0px;}
+#nav ul li {margin: 0px 50px 0px 0px; padding: 5px 0px 8px 0px; float: left; list-style-type: none; text-align: left; background-image: none; background-repeat:no-repeat;}
+body.drawer #nav ul li {margin: 0px; width: 150px; }
+#nav ul li a {margin: 0px; padding: 0px; display: block; text-decoration: none; font-size: 12px; border: 0px; color:#3f3c30; letter-spacing: 1px;}
+#nav ul li a:hover {background-image: none; color: #820000;}
+#nav ul li.current a {color: #820000;}
+#nav ul li a.current {color: #820000;}
+
+#nav ul li ul {margin: 0px; padding: 0px;}
+#nav ul li ul li {float: none; list-style-type: none; background: transparent url("https://www.stanford.edu/stanfordmodern/images/raquo.gif") no-repeat 0px .5em; margin: 0px; padding: 0px 0px 0px 15px; letter-spacing: 0px; width: 140px;}
+#nav ul li ul li a {font-size: 11px; letter-spacing: 0px;}
+#nav ul li.current ul li a {color: #565347;}
+
+/* Expanded Drawer */
+#nav_drawer {clear: both; display: none; margin: 0px; padding: 0px; width: 960px; background: #fff; min-width: 960px;}
+#nav_drawer ul {margin: 0px; padding: 0px 0px 0px 140px; line-height: 1em;}
+#nav_drawer ul li {float: left; list-style-type: none; background-image: none; background-repeat:no-repeat; margin: 0px; padding: 0px; width: 150px;}
+#nav_drawer a {border: 0px;}
+#nav_drawer ul li a {font-size: 12px; letter-spacing: 1px; line-height: 12px;}
+#nav_drawer ul li ul {margin: 0px; padding: 0px;}
+#nav_drawer ul li ul li {float: none; list-style-type: none; background: transparent url("https://www.stanford.edu/stanfordmodern/images/raquo.gif") no-repeat 10px .2em; margin: 0px; padding: 0px 0px 0.5em 25px; letter-spacing: 0px; width: 140px;}
+#nav_drawer ul li ul li a {font-size: 11px; letter-spacing: 0px;}
+
+/* Toggle Switch */
+#toggle {display: none; position: absolute; top: 108px; left: 0px; margin: 0px; border: none; width: 150px; font-size: 11px; line-height: 12px; outline: none;}
+body.drawer #toggle {display: block;}
+#toggle img {padding-top: 0px; margin-top: 0px; vertical-align: text-bottom; margin-right: 2px;}
+#toggle:hover {color: #820000;}
+#toggle a {border: 0px; outline: none;}
+#toggle #menu_expand {display: block; padding-left: 20px; height: 15px; background: url("https://www.stanford.edu/stanfordmodern/images/icon_expanded.jpg") 0px 0px no-repeat; cursor:pointer;}
+#toggle #menu_hide {display: none; padding-left: 20px; height: 15px; background: url("https://www.stanford.edu/stanfordmodern/images/icon_expanded.jpg") 0px 0px no-repeat; cursor:pointer;}
+
+/* 6.FOOTER */
+
+#footer-wrapper {clear: both; margin: 15px 0px; padding: 0px;}
+#footer {border-top: 1px solid #eae9e6; margin: 0px; padding: 5px 0; position: relative;}
+#footer a {border: 0px;}
+#footer ul {text-align: center; margin: 5px 0px; padding: 0px;}
+#footer ul li {display: inline; background: none; border-right: 1px solid #eae9e6; margin: 0px; padding: 0px 1em;}
+#footer ul li.last {border: 0px;}
+#footer ul li a {border: 0px;}
+#footer ul li a:hover, #footer ul.menu li a:active {color: #820000;}
+#footer ul li a.active:hover, #footer ul.menu li a.active:active {color: #820000;}
+
+#copyright {text-align: center; font-size: 0.9em; margin: 0px; padding: 0px;}
+#copyright a {border-bottom: 1px dotted #81785a;}
+
+/* 7.PAGE ELEMENTS */
+
+/* Introduction */
+p.introduction {width: 98%; color: #8a887d; line-height: 16px; font-size: 14px; font-family: Georgia, "Times New Roman", Times, serif; font-style:italic; display: block;}
+
+/* More content */
+.more {clear: both; border-top: 1px solid #eae9e6; border-bottom: 1px solid #eae9e6; margin: 15px 0px; padding: 1px 0; width: 100%; text-align: right; color: #8a887d; letter-spacing: 1px;}
+.more a {border: none;}
+
+/* RSS Feed */
+a.rss_feed {background:transparent url("https://www.stanford.edu/stanfordmodern/images/rss.png") 0 0 no-repeat; float: right; height:13px; margin: -30px 0 0 0; padding:0; width:13px; border: none;}
+.rss_feed span {position: absolute; left: -9999px; margin:0; padding: 0;}
+a.rss_feed:hover {background:transparent url("https://www.stanford.edu/stanfordmodern/images/rss_over.png") 0 0 no-repeat;}
+
+/* Breadcrumb */
+.breadcrumb {font-size: 0.9em; line-height: 1.3em; height: 1.3em; padding: 0px 0px 2px 0px; border-bottom: 6px solid #820000; margin: 0px 0px 10px 0px;}
+.breadcrumb p { margin: 0; padding: 0; line-height: 15px; color: #3f3c30 }
+.breadcrumb a { text-decoration: none; border-bottom: none; color: #9D9573 }
+.breadcrumb a:hover {color: #820000 }
+
+/* On this Page --------------------------------- */
+#onthispage {padding: 0px; margin: 15px 0px 10px 0px; font-weight: bold;}
+#onthispage h1 {padding: 0px; margin: 0px; font-size: 11px; font-weight: bold;}
+#onthispage ul {list-style: none; padding: 0px; margin: 3px 0px 0px 0px;}
+#onthispage li {list-style: none; display: inline; padding: 0px; margin: 0px; background: transparent;}
+#onthispage li:before {font-weight: normal; content: " | ";}
+#onthispage li:first-child:before {font-weight: normal; content: "";}
+#onthispage a {font-weight: normal;}
+/* For Internet Explorer 6 and below */
+* html #onthispage ul {text-indent: 0px;}
+* html #onthispage li {background-image: none; background-repeat: no-repeat; background-position: 100% 100%; padding: 0px; margin: 0px;}
+* html #onthispage li a {margin: 0px 10px 0px 0px;}
+/* For Internet Explorer 7 */
+*:first-child+html #onthispage ul {text-indent: 0px;}
+*:first-child+html #onthispage li {background-image: none; background-repeat: no-repeat; background-position: 100% 100%; padding: 0px; margin: 0px;}
+*:first-child+html #onthispage li a {margin: 0px 10px 0px 0px;}
+ 
+/* Last Modified */
+.last-modified {clear: both; font-size: 0.9em; padding-top: 2em;}
+
+/* Navigation--------------------------------- */
+#skipnav {position: absolute; left: -1000em; width: 20em; text-align: left;}
+
+/* 8.CSS SUPPORT */
+
+span.clear     {clear: both; display: block; font-size: 0; height: 1px; line-height: 0; margin-bottom: -1px; }
+.clear         {clear: both;}
+.content_clear {clear: both; background: #fff;}
+.clear-block   {display: block; }
+.float-left    {float: left; }
+.float-right   {float: right; }
+.text-left     {text-align: left; }
+.text-right    {text-align: right; }
+.text-center   {text-align: center; }
+.text-justify  {text-align: justify; }
+.bold          {font-weight: bold; }
+.italic        {font-style: italic; }
+.underline     {border-bottom: 1px solid; }
+.highlight     {background: #ffc; }
+.wrap          {width: 960px; margin: 0 auto; }
+.img-left      {float: left; margin: 4px 10px 4px 0; }
+.img-right     {float: right; margin: 4px 0 4px 10px; }
+.nopadding     {padding: 0 }
+.noindent      {margin-left: 0; padding-left: 0 }
+.nobullet      {list-style: none; list-style-image: none; }
+.dropcap       {float: left;margin:0;margin-right: 3px;padding-top: 10px;margin-bottom: 0px;color:#900;font-size: 47px;font-family: georgia, times;width: 30px;height: 25px; margin-top: 3px; }
+.hide          {display: none;}
+body.link1 #link1 a, body.link2 #link2 a, body.link3 #link3 a, body.link4 #link4 a, body.link5 #link5 a, body.link6 #link6 a, body.link7 #link7 a, body.link8 #link8 a, body.link9 #link9 a, body.link10 #link10 a {color: #820000; font-weight: bold;}
+
+.imagetall {margin: 0px 0px 0px -3px; padding: 9px 7px 8px 8px; background-image: url("https://www.stanford.edu/stanfordmodern/images/graphic_tall_underlay.jpg"); background-repeat: no-repeat;}
+.imagewide {margin: 0px 0px 10px -3px; padding: 7px 7px 8px 8px; background-image: url("https://www.stanford.edu/stanfordmodern/images/graphic_wide_underlay.jpg"); background-repeat: no-repeat;}
+
+/* 9.CSS BLOCK IMAGE SETS */
+/* This CSS Block sets the various header images for some common menu lists used on either the left or right hand columns.  
+
+To invoke these styles you must label your navigation lists with one of these specific class names: 
+calendar, computing, contact, document, download, email, faq, forms, medical, people, see-also, video, login, admin, users, search
+  
+NOTE: that these names are case sensitive. */
+
+/* calendar */
+.sidebar .calendar {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/calendar.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* computing */
+.sidebar .computing {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/computing.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* contact-us */
+.sidebar .contact {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/contact_us.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* document */
+.sidebar .document {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/document.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* download */
+.sidebar .download {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/download.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* email */
+.sidebar .email {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/email.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* faq */
+.sidebar .faq {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/faq.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* forms */
+.sidebar .forms {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/form.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* medical */
+.sidebar .medical {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/medical.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* people */
+.sidebar .people {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/people.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* see-also */
+.sidebar .see-also {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/see_also.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* video */
+.sidebar .video {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/video.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* login */
+.sidebar .login {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/login.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* admin/navigate */
+.sidebar .admin, .sidebar .navigate {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/navigate.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* users */
+.sidebar .users {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/users.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+/* search */
+.sidebar .search {padding-top: 70px; background-image: url("https://www.stanford.edu/stanfordmodern/images/icons/search.gif"); background-repeat: no-repeat; margin-left: -4px; padding-left: 4px;}
+
+/* 10.MediaLinks */
+/*********************************************************************/
+/*  MediaLinks Style Sheet created by John Foliot - Stanford Online Accessibility Program         
+/*  Released under Creative Commons Attribution-Share Alike 3.0 United States License           
+/*                                                                                                                                    
+/*  Notes: Providing visual cues to users that a link is  to a document ("PDF, Word, etc.")            
+/*  provides useful decision-making information.  It addresses certain cognitive disabilities 
+/*  and is a best-practices recommendation.  This style sheet checks for file extensions and
+/*  automatically appends an icon after the link.  For even better accessibility, content authors
+/*  should also indicate via the title attribute that the link is to a certain file type:
+/*      <a href ="pathtofile.pdf" title="Links to a PDF file">PDF File [245 kb]</a> 
+/* 
+/*  Current file extensions supported: PDF, DOC, DOCX, XLS, PPT      
+/*
+/*  There are also times when you wish to signal that a link in your document is to a page
+/*  or site external to your website.  To do that, simply add the following class information
+/*  to your link:
+/*     <a href="pathtoexternallink" class="external">The outside site</a>                                                            
+/*                                                                                                      
+/*********************************************************************/
+
+/* External Link */
+a.external {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/external_gray.gif"); background-position: right; background-repeat: no-repeat; padding-right: 18px;}
+a.external:focus, a.external:hover {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/external.gif"); color:#820000;}
+/* PDF */
+a[href$='.pdf'] {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/pdf_gray.gif"); background-position: right; background-repeat: no-repeat; padding-right: 18px;}
+a[href$='.pdf']:focus, a[href$='.pdf']:hover {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/pdf.gif"); color:#820000;}
+/* Word Document */
+a[href$='.doc'] {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/word_gray.gif"); background-position: right; background-repeat: no-repeat; padding-right: 18px;}
+a[href$='.doc']:focus, a[href$='.doc']:hover {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/word.gif"); color:#820000;}
+a[href$='.docx'] {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/word_gray.gif"); background-position: right; background-repeat: no-repeat; padding-right: 18px;}
+a[href$='.docx']:focus, a[href$='.docx']:hover {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/word.gif"); color:#820000;}
+/* Excel Spreadsheet */
+a[href$='.xls'] {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/excel_gray.gif"); background-position: right; background-repeat: no-repeat; padding-right: 18px;}
+a[href$='.xls']:focus, a[href$='.xls']:hover {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/excel.gif"); color:#820000;}
+/* Powerpoint Presentation */
+a[href$='.ppt'] {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/ppt_gray.gif"); background-position: right; background-repeat: no-repeat; padding-right: 18px;}
+a[href$='.ppt']:focus, a[href$='.ppt']:hover {background-image: url("https://www.stanford.edu/stanfordmodern/images/medialinks/ppt.gif"); color:#820000;}
+
+/* 11.Advanced Styles */
+
+/* Topic Page */
+body.topic .breadcrumb {border: 0px; margin: 0px 0px 2px 0px; padding: 0px;}
+body.wide .topic_content {width: 55%;}
+.topic_section {clear: both; width: 100%; border-top: 6px solid #820000; margin: 0 0 10px 0; padding: 10px 0px; font-size: 0.9em;}
+.topic_section img {float: left; margin: -3px 0px 20px -3px; padding: 7px; background-image: url("https://www.stanford.edu/stanfordmodern/images/content_image_bg.jpg"); background-repeat: no-repeat;}
+.topic_content {float: left; margin: 0px 0px 10px 10px; width: 260px; background-color: #f8f3e5; min-height: 117px }
+.topic_content h3 {margin: 10px 0px 0.5em 10px; color: #000;}
+.topic_content p {margin: 0px 10px 1em 10px;}
+.topic_links {float: left; margin: 0px 0px 0px 10px; padding: 10px 0px 5px 15px; min-height: 100px; border-left: 1px solid #eae9e6 }
+.topic_links li {padding-bottom: 4px; list-style-image: url("https://www.stanford.edu/stanfordmodern/images/raquo.gif"); line-height: 14px;}
+
+/* Portal Page */
+body.portal #sidebar-right {background-image: none; padding-bottom: 0px;}
+#portal_left  {float: left; width: 159px; margin: 0px 0px 15px 0px; padding: 0px 15px 0px 0px; font-size: 0.9em;}
+#portal_left h2 {font-size: 1em; line-height: 1.3em; color: #820000; margin: 0px 0px 8px 0px; padding: 0px 0px 2px 0px; border-bottom: 6px solid #820000; letter-spacing: 2px; font-weight: normal; text-transform: uppercase;}
+#portal_left .more {font-size: 0.9em;}
+#portal_center { margin: 0; padding: 0 0 0 15px; float: left; width: 576px;  border-left: 1px solid #eae9e6; font-size: 0.9em;}
+#portal_center h2 {font-size: 1em; line-height: 1.3em; color: #820000; margin: 0px 0px 8px 0px; padding: 0px 0px 2px 0px; border-bottom: 6px solid #820000; letter-spacing: 2px; font-weight: normal; text-transform: uppercase;}
+#portal_center .more {font-size: 0.9em;}
+
+/* Style for spotlight feature image - determines distance between photo and background drop shadow */
+.image_banner {margin: 0px 0px 15px -3px; padding: 10px; border: none; background: url("https://www.stanford.edu/stanfordmodern/images/banner_back.gif") 0px 0px no-repeat;}
+/* Style for news images - determines distance between photo and background drop shadow */
+.image_news {margin: 0px 0px 10px 0px; padding: 10px; border: none; background: url("https://www.stanford.edu/stanfordmodern/images/news_back.gif") 0px 0px no-repeat;}
+
+/* Event Section */
+#event_section {margin: 0px 0px 15px 0px; padding: 0px;}
+#event_section h3 {margin: 0px; padding: 0px;}
+#event_section .event_container {margin: 0px; padding: 0px;}
+#event_section .event_list {margin: 0px 0px 0px 40px; padding: 0px; border-left: 1px solid #eae9e6;}
+#event_section .event_list p {margin: 0px 0px 15px 1px; padding: 0px 0px 0px 10px; background: #fff;}
+#event_section .event_time {display: block; color: #820000; margin: 2px 0px 0px 0px;}
+#event_section .event_month {clear: left; float: left; color: #820000; font-size: 11px; display: block; font-family: Georgia,Times New Roman,Times; margin: 0px;}
+#event_section .event_day {clear: left; float: left; font-family: Georgia,Times New Roman,Times; font-size: 21px; line-height: 21px; color: #565347;}
+
+/* News Section */
+#news_section {float: left; width: 400px; margin: 0px 0px 15px 0px; padding: 0px 15px 0px 0px; border-right: 1px solid #e6e4db }
+#news_section h3 {margin: 0.25em 0px 0.5em 0px;}
+#news_section h3 a { color: #3F3C30 }
+#news_section p { font-size: 1.1em; }
+#news_section hr {margin: 0px 0px 1em 0px;}
+#news_section a:hover { color: #820000 }
+img.image_news {clear: left; float: left; margin: 0px 10px 10px 0px;}
+
+/* Seal Section */
+#seal {float: right; width: 150px; height: 320px; padding: 0px; margin: 0px; background: url("https://www.stanford.edu/stanfordmodern/images/seal.jpg") 50% 50% no-repeat;}
+
+/* Slideshow Section */
+#slideshow_section { float: left; position: relative; /* important */ overflow: hidden; /* important */ width: 486px; /* important */ height: 180px; /* important */ background-color: #f6f3e5 }
+#slideshow_content { position: absolute; width: 5418px; top: 15px; margin-left: 161px; height: 160px; overflow: hidden }
+#slideshow_content li { display: block; list-style: none; float: left; margin: 5px 5px 5px 5px; height: 160px }
+#slideshow_content h2 { letter-spacing: 2px }
+#slideshow_content h3 { font-family: Arial, Helvetica, sans-serif; font-size: 12px; width: 135px; text-align: center; line-height: 18px }
+#slideshow_content img { display: block; padding: 5px; border: 1px solid #eee; background-color: #fff; margin-bottom: 10px }
+
+#slideshow_previous { margin-top: 75px; float: left; z-index: 1 }
+#slideshow_next { margin-top: 75px; float: left; z-index: 1 }
+#slideshow_container { background: #f6f3e5; padding-left: 10px; margin-top: 10px }
+
+/* 12.Print CSS - remove red banner body background for multi-page print */
+@media print {
+#layout {background-image: none;}
+#sidebar-left, #sidebar-right {border: 0px;}
+}
