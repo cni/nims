@@ -1,7 +1,8 @@
 var lastClickedIndex = "lastClickedIndex";
 var shiftBoundaryIndex = "shiftBoundaryIndex";
 
-function toggleActivation(a) {
+function toggleActivation(a)
+{
 	if (a.hasClass('ui-selected')) {
 		a.removeClass('ui-selected');
 	} else {
@@ -85,7 +86,7 @@ function compare(a, b) {
       return 0;
    else
       return 1;
-}
+};
 
 function sortTable(element, direction) {
     indexOfColumn = element.closest('thead').find('th').index(element);
@@ -109,7 +110,7 @@ function setupDraggable(source, target) {
         drag: function(event) {
             if (!$(this).hasClass('ui-selected')) { return false; }},
         helper: function(event) {
-            return $('<div style="background-color:red";>FUCK YOU</div>');
+            return $('<div style="background-color:red"><div>ONE DIV</div><div>TWO DIV</div><div>THREE DIV</div></div>');
         },
         appendTo: 'body',
     });
