@@ -107,10 +107,20 @@ function blurOnEnter(event)
 
 function setupDraggable(source, target) {
     source.draggable({
-        drag: function(event) {
-            if (!$(this).hasClass('ui-selected')) { return false; }},
+        drag: function(event, ui) {
+            if (!$(this).hasClass('ui-selected'))
+            {
+                return false;
+            }
+        },
+        cursorAt: {top: 0, left: 0},
         helper: function(event) {
-            return $('<div><table class="blah"></table></div>').append($("#sessions tbody tr").clone());
+            tableClone = $('<table></table>').append($("#sessions tbody tr").clone());
+            unselectedRows = tableClone.find("tr:not(.ui-selected)").hide();
+            //unselectedRows.find('td').text(' '); // do visibility hidden instead of this and the next row?
+            //unselectedRows.height($("#sessions tbody tr").height());
+            tableClone.width($("#sessions tbody tr").width());
+            return tableClone;
         },
         appendTo: 'body',
     });
@@ -119,6 +129,7 @@ function setupDraggable(source, target) {
 function setupDroppable(source, target) {
     target.droppable({
         hoverClass: 'bloop',
+        tolerance: "pointer",
         drop: function(event, ui) {
             alert('row dropped ' + $(this).text());
         },
@@ -218,7 +229,7 @@ function refreshSessionList()
                 table_body.append(makeSessionRow(data[i]));
             }
             $(".sess_detail").click(refreshEpochList); // set callbacks on new expand buttons for epoch table
-            setupDraggable($("#sessions tbody tr"), $("#t1 tr"));
+            setupDraggable($("#sessions tbody tr"), $("#experiments tbody tr"));
             $("#sessions tbody tr").mouseup(singleRowSelect);
             $("#sessions tbody tr").mousedown(multiRowSelect);
         },

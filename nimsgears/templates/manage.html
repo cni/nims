@@ -32,8 +32,8 @@
 
     $(document).ready(function() {
       setupCallbacks();
-      setupDraggable($("#t2 tr"), $("#t1 tr"));
-      setupDroppable($("#t2 tr"), $("#t1 tr"));
+      setupDraggable($("#sessions tbody tr"), $("#experiments tbody tr"));
+      setupDroppable($("#sessions tbody tr"), $("#experiments tbody tr"));
       $("th").click(function() { sortTable($(this), 1);});
     }); // document ready
 
