@@ -110,7 +110,7 @@ function setupDraggable(source, target) {
         drag: function(event) {
             if (!$(this).hasClass('ui-selected')) { return false; }},
         helper: function(event) {
-            return $('<div style="background-color:red"><div>ONE DIV</div><div>TWO DIV</div><div>THREE DIV</div></div>');
+            return $('<div><table class="blah"></table></div>').append($("#sessions tbody tr").clone());
         },
         appendTo: 'body',
     });
