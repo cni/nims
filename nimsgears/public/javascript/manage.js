@@ -1,3 +1,64 @@
+var lastClickedIndex = "lastClickedIndex";
+var shiftBoundaryIndex = "shiftBoundaryIndex";
+
+function toggleActivation(a) {
+	if (a.hasClass('ui-selected')) {
+		a.removeClass('ui-selected');
+	} else {
+		a.addClass('ui-selected');
+	}
+};
+
+function setActivation(row_list, a, b, turnOn)
+{
+	if (a == b) {
+		subset = $(row_list[a]);
+	} else if (a < b) {
+		subset = row_list.slice(a, b + 1);
+	} else if (a > b) {
+		subset = row_list.slice(b, a + 1);
+	}
+	if (turnOn) {
+		subset.addClass('ui-selected');
+	} else {
+		subset.removeClass('ui-selected');
+	}
+};
+
+function singleRowSelect(event)
+{
+	if (!(event.shiftKey || event.metaKey)) {
+        row = $(this);
+        table = row.closest("table");
+        row_list = row.closest("tbody").find("tr");
+		indexClicked = row_list.index(row);
+        table.data(lastClickedIndex, indexClicked);
+        table.data(shiftBoundaryIndex, indexClicked);
+		row_list.removeClass('ui-selected');
+		row.addClass('ui-selected');
+	}
+};
+
+function multiRowSelect(event)
+{
+    row = $(this);
+	if (event.shiftKey) {
+        table = row.closest("table");
+        row_list = row.closest("tbody").find("tr");
+		indexClicked = row_list.index(row);
+        last = table.data(lastClickedIndex);
+        bound = table.data(shiftBoundaryIndex);
+
+		if (last != indexClicked) {
+			setActivation(row_list, last, bound, false);
+			setActivation(row_list, last, indexClicked, true);
+			bound = indexClicked;
+		}
+	} else if (event.metaKey) {
+		toggleActivation(row);
+	}
+};
+
 function makeSessionRow(sessionTuple)
 {
     var sessionRow = document.createElement('tr');
@@ -45,9 +106,12 @@ function blurOnEnter(event)
 
 function setupDraggable(source, target) {
     source.draggable({
+        drag: function(event) {
+            if (!$(this).hasClass('ui-selected')) { return false; }},
         helper: function(event) {
             return $('<div style="background-color:red";>FUCK YOU</div>');
         },
+        appendTo: 'body',
     });
 };
 
@@ -126,7 +190,7 @@ function refreshEpochList()
             id: sess_id
         },
         success: function(data) {
-            var table_body = $("#epochs").children('tbody');
+            var table_body = $("#epochs tbody");
             table_body.children().remove();
             for (var i = 0; i < data.length; i++) {
                 table_body.append(makeEpochRow(data[i]));
@@ -146,19 +210,23 @@ function refreshSessionList()
             id: exp_id
         },
         success: function(data) {
-            $("#epochs").children('tbody').children().remove(); // clean up epoch table
-            var table_body = $("#sessions").children('tbody');
+            $("#epochs tbody").children().remove(); // clean up epoch table
+            var table_body = $("#sessions tbody");
             table_body.children().remove(); // clean up session table
             for (var i = 0; i < data.length; i++) { // repopulate session table
                 table_body.append(makeSessionRow(data[i]));
             }
             $(".sess_detail").click(refreshEpochList); // set callbacks on new expand buttons for epoch table
-            //setupDraggable($("#t2 tr"), $("#t1 tr"));
+            setupDraggable($("#sessions tbody tr"), $("#t1 tr"));
+            $("#sessions tbody tr").mouseup(singleRowSelect);
+            $("#sessions tbody tr").mousedown(multiRowSelect);
         },
     }); // ajax call
 };
 
 function setupCallbacks()
 {
+    $("table.manage").data(lastClickedIndex,0);
+    $("table.manage").data(shiftBoundaryIndex,0);
     $(".exp_detail").click(refreshSessionList);
 };

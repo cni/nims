@@ -4,27 +4,24 @@
       xmlns:py="http://genshi.edgewall.org/"
       xmlns:xi="http://www.w3.org/2001/XInclude">
 
-  <xi:include href="master.html" />
+<xi:include href="master.html" />
 
 <head>
   <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
   <title>NIMS</title>
 
-    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
-    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
-  <!--<script type="text/javascript" src="${tg.url('/javascript/jquery.js')}"></script>>
-  <script type="text/javascript" src="${tg.url('/javascript/tablesorter.js')}"></script>
-  <script type="text/javascript" src="${tg.url('/javascript/tablesorter_filter.js')}"></script>
-  <script type="text/javascript" src="${tg.url('/javascript/uicore.js')}"></script>-->
+  <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+  <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
   <script type="text/javascript" src="${tg.url('/javascript/manage.js')}"></script>
   <style>
     #feedback { font-size: 1.4em; }
-    tr .ui-selecting { background: #FECA40; }
-    tr .ui-selected { background: #F39814; color: white; }
+    tr.odd.ui-selected { background-color: red; }
+    tr.ui-selected { background-color: #F39814; color: white; }
+    tr.odd { background-color: gray; }
     tr { list-style-type: none; margin: 0; padding: 0; width: 60%; }
-  .bloop {
-      background-color:red;
-  }
+    .bloop {
+        background-color:red;
+    }
   </style>
 
   <script type="text/javascript">
@@ -35,8 +32,8 @@
 
     $(document).ready(function() {
       setupCallbacks();
-      //setupDraggable($("#t2 tr"), $("#t1 tr"));
-      //setupDroppable($("#t2 tr"), $("#t1 tr"));
+      setupDraggable($("#t2 tr"), $("#t1 tr"));
+      setupDroppable($("#t2 tr"), $("#t1 tr"));
       $("th").click(function() { sortTable($(this), 1);});
     }); // document ready
 
@@ -54,7 +51,7 @@
   <tr>
   <td style="vertical-align:top; width:20%;">
 
-    <table id="experiments" class="tablesorte" border="0" cellpadding="0" cellspacing="1">
+    <table id="experiments" class="manage" border="0" cellpadding="0" cellspacing="1">
       <thead height = "50">
         <tr>
         <th py:for="col in columns">${col}</th>
@@ -74,7 +71,7 @@
   </td>
   <td style="vertical-align:top; width:40%;">
 
-    <table id="sessions" class="tablesorte" border="0" cellpadding="0" cellspacing="1">
+    <table id="sessions" class="manage" border="0" cellpadding="0" cellspacing="1">
       <thead height = "50">
         <tr>
         <th py:for="col in session_columns">${col}</th>
@@ -88,7 +85,7 @@
   </td>
   <td style="vertical-align:top; width:40%;">
 
-    <table id="epochs" class="tablesorte" border="0" cellpadding="0" cellspacing="1">
+    <table id="epochs" class="manage" border="0" cellpadding="0" cellspacing="1">
       <thead height = "50">
         <tr>
           <th py:for="col in epoch_columns">${col}</th>

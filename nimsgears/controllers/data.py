@@ -195,7 +195,7 @@ class AuthDataController(DataController):
         user = request.identity['user']
 
         def summarize_exp(experiment, access):
-            return (experiment.id, experiment.owner.name, experiment.name, access)
+            return (experiment.id, experiment.owner.id, experiment.name, access)
 
         exp_list = []
         exp_list.extend([summarize_exp(item.Experiment, 'pi') for item in
