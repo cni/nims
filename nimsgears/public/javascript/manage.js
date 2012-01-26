@@ -107,20 +107,18 @@ function blurOnEnter(event)
 
 function setupDraggable(source, target) {
     source.draggable({
-        drag: function(event, ui) {
-            if (!$(this).hasClass('ui-selected'))
+        start: function(event, ui)
+        {
+            if (!$(event.target).closest("tr").hasClass('ui-selected'))
             {
                 return false;
             }
         },
-        cursorAt: {top: 0, left: 0},
-        helper: function(event) {
-            tableClone = $('<table></table>').append($("#sessions tbody tr").clone());
-            unselectedRows = tableClone.find("tr:not(.ui-selected)").hide();
-            //unselectedRows.find('td').text(' '); // do visibility hidden instead of this and the next row?
-            //unselectedRows.height($("#sessions tbody tr").height());
-            tableClone.width($("#sessions tbody tr").width());
-            return tableClone;
+        helper: function()
+        {
+            table = $("<table></table>").append($(this).clone()).width($("#sessions tbody").width());
+            table.find("tr:not(.ui-selected)").css("visibility","hidden");
+            return table;
         },
         appendTo: 'body',
     });
@@ -229,7 +227,24 @@ function refreshSessionList()
                 table_body.append(makeSessionRow(data[i]));
             }
             $(".sess_detail").click(refreshEpochList); // set callbacks on new expand buttons for epoch table
-            setupDraggable($("#sessions tbody tr"), $("#experiments tbody tr"));
+            $("#sessions tbody").draggable({
+                start: function(event, ui)
+                {
+                    if (!$(event.target).closest("tr").hasClass('ui-selected'))
+                    {
+                        return false;
+                    }
+                },
+                helper: function()
+                {
+                    table = $("<table></table>").append($(this).clone()).width($("#sessions tbody").width());
+                    table.find("tr:not(.ui-selected)").css("visibility","hidden");
+                    return table;
+                },
+                appendTo: 'body',
+                }
+            );
+            setupDraggable($("#sessions tbody"), $("#experiments tbody tr"));
             $("#sessions tbody tr").mouseup(singleRowSelect);
             $("#sessions tbody tr").mousedown(multiRowSelect);
         },
