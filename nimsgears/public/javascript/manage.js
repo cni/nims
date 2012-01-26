@@ -43,20 +43,25 @@ function singleRowSelect(event)
 function multiRowSelect(event)
 {
     row = $(this);
+    table = row.closest("table");
+    row_list = row.closest("tbody").find("tr");
+    indexClicked = row_list.index(row);
 	if (event.shiftKey) {
-        table = row.closest("table");
-        row_list = row.closest("tbody").find("tr");
-		indexClicked = row_list.index(row);
         last = table.data(lastClickedIndex);
         bound = table.data(shiftBoundaryIndex);
 
 		if (last != indexClicked) {
 			setActivation(row_list, last, bound, false);
 			setActivation(row_list, last, indexClicked, true);
-			bound = indexClicked;
+			table.data(shiftBoundaryIndex, indexClicked);
 		}
 	} else if (event.metaKey) {
 		toggleActivation(row);
+        if (row.hasClass('ui-selected'))
+        {
+            last = table.data(lastClickedIndex, indexClicked);
+            bound = table.data(shiftBoundaryIndex, indexClicked);
+        }
 	}
 };
 
@@ -113,6 +118,15 @@ function setupDraggable(source, target) {
             {
                 return false;
             }
+            else
+            {
+                $("#sessions tbody tr.ui-selected").css("visibility", "hidden");
+            }
+
+        },
+        stop: function(event, ui)
+        {
+            $("#sessions tbody tr.ui-selected").css("visibility", "visible");
         },
         helper: function()
         {
@@ -129,7 +143,7 @@ function setupDroppable(source, target) {
         hoverClass: 'bloop',
         tolerance: "pointer",
         drop: function(event, ui) {
-            alert('row dropped ' + $(this).text());
+            $("#sessions tbody tr.ui-selected").remove();
         },
         accept: source.selector
     });
