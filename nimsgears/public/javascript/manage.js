@@ -120,13 +120,15 @@ function setupDraggable(source, target) {
             }
             else
             {
-                $("#sessions tbody tr.ui-selected").css("visibility", "hidden");
+                source.find(".ui-selected").css("visibility", "hidden");
+                //$("#sessions tbody tr.ui-selected").css("visibility", "hidden");
             }
 
         },
         stop: function(event, ui)
         {
-            $("#sessions tbody tr.ui-selected").css("visibility", "visible");
+            source.find(".ui-selected").css("visibility", "visible");
+            //$("#sessions tbody tr.ui-selected").css("visibility", "visible");
         },
         helper: function()
         {
@@ -143,7 +145,31 @@ function setupDroppable(source, target) {
         hoverClass: 'bloop',
         tolerance: "pointer",
         drop: function(event, ui) {
-            $("#sessions tbody tr.ui-selected").remove();
+            selected_rows = $("#sessions tbody tr.ui-selected");
+            sess_id_list = Array();
+            selected_rows.each(function() { sess_id_list.push(this.id.split('_')[1]); });
+            target_exp_id = this.id.split("_")[1];
+            $.ajax({
+                type: 'POST',
+                url: "transfer_sessions",
+                dataType: "json",
+                data:
+                {
+                    sess_id_list: sess_id_list,
+                    exp_id: target_exp_id
+                },
+                success: function(data)
+                {
+                        if (data.success)
+                        {
+                            selected_rows.remove();
+                        }
+                        else
+                        {
+                            alert("Transfer failed to commit.");
+                        }
+                },
+            }); // ajax call
         },
         accept: source.selector
     });

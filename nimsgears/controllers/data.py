@@ -190,6 +190,24 @@ class AuthDataController(DataController):
 
         return json.dumps(epoch_list)
 
+    @expose()
+    def transfer_sessions(self, **kwargs):
+        """ Queries DB given info found in POST, TODO perhaps verify access level another time here??
+        """
+        # STILL NEED TO IMPLEMENT ACCESS CHECKING TODO
+        # FOR NOW, JUST TRANSFERRING WITHOUT A CHECK SO I CAN DEMONSTRATE CONCEPT FIXME
+        sess_id_list = [int(item) for item in kwargs["sess_id_list[]"]]
+        exp_id = int(kwargs["exp_id"])
+
+        exp = DBSession.query(Experiment).filter_by(id = exp_id).one()
+        sess_list = DBSession.query(Session).filter(Session.id.in_(sess_id_list)).all()
+        for session in sess_list:
+            session.experiment = exp
+
+        transaction.commit()
+
+        return json.dumps({"success":True})
+
     @expose('nimsgears.templates.manage')
     def manage(self):
         user = request.identity['user']
