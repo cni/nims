@@ -6,6 +6,7 @@ NIMS is a scientific data management system, specifically designed for neuroimag
 
 NIMS Development on Ubuntu
 --------------------------
+
 Set up a virtual python environment:
 
     sudo apt-get install build-essential python-dev python-setuptools python-virtualenv
@@ -49,10 +50,11 @@ Set up a virtual python environment:
 
 Clone NIMS from GitHub and install its dependencies:
 
-    cd /usr/local/www/apache22
-    git clone git@github.com:cni/nims.git
     easy_install -i http://tg.gy/current/index/ TurboGears2
-    python nims/setup.py develop
+    cd /usr/local/www/apache22
+    git clone git://github.com/cni/nims.git
+    cd nims
+    python setup.py develop
 
 Add PostgreSQL and LDAP support:
 
@@ -68,8 +70,11 @@ Configure and restart Apache:
 
 License
 -------
+
 Copyright (c) 2012 Robert Dougherty
+
 Copyright (c) 2012 Gunnar Schaefer
+
 Copyright (c) 2012 Reno Bowen
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
