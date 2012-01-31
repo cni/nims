@@ -173,6 +173,10 @@ class ResearchGroup(Entity):
     def __unicode__(self):
         return self.name or self.id
 
+    @classmethod
+    def get_all_ids(cls):
+        return [rg.id for rg in cls.query.all()]
+
 
 class Message(Entity):
 
