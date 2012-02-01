@@ -2,3 +2,5 @@
 *.py[co]
 *.egg-info
 *.sqlite
+production.ini
+nimsutil/pfreader.py

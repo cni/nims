@@ -13,9 +13,6 @@ import datetime
 import tempfile
 import logging, logging.handlers
 
-TAG_PSD_NAME =          (0x0019, 0x109c)
-TAG_PHYSIO_FLAG =       (0x0019, 0x10ac)
-
 
 class TempDirectory:
 
@@ -36,26 +33,6 @@ class TempDirectory:
     def __exit__(self, type, value, traceback):
         """Remove temporary directory tree."""
         shutil.rmtree(self.temp_dir)
-
-
-def psd_name(header):
-    return unicode(os.path.basename(header[TAG_PSD_NAME].value)) if TAG_PSD_NAME in header else u'unknown'
-
-
-def physio_flag(header):
-    return (header[TAG_PHYSIO_FLAG].value)
-
-
-def acq_date(header):
-    if 'AcquisitionDate' in header: return header.AcquisitionDate
-    elif 'StudyDate' in header:     return header.StudyDate
-    else:                           return '19000101'
-
-
-def acq_time(header):
-    if 'AcquisitionTime' in header: return header.AcquisitionTime
-    elif 'StudyTime' in header:     return header.StudyTime
-    else:                           return '000000'
 
 
 def get_logger(name, filename=None, level='debug'):
@@ -85,31 +62,20 @@ def get_logger(name, filename=None, level='debug'):
     return logger
 
 
-def parse_subject(name, dob, known_subjects):
-    """
-    """
-    #lab_info = patient_id.lower().split('/', 1)
-    #lab_id = clean_string(lab_info[0])
-    #exp_id = clean_string(lab_info[1]) if len(lab_info) > 1 else ''
-
-    #lab_id_matches = difflib.get_close_matches(lab_id, known_ids, cutoff=0.8)
-    #if len(lab_id_matches) == 1:
-    #    lab_id = lab_id_matches[0]
-    #else:
-    #    exp_id = lab_id + '/' + exp_id
-    #    lab_id = 'unknown'
-    #return (unicode(lab_id), unicode(exp_id))
-
-
+def parse_subject(name, dob):
     lastname, firstname = name.split('^') if '^' in name else ('', '')
-    dob = datetime.datetime.strptime(dob, '%Y%m%d') if dob else None
-
-    return (unicode(lastname.capitalize()), unicode(firstname.capitalize()), dob)
+    try:
+        dob = datetime.datetime.strptime(dob, '%Y%m%d')
+        if dob < datetime.datetime(1900, 1, 1):
+            raise ValueError
+    except:
+        dob = None
+    return (unicode(firstname.capitalize()), unicode(lastname.capitalize()), dob)
 
 
 def parse_patient_id(patient_id, known_ids):
     """
-    Accept a nims formatted patient id and return lab id and experiment id.
+    Accept a NIMS-formatted patient id and return lab id and experiment id.
 
     For example:
         wandell/multiclass returns ('wandell', 'multiclass')
@@ -202,7 +168,7 @@ def update_reference_datetime(datetime_file, new_datetime):
 
 def ldap_query(uid):
     ldap_uri = 'ldap://ldap.stanford.edu'
-    ldap_base = 'dc=stanford,dc=edu'
+    ldap_base = 'dc=stanford,dc=edu'        # subtrees 'cn=people' and 'cn=accounts' exist, but we search all trees
     ldap_attrs = ['displayName', 'mail']
     try:
         import ldap
