@@ -216,8 +216,6 @@ class AuthDataController(DataController):
             return (experiment.id, experiment.owner.id, experiment.name, access)
 
         exp_list = []
-        exp_list.extend([summarize_exp(item.Experiment, 'pi') for item in
-            DBSession.query(Experiment, ResearchGroup).join(ResearchGroup).filter(ResearchGroup.pis.contains(user)).all()])
         access_levels = ['mg', 'rw']
         for access_level in access_levels:
             privilege = AccessPrivilege.query.filter_by(name=access_level).one()

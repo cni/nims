@@ -19,7 +19,7 @@
     tr.ui-selected { background-color: #F39814; color: white; }
     tr.odd { background-color: gray; }
     tr { list-style-type: none; margin: 0; padding: 0; width: 60%; }
-    .bloop {
+    .dragHover {
         background-color:red;
     }
   </style>
@@ -55,27 +55,24 @@
       <thead height = "50">
         <tr>
         <th py:for="col in columns">${col}</th>
-        <th>Expand</th>
         </tr>
       </thead>
       <tbody id="t1">
         <py:for each="exp in exp_list">
           <tr id="exp_${exp[0]}"> <!-- set id for expand queries done on rows later -->
                 <td py:for="param in exp[1:]">${param}</td>
-                <td><span class="exp_detail"> >> </span></td>
           </tr>
         </py:for>
       </tbody>
     </table>
 
   </td>
-  <td style="vertical-align:top; width:40%;">
+  <td style="vertical-align:top; width:30%;">
 
     <table id="sessions" class="manage" border="0" cellpadding="0" cellspacing="1">
       <thead height = "50">
         <tr>
         <th py:for="col in session_columns">${col}</th>
-        <th>Expand</th>
         </tr>
       </thead>
       <tbody id="t2">
@@ -83,7 +80,7 @@
     </table>
 
   </td>
-  <td style="vertical-align:top; width:40%;">
+  <td style="vertical-align:top;">
 
     <table id="epochs" class="manage" border="0" cellpadding="0" cellspacing="1">
       <thead height = "50">
