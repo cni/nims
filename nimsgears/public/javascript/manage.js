@@ -283,9 +283,7 @@ function makeEpochRow(epochTuple)
 function refreshEpochList(session_row)
 {
     var table_body;
-    var toggle;
     table_body = $("#epochs tbody");
-    toggle = (table_body.closest('table').css('display') == 'none') ? true : false;
     if (session_row)
     {
         var sess_id = session_row.attr('id').split('_')[1];
@@ -305,27 +303,20 @@ function refreshEpochList(session_row)
                 {
                     table_body.append(makeEpochRow(data[i]));
                 }
-
-                if (toggle)
-                {
-                    table_body.closest('table').toggle('slide');
-                }
+                toggleObject(table_body.closest('table'), true);
             },
         }); // ajax call
     }
     else
     {
+        toggleObject(table_body.closest('table'), false);
         table_body.children().remove();
-        if (!toggle)
-        {
-            table_body.closest('table').toggle('slide');
-        }
     }
 };
 
 function refreshSessionList(experiment_row)
 {
-    var table_body;
+    var table_body = $("#sessions tbody");
     if (experiment_row)
     {
         var exp_id = experiment_row.attr('id').split('_')[1];
@@ -338,27 +329,38 @@ function refreshSessionList(experiment_row)
             success: function(data)
             {
                 refreshEpochList(null);
-                table_body = refreshSessionList(null);
+                table_body.children().remove();
                 for (var i = 0; i < data.length; i++) // repopulate session table
                 {
                     table_body.append(makeSessionRow(data[i]));
                 }
+
+                var sessionRows = $("#sessions tbody tr");
                 setupDraggable($("#sessions tbody"), $("#experiments tbody tr"));
-                $("#sessions tbody tr").mouseup(singleRowSelect);
-                $("#sessions tbody tr").mouseup(session_MouseUp);
-                $("#sessions tbody tr").mousedown(multiRowSelect);
-                $("#sessions tbody tr").mousedown(session_MouseDown);
+                sessionRows.mouseup(singleRowSelect);
+                sessionRows.mouseup(session_MouseUp);
+                sessionRows.mousedown(multiRowSelect);
+                sessionRows.mousedown(session_MouseDown);
+                toggleObject(table_body.closest('table'), true);
             },
-        }); // ajax call
+        });
     }
     else
     {
         refreshEpochList(null);
-        table_body = $("#sessions tbody");
+        toggleObject(table_body.closest('table'), false);
         table_body.children().remove(); // clean up session table
     }
-    return table_body
 };
+
+function toggleObject(object, makeVisible)
+{
+    objectVisible = object.css('display') != 'none';
+    if ((makeVisible & !objectVisible) || (!makeVisible & objectVisible))
+    {
+        object.toggle('slide');
+    }
+}
 
 function setupCallbacks()
 {

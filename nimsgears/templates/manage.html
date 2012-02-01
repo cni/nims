@@ -22,6 +22,8 @@
     .dragHover {
         background-color:red;
     }
+    #sessions { display: none; }
+    #epochs { display: none; }
   </style>
 
   <script type="text/javascript">
@@ -33,7 +35,7 @@
     $(document).ready(function() {
       setupCallbacks();
       setupDraggable($("#sessions tbody"), $("#experiments tbody tr"));
-      setupDroppable($("#sessions tbody"), $("#experiments tbody tr"));
+      setupDroppable($("#sessions tbody"), $("#experiments tbody tr"), dropSessionsOnExperiment);
       $("th").click(function() { sortTable($(this), 1);});
     }); // document ready
 
