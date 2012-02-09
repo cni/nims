@@ -137,15 +137,19 @@ class AuthDataController(DataController):
     def session_query(self, **kwargs):
         """ Queries DB given info found in POST, TODO perhaps verify access level another time here??
         """
-        def summarize_sess(session):
-            return (session.id, session.mri_exam, session.subject.lastname, session.subject.firstname)
+        user = request.identity['user']
+
+        def summarize_sess(session, exp):
+            return (session.id, session.mri_exam, unicode(session.subject) if exp else 'Anonymous')
 
         try:
             exp_id = int(kwargs['id'])
         except:
             exp_id = -1
 
-        sess_list = ([summarize_sess(item.Session) for item in
+        privilege = AccessPrivilege.query.filter_by(name = u'ar').first()
+        exp = DBSession.query(Experiment).join('accesses', 'privilege').filter(Experiment.id == exp_id).filter(Access.user == user).filter(AccessPrivilege.value > privilege.value).first()
+        sess_list = ([summarize_sess(item.Session, exp) for item in
             DBSession.query(Session, Experiment).join('experiment').filter(Experiment.id == exp_id).all()])
 
         return json.dumps(sess_list)
@@ -178,7 +182,7 @@ class AuthDataController(DataController):
         """ Queries DB given info found in POST, TODO perhaps verify access level another time here??
         """
         def summarize_epoch(epoch, sess_id):
-            return (epoch.id, epoch.mri_series, epoch.mri_acq, epoch.mri_desc, sess_id)
+            return (epoch.id, "%2d/%2d" % (epoch.mri_series, epoch.mri_acq), epoch.mri_desc)
 
         try:
             sess_id = int(kwargs['id'])
@@ -196,7 +200,13 @@ class AuthDataController(DataController):
         """
         # STILL NEED TO IMPLEMENT ACCESS CHECKING TODO
         # FOR NOW, JUST TRANSFERRING WITHOUT A CHECK SO I CAN DEMONSTRATE CONCEPT FIXME
-        sess_id_list = [int(item) for item in kwargs["sess_id_list[]"]]
+
+        sess_id_list = kwargs["sess_id_list"]
+        if isinstance(sess_id_list, list):
+            sess_id_list = [int(item) for item in kwargs["sess_id_list"]]
+        else:
+            sess_id_list = [sess_id_list]
+        print sess_id_list
         exp_id = int(kwargs["exp_id"])
 
         exp = DBSession.query(Experiment).filter_by(id = exp_id).one()
@@ -212,21 +222,32 @@ class AuthDataController(DataController):
     def manage(self):
         user = request.identity['user']
 
-        def summarize_exp(experiment, access):
-            return (experiment.id, experiment.owner.id, experiment.name, access)
-
-        exp_list = []
-        access_levels = ['mg', 'rw']
+        exp_dict_dict = {} # exp_dict by access level
+        access_levels = ['mg', 'rw', 'ro', 'ar']
         for access_level in access_levels:
+            exp_dict = {} # exp by exp_id
             privilege = AccessPrivilege.query.filter_by(name=access_level).one()
-            exp_list.extend([summarize_exp(item.Experiment, privilege.description) for item in
-                DBSession.query(Experiment, Access).join(Access).filter(Access.user == user).filter(Access.privilege == privilege).all()])
+            db_item_list = DBSession.query(Experiment, Access).join(Access).filter(Access.user == user).filter(Access.privilege == privilege).all()
+            for db_item in db_item_list:
+                exp = db_item.Experiment
+                exp_dict[exp.id] = (exp.owner.id, exp.name)
+            exp_dict_dict[access_level] = exp_dict
 
-        columns = ['Owner', 'Name', 'Access']
-        session_columns = ['MRI Exam', 'Subject Last Name', 'Subject First Name']
-        epoch_columns = ['Series #', 'Acquisition #', 'Description', 'Session ID']
-        epoch_columns_flags = [0, 0, 1, 0]
+        user_list = [ usr.id for usr in User.query.all()]
+
+        # FIXME i plan to replace these things with just column number
+        # indicators computed in the front end code... keep class names out of back end
+        exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
+        session_columns = [('Exam', 'col_exam'), ('Subject Name', 'col_sname')]
+        epoch_columns = [('S/A', 'col_sa'), ('Description', 'col_desc')]
+        user_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name')]
 
         access_levels.insert(0, 'pi')
-        return dict(page='manage', exp_list=exp_list, access_levels=access_levels, columns=columns, session_columns=session_columns, epoch_columns=epoch_columns, epoch_columns_flags=epoch_columns_flags)
-
+        return dict(page='manage',
+                    user_list=user_list,
+                    user_columns=user_columns,
+                    exp_dict_dict=exp_dict_dict,
+                    access_levels=access_levels,
+                    exp_columns=exp_columns,
+                    session_columns=session_columns,
+                    epoch_columns=epoch_columns)

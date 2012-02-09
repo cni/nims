@@ -63,6 +63,9 @@ function experiment_MouseUp(event)
 {
 	if (!(event.shiftKey || event.metaKey))
     {
+        $("#experiments tbody tr").droppable("option", "disabled", false);
+        $(this).droppable("option", "disabled", true);
+        $(this).removeClass('ui-state-disabled');
         refreshSessionList($(this));
     }
 };
@@ -147,6 +150,8 @@ function sortTable(element, direction)
         return -direction * compare($($(a).find('td')[indexOfColumn]).text(), $($(b).find('td')[indexOfColumn]).text()); });
     sorted_rows.slice(1).each(function() {
         this.parentNode.insertBefore(this, sorted_rows[sorted_rows.index(this) - 1]); });
+    sorted_rows.removeClass('alternate');
+    sorted_rows.closest("tbody").find("tr:odd").addClass('alternate');
 };
 
 function blurOnEnter(event)
@@ -161,25 +166,42 @@ function setupDraggable(source, target) {
     source.draggable({
         start: function(event, ui)
         {
-            if (!$(event.target).closest("tr").hasClass('ui-selected'))
+            if (event.target.tagName != 'TD')
             {
                 return false;
             }
-            else
-            {
-                source.find(".ui-selected").css("visibility", "hidden");
-            }
-
         },
         stop: function(event, ui)
         {
-            source.find(".ui-selected").css("visibility", "visible");
+            $(event.target).closest('table').data('moving_rows').css('visibility', 'visible');
         },
-        helper: function()
+        helper: function(event, ui)
         {
-            var table = $("<table></table>").append($(this).clone()).width(source.width());
-            table.find("tr:not(.ui-selected)").css("visibility","hidden");
-            return table;
+            console.log(event.target);
+            var moving_rows;
+            var original_table = $(this);
+            var clicked_row = $(event.target).closest("tr");
+            var cloned_table = original_table.clone();
+            cloned_table.width(source.width());
+            if (clicked_row.hasClass('ui-selected'))
+            {
+                moving_rows = original_table.find('tr.ui-selected');
+                cloned_table.find("tr:not(.ui-selected)").css("visibility","hidden");
+            }
+            else
+            {
+                moving_rows = clicked_row;
+                var cloned_rows = cloned_table.find("tr");
+                var clicked_row_ind = original_table.find("tr").index(clicked_row);
+                cloned_rows.css("visibility","hidden");
+                $(cloned_rows[clicked_row_ind]).css("visibility","visible");
+            }
+            if (event.target.tagName == 'TD')
+            {
+                moving_rows.css('visibility', 'hidden');
+            }
+            cloned_table.data('moving_rows', moving_rows);
+            return cloned_table;
         },
         appendTo: 'body',
         opacity: 0.5,
@@ -196,11 +218,24 @@ function setupDroppable(source, target, onDrop) {
 };
 
 function dropSessionsOnExperiment(event, ui) {
-    var selected_rows = $("#sessions tbody tr.ui-selected");
+    var selected_rows;
+    var dragged_row = $(event.target).closest("tr");
+    if (dragged_row.hasClass('ui-selected'))
+    {
+        selected_rows = $("#sessions tbody tr.ui-selected");
+    }
+    else
+    {
+        var cloned_rows = dragged_row.closest("tbody").find("tr");
+        var dragged_row_ind = cloned_rows.index(dragged_row);
+        selected_rows = $($("#sessions tbody tr")[dragged_row_ind]);
+    }
+
     var sess_id_list = Array();
     selected_rows.each(function() { sess_id_list.push(this.id.split('_')[1]); });
     var target_exp_id = this.id.split("_")[1];
     $.ajax({
+        traditional: true,
         type: 'POST',
         url: "transfer_sessions",
         dataType: "json",
@@ -214,6 +249,8 @@ function dropSessionsOnExperiment(event, ui) {
                 if (data.success)
                 {
                     selected_rows.remove();
+                    $("#sessions tbody tr").removeClass('alternate');
+                    $("#sessions tbody tr:odd").addClass('alternate');
                 }
                 else
                 {
@@ -230,51 +267,7 @@ function makeEpochRow(epochTuple)
     epochRow.id = 'epoch_' + epochTuple[0];
     for (var i = 1; i < epochTuple.length; i++) {
         epochCell = document.createElement('td');
-        if (epoch_columns_flags[i-1] == 1) {
-            var epochInput;
-            epochInput = document.createElement('input');
-            epochInput.value = epochTuple[i];
-            // put this type of stuff into the CSS file eventually (with a class perhaps)
-            epochInput.readOnly = true;
-            epochInput.style.border = 'none';
-            epochInput.style.background = 'transparent';
-            epochInput.onkeypress = blurOnEnter;
-            epochInput.onblur = function()
-            {
-                var inputObject = $(this);
-                // verify they've changed the value since clicking it
-                if (inputObject.val() != inputObject.data('cache')) {
-                    epoch_id = inputObject.parents('tr').attr('id').split('_')[1];
-                    inputObject.attr('readonly', true);
-                    $.ajax({
-                        type: 'POST',
-                        url: "update_epoch",
-                        dataType: "json",
-                        data: {
-                            id: epoch_id,
-                            desc: inputObject.val()
-                        },
-                        success: function(data) {
-                            if (!data.success) {
-                                inputObject.val(inputObject.data('cache'));
-                                alert("Change failed to commit.");
-                            }
-                        },
-                    }); // ajax call
-                }
-            };
-            epochCell.onclick = function()
-            {
-                input = $(this).children('input');
-                input.data('cache', input.val());
-                input.attr('readonly', false);
-            };
-            epochCell.appendChild(epochInput);
-            }
-            else
-            {
-              epochCell.textContent = epochTuple[i];
-            }
+        epochCell.textContent = epochTuple[i];
         epochRow.appendChild(epochCell);
     }
     return epochRow;
@@ -303,6 +296,7 @@ function refreshEpochList(session_row)
                 {
                     table_body.append(makeEpochRow(data[i]));
                 }
+                sortTable($("#epochs thead th").first(), 1);
                 toggleObject(table_body.closest('table'), true);
             },
         }); // ajax call
@@ -328,6 +322,26 @@ function refreshSessionList(experiment_row)
             data: { id: exp_id },
             success: function(data)
             {
+                var experiment_rows = $("#experiments tbody tr");
+                if (experiment_row.hasClass('access_mg'))
+                {
+                    experiment_rows.each(function()
+                    {
+                        if (!$(this).hasClass('access_mg') || $(this).is(experiment_row))
+                        {
+                            $(this).droppable("option", "disabled", true);
+                        }
+                        else
+                        {
+                            $(this).droppable("option", 'disabled', false);
+                        }
+                    });
+                }
+                else
+                {
+                    $("#experiments tbody tr").droppable("option", "disabled", true);
+                }
+
                 refreshEpochList(null);
                 table_body.children().remove();
                 for (var i = 0; i < data.length; i++) // repopulate session table
@@ -336,11 +350,12 @@ function refreshSessionList(experiment_row)
                 }
 
                 var sessionRows = $("#sessions tbody tr");
-                setupDraggable($("#sessions tbody"), $("#experiments tbody tr"));
+                setupDraggable($("#sessions"), $("#experiments tbody tr"));
                 sessionRows.mouseup(singleRowSelect);
                 sessionRows.mouseup(session_MouseUp);
                 sessionRows.mousedown(multiRowSelect);
                 sessionRows.mousedown(session_MouseDown);
+                sortTable($("#sessions thead th").first(), 1);
                 toggleObject(table_body.closest('table'), true);
             },
         });
@@ -364,6 +379,7 @@ function toggleObject(object, makeVisible)
 
 function setupCallbacks()
 {
+    sortTable($("#experiments thead th").first(), 1);
     $("table.manage").data(lastClickedIndex,0);
     $("table.manage").data(shiftBoundaryIndex,0);
     $("#experiments tbody tr").mouseup(singleRowSelect);

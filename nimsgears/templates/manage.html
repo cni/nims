@@ -7,95 +7,106 @@
 <xi:include href="master.html" />
 
 <head>
-  <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
-  <title>NIMS</title>
+<title>NIMS</title>
 
-  <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
-  <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
-  <script type="text/javascript" src="${tg.url('/javascript/manage.js')}"></script>
-  <style>
-    #feedback { font-size: 1.4em; }
-    tr.odd.ui-selected { background-color: red; }
-    tr.ui-selected { background-color: #F39814; color: white; }
-    tr.odd { background-color: gray; }
-    tr { list-style-type: none; margin: 0; padding: 0; width: 60%; }
-    .dragHover {
-        background-color:red;
-    }
-    #sessions { display: none; }
-    #epochs { display: none; }
-  </style>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
+<script type="text/javascript" src="${tg.url('/javascript/manage.js')}"></script>
+<style>
 
-  <script type="text/javascript">
-    var epoch_columns_flags = new Array();
-    <py:for each="flag in epoch_columns_flags">
-      epoch_columns_flags.push("${flag}");
-    </py:for>
+body table.ui-widget { background:transparent;}
+tr.alternate.ui-selected td, tr.ui-selected td { background-color: #ddcf99; }
+tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: white}
+.access_mg { font-weight:bold; }
 
+#sessions, #epochs { display: none; }
+
+#style_wrapper #tabs li:not(.ui-tabs-selected) { background:transparent;}
+.manage thead th {font-family: Georgia,Times New Roman,Times; color: white; background-color: #820000}
+
+#style_wrapper table { width:100%; }
+#experiments .col_sunet { width:40%; }
+#sessions .col_exam, #floating .col_exam { width:15%; }
+#epochs .col_sa { width:15%; }
+#experiments .col_access { width:10%; }
+
+</style>
+
+<script type="text/javascript">
     $(document).ready(function() {
-      setupCallbacks();
-      setupDraggable($("#sessions tbody"), $("#experiments tbody tr"));
-      setupDroppable($("#sessions tbody"), $("#experiments tbody tr"), dropSessionsOnExperiment);
-      $("th").click(function() { sortTable($(this), 1);});
-    }); // document ready
-
-  </script>
+        setupCallbacks();
+        setupDraggable($("#sessions"), $("#experiments tbody tr"));
+        setupDroppable($("#sessions"), $("#experiments tbody tr.access_mg"), dropSessionsOnExperiment);
+        $("th").click(function() { sortTable($(this), 1);});
+    });
+</script>
 
 </head>
 
 <body>
+<div id="style_wrapper">
 
-  <h2>Manage</h2>
+    <h2>Manage</h2>
 
-  <p>This page allows you to view and make changes to your data.</p>
+    <p>This page allows you to view and make changes to your data.</p>
 
-  <table>
-  <tr>
-  <td style="vertical-align:top; width:20%;">
-
-    <table id="experiments" class="manage" border="0" cellpadding="0" cellspacing="1">
-      <thead height = "50">
+    <table>
         <tr>
-        <th py:for="col in columns">${col}</th>
+        <td style="vertical-align:top; width:30%;">
+
+        <table id="experiments" class="manage" border="0" cellpadding="0" cellspacing="1">
+          <thead>
+            <tr>
+                <py:for each="col in exp_columns">
+                  <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+          </thead>
+          <tbody>
+            <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
+                <py:for each="exp_id, exp_params in exp_dict.iteritems()">
+                  <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
+                        <td py:for="param in exp_params">${param}</td>
+                  </tr>
+                </py:for>
+            </py:for>
+          </tbody>
+        </table>
+
+        </td>
+        <td style="vertical-align:top; width:30%;">
+
+        <table id="sessions" class="manage" border="0" cellpadding="0" cellspacing="1">
+          <thead>
+            <tr>
+                <py:for each="col in session_columns">
+                  <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+
+        </td>
+        <td style="vertical-align:top;">
+
+        <table id="epochs" class="manage" border="0" cellpadding="0" cellspacing="1">
+          <thead>
+            <tr>
+                <py:for each="col in epoch_columns">
+                  <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+
+        </td>
         </tr>
-      </thead>
-      <tbody id="t1">
-        <py:for each="exp in exp_list">
-          <tr id="exp_${exp[0]}"> <!-- set id for expand queries done on rows later -->
-                <td py:for="param in exp[1:]">${param}</td>
-          </tr>
-        </py:for>
-      </tbody>
     </table>
-
-  </td>
-  <td style="vertical-align:top; width:30%;">
-
-    <table id="sessions" class="manage" border="0" cellpadding="0" cellspacing="1">
-      <thead height = "50">
-        <tr>
-        <th py:for="col in session_columns">${col}</th>
-        </tr>
-      </thead>
-      <tbody id="t2">
-      </tbody>
-    </table>
-
-  </td>
-  <td style="vertical-align:top;">
-
-    <table id="epochs" class="manage" border="0" cellpadding="0" cellspacing="1">
-      <thead height = "50">
-        <tr>
-          <th py:for="col in epoch_columns">${col}</th>
-        </tr>
-      </thead>
-      <tbody>
-      </tbody>
-    </table>
-
-  </td>
-  </tr>
-  </table>
+</div>
 </body>
 </html>
