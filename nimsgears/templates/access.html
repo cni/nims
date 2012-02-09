@@ -1,0 +1,99 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<xi:include href="master.html" />
+
+<head>
+<title>NIMS</title>
+
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
+<script type="text/javascript" src="${tg.url('/javascript/manage.js')}"></script>
+<style>
+
+body table.ui-widget { background:transparent;}
+tr.alternate.ui-selected td, tr.ui-selected td { background-color: #ddcf99; }
+tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: white}
+
+#sessions, #epochs { display: none; }
+
+#style_wrapper #tabs li:not(.ui-tabs-selected) { background:transparent;}
+.access thead th {font-family: Georgia,Times New Roman,Times; color: white; background-color: #820000}
+
+#style_wrapper table { width:100%; }
+.col_sunet { width:40%; }
+
+</style>
+
+<script type="text/javascript">
+    $(document).ready(function() {
+        setupCallbacks_Access();
+        $("th").click(function() { sortTable($(this), 1);});
+    });
+</script>
+
+</head>
+
+<body>
+<div id="style_wrapper">
+
+    <h2>Access</h2>
+
+    <p>This page allows you to view and make changes to access privileges.</p>
+
+    <table>
+        <tr>
+        <td style="vertical-align:top; width:25%;">
+
+            <table class="access" id="users" border="0" cellpadding="0" cellspacing="1">
+              <thead>
+                <tr>
+                    <py:for each="col in user_columns">
+                      <th py:with="name, cls = col" class="${cls}">${name}</th>
+                    </py:for>
+                </tr>
+              </thead>
+              <tbody>
+                <py:for each="user_params in user_list">
+                    <tr>
+                        <td py:for="param in user_params">${param}</td>
+                    </tr>
+                </py:for>
+              </tbody>
+            </table>
+
+        </td>
+        <td style="vertical-align:top; width:25%;">
+
+            <table class="access" id="experiments" border="0" cellpadding="0" cellspacing="1">
+              <thead>
+                <tr>
+                    <py:for each="col in exp_columns">
+                      <th py:with="name, cls = col" class="${cls}">${name}</th>
+                    </py:for>
+                </tr>
+              </thead>
+              <tbody>
+                <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
+                    <py:for each="exp_id, exp_params in exp_dict.iteritems()">
+                      <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
+                            <td py:for="param in exp_params">${param}</td>
+                      </tr>
+                    </py:for>
+                </py:for>
+              </tbody>
+            </table>
+
+        </td>
+        <td style="vertical-align:top;">
+
+        </td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

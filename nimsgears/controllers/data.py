@@ -233,21 +233,47 @@ class AuthDataController(DataController):
                 exp_dict[exp.id] = (exp.owner.id, exp.name)
             exp_dict_dict[access_level] = exp_dict
 
-        user_list = [ usr.id for usr in User.query.all()]
-
         # FIXME i plan to replace these things with just column number
         # indicators computed in the front end code... keep class names out of back end
         exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
         session_columns = [('Exam', 'col_exam'), ('Subject Name', 'col_sname')]
         epoch_columns = [('S/A', 'col_sa'), ('Description', 'col_desc')]
-        user_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name')]
 
         access_levels.insert(0, 'pi')
         return dict(page='manage',
-                    user_list=user_list,
-                    user_columns=user_columns,
                     exp_dict_dict=exp_dict_dict,
                     access_levels=access_levels,
                     exp_columns=exp_columns,
                     session_columns=session_columns,
                     epoch_columns=epoch_columns)
+
+    @expose('nimsgears.templates.access')
+    def access(self):
+        user = request.identity['user']
+
+        exp_dict_dict = {} # exp_dict by access level
+        access_levels = ['mg']
+        for access_level in access_levels:
+            exp_dict = {} # exp by exp_id
+            privilege = AccessPrivilege.query.filter_by(name=access_level).one()
+            db_item_list = DBSession.query(Experiment, Access).join(Access).filter(Access.user == user).filter(Access.privilege == privilege).all()
+            for db_item in db_item_list:
+                exp = db_item.Experiment
+                exp_dict[exp.id] = (exp.owner.id, exp.name)
+            exp_dict_dict[access_level] = exp_dict
+
+        user_list = [(usr.id, usr.name if usr.name else 'None') for usr in User.query.all()]
+
+        # FIXME i plan to replace these things with just column number
+        # indicators computed in the front end code... keep class names out of back end
+        exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
+        user_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name')]
+
+        access_levels.insert(0, 'pi')
+        return dict(page='access',
+                    user_list=user_list,
+                    user_columns=user_columns,
+                    exp_dict_dict=exp_dict_dict,
+                    access_levels=access_levels,
+                    exp_columns=exp_columns,
+                    )

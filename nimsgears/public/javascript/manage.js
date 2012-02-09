@@ -63,8 +63,6 @@ function experiment_MouseUp(event)
 {
 	if (!(event.shiftKey || event.metaKey))
     {
-        $("#experiments tbody tr").droppable("option", "disabled", false);
-        $(this).droppable("option", "disabled", true);
         $(this).removeClass('ui-state-disabled');
         refreshSessionList($(this));
     }
@@ -375,15 +373,30 @@ function toggleObject(object, makeVisible)
     {
         object.toggle('slide');
     }
-}
+};
+
+function setupCallbacks_Access()
+{
+    sortTable($("#users thead th").first(), 1);
+    sortTable($("#experiments thead th").first(), 1);
+    $("table.access").data(lastClickedIndex,0);
+    $("table.access").data(shiftBoundaryIndex,0);
+    experiments_rows = $("#experiments tbody tr");
+    experiments_rows.mouseup(singleRowSelect);
+    experiments_rows.mousedown(multiRowSelect);
+    users_rows = $("#users tbody tr");
+    users_rows.mouseup(singleRowSelect);
+    users_rows.mousedown(multiRowSelect);
+};
 
 function setupCallbacks()
 {
     sortTable($("#experiments thead th").first(), 1);
     $("table.manage").data(lastClickedIndex,0);
     $("table.manage").data(shiftBoundaryIndex,0);
-    $("#experiments tbody tr").mouseup(singleRowSelect);
-    $("#experiments tbody tr").mouseup(experiment_MouseUp);
-    $("#experiments tbody tr").mousedown(multiRowSelect);
-    $("#experiments tbody tr").mousedown(experiment_MouseDown);
+    experiments_rows = $("#experiments tbody tr");
+    experiments_rows.mouseup(singleRowSelect);
+    experiments_rows.mouseup(experiment_MouseUp);
+    experiments_rows.mousedown(multiRowSelect);
+    experiments_rows.mousedown(experiment_MouseDown);
 };
