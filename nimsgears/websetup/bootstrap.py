@@ -92,7 +92,7 @@ def bootstrap(command, conf, vars):
         print 'Trying to update user info via LDAP'
         for user in model.User.query.all():
             ldap_name, ldap_email = nimsutil.ldap_query(user.id)
-            user.name = ldap_name
+            user.name = ldap_name or user.id
             user.email = ldap_email
 
         transaction.commit()

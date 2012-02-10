@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Sample controller with all its actions protected."""
-from tg import expose, flash, redirect, request, require
+from tg import config, expose, flash, redirect, request, require
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 from repoze.what import predicates
 from tgext.admin.controller import AdminController
@@ -134,3 +134,17 @@ class AuthDataController(DataController):
     @expose('nimsgears.templates.admin')
     def admin(self):
         return dict(page='admin', params={})
+
+    @expose(content_type='application/x-tar')
+    def download(self, *args, **kwargs):
+        session_id = kwargs['session_id']
+        query = DBSession.query(Dataset)
+        query = query.join(Epoch, Dataset.epoch).join(Session, Epoch.session)
+        results = query.filter(Session.id == session_id).all()
+
+        paths = ' '.join([dataset.path for dataset in results])
+
+        import shlex
+        import subprocess as sp
+        tar_proc = sp.Popen(shlex.split('tar -czf - %s' % paths), stdout=sp.PIPE, cwd=config.get('store_path'))
+        return tar_proc.stdout

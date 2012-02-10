@@ -132,9 +132,12 @@ class Epoch(Entity):
     datasets = OneToMany('Dataset')
     free_datasets = ManyToMany('FreeDataset')
 
+    def __unicode__(self):
+        return u'<Epoch %5d %04d %02d %s>' % (self.session.mri_exam, self.mri_series, self.mri_acq, self.mri_desc)
+
     @property
     def name(self):
-        return '%04d_%02d_%s' % (self.mri_series, self.mri_acq, self.mri_desc)
+        return ('%04d_%02d_%s' % (self.mri_series, self.mri_acq, self.mri_desc)).encode('utf-8')
 
     @property
     def path(self):
@@ -164,18 +167,22 @@ class Dataset(Entity):
     duration_secs = Field(Float)
     name = Field(Unicode(31))
     updated_at = Field(DateTime, default=datetime.datetime.now)
+    file_cnt_act = Field(Integer, default=0)
+    file_cnt_tgt = Field(Integer, default=0)
     is_dirty = Field(Boolean, default=False)
     path_prefix = Field(Unicode(31))
 
     epoch = ManyToOne('Epoch')
     jobs = OneToMany('Job')
 
+    def __unicode__(self):
+        return u'<%s %s>' % (self.__class__.__name__, self.epoch)
+
     @property
     def path(self):
-        #return os.path.join(self.epoch.path, self.epoch.name+self.label)
         if self.path_prefix is None:
-            self.path_prefix = '%03d' % random.randint(0,999)
-        return os.path.join(self.path_prefix, '%08d' % self.id)
+            self.path_prefix = u'%03d' % random.randint(0,999)
+        return os.path.join(self.path_prefix, '%08d' % self.id).encode('utf-8')
 
 
 class FreeDataset(Dataset):
@@ -311,21 +318,3 @@ class Pfile(MRIDataset):
             md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(header.exam.patnameff, header.exam.dateofbirth)
             md.group_name, md.exp_name = nimsutil.parse_patient_id(header.exam.patidff, ResearchGroup.get_all_ids())
         return md
-
-    def process(self, dest):
-        exam_path = os.path.join(dest, self.exam_path)
-        pfile_path = os.path.join(exam_path, self.label, self.series_dir)
-        filename = [os.path.join(pfile_path, basename) for basename in os.listdir(pfile_path)].pop()
-        with nimsutil.TempDirectory() as temp_dir:
-            temp_filename = os.path.join(temp_dir, os.path.basename(filename))
-            os.symlink(filename, temp_filename)
-            if self.is_spiral:
-                self._recon(temp_filename, exam_path)
-
-    def _recon(self, filename, store_to):
-        sp.call(['fmspiralmag.m', filename], stdout=open('/dev/null', 'w'), stderr=sp.STDOUT)
-        nii_filename = filename + '.nii'
-        if os.path.isfile(nii_filename):    # if nifti exists post-recon, gzip it into the epoch folder
-            gzip_nii_filename = os.path.join(store_to, self.series_dir + '.nii.gz')
-            with open(nii_filename, 'rb') as nii_file, gzip.open(gzip_nii_filename, 'wb') as gzip_nii_file:
-                gzip_nii_file.writelines(nii_file)

@@ -4,3 +4,5 @@
 *.sqlite
 production.ini
 nimsutil/pfreader.py
+nims_stage
+nims_store
