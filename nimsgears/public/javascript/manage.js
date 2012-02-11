@@ -366,6 +366,39 @@ function refreshSessionList(experiment_row)
     }
 };
 
+function setupMultiDrop(table)
+{
+    var table_rows = table.find("tbody tr");
+    table_rows.bind("dropover", function (event, ui)
+    {
+        var hovered_row = $(this);
+        var table = hovered_row.closest("table");
+        var selected_rows = table.find('.ui-selected');
+        clearTimeout(ui.helper.data("timer"));
+        if (hovered_row.hasClass('ui-selected'))
+        {
+            selected_rows.addClass('multiDragHover');
+        } else {
+            selected_rows.removeClass('multiDragHover');
+        }
+    });
+    table_rows.bind("dropout", function (event, ui)
+    {
+        clearTimeout(ui.helper.data("timer"));
+        if ($(this).hasClass('ui-selected'))
+        {
+            ui.helper.data("timer", setTimeout(function()
+            {
+                $(".multiDragHover").removeClass('multiDragHover');
+            }, 100));
+        }
+    });
+    table_rows.bind("drop", function (event, ui)
+    {
+        $(".multiDragHover").removeClass('multiDragHover');
+    });
+}
+
 function toggleObject(object, makeVisible)
 {
     objectVisible = object.css('display') != 'none';
@@ -377,6 +410,7 @@ function toggleObject(object, makeVisible)
 
 function setupCallbacks_Access()
 {
+    $("body").disableSelection();
     sortTable($("#users thead th").first(), 1);
     sortTable($("#experiments thead th").first(), 1);
     $("table.access").data(lastClickedIndex,0);
@@ -389,57 +423,39 @@ function setupCallbacks_Access()
     users_rows.mousedown(multiRowSelect);
 
     setupDraggable($("#users"), $("#experiments tbody tr"));
-    setupDroppable($("#users"), $("#experiments tbody tr"), function () {});
+    setupDroppable($("#users"), $("#experiments tbody tr"), dropAccessModification);
     setupDraggable($("#experiments"), $("#users tbody tr"));
-    setupDroppable($("#experiments"), $("#users tbody tr"), function () {});
-    /*
-    $("#users tbody tr").bind("dropover", function (event, ui)
-    {
-        clearTimeout(ui.helper.data("timer"));
-        if ($(this).hasClass('ui-selected'))
-        {
-            $('#users .ui-selected').addClass('multiDragHover');
-        } else {
-            $("#users .ui-selected").removeClass('multiDragHover');
-        }
-    });
-    $("#experiments tbody tr").bind("dropover", function (event, ui)
-    {
-        clearTimeout(ui.helper.data("timer"));
-        if ($(this).hasClass('ui-selected'))
-        {
-            $('#experiments .ui-selected').addClass('multiDragHover');
-        } else {
-            $("#experiments .ui-selected").removeClass('multiDragHover');
-        }
-    });
-    $("#users tbody tr").bind("dropout", function (event, ui)
-    {
-        clearTimeout(ui.helper.data("timer"));
-        if ($(this).hasClass('ui-selected'))
-        {
-            ui.helper.data("timer", setTimeout(function()
-            {
-                $(".multiDragHover").removeClass('multiDragHover');
-            }, 100));
-        }
-    });
-    $("#experiments tbody tr").bind("dropout", function (event, ui)
-    {
-        clearTimeout(ui.helper.data("timer"));
-        if ($(this).hasClass('ui-selected'))
-        {
-            ui.helper.data("timer", setTimeout(function()
-            {
-                $(".multiDragHover").removeClass('multiDragHover');
-            }, 100));
-        }
-    });
-    */
+    setupDroppable($("#experiments"), $("#users tbody tr"), dropAccessModification);
+    setupMultiDrop($("#users"));
+    setupMultiDrop($("#experiments"));
 };
+
+function dropAccessModification(event, ui)
+{
+    var experiments = $("#experiments");
+    var users = $("#users");
+    var dropped_onto_table = $(this).closest('table');
+    var dropped_onto_row = $(this);
+    var dragged_row = $(event.target).closest('tr');
+    var modify_experiments;
+    var modify_users;
+    if (experiments.is(dropped_onto_table))
+    {
+        modify_users = dragged_row.hasClass('ui-selected') ? users.find('.ui-selected') : dragged_row;
+        modify_experiments = dropped_onto_row.hasClass('ui-selected') ? experiments.find('.ui-selected') : dropped_onto_row;
+    }
+    else
+    {
+        modify_experiments = dragged_row.hasClass('ui-elected') ? experiments.find('.ui-selected') : dragged_row;
+        modify_users = dropped_onto_row.hasClass('ui-selected') ? users.find('.ui-selected') : dropped_onto_row;
+    }
+    console.log(modify_experiments);
+    console.log(modify_users);
+}
 
 function setupCallbacks()
 {
+    $("body").disableSelection();
     sortTable($("#experiments thead th").first(), 1);
     $("table.manage").data(lastClickedIndex,0);
     $("table.manage").data(shiftBoundaryIndex,0);
