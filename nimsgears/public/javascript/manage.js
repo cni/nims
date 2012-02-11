@@ -162,7 +162,7 @@ function blurOnEnter(event)
 
 function setupDraggable(source, target) {
     source.draggable({
-        revert: true,
+        revert: 'invalid',
         start: function(event, ui)
         {
             if (event.target.tagName != 'TD')
