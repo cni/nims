@@ -162,6 +162,7 @@ function blurOnEnter(event)
 
 function setupDraggable(source, target) {
     source.draggable({
+        revert: true,
         start: function(event, ui)
         {
             if (event.target.tagName != 'TD')
@@ -175,7 +176,6 @@ function setupDraggable(source, target) {
         },
         helper: function(event, ui)
         {
-            console.log(event.target);
             var moving_rows;
             var original_table = $(this);
             var clicked_row = $(event.target).closest("tr");
@@ -387,6 +387,55 @@ function setupCallbacks_Access()
     users_rows = $("#users tbody tr");
     users_rows.mouseup(singleRowSelect);
     users_rows.mousedown(multiRowSelect);
+
+    setupDraggable($("#users"), $("#experiments tbody tr"));
+    setupDroppable($("#users"), $("#experiments tbody tr"), function () {});
+    setupDraggable($("#experiments"), $("#users tbody tr"));
+    setupDroppable($("#experiments"), $("#users tbody tr"), function () {});
+    /*
+    $("#users tbody tr").bind("dropover", function (event, ui)
+    {
+        clearTimeout(ui.helper.data("timer"));
+        if ($(this).hasClass('ui-selected'))
+        {
+            $('#users .ui-selected').addClass('multiDragHover');
+        } else {
+            $("#users .ui-selected").removeClass('multiDragHover');
+        }
+    });
+    $("#experiments tbody tr").bind("dropover", function (event, ui)
+    {
+        clearTimeout(ui.helper.data("timer"));
+        if ($(this).hasClass('ui-selected'))
+        {
+            $('#experiments .ui-selected').addClass('multiDragHover');
+        } else {
+            $("#experiments .ui-selected").removeClass('multiDragHover');
+        }
+    });
+    $("#users tbody tr").bind("dropout", function (event, ui)
+    {
+        clearTimeout(ui.helper.data("timer"));
+        if ($(this).hasClass('ui-selected'))
+        {
+            ui.helper.data("timer", setTimeout(function()
+            {
+                $(".multiDragHover").removeClass('multiDragHover');
+            }, 100));
+        }
+    });
+    $("#experiments tbody tr").bind("dropout", function (event, ui)
+    {
+        clearTimeout(ui.helper.data("timer"));
+        if ($(this).hasClass('ui-selected'))
+        {
+            ui.helper.data("timer", setTimeout(function()
+            {
+                $(".multiDragHover").removeClass('multiDragHover');
+            }, 100));
+        }
+    });
+    */
 };
 
 function setupCallbacks()

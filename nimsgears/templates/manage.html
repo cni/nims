@@ -37,7 +37,7 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
     $(document).ready(function() {
         setupCallbacks();
         setupDraggable($("#sessions"), $("#experiments tbody tr"));
-        setupDroppable($("#sessions"), $("#experiments tbody tr.access_mg"), dropSessionsOnExperiment);
+        setupDroppable($("#sessions"), $("#experiments tbody tr"), dropSessionsOnExperiment);
         $("th").click(function() { sortTable($(this), 1);});
     });
 </script>
