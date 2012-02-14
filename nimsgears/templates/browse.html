@@ -1,126 +1,112 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:py="http://genshi.edgewall.org/"
-  xmlns:xi="http://www.w3.org/2001/XInclude">
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
 
-  <xi:include href="master.html" />
+<xi:include href="master.html" />
 
-  <head>
-    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
-    <title>NIMS</title>
-    <script type="text/javascript" src="${tg.url('/javascript/jquery.js')}"></script>
-    <script type="text/javascript" src="${tg.url('/javascript/tablesorter.js')}"></script>
-    <script type="text/javascript" src="${tg.url('/javascript/tablesorter_filter.js')}"></script>
-    <script type="text/javascript" src="${tg.url('/javascript/uicore.js')}"></script>
-    <script type="text/javascript" src="${tg.url('/javascript/dropdownchecklist.js')}"></script>
-    <script type="text/javascript" src="${tg.url('/javascript/typeextensions.js')}"></script>
-    <script type="text/javascript" src="${tg.url('/javascript/dictionary.js')}"></script>
-    <script type="text/javascript" src="${tg.url('/javascript/browse.js')}"></script>
-    <script type = "text/javascript">
-      // populate js group-experiment mapping dictionary
-      var groupExperimentMapping = new Dictionary();
-      <py:for each="group, experiments in filter_info">
-        var experiments = new Array();
-        <py:for each="experiment in experiments">
-          experiments.push("${experiment}")
-        </py:for>
-        groupExperimentMapping.Add("${group}", experiments);
-        </py:for>
-      var searchOptions = new Array();
-      <py:for each="searchOption in searchByOptions">
-        searchOptions.push("${searchOption}");
-      </py:for>
+<head>
+<title>NIMS Data Browser</title>
 
-      $(document).ready(function() {
-          makeTablesorter("#sessions", "#groupFilter", "#experimentFilter");
-          createDropDownLists();
-          groupChanged();
-          $("#groupFilter").focus();
-      });
-    </script>
-  </head>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
+<script type="text/javascript" src="${tg.url('/javascript/nimsgears.js')}"></script>
+<style>
 
-  <body >
+body table.ui-widget { background:transparent;}
+tr.alternate.ui-selected td, tr.ui-selected td { background-color: #ddcf99; }
+tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: white}
+.access_mg { font-weight:bold; }
 
-    <h2>Datasets</h2>
+#sessions, #epochs { display: none; }
 
-    <p>This page shows datasets you have access to.</p>
+#style_wrapper #tabs li:not(.ui-tabs-selected) { background:transparent;}
+.manage thead th {font-family: Georgia,Times New Roman,Times; color: white; background-color: #820000}
 
-    <form class="queryform" action="${tg.url('/auth/browse')}" method="post" accept-charset="UTF-8" id="queryform" />
+#style_wrapper table { width:100%; }
+#experiments .col_sunet { width:40%; }
+#sessions .col_exam, #floating .col_exam { width:15%; }
+#epochs .col_sa { width:15%; }
+#experiments .col_access { width:10%; }
+
+</style>
+
+<script type="text/javascript">
+    $(document).ready(function() {
+        setupCallbacks();
+        setupDraggable($("#sessions"), $("#experiments tbody tr"));
+        setupDroppable($("#sessions"), $("#experiments tbody tr"), dropSessionsOnExperiment);
+        $("th").click(function() { sortTable($(this), 1);});
+    });
+</script>
+
+</head>
+
+<body>
+<div id="style_wrapper">
+
+    <h2>Browse</h2>
+
+    <p>This page allows you to view and make changes to your data.</p>
+
     <table>
-            <tr>
-              <td>
-                  <label for="searchArea">Search Conditions:</label>
-              </td>
-              <td>
-                  <label for="groupFilter">Group Filter:</label>
-              </td>
-              <td>
-                  <label for="experimentFilter">Experiment Filter:</label>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                  <div id="searchArea">
-                      <table id="searchCondition">
-                          <tr>
-                              <td width="70"><label for="query">Search for:</label></td>
-                              <td width="70"><input type="text" id="query" name="query" class="text"></input></td>
-                              <td width="70"><select width="100"><option py:for="searchBy in searchByOptions">${searchBy}</option></select></td>
-                              <td width="30"><img src="${tg.url('/images/add.jpeg')}" width="15" height="15" onclick="addSearchClicked()"/></td>
-                          </tr>
-                      </table>
-                      <table>
-                          <tr>
-                              <td>Start Date</td>
-                              <td><input id="startdatepick" type="text"/></td>
-                              <td>End Date</td>
-                              <td><input id="enddatepick" type="text"/></td>
-                          </tr>
-                          <tr>
-                              <td><input type="submit" id="submit_search" value="Find" onClick="searchRecords()" /></td>
-                          </tr>
-                      </table>
-                  </div>
-              </td>
-              <td>
-                  <select id="groupFilter" class="filter" multiple="multiple" size="10" onChange="groupChanged()">
-                      <option selected="selected" value="-all-">-all-</option>
-                      <option py:for="group, experiments in filter_info">${group}</option>
-                  </select>
-              </td>
-              <td>
-                  <select id="experimentFilter" class="filter" size="10" multiple="multiple">
-                      <!-- options populated by javascript -->
-                  </select>
-              </td>
-          </tr>
-        </table>
-    <table id="sessions" class="tablesorter" border="0" cellpadding="0" cellspacing="1">
-      <thead height="50">
         <tr>
-          <th py:for="col in columns">${col}</th>
-          <th>Download Options<br/>
-            <select multiple="true" id="selectDownloadType_header"  onChange="downloadOptionsHeaderSelectionChanged();">
-              <option py:for="option in datatypes">${option}</option>
-            </select>
-          </th>
-          <th>Download</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr py:for="sd in sessiondata">
-          <td py:for="value in sd[1:]">${value}</td>
-          <td align="center">
-            <select multiple="true" id="selectDownloadType_${sd[0]}">
-              <option py:for="option in datatypes">${option}</option>
-            </select>
-          </td>
-          <td><a href="${tg.url('/auth/download')}?session_id=${sd[0]}">Download</a></td>
-        </tr>
-      </tbody>
-    </table>
+        <td style="vertical-align:top; width:30%;">
 
-  </body>
+        <table id="experiments" class="manage" border="0" cellpadding="0" cellspacing="1">
+          <thead>
+            <tr>
+                <py:for each="col in exp_columns">
+                  <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+          </thead>
+          <tbody>
+            <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
+                <py:for each="exp_id, exp_params in exp_dict.iteritems()">
+                  <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
+                        <td py:for="param in exp_params">${param}</td>
+                  </tr>
+                </py:for>
+            </py:for>
+          </tbody>
+        </table>
+
+        </td>
+        <td style="vertical-align:top; width:30%;">
+
+        <table id="sessions" class="manage" border="0" cellpadding="0" cellspacing="1">
+          <thead>
+            <tr>
+                <py:for each="col in session_columns">
+                  <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+
+        </td>
+        <td style="vertical-align:top;">
+
+        <table id="epochs" class="manage" border="0" cellpadding="0" cellspacing="1">
+          <thead>
+            <tr>
+                <py:for each="col in epoch_columns">
+                  <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        </table>
+
+        </td>
+        </tr>
+    </table>
+</div>
+</body>
 </html>

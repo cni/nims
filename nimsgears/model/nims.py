@@ -1,6 +1,7 @@
 import os
 import gzip
 import random
+import hashlib
 import datetime
 
 import dicom
@@ -8,16 +9,194 @@ import transaction
 from elixir import *
 
 import nimsutil
-
 from nimsgears.model import metadata, DBSession
-from nimsgears.model import AccessPrivilege, Access, ResearchGroup
 
 __session__ = DBSession
 __metadata__ = metadata
 
-__all__  = ['Job', 'Subject', 'Experiment', 'Session', 'Epoch', 'Dataset', 'FreeDataset']
+__all__  = ['User', 'Group', 'Permission', 'AccessPrivilege', 'Access', 'ResearchGroup', 'Message']
+__all__ += ['Job', 'Subject', 'Experiment', 'Session', 'Epoch', 'Dataset', 'FreeDataset']
 __all__ += ['Screensave' , 'RawNifti', 'PreprocNifti', 'MRIPhysioData']
 __all__ += ['MRIDataset', 'DicomData', 'Pfile']
+
+
+class Group(Entity):
+
+    """Group definition for :mod:`repoze.what`; `group_name` required."""
+
+    gid = Field(Unicode(32), unique=True)           # translation for group_name set in app_cfg.py
+    name = Field(Unicode(255))
+    created = Field(DateTime, default=datetime.datetime.now)
+
+    users = ManyToMany('User', onupdate='CASCADE', ondelete='CASCADE')
+    permissions = ManyToMany('Permission', onupdate='CASCADE', ondelete='CASCADE')
+
+    def __repr__(self):
+        return ('<Group: group_id=%s>' % self.gid).encode('utf-8')
+
+    def __unicode__(self):
+        return self.name
+
+
+class User(Entity):
+
+    """User definition for :mod:`repoze.who`; `user_name` required."""
+
+    uid = Field(Unicode(32), unique=True)           # translation for user_name set in app_cfg.py
+    name = Field(Unicode(255))
+    email = Field(Unicode(255), info={'rum': {'field':'Email'}})
+    _password = Field(Unicode(128), colname='password', info={'rum': {'field':'Password'}}, synonym='password')
+    created = Field(DateTime, default=datetime.datetime.now)
+    admin_mode = Field(Boolean, default=False)
+
+    groups = ManyToMany('Group', onupdate='CASCADE', ondelete='CASCADE')
+
+    accesses = OneToMany('Access')
+    research_groups = ManyToMany('ResearchGroup', inverse='members')
+    admin_groups = ManyToMany('ResearchGroup', inverse='admins')
+    pi_groups = ManyToMany('ResearchGroup', inverse='pis')
+    messages = OneToMany('Message', inverse='recipient')
+
+    def __repr__(self):
+        return ('<User: %s, %s, "%s">' % (self.uid, self.email, self.name)).encode('utf-8')
+
+    def __unicode__(self):
+        return self.name or self.uid
+
+    @classmethod
+    def by_email(cls, email):
+        return cls.query.filter_by(email=email).first()
+
+    @classmethod
+    def by_uid(cls, uid, create=False, password=None):
+        user = cls.query.filter_by(uid=uid).first()
+        if not user and create:
+            user = cls(uid=uid, password=password)
+        return user
+
+    @staticmethod
+    def _hash_password(password):
+        # Make sure password is a str because we cannot hash unicode objects
+        if isinstance(password, unicode):
+            password = password.encode('utf-8')
+        salt = hashlib.sha256()
+        salt.update(os.urandom(60))
+        hash = hashlib.sha256()
+        hash.update(password + salt.hexdigest())
+        password = salt.hexdigest() + hash.hexdigest()
+        # Make sure the hashed password is a unicode object at the end of the
+        # process because SQLAlchemy _wants_ unicode objects for Unicode cols
+        if not isinstance(password, unicode):
+            password = password.decode('utf-8')
+        return password
+
+    def _set_password(self, password):
+        """Hash ``password`` on the fly and store its hashed version."""
+        self._password = self._hash_password(password)
+    def _get_password(self):
+        """Return the hashed version of the password."""
+        return self._password
+    password = property(_get_password, _set_password)
+
+    def validate_password(self, password):
+        """Check the password against existing credentials."""
+        hash = hashlib.sha256()
+        if isinstance(password, unicode):
+            password = password.encode('utf-8')
+        hash.update(password + str(self.password[:64]))
+        return self.password[64:] == hash.hexdigest()
+
+    @property
+    def permissions(self):
+        """Return a set with all permissions granted to the user."""
+        perms = set()
+        for g in self.groups:
+            perms = perms | set(g.permissions)
+        return perms
+
+    @property
+    def unread_msg_cnt(self):
+        return len([msg for msg in self.messages if not msg.read]) if self.messages else 0
+
+    @property
+    def dataset_cnt(self):
+        query = DBSession.query(Session)
+        query = query.join(Experiment, Session.experiment)
+        query = query.join(Access, Experiment.accesses)
+        query = query.filter(Access.user==self)
+        return query.count()
+
+
+class Permission(Entity):
+
+    """Permission definition for :mod:`repoze.what`; `permission_name` required."""
+
+    pid = Field(Unicode(32), unique=True)           # translation for user_name set in app_cfg.py
+    name = Field(Unicode(255))
+
+    groups = ManyToMany('Group', onupdate='CASCADE', ondelete='CASCADE')
+
+    def __repr__(self):
+        return ('<Permission: name=%s>' % self.pid).encode('utf-8')
+
+    def __unicode__(self):
+        return self.pid
+
+
+class AccessPrivilege(Entity):
+
+    value = Field(Integer, required=True)
+    name = Field(Unicode(32), required=True)
+    description = Field(Unicode(255))
+
+    access = OneToMany('Access')
+
+    def __unicode__(self):
+        return self.name
+
+
+class Access(Entity):
+
+    user = ManyToOne('User')
+    experiment = ManyToOne('Experiment')
+    privilege = ManyToOne('AccessPrivilege')
+
+    def __unicode__(self):
+        return self.privilege
+
+
+class ResearchGroup(Entity):
+
+    gid = Field(Unicode(32), unique=True)
+    name = Field(Unicode(255))
+
+    pis = ManyToMany('User', inverse='pi_groups')
+    admins = ManyToMany('User', inverse='admins')
+    members = ManyToMany('User', inverse='research_groups')
+
+    def __unicode__(self):
+        return self.name or self.gid
+
+    @classmethod
+    def get_all_ids(cls):
+        return [rg.gid for rg in cls.query.all()]
+
+
+class Message(Entity):
+
+    subject = Field(Unicode(255), required=True)
+    body = Field(Unicode)
+    priority = Field(Enum(u'normal', u'high', name=u'priority'), default=u'normal')
+    created = Field(DateTime, default=datetime.datetime.now)
+    read = Field(DateTime)
+
+    recipient = ManyToOne('User', inverse='messages')
+
+    def __repr__(self):
+        return ('<Message: "%s: %s", prio=%s>' % (self.recipient, self.subject, self.priority)).encode('utf-8')
+
+    def __unicode__(self):
+        return u'%s: %s' % (self.recipient, self.subject)
 
 
 class Metadata(object):
@@ -103,16 +282,16 @@ class Session(Entity):
     def name(self):
         return '%s_%d' % (self.timestamp.strftime('%Y%m%d'), self.mri_exam)
 
-    @property
-    def path(self):
-        return '%08d' % self.id
+    #@property
+    #def path(self):
+    #    return '%08d' % self.id
 
     @classmethod
     def from_metadata(cls, md):
         session = cls.query.filter_by(mri_exam=md.mri_exam).first()
         if not session:
             subject = Subject.by_firstname_lastname_dob(md.subj_fn, md.subj_ln, md.subj_dob)
-            owner = ResearchGroup.query.filter_by(id=md.group_name).one()
+            owner = ResearchGroup.query.filter_by(gid=md.group_name).one()
             experiment = Experiment.by_owner_name(owner, md.exp_name)
             session = Session(mri_exam=md.mri_exam, subject=subject, experiment=experiment)
         return session
@@ -132,13 +311,16 @@ class Epoch(Entity):
     datasets = OneToMany('Dataset')
     free_datasets = ManyToMany('FreeDataset')
 
-    @property
-    def name(self):
-        return '%04d_%02d_%s' % (self.mri_series, self.mri_acq, self.mri_desc)
+    def __unicode__(self):
+        return u'<Epoch %5d %04d %02d %s>' % (self.session.mri_exam, self.mri_series, self.mri_acq, self.mri_desc)
 
     @property
-    def path(self):
-        return os.path.join(self.session.path) # FIXME: probably need more here
+    def name(self):
+        return ('%04d_%02d_%s' % (self.mri_series, self.mri_acq, self.mri_desc)).encode('utf-8')
+
+    #@property
+    #def path(self):
+    #    return os.path.join(self.session.path) # FIXME: probably need more here
 
     @classmethod
     def from_metadata(cls, md):
@@ -164,18 +346,22 @@ class Dataset(Entity):
     duration_secs = Field(Float)
     name = Field(Unicode(31))
     updated_at = Field(DateTime, default=datetime.datetime.now)
+    file_cnt_act = Field(Integer, default=0)
+    file_cnt_tgt = Field(Integer, default=0)
     is_dirty = Field(Boolean, default=False)
     path_prefix = Field(Unicode(31))
 
     epoch = ManyToOne('Epoch')
     jobs = OneToMany('Job')
 
+    def __unicode__(self):
+        return u'<%s %s>' % (self.__class__.__name__, self.epoch)
+
     @property
     def path(self):
-        #return os.path.join(self.epoch.path, self.epoch.name+self.label)
         if self.path_prefix is None:
-            self.path_prefix = '%03d' % random.randint(0,999)
-        return os.path.join(self.path_prefix, '%08d' % self.id)
+            self.path_prefix = u'%03d' % random.randint(0,999)
+        return os.path.join(self.path_prefix, '%08d' % self.id).encode('utf-8')
 
 
 class FreeDataset(Dataset):
@@ -269,7 +455,7 @@ class DicomData(MRIDataset):
             md.mri_series = int(header.SeriesNumber)
             md.mri_acq = int(header.AcquisitionNumber) if 'AcquisitionNumber' in header else 0
             md.psd_name = unicode(os.path.basename(header[TAG_PSD_NAME].value)) if TAG_PSD_NAME in header else u''
-            md.physio_flag = header[TAG_PHYSIO_FLAG].value
+            md.physio_flag = bool(header[TAG_PHYSIO_FLAG].value) if TAG_PHYSIO_FLAG in header else False
             md.mri_desc = nimsutil.clean_string(header.SeriesDescription)
             md.timestamp = datetime.datetime.strptime(acq_date(header) + acq_time(header), '%Y%m%d%H%M%S')
             md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(header.PatientsName, header.PatientsBirthDate)
@@ -311,21 +497,3 @@ class Pfile(MRIDataset):
             md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(header.exam.patnameff, header.exam.dateofbirth)
             md.group_name, md.exp_name = nimsutil.parse_patient_id(header.exam.patidff, ResearchGroup.get_all_ids())
         return md
-
-    def process(self, dest):
-        exam_path = os.path.join(dest, self.exam_path)
-        pfile_path = os.path.join(exam_path, self.label, self.series_dir)
-        filename = [os.path.join(pfile_path, basename) for basename in os.listdir(pfile_path)].pop()
-        with nimsutil.TempDirectory() as temp_dir:
-            temp_filename = os.path.join(temp_dir, os.path.basename(filename))
-            os.symlink(filename, temp_filename)
-            if self.is_spiral:
-                self._recon(temp_filename, exam_path)
-
-    def _recon(self, filename, store_to):
-        sp.call(['fmspiralmag.m', filename], stdout=open('/dev/null', 'w'), stderr=sp.STDOUT)
-        nii_filename = filename + '.nii'
-        if os.path.isfile(nii_filename):    # if nifti exists post-recon, gzip it into the epoch folder
-            gzip_nii_filename = os.path.join(store_to, self.series_dir + '.nii.gz')
-            with open(nii_filename, 'rb') as nii_file, gzip.open(gzip_nii_filename, 'wb') as gzip_nii_file:
-                gzip_nii_file.writelines(nii_file)

@@ -53,7 +53,6 @@ import elixir
 
 elixir.options_defaults['shortnames'] = True
 
-from user import *
-from data import *
+from nims import *
 
 elixir.setup_all()
