@@ -140,6 +140,10 @@ class AuthDataController(DataController):
     def admin(self):
         return dict(page='admin', params={})
 
+    @expose(content_type='image/png')
+    def image(self, *args):
+        return open('/tmp/image.png', 'r')
+
     @expose(content_type='application/x-tar')
     def download(self, *args, **kwargs):
         session_id = kwargs['session_id']
@@ -152,6 +156,12 @@ class AuthDataController(DataController):
         import shlex
         import subprocess as sp
         tar_proc = sp.Popen(shlex.split('tar -czf - %s' % paths), stdout=sp.PIPE, cwd=config.get('store_path'))
+        ## tried this to get async pipe working with paster, but doesn't seem to do anything
+        ## should work outright with apache once python bug is fixed: http://bugs.python.org/issue13156
+        #import fcntl, os
+        #fd = tar_proc.stdout.fileno()
+        #file_flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        #fcntl.fcntl(fd, fcntl.F_SETFL, file_flags | os.O_NDELAY)
         return tar_proc.stdout
 
     @expose()
