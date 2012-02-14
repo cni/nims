@@ -43,9 +43,9 @@ base_config.sa_auth.dbsession = model.DBSession
 base_config.sa_auth.user_class = model.User
 base_config.sa_auth.group_class = model.Group
 base_config.sa_auth.permission_class = model.Permission
-base_config.sa_auth.translations.user_name = 'id'
-base_config.sa_auth.translations.group_name = 'id'
-base_config.sa_auth.translations.permission_name = 'id'
+base_config.sa_auth.translations.user_name = 'uid'
+base_config.sa_auth.translations.group_name = 'gid'
+base_config.sa_auth.translations.permission_name = 'pid'
 
 # override this if you would like to provide a different who plugin for
 # managing login and logout of your application
