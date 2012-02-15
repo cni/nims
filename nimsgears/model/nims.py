@@ -37,6 +37,10 @@ class Group(Entity):
     def __unicode__(self):
         return self.name
 
+    @classmethod
+    def by_gid(cls, gid):
+        return cls.query.filter_by(gid=gid).one()
+
 
 class User(Entity):
 
@@ -121,9 +125,10 @@ class User(Entity):
     @property
     def dataset_cnt(self):
         query = DBSession.query(Session)
-        query = query.join(Experiment, Session.experiment)
-        query = query.join(Access, Experiment.accesses)
-        query = query.filter(Access.user==self)
+        if not self in Group.by_gid(u'superusers').users or not self.admin_mode:
+            query = query.join(Experiment, Session.experiment)
+            query = query.join(Access, Experiment.accesses)
+            query = query.filter(Access.user==self)
         return query.count()
 
 
