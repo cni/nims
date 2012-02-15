@@ -61,6 +61,13 @@ class User(Entity):
     pi_groups = ManyToMany('ResearchGroup', inverse='pis')
     messages = OneToMany('Message', inverse='recipient')
 
+    def __init__(self, **kwargs):
+        if 'uid' in kwargs:
+            ldap_name, ldap_email = nimsutil.ldap_query(kwargs['uid'])
+            kwargs['name'] = ldap_name or kwargs['uid']
+            kwargs['email'] = ldap_email
+        super(User, self).__init__(**kwargs)
+
     def __repr__(self):
         return ('<User: %s, %s, "%s">' % (self.uid, self.email, self.name)).encode('utf-8')
 
@@ -157,7 +164,7 @@ class AccessPrivilege(Entity):
     access = OneToMany('Access')
 
     def __unicode__(self):
-        return self.name
+        return self.description or self.name
 
 
 class Access(Entity):
@@ -167,7 +174,7 @@ class Access(Entity):
     privilege = ManyToOne('AccessPrivilege')
 
     def __unicode__(self):
-        return self.privilege
+        return u'%s: (%s, %s)' % (self.privilege, self.user, self.experiment)
 
 
 class ResearchGroup(Entity):
