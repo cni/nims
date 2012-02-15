@@ -15,21 +15,29 @@
 <script type="text/javascript" src="${tg.url('/javascript/nimsgears.js')}"></script>
 <style>
 
-body table.ui-widget { background:transparent;}
 tr.alternate.ui-selected td, tr.ui-selected td { background-color: #ddcf99; }
 tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: white}
 .access_mg { font-weight:bold; }
 
-#sessions, #epochs { display: none; }
+/*#sessions, #epochs { display: none; }*/
 
-#style_wrapper #tabs li:not(.ui-tabs-selected) { background:transparent;}
 .manage thead th {font-family: Georgia,Times New Roman,Times; color: white; background-color: #820000}
 
-#style_wrapper table { width:100%; }
-#experiments .col_sunet { width:40%; }
-#sessions .col_exam, #floating .col_exam { width:15%; }
-#epochs .col_sa { width:15%; }
-#experiments .col_access { width:10%; }
+#style_wrapper {width:100%;}
+#style_wrapper table { width:100%; vertical-align:top; margin:0px;}
+
+.manage thead .col_sunet { width:40%; }
+.manage thead .col_exam, #floating .col_exam { width:25%; }
+.manage thead .col_sa { width:25%; }
+.manage thead .col_access { width:20%; }
+
+#table_headers, #table_data { clear:left; width:100%; }
+
+.table_container.exp {width:30%;}
+.table_container.sess {width:30%;}
+.table_container.epoch {width:30%;}
+
+.table_container { vertical-align:top; float:left}
 
 </style>
 
@@ -45,68 +53,99 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
 </head>
 
 <body>
-<div id="style_wrapper">
+    <div id="style_wrapper">
 
-    <h2>Browse</h2>
+        <h2>Browse</h2>
+        <p>This page allows you to view and make changes to your data.</p>
 
-    <p>This page allows you to view and make changes to your data.</p>
+        <div id="table_headers">
+            <div class="table_container exp">
+                <table class='manage' border="0" cellpadding="0" cellspacing="1">
+                    <thead>
+                        <tr>
+                            <py:for each="col in exp_columns">
+                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="table_container sess">
+                <table class='manage' border="0" cellpadding="0" cellspacing="1">
+                    <thead>
+                        <tr>
+                            <py:for each="col in session_columns">
+                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="table_container epoch">
+                <table class='manage' border="0" cellpadding="0" cellspacing="1">
+                    <thead>
+                        <tr>
+                            <py:for each="col in epoch_columns">
+                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
 
-    <table>
-        <tr>
-        <td style="vertical-align:top; width:30%;">
-
-        <table id="experiments" class="manage" border="0" cellpadding="0" cellspacing="1">
-          <thead>
-            <tr>
-                <py:for each="col in exp_columns">
-                  <th py:with="name, cls = col" class="${cls}">${name}</th>
-                </py:for>
-            </tr>
-          </thead>
-          <tbody>
-            <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
-                <py:for each="exp_id, exp_params in exp_dict.iteritems()">
-                  <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
-                        <td py:for="param in exp_params">${param}</td>
-                  </tr>
-                </py:for>
-            </py:for>
-          </tbody>
-        </table>
-
-        </td>
-        <td style="vertical-align:top; width:30%;">
-
-        <table id="sessions" class="manage" border="0" cellpadding="0" cellspacing="1">
-          <thead>
-            <tr>
-                <py:for each="col in session_columns">
-                  <th py:with="name, cls = col" class="${cls}">${name}</th>
-                </py:for>
-            </tr>
-          </thead>
-          <tbody>
-          </tbody>
-        </table>
-
-        </td>
-        <td style="vertical-align:top;">
-
-        <table id="epochs" class="manage" border="0" cellpadding="0" cellspacing="1">
-          <thead>
-            <tr>
-                <py:for each="col in epoch_columns">
-                  <th py:with="name, cls = col" class="${cls}">${name}</th>
-                </py:for>
-            </tr>
-          </thead>
-          <tbody>
-          </tbody>
-        </table>
-
-        </td>
-        </tr>
-    </table>
-</div>
+        <div id='table_data'>
+            <div id="exp_container" class="table_container exp">
+                <div class="pusher"></div>
+                <table id="experiments" class="manage" border="0" cellpadding="0" cellspacing="1">
+                    <thead>
+                        <tr>
+                            <py:for each="col in exp_columns">
+                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
+                            <py:for each="exp_id, exp_params in exp_dict.iteritems()">
+                                <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
+                                    <td py:for="param in exp_params">${param}</td>
+                                </tr>
+                            </py:for>
+                        </py:for>
+                    </tbody>
+                </table>
+            </div>
+            <div id="sess_container" class="table_container sess">
+                <div class='pusher'></div>
+                <table id="sessions" class="manage" border="0" cellpadding="0" cellspacing="1">
+                    <thead>
+                        <tr>
+                            <py:for each="col in session_columns">
+                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div id="epoch_container" class="table_container epoch">
+                <div class='pusher'></div>
+                <table id="epochs" class="manage" border="0" cellpadding="0" cellspacing="1">
+                    <thead>
+                        <tr>
+                            <py:for each="col in epoch_columns">
+                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
