@@ -64,7 +64,7 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
             </tr>
           </thead>
           <tbody>
-            <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
+            <py:for each="access, exp_dict in exp_dict.iteritems()">
                 <py:for each="exp_id, exp_params in exp_dict.iteritems()">
                   <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
                         <td py:for="param in exp_params">${param}</td>
