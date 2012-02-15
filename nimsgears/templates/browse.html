@@ -38,6 +38,7 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
 .table_container.epoch {width:30%;}
 
 .table_container { vertical-align:top; float:left}
+.flat {padding:0px; height:0px}
 
 </style>
 
@@ -104,7 +105,7 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
                     <thead>
                         <tr>
                             <py:for each="col in exp_columns">
-                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                                <th py:with="name, cls = col" class="${cls} flat"></th>
                             </py:for>
                         </tr>
                     </thead>
@@ -122,10 +123,10 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
             <div id="sess_container" class="table_container sess">
                 <div class='pusher'></div>
                 <table id="sessions" class="manage" border="0" cellpadding="0" cellspacing="1">
-                    <thead>
+                    <thead style="height:0px">
                         <tr>
                             <py:for each="col in session_columns">
-                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                                <th py:with="name, cls = col" class="${cls} flat"></th>
                             </py:for>
                         </tr>
                     </thead>
@@ -138,7 +139,7 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
                     <thead>
                         <tr>
                             <py:for each="col in epoch_columns">
-                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                                <th py:with="name, cls = col" class="${cls} flat"></th>
                             </py:for>
                         </tr>
                     </thead>
