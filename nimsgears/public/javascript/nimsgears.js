@@ -280,6 +280,8 @@ function refreshEpochList(session_row)
             },
             success: function(data)
             {
+                var epoch_pusher = $("#epoch_container .pusher");
+                epoch_pusher.height(session_row.position().top - epoch_pusher.position().top - 3); // - 3  for god knows why... need to figure this out TODO
                 table_body.children().remove();
                 for (var i = 0; i < data.length; i++)
                 {
