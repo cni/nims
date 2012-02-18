@@ -24,21 +24,21 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
 .manage thead th {font-family: Georgia,Times New Roman,Times; color: white; background-color: #820000}
 
 #style_wrapper {width:100%;}
-#style_wrapper table { width:100%; vertical-align:top; margin:0px;}
+#style_wrapper table, #floating { width:100%; vertical-align:top; margin:0px;}
 
 .manage thead .col_sunet { width:40%; }
 .manage thead .col_exam, #floating .col_exam { width:25%; }
 .manage thead .col_sa { width:25%; }
 .manage thead .col_access { width:20%; }
 
-#table_headers, #table_data { clear:left; width:100%; }
+#table_headers, #table_data { clear:left; width:100%; overflow:auto; cursor:default;}
 
 .table_container.exp {width:30%;}
 .table_container.sess {width:30%;}
-.table_container.epoch {width:30%;}
+.table_container.epoch {width:40%;}
 
 .table_container { vertical-align:top; float:left}
-.flat {padding:0px; height:0px}
+.flat {padding:0px; height:0px}*/
 
 </style>
 
@@ -98,7 +98,7 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
             </div>
         </div>
 
-        <div id='table_data'>
+        <div id='table_data'><!-- style="height:300px;">-->
             <div id="exp_container" class="table_container exp">
                 <div class="pusher"></div>
                 <table id="experiments" class="manage" border="0" cellpadding="0" cellspacing="1">

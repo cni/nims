@@ -199,6 +199,7 @@ function setupDraggable(source, target) {
                 moving_rows.css('visibility', 'hidden');
             }
             cloned_table.data('moving_rows', moving_rows);
+            cloned_table.attr('id', 'floating');
             return cloned_table;
         },
         appendTo: 'body',
@@ -217,17 +218,7 @@ function setupDroppable(source, target, onDrop) {
 
 function dropSessionsOnExperiment(event, ui) {
     var selected_rows;
-    var dragged_row = $(event.target).closest("tr");
-    if (dragged_row.hasClass('ui-selected'))
-    {
-        selected_rows = $("#sessions tbody tr.ui-selected");
-    }
-    else
-    {
-        var cloned_rows = dragged_row.closest("tbody").find("tr");
-        var dragged_row_ind = cloned_rows.index(dragged_row);
-        selected_rows = $($("#sessions tbody tr")[dragged_row_ind]);
-    }
+    selected_rows = ui.helper.data('moving_rows');
 
     var sess_id_list = Array();
     selected_rows.each(function() { sess_id_list.push(this.id.split('_')[1]); });
