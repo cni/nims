@@ -90,14 +90,6 @@ def bootstrap(command, conf, vars):
 
         transaction.commit()
 
-        print 'Trying to update user info via LDAP'
-        for user in model.User.query.all():
-            ldap_name, ldap_email = nimsutil.ldap_query(user.uid)
-            user.name = ldap_name or user.uid
-            user.email = ldap_email
-
-        transaction.commit()
-
     except IntegrityError:
         import traceback
         print traceback.format_exc()

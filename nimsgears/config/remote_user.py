@@ -14,10 +14,11 @@ class RemoteUserIdentifier(object):
     def identify(self, environ):
         if 'REMOTE_USER' in environ:
             remote_user = unicode(environ['REMOTE_USER'])
-            # FIXME: use repoze 'translation' for user_id, etc.
-            if not self.dbsession.query(self.user_class).filter_by(id=remote_user).first():
-                print 'adding new user "%s" to db' % remote_user # FIXME: use logging
-                self.user_class(id=remote_user, password=remote_user)
+            # FIXME: use repoze translations for user_name
+            #        also in tg.config['sa_auth']['translations']['user_name']
+            if not self.dbsession.query(self.user_class).filter_by(uid=remote_user).first():
+                print 'adding identity for new user "%s"' % remote_user
+                self.user_class(uid=remote_user, password=remote_user)
                 transaction.commit()
             return {'repoze.who.userid': remote_user}
         else:

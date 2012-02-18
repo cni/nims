@@ -140,6 +140,10 @@ class AuthDataController(DataController):
     def admin(self):
         return dict(page='admin', params={})
 
+    @expose(content_type='image/png')
+    def image(self, *args):
+        return open('/tmp/image.png', 'r')
+
     @expose(content_type='application/x-tar')
     def download(self, *args, **kwargs):
         session_id = kwargs['session_id']
@@ -152,28 +156,35 @@ class AuthDataController(DataController):
         import shlex
         import subprocess as sp
         tar_proc = sp.Popen(shlex.split('tar -czf - %s' % paths), stdout=sp.PIPE, cwd=config.get('store_path'))
+        ## tried this to get async pipe working with paster, but doesn't seem to do anything
+        ## should work outright with apache once python bug is fixed: http://bugs.python.org/issue13156
+        #import fcntl, os
+        #fd = tar_proc.stdout.fileno()
+        #file_flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        #fcntl.fcntl(fd, fcntl.F_SETFL, file_flags | os.O_NDELAY)
         return tar_proc.stdout
 
     @expose()
     def session_query(self, **kwargs):
-        """ Queries DB given info found in POST, TODO perhaps verify access level another time here??
-        """
+        """ Return info about sessions for given experiment id."""
         user = request.identity['user']
 
-        def summarize_sess(session, exp):
-            return (session.id, session.mri_exam, unicode(session.subject) if exp else 'Anonymous')
+        def session_tuple(session, axs_priv_val):
+            return (session.id, session.mri_exam, unicode(session.subject) if axs_priv_val != 0 else 'Anonymous')
 
         try:
             exp_id = int(kwargs['id'])
         except:
             exp_id = -1
 
-        privilege = AccessPrivilege.query.filter_by(name = u'ar').first()
-        exp = DBSession.query(Experiment).join('accesses', 'privilege').filter(Experiment.id == exp_id).filter(Access.user == user).filter(AccessPrivilege.value > privilege.value).first()
-        sess_list = ([summarize_sess(item.Session, exp) for item in
-            DBSession.query(Session, Experiment).join('experiment').filter(Experiment.id == exp_id).all()])
-
-        return json.dumps(sess_list)
+        if predicates.in_group('superusers') and user.admin_mode:
+            results = Session.query.join(Experiment).filter(Experiment.id==exp_id).all()
+            sessions = [session_tuple(session, -1) for session in results]
+        else:
+            query = DBSession.query(Session, Access).join(Experiment).join(Access)
+            results = query.filter(Experiment.id==exp_id).filter(Access.user==user).all()
+            sessions = [session_tuple(result.Session, result.Access.privilege.value) for result in results]
+        return json.dumps(sessions)
 
     @expose()
     def update_epoch(self, **kwargs):
@@ -243,16 +254,14 @@ class AuthDataController(DataController):
     def browse(self):
         user = request.identity['user']
 
-        exp_dict_dict = {} # exp_dict by access level
-        access_levels = [u'mg', u'rw', u'ro', u'ar']
-        for access_level in access_levels:
-            exp_dict = {} # exp by exp_id
-            privilege = AccessPrivilege.query.filter_by(name=access_level).one()
-            db_item_list = DBSession.query(Experiment, Access).join(Access).filter(Access.user == user).filter(Access.privilege == privilege).all()
-            for db_item in db_item_list:
-                exp = db_item.Experiment
-                exp_dict[exp.id] = (exp.owner.gid, exp.name)
-            exp_dict_dict[access_level] = exp_dict
+        exp_dict = {}
+        if predicates.in_group('superusers') and user.admin_mode:
+            experiments = Experiment.query.all()
+            exp_dict[u'mg'] = dict([(exp.id, (exp.owner.gid, exp.name)) for exp in experiments])
+        else:
+            results = DBSession.query(Experiment, Access).join(Access).filter(Access.user == user).all()
+            for exp, axs in results:
+                exp_dict.setdefault(axs.privilege.name, {})[exp.id] = (exp.owner.gid, exp.name)
 
         # FIXME i plan to replace these things with just column number
         # indicators computed in the front end code... keep class names out of back end
@@ -260,10 +269,8 @@ class AuthDataController(DataController):
         session_columns = [('Exam', 'col_exam'), ('Subject Name', 'col_sname')]
         epoch_columns = [('S/A', 'col_sa'), ('Description', 'col_desc')]
 
-        access_levels.insert(0, u'pi')
         return dict(page='browse',
-                    exp_dict_dict=exp_dict_dict,
-                    access_levels=access_levels,
+                    exp_dict=exp_dict,
                     exp_columns=exp_columns,
                     session_columns=session_columns,
                     epoch_columns=epoch_columns)

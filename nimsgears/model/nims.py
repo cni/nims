@@ -37,6 +37,10 @@ class Group(Entity):
     def __unicode__(self):
         return self.name
 
+    @classmethod
+    def by_gid(cls, gid):
+        return cls.query.filter_by(gid=gid).one()
+
 
 class User(Entity):
 
@@ -56,6 +60,13 @@ class User(Entity):
     admin_groups = ManyToMany('ResearchGroup', inverse='admins')
     pi_groups = ManyToMany('ResearchGroup', inverse='pis')
     messages = OneToMany('Message', inverse='recipient')
+
+    def __init__(self, **kwargs):
+        if 'uid' in kwargs:
+            ldap_name, ldap_email = nimsutil.ldap_query(kwargs['uid'])
+            kwargs['name'] = ldap_name or kwargs['uid']
+            kwargs['email'] = ldap_email
+        super(User, self).__init__(**kwargs)
 
     def __repr__(self):
         return ('<User: %s, %s, "%s">' % (self.uid, self.email, self.name)).encode('utf-8')
@@ -121,9 +132,10 @@ class User(Entity):
     @property
     def dataset_cnt(self):
         query = DBSession.query(Session)
-        query = query.join(Experiment, Session.experiment)
-        query = query.join(Access, Experiment.accesses)
-        query = query.filter(Access.user==self)
+        if not self in Group.by_gid(u'superusers').users or not self.admin_mode:
+            query = query.join(Experiment, Session.experiment)
+            query = query.join(Access, Experiment.accesses)
+            query = query.filter(Access.user==self)
         return query.count()
 
 
@@ -152,7 +164,7 @@ class AccessPrivilege(Entity):
     access = OneToMany('Access')
 
     def __unicode__(self):
-        return self.name
+        return self.description or self.name
 
 
 class Access(Entity):
@@ -162,7 +174,7 @@ class Access(Entity):
     privilege = ManyToOne('AccessPrivilege')
 
     def __unicode__(self):
-        return self.privilege
+        return u'%s: (%s, %s)' % (self.privilege, self.user, self.experiment)
 
 
 class ResearchGroup(Entity):
