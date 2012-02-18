@@ -117,18 +117,19 @@ function multiRowSelect(event)
     }
 };
 
-function makeSessionRow(sessionTuple)
+function makeSessionRow(session_tuple)
 {
-    var sessionRow = document.createElement('tr');
-    var sessionCell;
-    sessionRow.id = 'sess_' + sessionTuple[0];
-    for (var i = 1; i < sessionTuple.length; i++)
+    var session_row = document.createElement('tr');
+    var session_cell;
+    session_row.id = 'sess_' + session_tuple[0];
+    var n_session_tuples = session_tuple.length;
+    for (var i = 1; i < n_session_tuples.length; i++)
     {
-        sessionCell = document.createElement('td');
-        sessionCell.textContent = sessionTuple[i];
-        sessionRow.appendChild(sessionCell);
+        session_cell = document.createElement('td');
+        session_cell.textContent = session_tuple[i];
+        session_row.appendChild(session_cell);
     }
-    return sessionRow;
+    return session_row;
 };
 
 function compare(a, b) {
@@ -142,10 +143,10 @@ function compare(a, b) {
 
 function sortTable(element, direction)
 {
-    var indexOfColumn = element.closest('thead').find('th').index(element);
+    var index_of_column = element.closest('thead').find('th').index(element);
     var rows = element.closest('table').find('tbody tr');
     var sorted_rows = rows.sort(function mysort(a, b) {
-        return -direction * compare($($(a).find('td')[indexOfColumn]).text(), $($(b).find('td')[indexOfColumn]).text()); });
+        return -direction * compare($($(a).find('td')[index_of_column]).text(), $($(b).find('td')[index_of_column]).text()); });
     sorted_rows.slice(1).each(function() {
         this.parentNode.insertBefore(this, sorted_rows[sorted_rows.index(this) - 1]); });
     sorted_rows.removeClass('alternate');
