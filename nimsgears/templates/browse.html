@@ -19,9 +19,9 @@ tr.alternate.ui-selected td, tr.ui-selected td { background-color: #ddcf99; }
 tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: white}
 .access_mg { font-weight:bold; }
 
-/*#sessions, #epochs { display: none; }*/
-
-.manage thead th {font-family: Georgia,Times New Roman,Times; color: white; background-color: #820000}
+.manage thead th {font-family:Georgia,Times New Roman,Times; color:white; background-color:#820000}
+table.manage {border-spacing:0px;}
+.table_headers table.manage thead th, table.manage tbody td {border:1px solid white;}
 
 #style_wrapper {width:100%;}
 #style_wrapper table, #floating { width:100%; vertical-align:top; margin:0px;}
@@ -30,8 +30,9 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
 .manage thead .col_exam, #floating .col_exam { width:25%; }
 .manage thead .col_sa { width:25%; }
 .manage thead .col_access { width:20%; }
+#floating {position:absolute;}
 
-#table_headers, #table_data { clear:left; width:100%; overflow:auto; cursor:default;}
+.table_headers, .table_data { clear:left; width:100%; overflow:scroll; position:relative; cursor:default;}
 
 .table_container.exp {width:30%;}
 .table_container.sess {width:30%;}
@@ -59,9 +60,9 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
         <h2>Browse</h2>
         <p>This page allows you to view and make changes to your data.</p>
 
-        <div id="table_headers">
+        <div class="table_headers">
             <div class="table_container exp">
-                <table class='manage' border="0" cellpadding="0" cellspacing="1">
+                <table class='manage'>
                     <thead>
                         <tr>
                             <py:for each="col in exp_columns">
@@ -73,7 +74,7 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
                 </table>
             </div>
             <div class="table_container sess">
-                <table class='manage' border="0" cellpadding="0" cellspacing="1">
+                <table class='manage'>
                     <thead>
                         <tr>
                             <py:for each="col in session_columns">
@@ -85,7 +86,7 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
                 </table>
             </div>
             <div class="table_container epoch">
-                <table class='manage' border="0" cellpadding="0" cellspacing="1">
+                <table class='manage'>
                     <thead>
                         <tr>
                             <py:for each="col in epoch_columns">
@@ -98,10 +99,10 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
             </div>
         </div>
 
-        <div id='table_data'><!-- style="height:300px;">-->
+        <div class='table_data' style="height:300px;">
             <div id="exp_container" class="table_container exp">
                 <div class="pusher"></div>
-                <table id="experiments" class="manage" border="0" cellpadding="0" cellspacing="1">
+                <table id="experiments" class="manage">
                     <thead>
                         <tr>
                             <py:for each="col in exp_columns">
@@ -122,7 +123,7 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
             </div>
             <div id="sess_container" class="table_container sess">
                 <div class='pusher'></div>
-                <table id="sessions" class="manage" border="0" cellpadding="0" cellspacing="1">
+                <table id="sessions" class="manage">
                     <thead style="height:0px">
                         <tr>
                             <py:for each="col in session_columns">
@@ -135,7 +136,7 @@ tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: wh
             </div>
             <div id="epoch_container" class="table_container epoch">
                 <div class='pusher'></div>
-                <table id="epochs" class="manage" border="0" cellpadding="0" cellspacing="1">
+                <table id="epochs" class="manage">
                     <thead>
                         <tr>
                             <py:for each="col in epoch_columns">

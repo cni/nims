@@ -123,7 +123,7 @@ function makeSessionRow(session_tuple)
     var session_cell;
     session_row.id = 'sess_' + session_tuple[0];
     var n_session_tuples = session_tuple.length;
-    for (var i = 1; i < n_session_tuples.length; i++)
+    for (var i = 1; i < n_session_tuples; i++)
     {
         session_cell = document.createElement('td');
         session_cell.textContent = session_tuple[i];
@@ -282,7 +282,7 @@ function refreshEpochList(session_row)
             success: function(data)
             {
                 var epoch_pusher = $("#epoch_container .pusher");
-                epoch_pusher.height(session_row.position().top - epoch_pusher.position().top - 3); // - 3  for god knows why... need to figure this out TODO
+                epoch_pusher.height(session_row.position().top - epoch_pusher.position().top); // - 3  for god knows why... need to figure this out TODO
                 table_body.children().remove();
                 for (var i = 0; i < data.length; i++)
                 {
@@ -335,7 +335,7 @@ function refreshSessionList(experiment_row)
                 }
 
                 var sess_pusher = $("#sess_container .pusher");
-                sess_pusher.height(experiment_row.position().top - sess_pusher.position().top - 3); // - 3  for god knows why... need to figure this out TODO
+                sess_pusher.height(experiment_row.position().top - sess_pusher.position().top); // - 3  for god knows why... need to figure this out TODO
                 refreshEpochList(null);
                 table_body.children().remove();
                 for (var i = 0; i < data.length; i++) // repopulate session table
