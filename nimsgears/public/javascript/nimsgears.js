@@ -281,8 +281,6 @@ function refreshEpochList(session_row)
             },
             success: function(data)
             {
-                var epoch_pusher = $("#epoch_container .pusher");
-                epoch_pusher.height(session_row.position().top - epoch_pusher.position().top); // - 3  for god knows why... need to figure this out TODO
                 table_body.children().remove();
                 for (var i = 0; i < data.length; i++)
                 {
@@ -334,8 +332,6 @@ function refreshSessionList(experiment_row)
                     $("#experiments tbody tr").droppable("option", "disabled", true);
                 }
 
-                var sess_pusher = $("#sess_container .pusher");
-                sess_pusher.height(experiment_row.position().top - sess_pusher.position().top); // - 3  for god knows why... need to figure this out TODO
                 refreshEpochList(null);
                 table_body.children().remove();
                 for (var i = 0; i < data.length; i++) // repopulate session table

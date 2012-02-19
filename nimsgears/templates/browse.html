@@ -32,8 +32,10 @@ table.manage {border-spacing:0px;}
 .manage thead .col_access { width:20%; }
 #floating {position:absolute;}
 
-.table_headers, .table_data { clear:left; width:100%; overflow:scroll; position:relative; cursor:default;}
-.table_fuck {float:left}
+.table_headers, .table_data { clear:left; width:100%; overflow:auto; position:relative; cursor:default;}
+.table_wrap {float:left}
+
+.table_container {width:100%;}
 
 /*
 .table_container.exp {width:30%;}
@@ -58,12 +60,12 @@ table.manage {border-spacing:0px;}
 </head>
 
 <body>
-    <div id="style_wrapper">
+    <div id="style_wrapper" style="width:100%">
 
         <h2>Browse</h2>
         <p>This page allows you to view and make changes to your data.</p>
 
-        <div class="table_fuck">
+        <div class="table_wrap" style="width:30%">
             <div class="table_headers">
                 <div class="table_container exp">
                     <table class='manage'>
@@ -102,7 +104,7 @@ table.manage {border-spacing:0px;}
             </div>
         </div>
 
-        <div class="table_fuck">
+        <div class="table_wrap" style="width:30%">
             <div class="table_headers">
                 <div class="table_container sess">
                     <table class='manage'>
@@ -133,7 +135,7 @@ table.manage {border-spacing:0px;}
             </div>
         </div>
 
-        <div class="table_fuck">
+        <div class="table_wrap" style="width:40%">
             <div class="table_headers">
                 <div class="table_container epoch">
                     <table class='manage'>
