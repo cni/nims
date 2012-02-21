@@ -33,6 +33,7 @@ table.manage {border-spacing:0px;}
 #floating {position:absolute;}
 
 .table_headers, .table_data { clear:left; width:100%; overflow:auto; position:relative; cursor:default;}
+.table_data {height:100px}
 .table_wrap {float:left}
 
 .table_container {width:100%;}
@@ -60,7 +61,7 @@ table.manage {border-spacing:0px;}
 </head>
 
 <body>
-    <div id="style_wrapper" style="width:100%">
+    <div id="style_wrapper" style="width:100%; height:100%">
 
         <h2>Browse</h2>
         <p>This page allows you to view and make changes to your data.</p>
@@ -80,7 +81,7 @@ table.manage {border-spacing:0px;}
                     </table>
                 </div>
             </div>
-            <div class='table_data' style="height:300px;">
+            <div class='table_data'>
                 <div id="exp_container" class="table_container exp">
                     <table id="experiments" class="manage">
                         <thead>
@@ -119,10 +120,10 @@ table.manage {border-spacing:0px;}
                     </table>
                 </div>
             </div>
-            <div class='table_data' style="height:300px;">
+            <div class='table_data'>
                 <div id="sess_container" class="table_container sess">
                     <table id="sessions" class="manage">
-                        <thead style="height:0px">
+                        <thead>
                             <tr>
                                 <py:for each="col in session_columns">
                                     <th py:with="name, cls = col" class="${cls} flat"></th>
@@ -151,9 +152,8 @@ table.manage {border-spacing:0px;}
                 </div>
             </div>
 
-            <div class='table_data' style="height:300px;">
+            <div class='table_data'>
                 <div id="epoch_container" class="table_container epoch">
-                    <div class='pusher'></div>
                     <table id="epochs" class="manage">
                         <thead>
                             <tr>
