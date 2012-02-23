@@ -254,14 +254,14 @@ class AuthDataController(DataController):
     def browse(self):
         user = request.identity['user']
 
-        exp_dict = {}
+        exp_dict_dict = {}
         if predicates.in_group('superusers') and user.admin_mode:
             experiments = Experiment.query.all()
-            exp_dict[u'mg'] = dict([(exp.id, (exp.owner.gid, exp.name)) for exp in experiments])
+            exp_dict_dict[u'mg'] = dict([(exp.id, (exp.owner.gid, exp.name)) for exp in experiments])
         else:
             results = DBSession.query(Experiment, Access).join(Access).filter(Access.user == user).all()
             for exp, axs in results:
-                exp_dict.setdefault(axs.privilege.name, {})[exp.id] = (exp.owner.gid, exp.name)
+                exp_dict_dict.setdefault(axs.privilege.name, {})[exp.id] = (exp.owner.gid, exp.name)
 
         # FIXME i plan to replace these things with just column number
         # indicators computed in the front end code... keep class names out of back end
@@ -270,7 +270,7 @@ class AuthDataController(DataController):
         epoch_columns = [('S/A', 'col_sa'), ('Description', 'col_desc')]
 
         return dict(page='browse',
-                    exp_dict=exp_dict,
+                    exp_dict_dict=exp_dict_dict,
                     exp_columns=exp_columns,
                     session_columns=session_columns,
                     epoch_columns=epoch_columns)
