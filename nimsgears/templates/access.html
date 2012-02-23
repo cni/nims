@@ -15,17 +15,24 @@
 <script type="text/javascript" src="${tg.url('/javascript/nimsgears.js')}"></script>
 <style>
 
-body table.ui-widget { background:transparent;}
 tr.alternate.ui-selected td, tr.ui-selected td { background-color: #ddcf99; }
-tr.dragHover td, tr.dragHover.alternate td, tr.multiDragHover td, tr.multiDragHover.alternate td { background-color:#820000; color: white}
+tr.hover td, tr.hover.alternate td, tr.multiDragHover td, tr.multiDragHover.alternate td { background-color:#820000; color: white}
 
-#sessions, #epochs { display: none; }
-
-#style_wrapper #tabs li:not(.ui-tabs-selected) { background:transparent;}
 .access thead th {font-family: Georgia,Times New Roman,Times; color: white; background-color: #820000}
 
-#style_wrapper table { width:100%; cursor:default;}
-.col_sunet { width:40%; }
+#style_wrapper { width:100%;}
+#style_wrapper table, #floating { vertical-align:top; margin:0px; }
+
+.access thead .col_sunet { width:40%; }
+.access thead .col_exam, #floating .col_exam { width:25%; }
+.access thead .col_sa { width:25%; }
+.access thead .col_access { width:20%; }
+
+.table_header, .table_body { cursor:default; }
+.table_body { width:100%; overflow:auto; }
+.table_wrap { float:left; vertical-align:top; }
+
+.flat { padding:0px; height:0px }
 
 </style>
 
@@ -39,61 +46,78 @@ tr.dragHover td, tr.dragHover.alternate td, tr.multiDragHover td, tr.multiDragHo
 </head>
 
 <body>
-<div id="style_wrapper">
+    <div id="style_wrapper">
 
-    <h2>Access</h2>
+        <h2>Access</h2>
+        <p>This page allows you to view and make changes to access privileges.</p>
 
-    <p>This page allows you to view and make changes to access privileges.</p>
+        <div class="table_wrap" style='width:25%; clear:left;'>
+            <div class="table_header users">
+                <table class='access'>
+                    <thead>
+                        <tr>
+                            <py:for each="col in user_columns">
+                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class='table_body users'>
+                <table id="users" class="access">
+                    <thead>
+                        <tr>
+                            <py:for each="col in user_columns">
+                                <th py:with="name, cls = col" class="${cls} flat"></th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <py:for each="user_params in user_list">
+                            <tr>
+                                <td py:for="param in user_params">${param}</td>
+                            </tr>
+                        </py:for>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-    <table>
-        <tr>
-        <td style="vertical-align:top; width:25%;">
-
-            <table class="access" id="users" border="0" cellpadding="0" cellspacing="1">
-              <thead>
-                <tr>
-                    <py:for each="col in user_columns">
-                      <th py:with="name, cls = col" class="${cls}">${name}</th>
-                    </py:for>
-                </tr>
-              </thead>
-              <tbody>
-                <py:for each="user_params in user_list">
-                    <tr>
-                        <td py:for="param in user_params">${param}</td>
-                    </tr>
-                </py:for>
-              </tbody>
-            </table>
-
-        </td>
-        <td style="vertical-align:top; width:25%;">
-
-            <table class="access" id="experiments" border="0" cellpadding="0" cellspacing="1">
-              <thead>
-                <tr>
-                    <py:for each="col in exp_columns">
-                      <th py:with="name, cls = col" class="${cls}">${name}</th>
-                    </py:for>
-                </tr>
-              </thead>
-              <tbody>
-                <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
-                    <py:for each="exp_id, exp_params in exp_dict.iteritems()">
-                      <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
-                            <td py:for="param in exp_params">${param}</td>
-                      </tr>
-                    </py:for>
-                </py:for>
-              </tbody>
-            </table>
-
-        </td>
-        <td style="vertical-align:top;">
-
-        </td>
-        </tr>
-    </table>
-</div>
+        <div class="table_wrap" style='width:25%;'>
+            <div class="table_header exp">
+                <table class='access'>
+                    <thead>
+                        <tr>
+                            <py:for each="col in exp_columns">
+                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class='table_body exp'>
+                <table id="experiments" class="access">
+                    <thead>
+                        <tr>
+                            <py:for each="col in exp_columns">
+                                <th py:with="name, cls = col" class="${cls} flat"></th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
+                            <py:for each="exp_id, exp_params in exp_dict.iteritems()">
+                                <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
+                                    <td py:for="param in exp_params">${param}</td>
+                                </tr>
+                            </py:for>
+                        </py:for>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

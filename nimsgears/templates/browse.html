@@ -15,156 +15,142 @@
 <script type="text/javascript" src="${tg.url('/javascript/nimsgears.js')}"></script>
 <style>
 
+table { width:100%;}
 tr.alternate.ui-selected td, tr.ui-selected td { background-color: #ddcf99; }
-tr.dragHover td, tr.dragHover.alternate td { background-color:#820000; color: white}
+tr.hover td, tr.hover.alternate td { background-color:#820000; color: white; }
 .access_mg { font-weight:bold; }
 
-.manage thead th {font-family:Georgia,Times New Roman,Times; color:white; background-color:#820000}
-table.manage {border-spacing:0px;}
-.table_headers table.manage thead th, table.manage tbody td {border:1px solid white;}
+.manage thead th { font-family:Georgia,Times New Roman,Times; color:white; background-color:#820000; }
+table.manage { border-spacing:0px; }
+.table_header table.manage thead th, table.manage tbody td { border:1px solid white; }
 
-#style_wrapper {width:100%;}
-#style_wrapper table, #floating { width:100%; vertical-align:top; margin:0px;}
+#style_wrapper { width:100%; }
+#style_wrapper table, #floating { vertical-align:top; margin:0px; }
 
 .manage thead .col_sunet { width:40%; }
 .manage thead .col_exam, #floating .col_exam { width:25%; }
 .manage thead .col_sa { width:25%; }
 .manage thead .col_access { width:20%; }
-#floating {position:absolute;}
 
-.table_headers, .table_data { clear:left; width:100%; overflow:auto; position:relative; cursor:default;}
-.table_data {height:100px}
-.table_wrap {float:left}
+.table_header, .table_body { cursor:default; }
+.table_body { width:100%; overflow:auto; }
+.table_wrap { float:left; vertical-align:top; }
 
-.table_container {width:100%;}
-
-/*
-.table_container.exp {width:30%;}
-.table_container.sess {width:30%;}
-.table_container.epoch {width:40%;}
-*/
-
-.table_container { vertical-align:top; float:left}
-.flat {padding:0px; height:0px}
+.flat { padding:0px; height:0px }
+.dropbox { text-align:center; float:right; height:15px; width:70px; border:2px solid #820000; padding:10px; margin:5px}
+.dropbox.hover {background-color:#ddcf99}
+.subheader { float:left; }
 
 </style>
 
 <script type="text/javascript">
     $(document).ready(function() {
         setupCallbacks();
-        setupDraggable($("#sessions"), $("#experiments tbody tr"));
-        setupDroppable($("#sessions"), $("#experiments tbody tr"), dropSessionsOnExperiment);
-        $("th").click(function() { sortTable($(this), 1);});
     });
 </script>
 
 </head>
 
 <body>
-    <div id="style_wrapper" style="width:100%; height:100%">
+    <div id="style_wrapper">
 
-        <h2>Browse</h2>
-        <p>This page allows you to view and make changes to your data.</p>
+        <div class="subheader">
+            <h2>Browse</h2>
+            <p>This page allows you to view and make changes to your data.</p>
+        </div>
+        <div class="dropbox" id="trash_drop">
+        Trash
+        </div>
+        <div class="dropbox" id="download_drop">
+        Download
+        </div>
 
-        <div class="table_wrap" style="width:30%">
-            <div class="table_headers">
-                <div class="table_container exp">
-                    <table class='manage'>
-                        <thead>
-                            <tr>
-                                <py:for each="col in exp_columns">
-                                    <th py:with="name, cls = col" class="${cls}">${name}</th>
-                                </py:for>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-            <div class='table_data'>
-                <div id="exp_container" class="table_container exp">
-                    <table id="experiments" class="manage">
-                        <thead>
-                            <tr>
-                                <py:for each="col in exp_columns">
-                                    <th py:with="name, cls = col" class="${cls} flat"></th>
-                                </py:for>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
-                                <py:for each="exp_id, exp_params in exp_dict.iteritems()">
-                                    <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
-                                        <td py:for="param in exp_params">${param}</td>
-                                    </tr>
-                                </py:for>
+        <div class="table_wrap" style='width:30%; clear:left;'>
+            <div class="table_header exp">
+                <table class='manage'>
+                    <thead>
+                        <tr>
+                            <py:for each="col in exp_columns">
+                                <th py:with="name, cls = col" class="${cls}">${name}</th>
                             </py:for>
-                        </tbody>
-                    </table>
-                </div>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class='table_body exp'>
+                <table id="experiments" class="manage">
+                    <thead>
+                        <tr>
+                            <py:for each="col in exp_columns">
+                                <th py:with="name, cls = col" class="${cls} flat"></th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
+                            <py:for each="exp_id, exp_params in exp_dict.iteritems()">
+                                <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
+                                    <td py:for="param in exp_params">${param}</td>
+                                </tr>
+                            </py:for>
+                        </py:for>
+                    </tbody>
+                </table>
             </div>
         </div>
 
         <div class="table_wrap" style="width:30%">
-            <div class="table_headers">
-                <div class="table_container sess">
-                    <table class='manage'>
-                        <thead>
-                            <tr>
-                                <py:for each="col in session_columns">
-                                    <th py:with="name, cls = col" class="${cls}">${name}</th>
-                                </py:for>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+            <div class="table_header sess">
+                <table class='manage'>
+                    <thead>
+                        <tr>
+                            <py:for each="col in session_columns">
+                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
-            <div class='table_data'>
-                <div id="sess_container" class="table_container sess">
-                    <table id="sessions" class="manage">
-                        <thead>
-                            <tr>
-                                <py:for each="col in session_columns">
-                                    <th py:with="name, cls = col" class="${cls} flat"></th>
-                                </py:for>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+            <div class='table_body sess'>
+                <table id="sessions" class="manage">
+                    <thead>
+                        <tr>
+                            <py:for each="col in session_columns">
+                                <th py:with="name, cls = col" class="${cls} flat"></th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
         </div>
 
         <div class="table_wrap" style="width:40%">
-            <div class="table_headers">
-                <div class="table_container epoch">
-                    <table class='manage'>
-                        <thead>
-                            <tr>
-                                <py:for each="col in epoch_columns">
-                                    <th py:with="name, cls = col" class="${cls}">${name}</th>
-                                </py:for>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+            <div class="table_header epoch">
+                <table class='manage'>
+                    <thead>
+                        <tr>
+                            <py:for each="col in epoch_columns">
+                                <th py:with="name, cls = col" class="${cls}">${name}</th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
-
-            <div class='table_data'>
-                <div id="epoch_container" class="table_container epoch">
-                    <table id="epochs" class="manage">
-                        <thead>
-                            <tr>
-                                <py:for each="col in epoch_columns">
-                                    <th py:with="name, cls = col" class="${cls} flat"></th>
-                                </py:for>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+            <div class='table_body epoch'>
+                <table id="epochs" class="manage">
+                    <thead>
+                        <tr>
+                            <py:for each="col in epoch_columns">
+                                <th py:with="name, cls = col" class="${cls} flat"></th>
+                            </py:for>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
         </div>
 
