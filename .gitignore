@@ -3,6 +3,6 @@
 *.egg-info
 *.sqlite
 production.ini
-nimsutil/pfreader.py
+nimsutil/pfheader.py
 nims_stage
 nims_store
