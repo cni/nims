@@ -68,6 +68,7 @@ class Sorter(object):
             dest = nimsutil.make_joined_path(self.data_path, dataset.path)
             ext = dataset.filename_ext if os.path.splitext(filename)[1] != dataset.filename_ext else ''
             shutil.move(filename, os.path.join(dest, os.path.basename(filename) + ext))
+            dataset.untrash()
             dataset.is_dirty = True
             dataset.updated_at = datetime.datetime.now()
             transaction.commit()
@@ -101,6 +102,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('db_uri', help='database URI')
         self.add_argument('stage_path', help='path to staging area')
         self.add_argument('nims_path', help='data destination')
+        self.add_argument('-s', '--sleeptime', type=int, default=30, help='time to sleep before checking for new files')
         self.add_argument('-n', '--logname', default=__file__, help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
         self.add_argument('-l', '--loglevel', default='info', help='path to log file')
@@ -117,9 +119,8 @@ if __name__ == "__main__":
     stage_path = nimsutil.make_joined_path(args.stage_path, 'sort')
     junk_path = nimsutil.make_joined_path(args.stage_path, 'junk')
     nims_path = nimsutil.make_joined_path(args.nims_path)
-    sleep_time = 30
 
-    sorter = Sorter(args.db_uri, stage_path, junk_path, nims_path, sleep_time, log)
+    sorter = Sorter(args.db_uri, stage_path, junk_path, nims_path, args.sleep_time, log)
 
     def term_handler(signum, stack):
         sorter.halt()

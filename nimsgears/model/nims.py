@@ -255,6 +255,7 @@ class Subject(Entity):
 
 class Experiment(Entity):
 
+    trashtime = Field(DateTime)
     name = Field(Unicode(63))
     irb = Field(Unicode(16))
 
@@ -263,7 +264,7 @@ class Experiment(Entity):
     sessions = OneToMany('Session')
 
     def __unicode__(self):
-        return self.name
+        return u'%s: %s' % (self.owner, self.name)
 
     @classmethod
     def by_owner_name(cls, owner, name):
@@ -278,10 +279,32 @@ class Experiment(Entity):
                 Access(experiment=experiment, user=member, privilege=mem_priv)
         return experiment
 
+    @property
+    def is_trash(self):
+        return bool(self.trashtime)
+
+    @property
+    def contains_trash(self):
+        if self.is_trash:
+            return True
+        for session in self.sessions:
+            if session.contains_trash:
+                return True
+        return False
+
+    def trash(self, trashtime=datetime.datetime.now()):
+        self.trashtime = trashtime
+        for session in self.sessions:
+            session.trash(trashtime)
+
+    def untrash(self):
+        self.trashtime = None
+
 
 class Session(Entity):
 
     timestamp = Field(DateTime, default=datetime.datetime.now)
+    trashtime = Field(DateTime)
     mri_exam = Field(Integer)
     notes = Field(Unicode)
 
@@ -289,14 +312,6 @@ class Session(Entity):
     subject = ManyToOne('Subject')
     operator = ManyToOne('User')
     epochs = OneToMany('Epoch')
-
-    @property
-    def name(self):
-        return '%s_%d' % (self.timestamp.strftime('%Y%m%d'), self.mri_exam)
-
-    #@property
-    #def path(self):
-    #    return '%08d' % self.id
 
     @classmethod
     def from_metadata(cls, md):
@@ -308,10 +323,38 @@ class Session(Entity):
             session = Session(mri_exam=md.mri_exam, subject=subject, experiment=experiment)
         return session
 
+    @property
+    def name(self):
+        return '%s_%d' % (self.timestamp.strftime('%Y%m%d'), self.mri_exam)
+
+    @property
+    def is_trash(self):
+        return bool(self.trashtime)
+
+    @property
+    def contains_trash(self):
+        if self.is_trash:
+            return True
+        for epoch in self.epochs:
+            if epoch.contains_trash:
+                return True
+        return False
+
+    def trash(self, trashtime=datetime.datetime.now()):
+        self.trashtime = trashtime
+        for epoch in self.epochs:
+            epoch.trash(trashtime)
+
+    def untrash(self):
+        if self.is_trash:
+            self.trashtime = None
+            self.experiment.untrash()
+
 
 class Epoch(Entity):
 
     timestamp = Field(DateTime, default=datetime.datetime.now)
+    trashtime = Field(DateTime)
     physio_flag = Field(Boolean, default=False)
     has_physio = Field(Boolean, default=False)
 
@@ -325,14 +368,6 @@ class Epoch(Entity):
 
     def __unicode__(self):
         return u'<Epoch %5d %04d %02d %s>' % (self.session.mri_exam, self.mri_series, self.mri_acq, self.mri_desc)
-
-    @property
-    def name(self):
-        return ('%04d_%02d_%s' % (self.mri_series, self.mri_acq, self.mri_desc)).encode('utf-8')
-
-    #@property
-    #def path(self):
-    #    return os.path.join(self.session.path) # FIXME: probably need more here
 
     @classmethod
     def from_metadata(cls, md):
@@ -348,12 +383,40 @@ class Epoch(Entity):
             epoch = cls(session=session, timestamp=md.timestamp, mri_series=md.mri_series, mri_acq=md.mri_acq, mri_desc=md.mri_desc)
         return epoch
 
+    @property
+    def name(self):
+        return ('%04d_%02d_%s' % (self.mri_series, self.mri_acq, self.mri_desc)).encode('utf-8')
+
+    @property
+    def is_trash(self):
+        return bool(self.trashtime)
+
+    @property
+    def contains_trash(self):
+        if self.is_trash:
+            return True
+        for dataset in self.datasets:
+            if dataset.is_trash:
+                return True
+        return False
+
+    def trash(self, trashtime=datetime.datetime.now()):
+        self.trashtime = trashtime
+        for dataset in self.datasets:
+            dataset.trash(trashtime)
+
+    def untrash(self):
+        if self.is_trash:
+            self.trashtime = None
+            self.session.untrash()
+
 
 class Dataset(Entity):
 
     tasks = []
     label = ''
 
+    trashtime = Field(DateTime)
     offset_secs = Field(Float)
     duration_secs = Field(Float)
     name = Field(Unicode(31))
@@ -374,6 +437,22 @@ class Dataset(Entity):
         if self.path_prefix is None:
             self.path_prefix = u'%03d' % random.randint(0,999)
         return os.path.join(self.path_prefix, '%08d' % self.id).encode('utf-8')
+
+    @property
+    def is_trash(self):
+        return bool(self.trashtime)
+
+    @property
+    def contains_trash(self):
+        return self.is_trash
+
+    def trash(self, trashtime=datetime.datetime.now()):
+        self.trashtime = trashtime
+
+    def untrash(self):
+        if self.is_trash:
+            self.trashtime = None
+            self.epoch.untrash()
 
 
 class FreeDataset(Dataset):
