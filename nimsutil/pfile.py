@@ -1,46 +1,38 @@
 #!/usr/bin/env python
 
-import subprocess as sp
-import shlex
-import tempfile
-import sys
 import os
+import shlex
+import argparse
+import subprocess as sp
 
 import numpy as np
 import nibabel
 
-#sys.path.append('/home/bobd/github/nims')
-#from nimsutil import pfheader, nimsutil, pfile
-import pfheader
 import nimsutil
+import pfheader
+
 
 class Pfile:
     """
-    A class for reading the data and/or header from a p-file, running a k-space reconstruction,
-    and generating a NIFTI object from the p-file header info.
+    Read pfile data and/or header.
+
+    This class reads the data and/or header from a pfile, runs k-space reconstruction,
+    and generates a NIfTI object, including header information.
+
     Example:
         from nimsutil import pfile
-        pf = pfile.Pfile(rawfile='/scratch/spirec_test/shim_test/P56832.7', outfile='P56832.7')
-        pf.recon()
-        pf.to_nii()
-
+        pf = pfile.Pfile(pfilename='P56832.7')
+        pf.to_nii(outbase='P56832.7')
     """
 
-    def __init__(self, rawfile, outfile = None, verbose = False):
-        self.rawfile = rawfile
-        if outfile == None:
-            self.outfile = rawfile+"_recon"
-        else:
-            self.outfile = outfile
-        self.header = None
+    def __init__(self, pfilename):
+        self.pfilename = pfilename
+        self.load_header()
         self.image_data = None
         self.fm_data = None
-        self.spirec = os.path.join('/home/bobd/github/nims/nimsutil/','spirec')
-        self.verbose = verbose
 
-    def load_header(self, force_reload=False):
-        if force_reload or self.header == None:
-            self.header = pfheader.get_header(self.rawfile)
+    def load_header(self):
+        self.header = pfheader.get_header(self.pfilename)
         # Pull out some common fields for convenience
         # *** CHECK THAT THESE ARE THE RIGHT FIELDS (ATSUSHI?)
         self.num_slices = self.header.rec.nslices
@@ -52,12 +44,13 @@ class Pfile:
         self.size_y = self.header.image.imatrix_Y
         self.deltaTE = self.header.rec.user15
 
-    def to_nii(self, saveInOut = False):
-        """Create a nifti file from a p-file, given the p-file header and the reconstructed data."""
-        # Make sure we have what we need
-        self.load_header()
-        if self.image_data == None:
-            self.recon()
+    def to_nii(self, outbase=None, spirec='spirec', saveInOut=False):
+        """Create NIfTI file from pfile."""
+        if outbase is None:
+            outbase = os.path.basename(self.pfilename)
+
+        if self.image_data is None:
+            self.recon(spirec)
 
         mm_per_vox = np.array([self.header.image.pixsize_X,
                                self.header.image.pixsize_Y,
@@ -148,13 +141,13 @@ class Pfile:
 
         if num_echoes == 1:
             nifti = nibabel.Nifti1Image(self.image_data, None, nii_header)
-            nibabel.save(nifti, self.outfile + '.nii.gz')
+            nibabel.save(nifti, outbase + '.nii.gz')
         elif num_echoes == 2:
             if saveInOut:
                 nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,0], None, nii_header)
-                nibabel.save(nifti, self.outfile + '_in.nii.gz')
+                nibabel.save(nifti, outbase + '_in.nii.gz')
                 nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,1], None, nii_header)
-                nibabel.save(nifti, self.outfile + '_out.nii.gz')
+                nibabel.save(nifti, outbase + '_out.nii.gz')
             # FIXME: Do a more robust test for spiralio!
             # Assume spiralio, so do a weighted average of the two echos.
             # FIXME: should do a quick motion correction here
@@ -170,22 +163,20 @@ class Pfile:
             if max_val>32768:
                 avg = 32768.0/max_val * avg
             nifti = nibabel.Nifti1Image(avg, None, nii_header)
-            nibabel.save(nifti, self.outfile + '.nii.gz')
+            nibabel.save(nifti, outbase + '.nii.gz')
             # w = out/(in+out)
         else:
             for echo in range(num_echoes):
-                nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,0], None, nii_header)
-                nibabel.save(nifti, self.outfile + "_echo%02d.nii.gi.gzz" % echo)
+                nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,echo], None, nii_header)
+                nibabel.save(nifti, outbase + '_echo%02d.nii.gz' % echo)
 
         nifti = nibabel.Nifti1Image(self.fm_data * 100, None, nii_header)
-        nibabel.save(nifti, self.outfile + '_B0.nii.gz')
+        nibabel.save(nifti, outbase + '_B0.nii.gz')
 
-
-
-    def load_fieldmap_files(self, basename, save_unified = True, data_type = np.float32):
+    def load_fieldmap_files(self, basename, save_unified=True, data_type=np.float32):
         xyres = self.size_x
         if xyres != self.size_y:
-            raise IndexError("non-square matrix: spiral recon requires a square matrix!")
+            raise IndexError('non-square matrix: spiral recon requires a square matrix!')
 
         fm_freq = np.zeros([xyres,xyres,self.num_slices,self.num_echoes], dtype=data_type)
         fm_mask = np.zeros([xyres,xyres,self.num_slices,self.num_echoes], dtype=data_type)
@@ -231,31 +222,29 @@ class Pfile:
 
         return fm_freq, fm_mask
 
-
-
-    def recon(self):
-        self.load_header()
-
+    def recon(self, spirec):
+        """Do image reconstruction and populate self.image_data."""
         with nimsutil.TempDirectory() as tmp_dir:
-            basename = os.path.join(tmp_dir,'recon')
+            basename = 'recon'
+            basepath = os.path.join(tmp_dir, basename)
+            pfilename = os.path.abspath(self.pfilename)
 
-            # Run spirec once to get the fieldmap files (one for each coil and slice)
-            #sp.check_call([spirec,"-X","-l","--loadfmap","--savefmap","--rotate","-90","--b0navigator","-r",self.rawfile,"-t","recon"],cwd=tmp_dir)
-            cmd = self.spirec + " -l --fmaponly --savefmap --rotate -90 -r " + self.rawfile + " -t recon"
+            # run spirec once to get the fieldmap files (one for each coil and slice)
+            cmd = spirec + ' -l --fmaponly --savefmap --rotate -90 -r ' + pfilename + ' -t ' + basename
             print(cmd)
             sp.call(shlex.split(cmd), cwd=tmp_dir)
 
-            # combine these fieldmaps into one unified fieldmap
-            [self.fm_data, fm_mask] = self.load_fieldmap_files(basename, save_unified = True)
+            # combine the fieldmaps into one unified fieldmap
+            [self.fm_data, fm_mask] = self.load_fieldmap_files(basepath, save_unified = True)
 
-            # call spirec again, giving it our unified fieldmap. This will produce an even better fieldmap
-            cmd = self.spirec + " -l --savetempfile --loadfmap --just 2 --rotate -90 -r " + self.rawfile + " -t recon"
+            # call spirec again, giving it our unified fieldmap, to produce an even better fieldmap
+            cmd = spirec + ' -l --savetempfile --loadfmap --just 2 --rotate -90 -r ' + pfilename + ' -t ' + basename
             print(cmd)
             sp.call(shlex.split(cmd), cwd=tmp_dir)
 
             data_type = np.complex64
             #complex_image = np.zeros([size_x, size_y, num_slices, 2], dtype=data_type)
-            fn = "%s.complex_float" % basename
+            fn = '%s.complex_float' % basepath
             # Why do we need 'F'ortran order for our reshape?!?!
             with open(fn, 'rb') as fp:
                 complex_image = np.fromfile(file=fp, dtype=data_type).reshape([self.size_x,self.size_y,2,self.num_slices,self.num_receivers,self.num_echoes],order='F')
@@ -269,20 +258,20 @@ class Pfile:
             for echo in range(self.num_echoes):
                 for cur_slice in range(self.num_slices):
                     for cur_recv in range(self.num_receivers):
-                        thisfilename = '%s.freq_%03d' % (basename,(cur_recv*self.num_slices+cur_slice)*self.num_echoes+echo)
+                        thisfilename = '%s.freq_%03d' % (basepath,(cur_recv*self.num_slices+cur_slice)*self.num_echoes+echo)
                         with open(thisfilename ,'wb') as fp:
                             self.fm_data[:,:,cur_slice].transpose().tofile(file = fp)
-                        thismaskname = '%s.mask_%03d' % (basename,(cur_recv*self.num_slices+cur_slice)*self.num_echoes+echo)
+                        thismaskname = '%s.mask_%03d' % (basepath,(cur_recv*self.num_slices+cur_slice)*self.num_echoes+echo)
                         with open(thismaskname ,'wb') as fp:
                             np.sqrt(fm_mask[:,:,cur_slice].transpose()).tofile(file = fp)
 
             # Now recon the whole timeseries using the good fieldmaps that we just saved.
-            cmd = self.spirec + " -l --savetempfile --loadfmap --rotate -90 --b0navigator -r " + self.rawfile + " -t recon"
+            cmd = spirec + ' -l --savetempfile --loadfmap --rotate -90 --b0navigator -r ' + pfilename + ' -t ' + basename
             print(cmd)
             sp.call(shlex.split(cmd), cwd=tmp_dir)
 
             max_array_bytes = 4*1024*1024*1024
-            fn = "%s.complex_float" % basename
+            fn = '%s.complex_float' % basepath
             num_values_per_slice = self.size_x*self.size_y*self.num_timepoints
             num_bytes_per_slice = num_values_per_slice*np.dtype(data_type).itemsize
             if num_bytes_per_slice*self.num_slices < max_array_bytes:
@@ -306,43 +295,40 @@ class Pfile:
                         #self.image_data = np.abs(np.mean(complex_image,4)).transpose([0,1,3,2,4])
                         self.image_data[:,:,sl,:,:] = np.sqrt(np.mean(np.power(np.abs(complex_image),2),3))
 
+    def montage(self, x):
+        """
+        Convenience function for looking at image arrays.
 
-
-
-    # A convenience function for looking at image arrays.
-    # For example:
-    #    pylab.imshow(np.flipud(np.rot90(montage(im))))
-    #    pylab.axis('off')
-    #    pylab.show()
-    # FIXME: put this in a generic utils module.
-    def montage(self, X):
-        m, n, count = np.shape(X)
+        For example:
+            pylab.imshow(np.flipud(np.rot90(montage(im))))
+            pylab.axis('off')
+            pylab.show()
+        """
+        m, n, count = np.shape(x)
         mm = int(np.ceil(np.sqrt(count)))
         nn = mm
-        M = np.zeros((mm * m, nn * n))
+        montage = np.zeros((mm * m, nn * n))
         image_id = 0
         for j in range(mm):
             for k in range(nn):
                 if image_id >= count:
                     break
-                sliceM, sliceN = j * m, k * n
-                M[sliceN:sliceN + n, sliceM:sliceM + m] = X[:, :, image_id]
+                slice_m, slice_n = j * m, k * n
+                montage[slice_n:slice_n + n, slice_m:slice_m + m] = x[:, :, image_id]
                 image_id += 1
-        return M
+        return montage
 
-# for p in `pwd`/P*.7 ; do /home/bobd/github/nims/nimsutil/pfile.py $p ${p##*/} ; done
-if __name__ == "__main__":
-    verbose = False
 
-    if len(sys.argv)!=3:
-        print "Must provide a single argument (p-file name) and an output file base name."
-        sys.exit(1)
+class ArgumentParser(argparse.ArgumentParser):
 
-    data_filename = sys.argv[1]
-    out_filename = sys.argv[2]
-    pf = Pfile(data_filename, out_filename)
-    pf.to_nii()
+    def __init__(self):
+        super(ArgumentParser, self).__init__()
+        self.description = """Recons a GE pfile to produce a NIfTI file and a B0 fieldmap."""
+        self.add_argument('pfile', help='path to pfile')
+        self.add_argument('outbase', nargs='?', help='basename for output files (default: pfile name)')
 
-    print 'Finished.'
-    exit(0)
 
+if __name__ == '__main__':
+    args = ArgumentParser().parse_args()
+    pf = Pfile(args.pfile)
+    pf.to_nii(args.outbase)
