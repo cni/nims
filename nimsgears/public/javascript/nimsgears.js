@@ -43,7 +43,7 @@ function scrolltable_SortByElement(th_element)
         sorted_direction = sorted_data[1];
     }
     sorted_direction = (sorted_column == column_index) ? (-sorted_direction) : 1;
-    scrolltable_sortByColumnIndex(scrolltable_wrapper, column_index, sorted_direction);
+    scrolltable_SortByColumnIndex(scrolltable_wrapper, column_index, sorted_direction);
 };
 
 function scrolltable_SortByColumnIndex(scrolltable_wrapper, column_index, direction)
@@ -144,6 +144,10 @@ function scrolltable_Generate()
         // Sort first time we create table.  Also lazily instantiates
         // SORTED_DATA field on table.
         scrolltable_SortByColumnIndex($(scrolltable_wrapper), 0, 1);
+        $(scrolltable_header).find('th').click(function()
+        {
+            scrolltable_SortByElement($(this));
+        });
     });
 }
 
