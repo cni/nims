@@ -1,5 +1,155 @@
-var lastClickedIndex = "lastClickedIndex";
-var shiftBoundaryIndex = "shiftBoundaryIndex";
+var SORTED_DATA = "sorted_data";
+var LAST_CLICKED_INDEX = "last_clicked_index";
+var SHIFT_BOUNDARY_INDEX = "shift_boundary_index";
+
+/*
+ * SCROLLTABLE CONSTRUCTION
+ */
+function scrolltable_Compare(a, b)
+{
+    if (a < b) { return -1; }
+    else if (a == b) { return 0; }
+    else { return 1; }
+};
+
+
+// Resorts the elements based on the existing sorted order (in case you
+// repopulated the table)
+function scrolltable_Resort(scrolltable_wrapper)
+{
+    var sorted_column;
+    var sorted_direction;
+    var sorted_data = scrolltable_wrapper.data(SORTED_DATA);
+    if (sorted_data != null)
+    {
+        sorted_column = sorted_data[0];
+        sorted_direction = sorted_data[1];
+        scrolltable_SortByColumnIndex(scrolltable_wrapper, sorted_column, sorted_direction);
+    }
+};
+
+function scrolltable_SortByElement(th_element)
+{
+    var scrolltable_wrapper = th_element.closest('.scrolltable_wrapper');
+    var columns = scrolltable_wrapper.find('thead th');
+    var column_index = columns.index(th_element);
+
+    var sorted_column;
+    var sorted_data = scrolltable_wrapper.data(SORTED_DATA);
+    var sorted_direction = 1; // ascending by default
+    if (sorted_data != null)
+    {
+        sorted_column = sorted_data[0];
+        sorted_direction = sorted_data[1];
+    }
+    sorted_direction = (sorted_column == column_index) ? (-sorted_direction) : 1;
+    scrolltable_sortByColumnIndex(scrolltable_wrapper, column_index, sorted_direction);
+};
+
+function scrolltable_SortByColumnIndex(scrolltable_wrapper, column_index, direction)
+{
+    var rows = scrolltable_wrapper.find('.scrolltable_body tbody tr');
+
+    // First operation determines order rows go in:
+    // We actually do this backwards from the 'intended' order, and then put
+    // them all in place backwards
+    var cell_text_a;
+    var cell_text_b;
+    var sorted_rows = rows.sort(function(a, b)
+    {
+        cell_text_a = $(a).children()[column_index].textContent;
+        cell_text_b = $(b).children()[column_index].textContent;
+        return -direction * scrolltable_Compare(cell_text_a, cell_text_b);
+    });
+
+    // Second puts them in the proper order:
+    // With them all sorted 'backwards', we go through all the items besides
+    // the first, and stick them in front of each other.  By the end, we have
+    // our list sorted.  I'm sure I had a reason...
+    var index;
+    var inserting_node;
+    var fixed_node;
+    sorted_rows.slice(1).each(function()
+    {
+        index = sorted_rows.index(this);
+        var inserting_node = this;
+        var fixed_node = sorted_rows[index - 1];
+        this.parentNode.insertBefore(inserting_node, fixed_node);
+    });
+
+    scrolltable_wrapper.data(SORTED_DATA, [column_index, direction]);
+    scrolltable_Stripe(scrolltable_wrapper);
+};
+
+function scrolltable_Stripe(scrolltable_wrapper)
+{
+    scrolltable_wrapper.find('.scrolltable_body tbody tr').removeClass('alternate');
+    scrolltable_wrapper.find('.scrolltable_body tbody tr:odd').addClass('alternate');
+};
+
+function scrolltable_Generate()
+{
+    var table_clone_body;
+    var table_clone_header;
+
+    var scrolltable_body;
+    var scrolltable_header;
+    var scrolltable_wrapper;
+
+    var scrolltables = $(".scrolltable");
+    scrolltables.each(function()
+    {
+        scrolltable_body = document.createElement('div');
+        scrolltable_header = document.createElement('div');
+        scrolltable_wrapper = document.createElement('div');
+        scrolltable_body.className = 'scrolltable_body';
+        scrolltable_header.className = 'scrolltable_header';
+        scrolltable_wrapper.className = 'scrolltable_wrapper';
+        scrolltable_wrapper.appendChild(scrolltable_header);
+        scrolltable_wrapper.appendChild(scrolltable_body);
+
+        table_clone_body = $(this).clone();
+        table_clone_header = table_clone_body.clone();
+
+        scrolltable_wrapper.setAttribute('id', table_clone_body.attr('id'));
+
+        table_clone_body.removeAttr('id');
+        table_clone_header.removeAttr('id');
+
+        // We do a few steps to clean up the header on the table we're putting
+        // into the body. We intend to keep it, because as long as we have a
+        // header we can use it to fix the column widths in the body of the
+        // table.
+        table_clone_body.find('thead th').each(function()
+        {
+            var el = $(this);
+            // Clean out the content - we just need the cells
+            el.children().remove();
+            el.text('');
+            // Set the class to hide header, and remove id to prevent
+            // duplicates in the DOM
+            el.addClass('scrolltable_flat');
+            el.removeAttr('id');
+        });
+
+        // Fewer steps needed on the one for the header - the body is useless
+        // so we just dump it
+        table_clone_header.find('tbody').remove();
+
+        scrolltable_body.appendChild(table_clone_body[0]);
+        scrolltable_header.appendChild(table_clone_header[0]);
+
+        this.parentNode.replaceChild(scrolltable_wrapper, this);
+
+        // Sort first time we create table.  Also lazily instantiates
+        // SORTED_DATA field on table.
+        scrolltable_SortByColumnIndex($(scrolltable_wrapper), 0, 1);
+    });
+}
+
+/*
+ ******************************************************************************
+ */
 
 function viewport()
 {
@@ -56,8 +206,8 @@ function singleRowSelect(event)
         var table = row.closest("table");
         var row_list = row.closest("tbody").find("tr");
         var indexClicked = row_list.index(row);
-        table.data(lastClickedIndex, indexClicked);
-        table.data(shiftBoundaryIndex, indexClicked);
+        table.data(LAST_CLICKED_INDEX, indexClicked);
+        table.data(SHIFT_BOUNDARY_INDEX, indexClicked);
         row_list.removeClass('ui-selected');
         row.addClass('ui-selected');
     }
@@ -109,14 +259,14 @@ function multiRowSelect(event)
     var indexClicked = row_list.index(row);
 	if (event.shiftKey)
     {
-        var last = table.data(lastClickedIndex);
-        var bound = table.data(shiftBoundaryIndex);
+        var last = table.data(LAST_CLICKED_INDEX);
+        var bound = table.data(SHIFT_BOUNDARY_INDEX);
 
         if (last != indexClicked)
         {
             setActivation(row_list, last, bound, false);
             setActivation(row_list, last, indexClicked, true);
-            table.data(shiftBoundaryIndex, indexClicked);
+            table.data(SHIFT_BOUNDARY_INDEX, indexClicked);
         }
 	}
     else if (event.metaKey)
@@ -124,8 +274,8 @@ function multiRowSelect(event)
         toggleActivation(row);
         if (row.hasClass('ui-selected'))
         {
-            table.data(lastClickedIndex, indexClicked);
-            table.data(shiftBoundaryIndex, indexClicked);
+            table.data(LAST_CLICKED_INDEX, indexClicked);
+            table.data(SHIFT_BOUNDARY_INDEX, indexClicked);
         }
     }
 };
@@ -143,27 +293,6 @@ function makeSessionRow(session_tuple)
         session_row.appendChild(session_cell);
     }
     return session_row;
-};
-
-function compare(a, b) {
-   if (a < b)
-      return -1;
-   else if (a == b)
-      return 0;
-   else
-      return 1;
-};
-
-function sortTable(element, direction)
-{
-    var index_of_column = element.closest('thead').find('th').index(element);
-    var rows = element.closest('table').find('tbody tr');
-    var sorted_rows = rows.sort(function mysort(a, b) {
-        return -direction * compare($($(a).find('td')[index_of_column]).text(), $($(b).find('td')[index_of_column]).text()); });
-    sorted_rows.slice(1).each(function() {
-        this.parentNode.insertBefore(this, sorted_rows[sorted_rows.index(this) - 1]); });
-    sorted_rows.removeClass('alternate');
-    sorted_rows.closest("tbody").find("tr:odd").addClass('alternate');
 };
 
 function blurOnEnter(event)
@@ -254,8 +383,8 @@ function dropSessionsOnExperiment(event, ui)
                 if (data.success)
                 {
                     selected_rows.remove();
-                    $("#sessions tbody tr").removeClass('alternate');
-                    $("#sessions tbody tr:odd").addClass('alternate');
+                    $("#sessions .scrolltable_body tbody tr").removeClass('alternate');
+                    $("#sessions .scrolltable_body tbody tr:odd").addClass('alternate');
                 }
                 else
                 {
@@ -341,7 +470,7 @@ function makeEpochRow(epoch_tuple)
 function refreshEpochList(session_row)
 {
     var table_body;
-    table_body = $("#epochs tbody");
+    table_body = $("#epochs .scrolltable_body tbody");
     if (session_row)
     {
         var sess_id = session_row.attr('id').split('_')[1];
@@ -361,14 +490,13 @@ function refreshEpochList(session_row)
                 {
                     table_body.append(makeEpochRow(data[i]));
                 }
-                sortTable($("#epochs thead th").first(), 1);
                 toggleObject(table_body.closest('table'), true);
 
-                var epoch_rows = $("#epochs tbody tr");
+                var epoch_rows = $("#epochs .scrolltable_body tbody tr");
                 epoch_rows.mouseup(singleRowSelect);
                 epoch_rows.mousedown(multiRowSelect);
-                sortTable($("#epochs thead th").first(), 1);
-                setupDraggable($("#epochs"));
+                scrolltable_Resort($("#epochs"));
+                setupDraggable($("#epochs .scrolltable_body"));
             },
         }); // ajax call
     }
@@ -381,7 +509,7 @@ function refreshEpochList(session_row)
 
 function refreshSessionList(experiment_row)
 {
-    var table_body = $("#sessions tbody");
+    var table_body = $("#sessions .scrolltable_body tbody");
     if (experiment_row)
     {
         var exp_id = experiment_row.attr('id').split('_')[1];
@@ -393,7 +521,7 @@ function refreshSessionList(experiment_row)
             data: { id: exp_id },
             success: function(data)
             {
-                var experiment_rows = $("#experiments tbody tr");
+                var experiment_rows = $("#experiments .scrolltable_body tbody tr");
                 if (experiment_row.hasClass('access_mg'))
                 {
                     experiment_rows.each(function()
@@ -410,7 +538,7 @@ function refreshSessionList(experiment_row)
                 }
                 else
                 {
-                    $("#experiments tbody tr").droppable("option", "disabled", true);
+                    $("#experiments .scrolltable_body tbody tr").droppable("option", "disabled", true);
                 }
 
                 refreshEpochList(null);
@@ -420,12 +548,12 @@ function refreshSessionList(experiment_row)
                     table_body.append(makeSessionRow(data[i]));
                 }
 
-                var sessionRows = $("#sessions tbody tr");
+                var sessionRows = $("#sessions .scrolltable_body tbody tr");
                 sessionRows.mouseup(singleRowSelect);
                 sessionRows.mouseup(session_MouseUp);
                 sessionRows.mousedown(multiRowSelect);
                 sessionRows.mousedown(session_MouseDown);
-                sortTable($("#sessions thead th").first(), 1);
+                scrolltable_Resort($("#sessions"));
                 toggleObject(table_body.closest('table'), true);
             },
         });
@@ -449,9 +577,9 @@ function setupMultiDrop(table)
         clearTimeout(ui.helper.data("timer"));
         if (hovered_row.hasClass('ui-selected'))
         {
-            selected_rows.addClass('multiDragHover');
+            selected_rows.addClass('multihover');
         } else {
-            selected_rows.removeClass('multiDragHover');
+            selected_rows.removeClass('multihover');
         }
     });
     table_rows.bind("dropout", function (event, ui)
@@ -461,13 +589,13 @@ function setupMultiDrop(table)
         {
             ui.helper.data("timer", setTimeout(function()
             {
-                $(".multiDragHover").removeClass('multiDragHover');
+                $(".multihover").removeClass('multihover');
             }, 100));
         }
     });
     table_rows.bind("drop", function (event, ui)
     {
-        $(".multiDragHover").removeClass('multiDragHover');
+        $(".multihover").removeClass('multihover');
     });
 }
 
@@ -486,43 +614,41 @@ function setupCallbacks_Access()
     $(window).resize(function() { SetTableHeight(); });
 
     $("body").disableSelection();
-    sortTable($("#users thead th").first(), 1);
-    sortTable($("#experiments thead th").first(), 1);
-    $("table.access").data(lastClickedIndex,0);
-    $("table.access").data(shiftBoundaryIndex,0);
-    experiments_rows = $("#experiments tbody tr");
+    $("table.access").data(LAST_CLICKED_INDEX,0);
+    $("table.access").data(SHIFT_BOUNDARY_INDEX,0);
+    experiments_rows = $("#experiments .scrolltable_body tbody tr");
     experiments_rows.mouseup(singleRowSelect);
     experiments_rows.mousedown(multiRowSelect);
-    users_rows = $("#users tbody tr");
+    users_rows = $("#users .scrolltable_body tbody tr");
     users_rows.mouseup(singleRowSelect);
     users_rows.mousedown(multiRowSelect);
 
-    setupDraggable($("#users"));
-    setupDraggable($("#experiments"));
-    setupDroppable($("#users"), $("#experiments tbody tr"), dropAccessModification);
-    setupDroppable($("#experiments"), $("#users tbody tr"), dropAccessModification);
-    setupMultiDrop($("#users"));
-    setupMultiDrop($("#experiments"));
+    setupDraggable($("#users .scrolltable_body table"));
+    setupDraggable($("#experiments .scrolltable_body table"));
+    setupDroppable($("#users .scrolltable_body table"), $("#experiments .scrolltable_body tbody tr"), dropAccessModification);
+    setupDroppable($("#experiments .scrolltable_body table"), $("#users .scrolltable_body tbody tr"), dropAccessModification);
+    setupMultiDrop($("#users .scrolltable_body table"));
+    setupMultiDrop($("#experiments .scrolltable_body table"));
 };
 
 function dropAccessModification(event, ui)
 {
-    var experiments = $("#experiments");
-    var users = $("#users");
+    var experiments_table = $("#experiments .scrolltable_body table");
+    var users_table = $("#users .scrolltable_body table");
     var dropped_onto_table = $(this).closest('table');
     var dropped_onto_row = $(this);
     var dragged_row = $(event.target).closest('tr');
     var modify_experiments;
     var modify_users;
-    if (experiments.is(dropped_onto_table))
+    if (experiments_table.is(dropped_onto_table))
     {
-        modify_users = dragged_row.hasClass('ui-selected') ? users.find('.ui-selected') : dragged_row;
-        modify_experiments = dropped_onto_row.hasClass('ui-selected') ? experiments.find('.ui-selected') : dropped_onto_row;
+        modify_users = dragged_row.hasClass('ui-selected') ? users_table.find('.ui-selected') : dragged_row;
+        modify_experiments = dropped_onto_row.hasClass('ui-selected') ? experiments_table.find('.ui-selected') : dropped_onto_row;
     }
     else
     {
-        modify_experiments = dragged_row.hasClass('ui-elected') ? experiments.find('.ui-selected') : dragged_row;
-        modify_users = dropped_onto_row.hasClass('ui-selected') ? users.find('.ui-selected') : dropped_onto_row;
+        modify_experiments = dragged_row.hasClass('ui-elected') ? experiments_table.find('.ui-selected') : dragged_row;
+        modify_users = dropped_onto_row.hasClass('ui-selected') ? users_table.find('.ui-selected') : dropped_onto_row;
     }
     console.log(modify_experiments);
     console.log(modify_users);
@@ -533,7 +659,7 @@ function SetTableHeight()
         var vp_size = viewport();
         var table_height = vp_size.height - 320;
         table_height = table_height > 200 ? table_height : 200;
-        $(".table_body").height(table_height);
+        $(".scrolltable_body").height(table_height);
 }
 
 function setupCallbacks()
@@ -541,22 +667,23 @@ function setupCallbacks()
     SetTableHeight();
     $(window).resize(function() { SetTableHeight(); });
     $("body").disableSelection();
-    sortTable($("#experiments thead th").first(), 1);
-    $("table.manage").data(lastClickedIndex,0);
-    $("table.manage").data(shiftBoundaryIndex,0);
-    var experiments_rows = $("#experiments tbody tr");
+    $("table.scrolltable").data(LAST_CLICKED_INDEX,0);
+    $("table.scrolltable").data(SHIFT_BOUNDARY_INDEX,0);
+    var sessions_table = $("#sessions .scrolltable_body table");
+    var experiments_table = $("#experiments .scrolltable_body table");
+    var epochs_table = $("#epochs .scrolltable_body table");
+    var experiments_rows = experiments_table.find('tr');
     experiments_rows.mouseup(singleRowSelect);
     experiments_rows.mouseup(experiment_MouseUp);
     experiments_rows.mousedown(multiRowSelect);
     experiments_rows.mousedown(experiment_MouseDown);
-    var sessions_table = $("#sessions");
-    var experiments_table = $("#experiments");
-    var epochs_table = $("#epochs");
+
     setupDraggable(sessions_table);
     setupDraggable(experiments_table);
     setupDraggable(epochs_table);
     setupDroppable(sessions_table, $("#download_drop"), dropDownloads);
-    setupDroppable($(".table_body table"), $("#trash_drop"), dropTrash);
-    setupDroppable($("#sessions"), $("#experiments tbody tr"), dropSessionsOnExperiment);
-    $("th").click(function() { sortTable($(this), 1);});
+    setupDroppable($(".scrolltable_body table"), $("#trash_drop"), dropTrash);
+    setupDroppable(sessions_table, experiments_rows, dropSessionsOnExperiment);
+
+    //$("th").click(function() { scrolltable_Resort($(this), 1);});
 };

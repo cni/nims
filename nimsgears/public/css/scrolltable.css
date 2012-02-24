@@ -1,0 +1,49 @@
+.scrolltable
+{
+    margin:0px;
+    border-spacing:0px;
+}
+
+.scrolltable th
+{
+    font-family:Georgia,Times New Roman,Times;
+    color:white;
+    background-color:#820000;
+}
+
+.scrolltable_wrapper
+{
+    cursor:default;
+    float:left;
+}
+
+.scrolltable_body
+{
+    width:100%;
+    overflow:auto;
+}
+
+
+.scrolltable_flat
+{
+    padding:0px;
+    height:0px;
+}
+
+.scrolltable_header th, .scrolltable_body td, #floating td
+{
+    border:1px solid white;
+}
+
+
+tr.alternate.ui-selected td, tr.ui-selected td
+{
+    background-color: #ddcf99;
+}
+
+tr.hover td, tr.hover.alternate td, tr.multihover td, tr.multihover.alternate td
+{
+    background-color:#820000;
+    color: white;
+}
+
