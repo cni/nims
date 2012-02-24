@@ -120,7 +120,7 @@ if __name__ == "__main__":
     junk_path = nimsutil.make_joined_path(args.stage_path, 'junk')
     nims_path = nimsutil.make_joined_path(args.nims_path)
 
-    sorter = Sorter(args.db_uri, stage_path, junk_path, nims_path, args.sleep_time, log)
+    sorter = Sorter(args.db_uri, stage_path, junk_path, nims_path, args.sleeptime, log)
 
     def term_handler(signum, stack):
         sorter.halt()
