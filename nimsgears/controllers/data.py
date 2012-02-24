@@ -277,7 +277,11 @@ class AuthDataController(DataController):
 
     @expose('nimsgears.templates.groups')
     def groups(self):
-        return dict(page='groups')
+
+        user_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name')]
+        return dict(page='groups',
+                    user_columns = user_columns,
+                    )
 
     @expose('nimsgears.templates.access')
     def access(self):

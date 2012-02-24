@@ -54,7 +54,7 @@
     <table id="admins" class="scrolltable">
         <thead>
             <tr>
-                <py:for each="col in exp_columns">
+                <py:for each="col in user_columns">
                     <th py:with="name, cls = col" class="${cls}">${name}</th>
                 </py:for>
             </tr>
@@ -65,7 +65,7 @@
     <table id="members" class="scrolltable">
         <thead>
             <tr>
-                <py:for each="col in exp_columns">
+                <py:for each="col in user_columns">
                     <th py:with="name, cls = col" class="${cls}">${name}</th>
                 </py:for>
             </tr>
@@ -76,7 +76,7 @@
     <table id="others" class="scrolltable">
         <thead>
             <tr>
-                <py:for each="col in exp_columns">
+                <py:for each="col in user_columns">
                     <th py:with="name, cls = col" class="${cls}">${name}</th>
                 </py:for>
             </tr>
