@@ -139,6 +139,7 @@ class Pfile:
         # FIXME: There must be a cleaner way to set the TR! Maybe bug Matthew about it.
         nii_header.structarr['pixdim'][4] = self.header.image.tr/1000.0
 
+        data_scale = 32767.0 / self.image_data.max()
         if num_echoes == 1:
             nifti = nibabel.Nifti1Image(self.image_data, None, nii_header)
             nibabel.save(nifti, outbase + '.nii.gz')
@@ -270,6 +271,13 @@ class Pfile:
             print(cmd)
             sp.call(shlex.split(cmd), cwd=tmp_dir)
 
+            # Compute the receive coil weightings (Should become 1 if only a single coil).
+            # The values stored in the header are standard deviations from the coil calibration.
+            # We load those and convert to the 1 / (mean-normalized variance) scale factor.
+            # Apparently, this is also what GE does in their recon code.
+            coil_weights = np.array(self.header.ps.rec_std[0:self.num_receivers])
+            coil_weights = np.power(coil_weights / coil_weights.mean(), -2)
+
             max_array_bytes = 4*1024*1024*1024
             fn = '%s.complex_float' % basepath
             num_values_per_slice = self.size_x*self.size_y*self.num_timepoints
@@ -279,7 +287,7 @@ class Pfile:
                 with open(fn, 'rb') as fp:
                     complex_image = np.fromfile(file=fp, dtype=data_type).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_slices,self.num_receivers,self.num_echoes],order='F')
                 for cur_recv in range(self.num_receivers):
-                    complex_image[:,:,:,:,cur_recv,] = complex_image[:,:,:,:,cur_recv,] / self.header.ps.rec_std[cur_recv]
+                    complex_image[:,:,:,:,cur_recv,] = complex_image[:,:,:,:,cur_recv,] * coil_weights[cur_recv]
                 self.image_data = np.sqrt(np.mean(np.power(np.abs(complex_image),2),4)).transpose([0,1,3,2,4])
             else:
                 complex_image = np.zeros([self.size_x,self.size_y,self.num_timepoints,self.num_receivers,self.num_echoes], dtype=data_type)
@@ -289,10 +297,7 @@ class Pfile:
                             for echo in range(self.num_echoes):
                                 fp.seek(sl*num_bytes_per_slice + recv*self.num_slices*num_bytes_per_slice + echo*self.num_receivers*self.num_slices*num_bytes_per_slice)
                                 complex_image[:,:,:,recv,echo] = np.fromfile(file=fp, dtype=data_type, count=num_values_per_slice).reshape([self.size_x,self.size_y,self.num_timepoints],order='F')
-                        # FIXME: CHECK THAT WE ARE DOING THE RIGHT THING HERE!
-                        # Coil standard deviations (one scalar per coil) are in self.header.ps.rec_std.
-                            complex_image[:,:,:,recv,] = complex_image[:,:,:,recv,] / self.header.ps.rec_std[recv]
-                        #self.image_data = np.abs(np.mean(complex_image,4)).transpose([0,1,3,2,4])
+                            complex_image[:,:,:,recv,] = complex_image[:,:,:,recv,] * coil_weights[recv]
                         self.image_data[:,:,sl,:,:] = np.sqrt(np.mean(np.power(np.abs(complex_image),2),3))
 
     def montage(self, x):
