@@ -139,15 +139,15 @@ class Pfile:
         # FIXME: There must be a cleaner way to set the TR! Maybe bug Matthew about it.
         nii_header.structarr['pixdim'][4] = self.header.image.tr/1000.0
 
-        data_scale = 32767.0 / self.image_data.max()
+        dscale = 32767.0 / np.abs(self.image_data).max()
         if num_echoes == 1:
-            nifti = nibabel.Nifti1Image(self.image_data, None, nii_header)
+            nifti = nibabel.Nifti1Image(np.int16((dscale*self.image_data).round()), None, nii_header)
             nibabel.save(nifti, outbase + '.nii.gz')
         elif num_echoes == 2:
             if saveInOut:
-                nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,0], None, nii_header)
+                nifti = nibabel.Nifti1Image(np.int16((dscale*self.image_data[:,:,:,:,0]).round()), None, nii_header)
                 nibabel.save(nifti, outbase + '_in.nii.gz')
-                nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,1], None, nii_header)
+                nifti = nibabel.Nifti1Image(np.int16((dscale*self.image_data[:,:,:,:,1]).round()), None, nii_header)
                 nibabel.save(nifti, outbase + '_out.nii.gz')
             # FIXME: Do a more robust test for spiralio!
             # Assume spiralio, so do a weighted average of the two echos.
@@ -160,18 +160,16 @@ class Pfile:
             avg = np.zeros(self.image_data.shape[0:4])
             for tp in range(self.image_data.shape[3]):
                 avg[:,:,:,tp] = w_in*self.image_data[:,:,:,tp,0] + w_out*self.image_data[:,:,:,tp,1]
-            max_val = np.max(avg)
-            if max_val>32768:
-                avg = 32768.0/max_val * avg
+            avg = np.int16((avg/np.abs(avg).max()*32767.0).round())
             nifti = nibabel.Nifti1Image(avg, None, nii_header)
             nibabel.save(nifti, outbase + '.nii.gz')
             # w = out/(in+out)
         else:
             for echo in range(num_echoes):
-                nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,echo], None, nii_header)
+                nifti = nibabel.Nifti1Image(np.int16((dscale*self.image_data[:,:,:,:,echo]).round()), None, nii_header)
                 nibabel.save(nifti, outbase + '_echo%02d.nii.gz' % echo)
 
-        nifti = nibabel.Nifti1Image(self.fm_data * 100, None, nii_header)
+        nifti = nibabel.Nifti1Image(np.int16((self.fm_data * 100.0).round()), None, nii_header)
         nibabel.save(nifti, outbase + '_B0.nii.gz')
 
     def load_fieldmap_files(self, basename, save_unified=True, data_type=np.float32):
