@@ -395,6 +395,9 @@ function refreshGroups(research_group)
                             });
                         }
                         scrolltable_Resort(cur_table);
+                        var all_rows = $('.scrolltable_body tbody').find('tr');
+                        all_rows.mouseup(singleRowSelect);
+                        all_rows.mousedown(multiRowSelect);
                     }
                 }
             },
@@ -696,8 +699,8 @@ function dropAccessModification(event, ui)
 {
     var experiments_table = $("#experiments .scrolltable_body table");
     var users_table = $("#users .scrolltable_body table");
-    var dropped_onto_table = $(this).closest('table');
     var dropped_onto_row = $(this);
+    var dropped_onto_table = dropped_onto_row.closest('table');
     var dragged_row = $(event.target).closest('tr');
     var modify_experiments;
     var modify_users;
@@ -713,15 +716,36 @@ function dropAccessModification(event, ui)
     }
     console.log(modify_experiments);
     console.log(modify_users);
-}
+};
+
+function dropUsersOnGroup(event, ui)
+{
+    var dropped_onto_div = $(this);
+    var dragged_row = $(event.target).closest('tr');
+    var dragged_from_table = dragged_row.closest('table');
+    var user_rows;
+    var user_ids = new Array();
+    var update_group_to = dropped_onto_div.closest('.scrolltable_wrapper').attr('id');
+
+    user_rows = dragged_row.hasClass('ui-selected') ? dragged_from_table.find('.ui-selected') : dragged_row;
+    user_rows.each(function()
+    {
+        user_ids.push(this.children[0].textContent);
+        // TODO do this with an id on the rows instead of just using first TD -
+        // probably more robust
+    });
+
+    console.log(user_ids);
+    console.log(update_group_to);
+};
 
 function SetTableHeight()
 {
-        var vp_size = viewport();
-        var table_height = vp_size.height - 320;
-        table_height = table_height > 200 ? table_height : 200;
-        $(".scrolltable_body").height(table_height);
-}
+    var vp_size = viewport();
+    var table_height = vp_size.height - 320;
+    table_height = table_height > 200 ? table_height : 200;
+    $(".scrolltable_body").height(table_height);
+};
 
 function setupCallbacks_Groups()
 {
@@ -735,14 +759,9 @@ function setupCallbacks_Groups()
     all_rows.mouseup(singleRowSelect);
     all_rows.mousedown(multiRowSelect);
 
-    //setupDraggable(sessions_table);
-    //setupDraggable(experiments_table);
-    //setupDraggable(epochs_table);
-    //setupDroppable(sessions_table, $("#download_drop"), dropDownloads);
-    //setupDroppable($(".scrolltable_body table"), $("#trash_drop"), dropTrash);
-    //setupDroppable(sessions_table, experiments_rows, dropSessionsOnExperiment);
-
-    //$("th").click(function() { scrolltable_Resort($(this), 1);});
+    setupDraggable(all_tables);
+    setupDroppable(all_tables, $(".scrolltable_body"), dropUsersOnGroup);
+    // TODO set it up so you can't drop it on the source table
 };
 
 function setupCallbacks()
