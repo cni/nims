@@ -723,6 +723,28 @@ function SetTableHeight()
         $(".scrolltable_body").height(table_height);
 }
 
+function setupCallbacks_Groups()
+{
+    SetTableHeight();
+    $(window).resize(function() { SetTableHeight(); });
+    $("body").disableSelection();
+    $("table.scrolltable").data(LAST_CLICKED_INDEX,0);
+    $("table.scrolltable").data(SHIFT_BOUNDARY_INDEX,0);
+    var all_tables = $(".scrolltable_body table");
+    var all_rows = all_tables.find('tr');
+    all_rows.mouseup(singleRowSelect);
+    all_rows.mousedown(multiRowSelect);
+
+    //setupDraggable(sessions_table);
+    //setupDraggable(experiments_table);
+    //setupDraggable(epochs_table);
+    //setupDroppable(sessions_table, $("#download_drop"), dropDownloads);
+    //setupDroppable($(".scrolltable_body table"), $("#trash_drop"), dropTrash);
+    //setupDroppable(sessions_table, experiments_rows, dropSessionsOnExperiment);
+
+    //$("th").click(function() { scrolltable_Resort($(this), 1);});
+};
+
 function setupCallbacks()
 {
     SetTableHeight();
