@@ -155,6 +155,7 @@ function scrolltable_Generate()
  ******************************************************************************
  */
 
+
 function viewport()
 {
     var e = window;
@@ -282,21 +283,6 @@ function multiRowSelect(event)
             table.data(SHIFT_BOUNDARY_INDEX, indexClicked);
         }
     }
-};
-
-function makeSessionRow(session_tuple)
-{
-    var session_row = document.createElement('tr');
-    var session_cell;
-    session_row.id = 'sess_' + session_tuple[0];
-    var n_session_tuples = session_tuple.length;
-    for (var i = 1; i < n_session_tuples; i++)
-    {
-        session_cell = document.createElement('td');
-        session_cell.textContent = session_tuple[i];
-        session_row.appendChild(session_cell);
-    }
-    return session_row;
 };
 
 function blurOnEnter(event)
@@ -458,18 +444,18 @@ function dropDownloads(event, ui)
     */
 };
 
-function makeEpochRow(epoch_tuple)
+function createTableRow(text_tuple)
 {
-    var epoch_row = document.createElement('tr');
-    var epoch_cell;
-    epoch_row.id = 'epoch_' + epoch_tuple[0];
-    for (var i = 1; i < epoch_tuple.length; i++) {
-        epoch_cell = document.createElement('td');
-        epoch_cell.textContent = epoch_tuple[i];
-        epoch_row.appendChild(epoch_cell);
+    var td;
+    var tr = document.createElement('tr');
+    var n_elements = text_tuple.length;
+    for (var i = 0; i < n_elements; i++) {
+        td = document.createElement('td');
+        td.textContent = text_tuple[i];
+        tr.appendChild(td);
     }
-    return epoch_row;
-};
+    return tr;
+}
 
 function refreshEpochList(session_row)
 {
@@ -489,11 +475,15 @@ function refreshEpochList(session_row)
             },
             success: function(data)
             {
+                var row;
                 table_body.children().remove();
-                for (var i = 0; i < data.length; i++)
+                data.forEach(function(text_tuple)
                 {
-                    table_body.append(makeEpochRow(data[i]));
-                }
+                    row = createTableRow(text_tuple.splice(1));
+                    row.id = 'epoch_' + text_tuple[0];
+                    table_body.append(row);
+                });
+
                 toggleObject(table_body.closest('table'), true);
 
                 var epoch_rows = $("#epochs .scrolltable_body tbody tr");
@@ -547,10 +537,13 @@ function refreshSessionList(experiment_row)
 
                 refreshEpochList(null);
                 table_body.children().remove();
-                for (var i = 0; i < data.length; i++) // repopulate session table
+
+                data.forEach(function(text_tuple)
                 {
-                    table_body.append(makeSessionRow(data[i]));
-                }
+                    row = createTableRow(text_tuple.splice(1));
+                    row.id = 'sess_' + text_tuple[0];
+                    table_body.append(row);
+                });
 
                 var sessionRows = $("#sessions .scrolltable_body tbody tr");
                 sessionRows.mouseup(singleRowSelect);
