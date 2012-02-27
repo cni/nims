@@ -41,7 +41,7 @@
     <p>This page allows you to view and make changes to access privileges.</p>
     <div style="clear:left;">
         Research Group:
-        <select>
+        <select onchange="refreshGroups(this.value)">
             <option py:for="research_group in research_groups">${research_group}</option>
         </select>
     </div>
@@ -55,7 +55,7 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="user_params in user_dict['pis']">
+            <py:for each="user_params in groups_dict['pis']">
                 <tr><!-- set id for expand queries done on rows later -->
                     <td py:for="param in user_params">${param}</td>
                 </tr>
@@ -71,7 +71,7 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="user_params in user_dict['admins']">
+            <py:for each="user_params in groups_dict['admins']">
                 <tr><!-- set id for expand queries done on rows later -->
                     <td py:for="param in user_params">${param}</td>
                 </tr>
@@ -87,7 +87,7 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="user_params in user_dict['members']">
+            <py:for each="user_params in groups_dict['members']">
                 <tr><!-- set id for expand queries done on rows later -->
                     <td py:for="param in user_params">${param}</td>
                 </tr>
@@ -103,7 +103,7 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="user_params in user_list">
+            <py:for each="user_params in groups_dict['others']">
                 <tr><!-- set id for expand queries done on rows later -->
                     <td py:for="param in user_params">${param}</td>
                 </tr>
