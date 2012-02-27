@@ -277,10 +277,30 @@ class AuthDataController(DataController):
 
     @expose('nimsgears.templates.groups')
     def groups(self):
+        def get_user_tuple(user_object):
+            return (user_object.uid, user_object.name if user_object.name else 'None')
+        user = request.identity['user']
+
+        research_groups = user.research_groups + user.admin_groups
+
+        # all assigned to same list, but we reassign after anyway
+        user_dict = {}
+        user_dict['members'], user_dict['admins'], user_dict['pis'], user_list = [], [], [], []
+        if research_groups:
+            user_list = User.query.all()
+            group = research_groups[0]
+            for key, users in [('members', group.members), ('admins', group.admins), ('pis', group.pis)]:
+                for u in users:
+                    user_dict[key].append(get_user_tuple(u))
+                    user_list.remove(u)
+        user_list = [get_user_tuple(u) for u in user_list]
 
         user_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name')]
         return dict(page='groups',
                     user_columns = user_columns,
+                    research_groups = research_groups,
+                    user_dict = user_dict,
+                    user_list = user_list,
                     )
 
     @expose('nimsgears.templates.access')
