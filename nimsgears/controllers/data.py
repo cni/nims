@@ -265,9 +265,9 @@ class AuthDataController(DataController):
 
         # FIXME i plan to replace these things with just column number
         # indicators computed in the front end code... keep class names out of back end
-        exp_columns = [('Owner', 'col_sunet'), ('Experiment', 'col_name')]
-        session_columns = [('Exam', 'col_exam'), ('Subject Name', 'col_sname')]
-        epoch_columns = [('S/A', 'col_sa'), ('Description', 'col_desc')]
+        exp_columns = [('Group', 'col_sunet'), ('Experiment', 'col_name')]
+        session_columns = [('Session', 'col_exam'), ('Subject Name', 'col_sname')]
+        epoch_columns = [('Epoch', 'col_sa'), ('Description', 'col_desc')]
 
         return dict(page='browse',
                     exp_dict_dict=exp_dict_dict,
