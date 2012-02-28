@@ -62,8 +62,8 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="data, id, access, trash in zip(exp_data_list, exp_id_list, exp_access_list, exp_trash_list)">
-                <tr class='access_${access} trash_${trash}' id="exp_${id}"> <!-- set id for expand queries done on rows later -->
+            <py:for each="attr, data in zip(exp_attr_list, exp_data_list)">
+                <tr py:attrs="attr">
                     <td py:for="param in data">${param}</td>
                 </tr>
             </py:for>

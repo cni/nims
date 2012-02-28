@@ -221,13 +221,11 @@ class AuthDataController(DataController):
         user = request.identity['user']
 
         exp_data_list = []
-        exp_id_list = []
-        exp_access_list = []
-        exp_trash_list = []
+        exp_attr_list = []
 
-        trash_flag = 0 # trash flag is off on first page load
+        trash_flag = 2 # trash flag is off on first page load
 
-        db_query = DBSession.query(Experiment, Access) # get query set up
+        db_query = DBSession.query(Experiment, Access).join(Access) # get query set up
 
         if trash_flag == 0: # when trash flag off, only accept those with no trash time
             db_query = db_query.filter(Experiment.trashtime == None)
@@ -237,18 +235,20 @@ class AuthDataController(DataController):
         # If a superuser, ignore access items and set all to manage
         if predicates.in_group('superusers') and user.admin_mode:
             db_result = db_query.all()
-            db_result_exp, db_result_acc = map(list, zip(*db_result))
-            exp_access_list = ['mg'] * len(db_result)
+            db_result_exp, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
+            exp_attr_list = [{'class':'access_mg'}] * len(db_result)
         else: # Otherwise, populate access list with relevant entries
-            db_query = db_query.join(Access).filter(Access.user == user)
+            db_query = db_query.filter(Access.user == user)
             db_result = db_query.all()
-            db_result_exp, db_result_acc = map(list, zip(*db_result))
-            exp_access_list = [acc.privilege.name for acc in db_result_acc]
+            db_result_exp, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
+            exp_attr_list = [{'class':'access_%s' % acc.privilege.name} for acc in db_result_acc]
 
-        for exp in db_result_exp: # Lastly, populate exp related lists
+        for i in range(len(db_result_exp)):
+            exp = db_result_exp[i]
             exp_data_list.append((exp.owner.gid, exp.name))
-            exp_id_list.append(exp.id)
-            exp_trash_list.append(exp.trashtime != None)
+            exp_attr_list[i]['id'] = 'exp_%d' % exp.id
+            if exp.trashtime != None:
+                exp_attr_list[i]['class'] += ' trash'
 
         # Table columns and their relevant classes
         exp_columns = [('Group', 'col_sunet'), ('Experiment', 'col_name')]
@@ -257,9 +257,7 @@ class AuthDataController(DataController):
 
         return dict(page='browse',
                     exp_data_list = exp_data_list,
-                    exp_id_list = exp_id_list,
-                    exp_access_list = exp_access_list,
-                    exp_trash_list = exp_trash_list,
+                    exp_attr_list = exp_attr_list,
                     exp_columns=exp_columns,
                     session_columns=session_columns,
                     epoch_columns=epoch_columns)
