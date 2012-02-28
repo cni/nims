@@ -44,27 +44,31 @@ NIMS Deployment on FreeBSD and Apache
 
 Set up a virtual python environment:
 
-    mkdir /usr/local/pythonenv
-    virtualenv --no-site-packages /usr/local/pythonenv/tg2
-    source /usr/local/pythonenv/tg2/bin/activate
+    portmaster devel/py-virtualenv
+    virtualenv --no-site-packages /usr/local/tg2env
+    source /usr/local/tg2env/bin/activate
 
 Clone NIMS from GitHub and install its dependencies:
 
-    easy_install -i http://tg.gy/current/index/ TurboGears2
-    cd /usr/local/www/apache22
-    git clone git://github.com/cni/nims.git
-    cd nims
+    easy_install -i http://tg.gy/current/index/ tg.devtools
+    git clone git://github.com/cni/nims.git /usr/local/tg2env/nims
+    cd !$
     python setup.py develop
 
 Add PostgreSQL and LDAP support:
 
-    portmaster databases/postgresql84-client net/py-ldap2
+    portmaster databases/postgresql91-client net/py-ldap2
     easy_install psycopg2
     CPATH=/usr/local/include:/usr/local/include/sasl LIBRARY_PATH=/usr/local/lib easy_install python-ldap
 
+Generate the production database:
+
+    # obtain or create production.ini
+    paster setup-app production.ini
+
 Configure and restart Apache:
 
-    ln -s $PWD/nims/apache.conf /usr/local/etc/apache22/Includes/nims.conf
+    ln -s $PWD/apache.conf /usr/local/etc/apache22/Includes/nimsgears.conf
     /usr/local/etc/rc.d/apache22 restart
 
 

@@ -57,7 +57,7 @@ class User(Entity):
 
     accesses = OneToMany('Access')
     research_groups = ManyToMany('ResearchGroup', inverse='members')
-    admin_groups = ManyToMany('ResearchGroup', inverse='admins')
+    manager_groups = ManyToMany('ResearchGroup', inverse='managers')
     pi_groups = ManyToMany('ResearchGroup', inverse='pis')
     messages = OneToMany('Message', inverse='recipient')
 
@@ -183,7 +183,7 @@ class ResearchGroup(Entity):
     name = Field(Unicode(255))
 
     pis = ManyToMany('User', inverse='pi_groups')
-    admins = ManyToMany('User', inverse='admins')
+    managers = ManyToMany('User', inverse='managers')
     members = ManyToMany('User', inverse='research_groups')
 
     def __unicode__(self):
@@ -271,11 +271,11 @@ class Experiment(Entity):
         experiment = cls.query.filter_by(owner=owner).filter_by(name=name).first()
         if not experiment:
             experiment = cls(owner=owner, name=name)
-            adm_priv = AccessPrivilege.query.filter_by(name=u'mg').one()
+            mng_priv = AccessPrivilege.query.filter_by(name=u'mg').one()
             mem_priv = AccessPrivilege.query.filter_by(name=u'ro').one()
-            for admin in set(owner.admins + owner.pis):                         # admins & PIs
-                Access(experiment=experiment, user=admin, privilege=adm_priv)
-            for member in set(owner.members) - set(owner.admins + owner.pis):   # other members
+            for manager in set(owner.managers + owner.pis):                         # managers & PIs
+                Access(experiment=experiment, user=manager, privilege=mng_priv)
+            for member in set(owner.members) - set(owner.managers + owner.pis):     # other members
                 Access(experiment=experiment, user=member, privilege=mem_priv)
         return experiment
 

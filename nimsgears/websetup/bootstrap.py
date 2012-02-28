@@ -11,41 +11,41 @@ import transaction
 import nimsutil
 
 
-superusers = [u'gsfr', u'bobd', u'rfbowen']
+superusers = [u'gsfr', u'bobd', u'rfbowen', u'laimab', u'nich0lsn', u'ltdet', u'kanile']
 
 groups = [
-        dict(gid=u'aetkin',     pis=[u'aetkin'],    admins=[]),
-        dict(gid=u'amnorcia',   pis=[u'amnorcia'],  admins=[]),
-        dict(gid=u'areiss1',    pis=[u'areiss1'],   admins=[u'maik']),
-        dict(gid=u'awagner',    pis=[u'awagner'],   admins=[]),
-        dict(gid=u'cni',        pis=[u'bobd'],      admins=[u'gsfr', u'rfbowen']),
-        dict(gid=u'danls',      pis=[u'danls'],     admins=[u'danls_mg1', u'danls_mg2']),
-        dict(gid=u'gdaily',     pis=[u'gdaily'],    admins=[]),
-        dict(gid=u'greicius',   pis=[u'greicius'],  admins=[]),
-        dict(gid=u'gross',      pis=[u'gross'],     admins=[u'kkalaf']),
-        dict(gid=u'hallss',     pis=[u'hallss'],    admins=[]),
-        dict(gid=u'hardanay',   pis=[u'hardanay'],  admins=[]),
-        dict(gid=u'henderj',    pis=[u'henderj'],   admins=[]),
-        dict(gid=u'hfeldman',   pis=[u'hfeldman'],  admins=[]),
-        dict(gid=u'iang',       pis=[u'iang'],      admins=[]),
-        dict(gid=u'jparvizi',   pis=[u'jparvizi'],  admins=[u'jparvizi_mg1', u'jparvizi_mg2']),
-        dict(gid=u'kalanit',    pis=[u'kalanit'],   admins=[]),
-        dict(gid=u'knutson',    pis=[u'knutson'],   admins=[u'knutson_mg1', u'knutson_mg2']),
-        dict(gid=u'llc',        pis=[u'llc'],       admins=[]),
-        dict(gid=u'menon',      pis=[u'menon'],     admins=[]),
-        dict(gid=u'pauly',      pis=[u'pauly'],     admins=[]),
-        dict(gid=u'qa',         pis=[u'laimab'],    admins=[]),
-        dict(gid=u'sapolsky',   pis=[u'sapolsky'],  admins=[]),
-        dict(gid=u'smcclure',   pis=[u'smcclure'],  admins=[]),
-        dict(gid=u'wandell',    pis=[u'wandell'],   admins=[u'lmperry']),
-        dict(gid=u'unknown',    pis=[],             admins=[]),
+        dict(gid=u'aetkin',     pis=[u'aetkin'],    managers=[]),
+        dict(gid=u'amnorcia',   pis=[u'amnorcia'],  managers=[]),
+        dict(gid=u'areiss1',    pis=[u'areiss1'],   managers=[u'maik']),
+        dict(gid=u'awagner',    pis=[u'awagner'],   managers=[]),
+        dict(gid=u'cni',        pis=[u'bobd'],      managers=[u'gsfr', u'rfbowen']),
+        dict(gid=u'danls',      pis=[u'danls'],     managers=[u'danls_mg1', u'danls_mg2']),
+        dict(gid=u'gdaily',     pis=[u'gdaily'],    managers=[]),
+        dict(gid=u'greicius',   pis=[u'greicius'],  managers=[]),
+        dict(gid=u'gross',      pis=[u'gross'],     managers=[u'kkalaf']),
+        dict(gid=u'hallss',     pis=[u'hallss'],    managers=[]),
+        dict(gid=u'hardanay',   pis=[u'hardanay'],  managers=[]),
+        dict(gid=u'henderj',    pis=[u'henderj'],   managers=[]),
+        dict(gid=u'hfeldman',   pis=[u'hfeldman'],  managers=[]),
+        dict(gid=u'iang',       pis=[u'iang'],      managers=[]),
+        dict(gid=u'jparvizi',   pis=[u'jparvizi'],  managers=[u'jparvizi_mg1', u'jparvizi_mg2']),
+        dict(gid=u'kalanit',    pis=[u'kalanit'],   managers=[]),
+        dict(gid=u'knutson',    pis=[u'knutson'],   managers=[u'knutson_mg1', u'knutson_mg2']),
+        dict(gid=u'llc',        pis=[u'llc'],       managers=[]),
+        dict(gid=u'menon',      pis=[u'menon'],     managers=[]),
+        dict(gid=u'pauly',      pis=[u'pauly'],     managers=[]),
+        dict(gid=u'qa',         pis=[u'laimab'],    managers=[]),
+        dict(gid=u'sapolsky',   pis=[u'sapolsky'],  managers=[]),
+        dict(gid=u'smcclure',   pis=[u'smcclure'],  managers=[]),
+        dict(gid=u'wandell',    pis=[u'wandell'],   managers=[u'lmperry']),
+        dict(gid=u'unknown',    pis=[],             managers=[]),
         ]
 
 access_privileges = [
-        (0, u'ar', u'anonymized read'),
-        (1, u'ro', u'read-only'),
-        (2, u'rw', u'read-write'),
-        (3, u'mg', u'manage'),
+        (0, u'ar', u'Anonymized Read'),
+        (1, u'ro', u'Read-Only'),
+        (2, u'rw', u'Read-Write'),
+        (3, u'mg', u'Manage'),
         ]
 
 
@@ -79,10 +79,10 @@ def bootstrap(command, conf, vars):
                 u = model.User.by_uid(uid=uid, create=True, password=uid)
                 a.users.append(u)
                 g.pis.append(u)
-            for uid in group['admins']:
+            for uid in group['managers']:
                 u = model.User.by_uid(uid=uid, create=True, password=uid)
                 a.users.append(u)
-                g.admins.append(u)
+                g.managers.append(u)
 
         print 'Bootstrapping access privileges'
         for ap in access_privileges:
