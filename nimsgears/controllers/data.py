@@ -6,6 +6,8 @@ from repoze.what import predicates
 from tgext.admin.controller import AdminController
 from tgext.admin.tgadminconfig import TGAdminConfig
 
+from sqlalchemy import or_
+
 from collections import OrderedDict
 
 from nimsgears import model
@@ -94,42 +96,6 @@ class AuthDataController(DataController):
         #    flash(l_('Your account is not yet active.'))
         #    redirect('/auth/prefs')
         return dict(page='status', params={})
-
-    #@expose('nimsgears.templates.browse')
-    #def browse(self, **kwargs):
-    #    user = request.identity['user'] if request.identity else None
-
-    #    columns = ['Date & Time', 'Group', 'Experiment', 'MRI Exam #', 'Subject Name']
-    #    datatypes = ['Dicom', 'NIfTI', 'SPM NIfTI', 'k-Space']
-    #    searchByOptions = ['Subject Name', 'Group'];
-
-    #    query = DBSession.query(Session, Experiment, Subject, ResearchGroup)
-    #    query = query.join(Experiment, Session.experiment)
-    #    query = query.join(Subject, Session.subject)
-    #    query = query.join(ResearchGroup, Experiment.owner)
-
-    #    query = query.join(Access, Experiment.accesses)
-    #    #query = query.filter(Access.user==user)
-
-    #    if 'Subject Name' in kwargs and kwargs['Subject Name']:
-    #        query_str = kwargs['Subject Name'].replace('*', '%')
-    #        query = query.filter(Subject.lastname.ilike(query_str))
-
-    #    if 'Group' in kwargs and kwargs['Group']:
-    #        query_str = kwargs['Group'].replace('*', '%')
-    #        query = query.filter(ResearchGroup.gid.ilike(query_str))
-
-    #    results = query.all()
-
-    #    sessiondata = [(r.Session.id, r.Session.timestamp.strftime('%Y-%m-%d %H:%M:%S'), r.Experiment.owner, r.Experiment, r.Session.mri_exam, r.Subject) for r in results]
-
-    #    filter_info = {}
-    #    experiments = sorted(set([r.Experiment for r in results]), key=lambda exp: exp.name)
-    #    for exp in experiments:
-    #        filter_info[exp.owner.gid] = filter_info.get(exp.owner.gid, []) + [exp.name]
-    #    filter_info = sorted([(k,v) for k,v in filter_info.iteritems()], key=lambda tup: tup[0])
-
-    #    return dict(page='browse', filter_info=filter_info, datatypes=datatypes, columns=columns, sessiondata=sessiondata, searchByOptions=searchByOptions)
 
     @expose('nimsgears.templates.search')
     def search(self):
@@ -254,23 +220,46 @@ class AuthDataController(DataController):
     def browse(self):
         user = request.identity['user']
 
-        exp_dict_dict = {}
-        if predicates.in_group('superusers') and user.admin_mode:
-            experiments = Experiment.query.all()
-            exp_dict_dict[u'mg'] = dict([(exp.id, (exp.owner.gid, exp.name)) for exp in experiments])
-        else:
-            results = DBSession.query(Experiment, Access).join(Access).filter(Access.user == user).all()
-            for exp, axs in results:
-                exp_dict_dict.setdefault(axs.privilege.name, {})[exp.id] = (exp.owner.gid, exp.name)
+        exp_data_list = []
+        exp_id_list = []
+        exp_access_list = []
+        exp_trash_list = []
 
-        # FIXME i plan to replace these things with just column number
-        # indicators computed in the front end code... keep class names out of back end
+        trash_flag = 0 # trash flag is off on first page load
+
+        db_query = DBSession.query(Experiment, Access) # get query set up
+
+        if trash_flag == 0: # when trash flag off, only accept those with no trash time
+            db_query = db_query.filter(Experiment.trashtime == None)
+        elif trash_flag == 2: # when trash flag on, make sure everything is or contains trash
+            db_query = db_query.join(Session, Epoch).filter(or_(Experiment.trashtime != None, Session.trashtime != None, Epoch.trashtime != None))
+
+        # If a superuser, ignore access items and set all to manage
+        if predicates.in_group('superusers') and user.admin_mode:
+            db_result = db_query.all()
+            db_result_exp, db_result_acc = map(list, zip(*db_result))
+            exp_access_list = ['mg'] * len(db_result)
+        else: # Otherwise, populate access list with relevant entries
+            db_query = db_query.join(Access).filter(Access.user == user)
+            db_result = db_query.all()
+            db_result_exp, db_result_acc = map(list, zip(*db_result))
+            exp_access_list = [acc.privilege.name for acc in db_result_acc]
+
+        for exp in db_result_exp: # Lastly, populate exp related lists
+            exp_data_list.append((exp.owner.gid, exp.name))
+            exp_id_list.append(exp.id)
+            exp_trash_list.append(exp.trashtime != None)
+
+        # Table columns and their relevant classes
         exp_columns = [('Group', 'col_sunet'), ('Experiment', 'col_name')]
         session_columns = [('Session', 'col_exam'), ('Subject Name', 'col_sname')]
         epoch_columns = [('Epoch', 'col_sa'), ('Description', 'col_desc')]
 
         return dict(page='browse',
-                    exp_dict_dict=exp_dict_dict,
+                    exp_data_list = exp_data_list,
+                    exp_id_list = exp_id_list,
+                    exp_access_list = exp_access_list,
+                    exp_trash_list = exp_trash_list,
                     exp_columns=exp_columns,
                     session_columns=session_columns,
                     epoch_columns=epoch_columns)
