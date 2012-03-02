@@ -2,7 +2,6 @@
 *.py[co]
 *.egg-info
 *.sqlite
+cache
 production.ini
 nimsutil/pfheader.py
-nims_stage
-nims_store
