@@ -130,27 +130,8 @@ class AuthDataController(DataController):
         #fcntl.fcntl(fd, fcntl.F_SETFL, file_flags | os.O_NDELAY)
         return tar_proc.stdout
 
-    @expose()
-    def session_query(self, **kwargs):
-        """ Return info about sessions for given experiment id."""
-        user = request.identity['user']
-
-        def session_tuple(session, axs_priv_val):
-            return (session.id, session.mri_exam, unicode(session.subject) if axs_priv_val != 0 else 'Anonymous')
-
-        try:
-            exp_id = int(kwargs['id'])
-        except:
-            exp_id = -1
-
-        if predicates.in_group('superusers') and user.admin_mode:
-            results = Session.query.join(Experiment).filter(Experiment.id==exp_id).all()
-            sessions = [session_tuple(session, -1) for session in results]
-        else:
-            query = DBSession.query(Session, Access).join(Experiment).join(Access)
-            results = query.filter(Experiment.id==exp_id).filter(Access.user==user).all()
-            sessions = [session_tuple(result.Session, result.Access.privilege.value) for result in results]
-        return json.dumps(sessions)
+    def get_trash_flag(self):
+        return 0
 
     @expose()
     def update_epoch(self, **kwargs):
@@ -216,16 +197,13 @@ class AuthDataController(DataController):
 
         return json.dumps({"success":True})
 
-    @expose('nimsgears.templates.browse')
-    def browse(self):
-        user = request.identity['user']
-
+    def get_experiments(self, user):
         exp_data_list = []
         exp_attr_list = []
 
-        trash_flag = 2 # trash flag is off on first page load
+        trash_flag = self.get_trash_flag()
 
-        db_query = DBSession.query(Experiment, Access).join(Access) # get query set up
+        db_query = DBSession.query(Experiment) # get query set up
 
         if trash_flag == 0: # when trash flag off, only accept those with no trash time
             db_query = db_query.filter(Experiment.trashtime == None)
@@ -233,22 +211,132 @@ class AuthDataController(DataController):
             db_query = db_query.join(Session, Epoch).filter(or_(Experiment.trashtime != None, Session.trashtime != None, Epoch.trashtime != None))
 
         # If a superuser, ignore access items and set all to manage
+        acc_str_list = []
         if predicates.in_group('superusers') and user.admin_mode:
-            db_result = db_query.all()
-            db_result_exp, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
-            exp_attr_list = [{'class':'access_mg'}] * len(db_result)
+            db_result_exp = db_query.all()
+            acc_str_list = ['mg'] * len(db_result_exp)
         else: # Otherwise, populate access list with relevant entries
-            db_query = db_query.filter(Access.user == user)
+            db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
             db_result = db_query.all()
             db_result_exp, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
-            exp_attr_list = [{'class':'access_%s' % acc.privilege.name} for acc in db_result_acc]
+            acc_str_list = [acc.privilege.name for acc in db_result_acc]
 
         for i in range(len(db_result_exp)):
             exp = db_result_exp[i]
             exp_data_list.append((exp.owner.gid, exp.name))
+            exp_attr_list.append({})
             exp_attr_list[i]['id'] = 'exp_%d' % exp.id
+            exp_attr_list[i]['class'] = 'access_%s' % acc_str_list[i]
             if exp.trashtime != None:
                 exp_attr_list[i]['class'] += ' trash'
+
+        return (exp_data_list, exp_attr_list)
+
+    def get_sessions(self, user, exp_id):
+        sess_data_list = []
+        sess_attr_list = []
+
+        trash_flag = self.get_trash_flag()
+
+        db_query = DBSession.query(Session, Access).join(Experiment, Access).filter(Experiment.id == exp_id) # get query set up
+
+        if trash_flag == 0: # when trash flag off, only accept those with no trash time
+            db_query = db_query.filter(Session.trashtime == None)
+        elif trash_flag == 2: # when trash flag on, make sure everything is or contains trash
+            db_query = db_query.join(Epoch).filter(or_(Session.trashtime != None, Epoch.trashtime != None))
+
+        acc_priv_list = []
+        if predicates.in_group('superusers') and user.admin_mode:
+            db_result = db_query.all()
+            db_result_sess, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
+            acc_priv_list = [99] * len(db_result) # arbitrary nonzero number to indicate > anonymized access
+        else:
+            db_query = db_query.filter(Access.user == user)
+            db_result = db_query.all()
+            db_result_sess, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
+            acc_priv_list = [acc.privilege.value for acc in db_result_acc]
+
+        n_results = len(db_result_sess)
+        for i in range(n_results):
+            sess = db_result_sess[i]
+            subject_name = unicode(sess.subject) if acc_priv_list[i] != 0 else 'Anonymous'
+            sess_data_list.append((sess.mri_exam, subject_name))
+            sess_attr_list.append({})
+            sess_attr_list[i]['id'] = 'sess_%d' % sess.id
+            if sess.trashtime != None:
+                sess_attr_list[i]['class'] = 'trash'
+
+        return (sess_data_list, sess_attr_list)
+
+    def get_epochs(self, user, exp_id):
+        epoch_data_list = []
+        epoch_attr_list = []
+
+        def summarize_epoch(epoch, sess_id):
+            return (epoch.id, "%2d/%2d" % (epoch.mri_series, epoch.mri_acq), epoch.mri_desc)
+
+        trash_flag = self.get_trash_flag()
+
+        db_query = DBSession.query(Epoch, Access).join(Session, Experiment, Access).filter(Session.id == exp_id) # get query set up
+
+        if trash_flag == 0: # when trash flag off, only accept those with no trash time
+            db_query = db_query.filter(Epoch.trashtime == None)
+        elif trash_flag == 2: # when trash flag on, make sure everything is or contains trash
+            db_query = db_query.filter(Epoch.trashtime != None)
+
+        if predicates.in_group('superusers') and user.admin_mode:
+            db_result = db_query.all()
+            db_result_epoch, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
+        else:
+            db_query = db_query.filter(Access.user == user)
+            db_result = db_query.all()
+            db_result_epoch, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
+
+        for i in range(len(db_result_epoch)):
+            epoch = db_result_epoch[i]
+            epoch_data_list.append(("%2d/%2d" % (epoch.mri_series, epoch.mri_acq), epoch.mri_desc))
+            epoch_attr_list[i]['id'] = 'epoch_%d' % epoch.id
+            if epoch.trashtime != None:
+                epoch_attr_list[i]['class'] = 'trash'
+
+        return (epoch_data_list, epoch_attr_list)
+
+    @expose()
+    def list_query(self, **kwargs):
+        """ Return info about sessions for given experiment id."""
+        user = request.identity['user']
+
+        result = {}
+        data_list, attr_list = [], []
+        if 'epoch_list' in kwargs:
+            try:
+                sess_id = int(kwargs['epoch_list'])
+            except:
+                result['success'] = False
+            else:
+                data_list, attr_list = self.get_epochs(user, sess_id)
+                result['success'] = True
+        elif 'sess_list' in kwargs:
+            try:
+                exp_id = int(kwargs['sess_list'])
+            except:
+                result['success'] = False
+            else:
+                data_list, attr_list = self.get_sessions(user, exp_id)
+                result['success'] = True
+        elif 'exp_list' in kwargs:
+            data_list, attr_list = self.get_experiments(user)
+            result['success'] = True
+        else:
+            result['success'] = False
+
+        result['data'], result['attrs'] = data_list, attr_list
+
+        return json.dumps(result)
+
+    @expose('nimsgears.templates.browse')
+    def browse(self):
+        user = request.identity['user']
 
         # Table columns and their relevant classes
         exp_columns = [('Group', 'col_sunet'), ('Experiment', 'col_name')]
@@ -256,8 +344,6 @@ class AuthDataController(DataController):
         epoch_columns = [('Epoch', 'col_sa'), ('Description', 'col_desc')]
 
         return dict(page='browse',
-                    exp_data_list = exp_data_list,
-                    exp_attr_list = exp_attr_list,
                     exp_columns=exp_columns,
                     session_columns=session_columns,
                     epoch_columns=epoch_columns)

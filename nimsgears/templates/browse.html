@@ -62,11 +62,6 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="attr, data in zip(exp_attr_list, exp_data_list)">
-                <tr py:attrs="attr">
-                    <td py:for="param in data">${param}</td>
-                </tr>
-            </py:for>
         </tbody>
     </table>
     <table id="sessions" class="scrolltable">

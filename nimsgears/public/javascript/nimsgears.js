@@ -249,32 +249,80 @@ function viewport()
  * REFRESH/AJAX FUNCTIONS
  */
 
-function refreshEpochList(session_row)
+function refreshExperimentList()
 {
     var table_body;
-    table_body = $("#epochs .scrolltable_body tbody");
+    table_body = $("#experiments .scrolltable_body tbody");
+    $.ajax(
+    {
+        type: 'POST',
+        url: "list_query",
+        dataType: "json",
+        data:
+        {
+            exp_list: true
+        },
+        success: function(data)
+        {
+            var row;
+            if (data['success'])
+            {
+                populateTable(table_body, data);
+            }
+            else
+            {
+                alert('Failed'); // implement better alert
+            }
+
+            var experiment_rows = $("#experiments .scrolltable_body tbody tr");
+            experiment_rows.mouseup(singleRowSelect);
+            experiment_rows.mouseup(experiment_MouseUp);
+            experiment_rows.mousedown(multiRowSelect);
+            experiment_rows.mousedown(experiment_MouseDown);
+
+            scrolltable_Resort($("#experiments"));
+            setupDraggable($("#experiments .scrolltable_body"));
+        },
+    }); // ajax call
+};
+
+function populateTable(table_body, data)
+{
+    var row;
+    var n_elements = data['data'].length
+    table_body.children().remove();
+    for (var i = 0; i < n_elements; i++)
+    {
+        row = createTableRow(data['data'][i]);
+        row.id = data['attrs'][i]['id'];
+        row.className = data['attrs'][i]['class'];
+        table_body.append(row);
+    }
+}
+
+function refreshEpochList(session_row)
+{
+    var scrolltable_wrapper = $("#epochs");
+    var table_body = scrolltable_wrapper.find(".scrolltable_body tbody");
     if (session_row)
     {
         var sess_id = session_row.attr('id').split('_')[1];
         $.ajax(
         {
             type: 'POST',
-            url: "epoch_query",
+            url: "list_query",
             dataType: "json",
-            data:
-            {
-                id: sess_id
-            },
+            data: { epoch_list: sess_id },
             success: function(data)
             {
-                var row;
-                table_body.children().remove();
-                data.forEach(function(text_tuple)
+                if (data['success'])
                 {
-                    row = createTableRow(text_tuple.splice(1));
-                    row.id = 'epoch_' + text_tuple[0];
-                    table_body.append(row);
-                });
+                    populateTable(table_body, data);
+                }
+                else
+                {
+                    alert('Failed'); // implement better alert
+                }
 
                 toggleObject(table_body.closest('table'), true);
 
@@ -282,7 +330,6 @@ function refreshEpochList(session_row)
                 epoch_rows.mouseup(singleRowSelect);
                 epoch_rows.mousedown(multiRowSelect);
                 scrolltable_Resort($("#epochs"));
-                setupDraggable($("#epochs .scrolltable_body"));
             },
         }); // ajax call
     }
@@ -302,40 +349,34 @@ function refreshSessionList(experiment_row)
         $.ajax(
         {
             type: 'POST',
-            url: "session_query",
+            url: "list_query",
             dataType: "json",
-            data: { id: exp_id },
+            data: { sess_list: exp_id },
             success: function(data)
             {
+                refreshEpochList(null);
+                if (data['success'])
+                {
+                    populateTable(table_body, data);
+                }
+                else
+                {
+                    alert('Failed'); // implement better alert
+                }
+
                 var experiment_rows = $("#experiments .scrolltable_body tbody tr");
                 if (experiment_row.hasClass('access_mg'))
                 {
                     experiment_rows.each(function()
                     {
-                        if (!$(this).hasClass('access_mg') || $(this).is(experiment_row))
-                        {
-                            $(this).droppable("option", "disabled", true);
-                        }
-                        else
-                        {
-                            $(this).droppable("option", 'disabled', false);
-                        }
+                        var disable_drop = !$(this).hasClass('access_mg') || $(this).is(experiment_row);
+                        $(this).droppable("option", "disabled", disable_drop);
                     });
                 }
                 else
                 {
-                    $("#experiments .scrolltable_body tbody tr").droppable("option", "disabled", true);
+                    experiment_rows.droppable("option", "disabled", true);
                 }
-
-                refreshEpochList(null);
-                table_body.children().remove();
-
-                data.forEach(function(text_tuple)
-                {
-                    row = createTableRow(text_tuple.splice(1));
-                    row.id = 'sess_' + text_tuple[0];
-                    table_body.append(row);
-                });
 
                 var sessionRows = $("#sessions .scrolltable_body tbody tr");
                 sessionRows.mouseup(singleRowSelect);
@@ -343,6 +384,7 @@ function refreshSessionList(experiment_row)
                 sessionRows.mousedown(multiRowSelect);
                 sessionRows.mousedown(session_MouseDown);
                 scrolltable_Resort($("#sessions"));
+
                 toggleObject(table_body.closest('table'), true);
             },
         });
@@ -766,6 +808,7 @@ function setupCallbacks_Groups()
 
 function setupCallbacks()
 {
+    refreshExperimentList();
     SetTableHeight();
     $(window).resize(function() { SetTableHeight(); });
     $("body").disableSelection();
@@ -774,11 +817,7 @@ function setupCallbacks()
     var sessions_table = $("#sessions .scrolltable_body table");
     var experiments_table = $("#experiments .scrolltable_body table");
     var epochs_table = $("#epochs .scrolltable_body table");
-    var experiments_rows = experiments_table.find('tr');
-    experiments_rows.mouseup(singleRowSelect);
-    experiments_rows.mouseup(experiment_MouseUp);
-    experiments_rows.mousedown(multiRowSelect);
-    experiments_rows.mousedown(experiment_MouseDown);
+    var experiments_rows = $("#experiments .scrolltable_body tbody tr");
 
     setupDraggable(sessions_table);
     setupDraggable(experiments_table);
