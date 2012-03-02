@@ -280,6 +280,7 @@ function refreshExperimentList()
             experiment_rows.mousedown(multiRowSelect);
             experiment_rows.mousedown(experiment_MouseDown);
 
+            setupDroppable($("#sessions .scrolltable_body table"), experiment_rows, dropSessionsOnExperiment);
             scrolltable_Resort($("#experiments"));
             setupDraggable($("#experiments .scrolltable_body"));
         },
@@ -336,7 +337,6 @@ function refreshEpochList(session_row)
     else
     {
         toggleObject(table_body.closest('table'), false);
-        table_body.children().remove();
     }
 };
 
@@ -393,7 +393,6 @@ function refreshSessionList(experiment_row)
     {
         refreshEpochList(null);
         toggleObject(table_body.closest('table'), false);
-        table_body.children().remove(); // clean up session table
     }
 };
 
@@ -603,6 +602,10 @@ function dropSessionsOnExperiment(event, ui)
                     selected_rows.remove();
                     $("#sessions .scrolltable_body tbody tr").removeClass('alternate');
                     $("#sessions .scrolltable_body tbody tr:odd").addClass('alternate');
+                    if (selected_rows.length == 1 && selected_rows.first().hasClass("ui-selected"))
+                    {
+                        refreshEpochList(null);
+                    }
                 }
                 else
                 {
@@ -824,7 +827,6 @@ function setupCallbacks()
     setupDraggable(epochs_table);
     setupDroppable(sessions_table, $("#download_drop"), dropDownloads);
     setupDroppable($(".scrolltable_body table"), $("#trash_drop"), dropTrash);
-    setupDroppable(sessions_table, experiments_rows, dropSessionsOnExperiment);
 
     //$("th").click(function() { scrolltable_Resort($(this), 1);});
 };

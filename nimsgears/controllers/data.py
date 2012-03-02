@@ -238,7 +238,7 @@ class AuthDataController(DataController):
 
         trash_flag = self.get_trash_flag()
 
-        db_query = DBSession.query(Session, Access).join(Experiment, Access).filter(Experiment.id == exp_id) # get query set up
+        db_query = DBSession.query(Session).join(Experiment).filter(Experiment.id == exp_id) # get query set up
 
         if trash_flag == 0: # when trash flag off, only accept those with no trash time
             db_query = db_query.filter(Session.trashtime == None)
@@ -251,7 +251,7 @@ class AuthDataController(DataController):
             db_result_sess, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
             acc_priv_list = [99] * len(db_result) # arbitrary nonzero number to indicate > anonymized access
         else:
-            db_query = db_query.filter(Access.user == user)
+            db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
             db_result = db_query.all()
             db_result_sess, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
             acc_priv_list = [acc.privilege.value for acc in db_result_acc]
@@ -272,12 +272,9 @@ class AuthDataController(DataController):
         epoch_data_list = []
         epoch_attr_list = []
 
-        def summarize_epoch(epoch, sess_id):
-            return (epoch.id, "%2d/%2d" % (epoch.mri_series, epoch.mri_acq), epoch.mri_desc)
-
         trash_flag = self.get_trash_flag()
 
-        db_query = DBSession.query(Epoch, Access).join(Session, Experiment, Access).filter(Session.id == exp_id) # get query set up
+        db_query = DBSession.query(Epoch).join(Session, Experiment).filter(Session.id == exp_id) # get query set up
 
         if trash_flag == 0: # when trash flag off, only accept those with no trash time
             db_query = db_query.filter(Epoch.trashtime == None)
@@ -288,13 +285,14 @@ class AuthDataController(DataController):
             db_result = db_query.all()
             db_result_epoch, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
         else:
-            db_query = db_query.filter(Access.user == user)
+            db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
             db_result = db_query.all()
             db_result_epoch, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
 
         for i in range(len(db_result_epoch)):
             epoch = db_result_epoch[i]
             epoch_data_list.append(("%2d/%2d" % (epoch.mri_series, epoch.mri_acq), epoch.mri_desc))
+            epoch_attr_list.append({})
             epoch_attr_list[i]['id'] = 'epoch_%d' % epoch.id
             if epoch.trashtime != None:
                 epoch_attr_list[i]['class'] = 'trash'
