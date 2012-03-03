@@ -24,6 +24,9 @@
     #sessions { width:30%; }
     #epochs { width:40%; }
 
+    #sessions .scrolltable_body table {display:none;}
+    #epochs .scrolltable_body table {display:none;}
+
     .col_sunet { width:40%; }
     .col_exam { width:25%; }
     .col_sa { width:25%; }
@@ -40,8 +43,13 @@
 </script>
 
 </head>
-
 <body>
+    <div id="radio_trash">
+        <input type="radio" id="trashflag_0" name="radio">Hide Trash</input>
+        <input type="radio" id="trashflag_1" name="radio">Show Trash</input>
+        <input type="radio" id="trashflag_2" name="radio">Trash Only</input>
+    </div>
+
     <div class="subheader">
         <h2>Browse</h2>
         <p>This page allows you to view and make changes to your data.</p>

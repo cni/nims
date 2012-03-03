@@ -36,14 +36,23 @@
 }
 
 
-tr.alternate.ui-selected td, tr.ui-selected td
+tr.stripe.ui-selected, tr.ui-selected
 {
     background-color: #ddcf99;
 }
 
-tr.hover td, tr.hover.alternate td, tr.multihover td, tr.multihover.alternate td
+tr.stripe
+{
+    background-color: #eee;
+}
+
+tr.hover, tr.hover.stripe, tr.multihover, tr.multihover.stripe
 {
     background-color:#820000;
     color: white;
 }
 
+tr.trash, tr.trash.ui-selected
+{
+    background-color:blue;
+}

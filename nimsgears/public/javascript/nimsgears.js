@@ -83,8 +83,8 @@ function scrolltable_SortByColumnIndex(scrolltable_wrapper, column_index, direct
 
 function scrolltable_Stripe(scrolltable_wrapper)
 {
-    scrolltable_wrapper.find('.scrolltable_body tbody tr').removeClass('alternate');
-    scrolltable_wrapper.find('.scrolltable_body tbody tr:odd').addClass('alternate');
+    scrolltable_wrapper.find('.scrolltable_body tbody tr').removeClass('stripe');
+    scrolltable_wrapper.find('.scrolltable_body tbody tr:odd').addClass('stripe');
 };
 
 function scrolltable_Generate()
@@ -282,7 +282,7 @@ function refreshExperimentList()
 
             setupDroppable($("#sessions .scrolltable_body table"), experiment_rows, dropSessionsOnExperiment);
             scrolltable_Resort($("#experiments"));
-            setupDraggable($("#experiments .scrolltable_body"));
+            refreshSessionList(null);
         },
     }); // ajax call
 };
@@ -325,7 +325,7 @@ function refreshEpochList(session_row)
                     alert('Failed'); // implement better alert
                 }
 
-                toggleObject(table_body.closest('table'), true);
+                toggleObject(table_body.closest('table'), true, null);
 
                 var epoch_rows = $("#epochs .scrolltable_body tbody tr");
                 epoch_rows.mouseup(singleRowSelect);
@@ -336,7 +336,7 @@ function refreshEpochList(session_row)
     }
     else
     {
-        toggleObject(table_body.closest('table'), false);
+        toggleObject(table_body.closest('table'), false, null);
     }
 };
 
@@ -385,14 +385,16 @@ function refreshSessionList(experiment_row)
                 sessionRows.mousedown(session_MouseDown);
                 scrolltable_Resort($("#sessions"));
 
-                toggleObject(table_body.closest('table'), true);
+                toggleObject(table_body.closest('table'), true, null);
             },
         });
     }
     else
     {
-        refreshEpochList(null);
-        toggleObject(table_body.closest('table'), false);
+        toggleObject($("#epochs .scrolltable_body table"), false, function()
+        {
+            toggleObject(table_body.closest('table'), false, null);
+        });
     }
 };
 
@@ -600,8 +602,8 @@ function dropSessionsOnExperiment(event, ui)
                 if (data.success)
                 {
                     selected_rows.remove();
-                    $("#sessions .scrolltable_body tbody tr").removeClass('alternate');
-                    $("#sessions .scrolltable_body tbody tr:odd").addClass('alternate');
+                    $("#sessions .scrolltable_body tbody tr").removeClass('stripe');
+                    $("#sessions .scrolltable_body tbody tr:odd").addClass('stripe');
                     if (selected_rows.length == 1 && selected_rows.first().hasClass("ui-selected"))
                     {
                         refreshEpochList(null);
@@ -613,6 +615,54 @@ function dropSessionsOnExperiment(event, ui)
                 }
         },
     });
+}
+
+function getTrashFlag()
+{
+    var trash_flag;
+    $.ajax({
+        traditional: true,
+        type: 'POST',
+        url: "get_trash_flag",
+        dataType: "json",
+        async: false,
+        success: function(data)
+        {
+            trash_flag = data;
+        },
+    });
+    return trash_flag;
+};
+
+function changeTrashFlag(event, ui)
+{
+    var trash_flag = this.id.split('_')[1];
+    $.ajax({
+        traditional: true,
+        type: 'POST',
+        url: "set_trash_flag",
+        dataType: "json",
+        data:
+        {
+            trash_flag: trash_flag
+        },
+        success: function(data)
+        {
+            if (data['success'])
+            {
+                refreshExperimentList();
+            }
+            else
+            {
+                alert('Failed');
+            }
+        },
+    });
+};
+
+function syncRadioButtons(event, ui)
+{
+
 }
 
 function getIdDictionary(selected_rows)
@@ -631,15 +681,46 @@ function getIdDictionary(selected_rows)
     return id_dict;
 };
 
+function labelTrash(selected_rows)
+{
+    var wrapper_id = selected_rows.closest('.scrolltable_wrapper').attr('id');
+    var n_rows = selected_rows.length;
+    switch (wrapper_id)
+    {
+        case 'experiments':
+        {
+            selected_rows.addClass('trash');
+            if (n_rows == 1 && selected_rows.hasClass('ui-selected'))
+            {
+                $("#sessions .scrolltable_body tbody tr").addClass('trash');
+                labelTrash($("#sessions .ui-selected"));
+            }
+            break;
+        }
+        case 'sessions':
+        {
+            selected_rows.addClass('trash');
+            if (n_rows == 1 && selected_rows.hasClass('ui-selected'))
+            {
+                $("#epochs .scrolltable_body tbody tr").addClass('trash');
+                labelTrash($("#epochs .ui-selected"));
+            }
+            break;
+        }
+        case 'epochs':
+        {
+            selected_rows.addClass('trash');
+            break;
+        }
+    }
+};
+
 function dropTrash(event, ui)
 {
     var selected_rows;
     selected_rows = ui.helper.data('moving_rows');
 
     var id_dict = getIdDictionary(selected_rows);
-    alert(id_dict);
-    console.log(id_dict);
-    /*
     $.ajax({
         traditional: true,
         type: 'POST',
@@ -647,10 +728,18 @@ function dropTrash(event, ui)
         dataType: "json",
         data:
         {
-            id_dict: id_dict
+            exp: id_dict['exp'],
+            sess: id_dict['sess'],
+            epoch: id_dict['epoch'],
+        },
+        success: function(data)
+        {
+            if (data['success'])
+            {
+                labelTrash(selected_rows);
+            }
         },
     });
-    */
 };
 
 function dropDownloads(event, ui)
@@ -708,12 +797,16 @@ function setupMultiDrop(table)
     });
 }
 
-function toggleObject(object, makeVisible)
+function toggleObject(object, makeVisible, callback)
 {
     objectVisible = object.css('display') != 'none';
     if ((makeVisible & !objectVisible) || (!makeVisible & objectVisible))
     {
-        object.toggle('slide');
+        object.toggle('slide', null, 150, callback);
+    }
+    else
+    {
+        if (callback) callback();
     }
 };
 
@@ -827,6 +920,9 @@ function setupCallbacks()
     setupDraggable(epochs_table);
     setupDroppable(sessions_table, $("#download_drop"), dropDownloads);
     setupDroppable($(".scrolltable_body table"), $("#trash_drop"), dropTrash);
+
+    $("#radio_trash input").change(changeTrashFlag);
+    $($("#radio_trash input")[getTrashFlag()]).click();
 
     //$("th").click(function() { scrolltable_Resort($(this), 1);});
 };

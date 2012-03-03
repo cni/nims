@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Sample controller with all its actions protected."""
-from tg import config, expose, flash, redirect, request, require
+from tg import config, expose, flash, redirect, request, require, session
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 from repoze.what import predicates
 from tgext.admin.controller import AdminController
@@ -130,8 +130,55 @@ class AuthDataController(DataController):
         #fcntl.fcntl(fd, fcntl.F_SETFL, file_flags | os.O_NDELAY)
         return tar_proc.stdout
 
-    def get_trash_flag(self):
-        return 0
+    @expose()
+    def get_trash_flag(self, **kwargs):
+        user = request.identity['user']
+        trash_flag = session.get(user.uid, 0)
+        return json.dumps(trash_flag)
+
+    @expose()
+    def set_trash_flag(self, **kwargs):
+        user = request.identity['user']
+        result = {}
+        if 'trash_flag' in kwargs:
+            try:
+                trash_flag = int(kwargs['trash_flag'])
+            except:
+                result['success'] = False
+            else:
+                session[user.uid] = trash_flag
+                session.save()
+                result['success'] = True
+        else:
+            result['success'] = False
+        return json.dumps(result)
+
+    @expose()
+    def trash(self, **kwargs):
+        db_query = None
+        query_type = None
+        print kwargs
+        if "exp" in kwargs:
+            id_list = kwargs["exp"]
+            query_type = Experiment
+        elif "sess" in kwargs:
+            id_list = kwargs["sess"]
+            query_type = Session
+        elif "epoch" in kwargs:
+            id_list = kwargs["epoch"]
+            query_type = Epoch
+
+        if isinstance(id_list, list):
+            id_list = [int(item) for item in id_list]
+        else:
+            id_list = [id_list]
+
+        db_result = query_type.query.filter(query_type.id.in_(id_list)).all()
+
+        for db_item in db_result:
+            db_item.trash()
+
+        return json.dumps({'success':True})
 
     @expose()
     def update_epoch(self, **kwargs):
@@ -247,9 +294,8 @@ class AuthDataController(DataController):
 
         acc_priv_list = []
         if predicates.in_group('superusers') and user.admin_mode:
-            db_result = db_query.all()
-            db_result_sess, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
-            acc_priv_list = [99] * len(db_result) # arbitrary nonzero number to indicate > anonymized access
+            db_result_sess = db_query.all()
+            acc_priv_list = [99] * len(db_result_sess) # arbitrary nonzero number to indicate > anonymized access
         else:
             db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
             db_result = db_query.all()
@@ -282,8 +328,7 @@ class AuthDataController(DataController):
             db_query = db_query.filter(Epoch.trashtime != None)
 
         if predicates.in_group('superusers') and user.admin_mode:
-            db_result = db_query.all()
-            db_result_epoch, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
+            db_result_epoch = db_query.all()
         else:
             db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
             db_result = db_query.all()
@@ -328,6 +373,7 @@ class AuthDataController(DataController):
         else:
             result['success'] = False
 
+        print data_list
         result['data'], result['attrs'] = data_list, attr_list
 
         return json.dumps(result)
