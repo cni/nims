@@ -133,8 +133,12 @@ class AuthDataController(DataController):
     @expose()
     def get_trash_flag(self, **kwargs):
         user = request.identity['user']
-        trash_flag = session.get(user.uid, 0)
+        trash_flag = self._get_trash_flag(user)
         return json.dumps(trash_flag)
+
+    def _get_trash_flag(self, user):
+        trash_flag = session.get(user.uid, 0)
+        return trash_flag
 
     @expose()
     def set_trash_flag(self, **kwargs):
@@ -157,7 +161,6 @@ class AuthDataController(DataController):
     def trash(self, **kwargs):
         db_query = None
         query_type = None
-        print kwargs
         if "exp" in kwargs:
             id_list = kwargs["exp"]
             query_type = Experiment
@@ -232,7 +235,6 @@ class AuthDataController(DataController):
             sess_id_list = [int(item) for item in kwargs["sess_id_list"]]
         else:
             sess_id_list = [sess_id_list]
-        print sess_id_list
         exp_id = int(kwargs["exp_id"])
 
         exp = DBSession.query(Experiment).filter_by(id = exp_id).one()
@@ -248,7 +250,7 @@ class AuthDataController(DataController):
         exp_data_list = []
         exp_attr_list = []
 
-        trash_flag = self.get_trash_flag()
+        trash_flag = self._get_trash_flag(user)
 
         db_query = DBSession.query(Experiment) # get query set up
 
@@ -283,7 +285,7 @@ class AuthDataController(DataController):
         sess_data_list = []
         sess_attr_list = []
 
-        trash_flag = self.get_trash_flag()
+        trash_flag = self._get_trash_flag(user)
 
         db_query = DBSession.query(Session).join(Experiment).filter(Experiment.id == exp_id) # get query set up
 
@@ -318,7 +320,7 @@ class AuthDataController(DataController):
         epoch_data_list = []
         epoch_attr_list = []
 
-        trash_flag = self.get_trash_flag()
+        trash_flag = self._get_trash_flag(user)
 
         db_query = DBSession.query(Epoch).join(Session, Experiment).filter(Session.id == exp_id) # get query set up
 
@@ -373,7 +375,6 @@ class AuthDataController(DataController):
         else:
             result['success'] = False
 
-        print data_list
         result['data'], result['attrs'] = data_list, attr_list
 
         return json.dumps(result)
