@@ -95,42 +95,6 @@ class AuthDataController(DataController):
         #    redirect('/auth/prefs')
         return dict(page='status', params={})
 
-    #@expose('nimsgears.templates.browse')
-    #def browse(self, **kwargs):
-    #    user = request.identity['user'] if request.identity else None
-
-    #    columns = ['Date & Time', 'Group', 'Experiment', 'MRI Exam #', 'Subject Name']
-    #    datatypes = ['Dicom', 'NIfTI', 'SPM NIfTI', 'k-Space']
-    #    searchByOptions = ['Subject Name', 'Group'];
-
-    #    query = DBSession.query(Session, Experiment, Subject, ResearchGroup)
-    #    query = query.join(Experiment, Session.experiment)
-    #    query = query.join(Subject, Session.subject)
-    #    query = query.join(ResearchGroup, Experiment.owner)
-
-    #    query = query.join(Access, Experiment.accesses)
-    #    #query = query.filter(Access.user==user)
-
-    #    if 'Subject Name' in kwargs and kwargs['Subject Name']:
-    #        query_str = kwargs['Subject Name'].replace('*', '%')
-    #        query = query.filter(Subject.lastname.ilike(query_str))
-
-    #    if 'Group' in kwargs and kwargs['Group']:
-    #        query_str = kwargs['Group'].replace('*', '%')
-    #        query = query.filter(ResearchGroup.gid.ilike(query_str))
-
-    #    results = query.all()
-
-    #    sessiondata = [(r.Session.id, r.Session.timestamp.strftime('%Y-%m-%d %H:%M:%S'), r.Experiment.owner, r.Experiment, r.Session.mri_exam, r.Subject) for r in results]
-
-    #    filter_info = {}
-    #    experiments = sorted(set([r.Experiment for r in results]), key=lambda exp: exp.name)
-    #    for exp in experiments:
-    #        filter_info[exp.owner.gid] = filter_info.get(exp.owner.gid, []) + [exp.name]
-    #    filter_info = sorted([(k,v) for k,v in filter_info.iteritems()], key=lambda tup: tup[0])
-
-    #    return dict(page='browse', filter_info=filter_info, datatypes=datatypes, columns=columns, sessiondata=sessiondata, searchByOptions=searchByOptions)
-
     @expose('nimsgears.templates.search')
     def search(self):
         dataset_cnt = len(Session.query.all())
@@ -170,7 +134,7 @@ class AuthDataController(DataController):
         user = request.identity['user']
 
         def session_tuple(session, axs_priv_val):
-            return (session.id, session.mri_exam, unicode(session.subject) if axs_priv_val != 0 else 'Anonymous')
+            return (session.id, session.mri_exam, unicode(session.subject_role.subject) if axs_priv_val != 0 else 'Anonymous')
 
         try:
             exp_id = int(kwargs['id'])

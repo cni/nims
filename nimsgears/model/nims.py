@@ -14,9 +14,10 @@ from nimsgears.model import metadata, DBSession
 __session__ = DBSession
 __metadata__ = metadata
 
-__all__  = ['User', 'Group', 'Permission', 'AccessPrivilege', 'Access', 'ResearchGroup', 'Message']
-__all__ += ['Job', 'Subject', 'Experiment', 'Session', 'Epoch', 'Dataset', 'FreeDataset']
-__all__ += ['Screensave' , 'RawNifti', 'PreprocNifti', 'MRIPhysioData']
+__all__  = ['Group', 'User', 'Permission', 'Message', 'Job']
+__all__ += ['Access', 'AccessPrivilege', 'ResearchGroup', 'Subject', 'SubjectRole']
+__all__ += ['Experiment', 'Session', 'Epoch', 'Dataset']
+__all__ += ['FreeDataset', 'Screensave' , 'RawNifti', 'PreprocNifti', 'MRIPhysioData']
 __all__ += ['MRIDataset', 'DicomData', 'Pfile']
 
 
@@ -155,16 +156,34 @@ class Permission(Entity):
         return self.pid
 
 
-class AccessPrivilege(Entity):
+class Message(Entity):
 
-    value = Field(Integer, required=True)
-    name = Field(Unicode(32), required=True)
-    description = Field(Unicode(255))
+    subject = Field(Unicode(255), required=True)
+    body = Field(Unicode)
+    priority = Field(Enum(u'normal', u'high', name=u'priority'), default=u'normal')
+    created = Field(DateTime, default=datetime.datetime.now)
+    read = Field(DateTime)
 
-    access = OneToMany('Access')
+    recipient = ManyToOne('User', inverse='messages')
+
+    def __repr__(self):
+        return ('<Message: "%s: %s", prio=%s>' % (self.recipient, self.subject, self.priority)).encode('utf-8')
 
     def __unicode__(self):
-        return self.description or self.name
+        return u'%s: %s' % (self.recipient, self.subject)
+
+
+class Job(Entity):
+
+    timestamp = Field(DateTime, default=datetime.datetime.now)
+    task = Field(Unicode(63), required=True)
+    max_workers = Field(Integer, default=1)
+    status = Field(Enum(u'new', u'active', u'done', u'failed', name=u'status'), default=u'new')
+
+    dataset = ManyToOne('Dataset', inverse='jobs')
+
+    def __unicode__(self):
+        return u'<Job %s: %s>' % (self.task, self.dataset)
 
 
 class Access(Entity):
@@ -175,6 +194,18 @@ class Access(Entity):
 
     def __unicode__(self):
         return u'%s: (%s, %s)' % (self.privilege, self.user, self.experiment)
+
+
+class AccessPrivilege(Entity):
+
+    value = Field(Integer, required=True)
+    name = Field(Unicode(32), required=True)
+    description = Field(Unicode(255))
+
+    access = OneToMany('Access')
+
+    def __unicode__(self):
+        return self.description or self.name
 
 
 class ResearchGroup(Entity):
@@ -194,53 +225,13 @@ class ResearchGroup(Entity):
         return [rg.gid for rg in cls.query.all()]
 
 
-class Message(Entity):
-
-    subject = Field(Unicode(255), required=True)
-    body = Field(Unicode)
-    priority = Field(Enum(u'normal', u'high', name=u'priority'), default=u'normal')
-    created = Field(DateTime, default=datetime.datetime.now)
-    read = Field(DateTime)
-
-    recipient = ManyToOne('User', inverse='messages')
-
-    def __repr__(self):
-        return ('<Message: "%s: %s", prio=%s>' % (self.recipient, self.subject, self.priority)).encode('utf-8')
-
-    def __unicode__(self):
-        return u'%s: %s' % (self.recipient, self.subject)
-
-
-class Metadata(object):
-
-    def __init__(self):
-        pass
-
-
-class Job(Entity):
-
-    timestamp = Field(DateTime, default=datetime.datetime.now)
-    task = Field(Unicode(63), required=True)
-    max_workers = Field(Integer, default=1)
-    status = Field(Enum(u'new', u'active', u'done', u'failed', name=u'status'), default=u'new')
-
-    dataset = ManyToOne('Dataset', inverse='jobs')
-
-    def __unicode__(self):
-        return u'<Job %s: %s>' % (self.task, self.dataset)
-
-
 class Subject(Entity):
-
-    """
-    we thought about a subject id column that defaults to 's' + db_id
-    """
 
     firstname = Field(Unicode(63))
     lastname = Field(Unicode(63))
-    dob = Field(DateTime)
+    dob = Field(Date)
 
-    sessions = OneToMany('Session')
+    roles = OneToMany('SubjectRole')
 
     def __unicode__(self):
         return u'%s, %s' % (self.lastname, self.firstname)
@@ -251,6 +242,30 @@ class Subject(Entity):
         if not subject:
             subject = cls(firstname=firstname, lastname=lastname, dob=dob)
         return subject
+
+    @property
+    def experiments(self):
+        return Experiment.query.join(Session).join(SubjectRole).filter(SubjectRole.subject==self).all()
+
+
+class SubjectRole(Entity):
+
+    subject = ManyToOne('Subject')
+    sessions = OneToMany('Session')
+
+    def __unicode__(self):
+        return u'%s: %s' % (self.experiment, self.subject)
+
+    @classmethod
+    def by_subject_experiment(cls, subject, experiment):
+        role = cls.query.join(Session).filter(cls.subject==subject).filter(Session.experiment==experiment).first()
+        if not role:
+            role = cls(subject=subject)
+        return role
+
+    @property
+    def experiment(self):
+        return self.sessions[0].experiment
 
 
 class Experiment(Entity):
@@ -278,6 +293,14 @@ class Experiment(Entity):
             for member in set(owner.members) - set(owner.managers + owner.pis):     # other members
                 Access(experiment=experiment, user=member, privilege=mem_priv)
         return experiment
+
+    @property
+    def subject_roles(self):
+        return SubjectRole.query.join(Session).filter(Session.experiment==self).all()
+
+    @property
+    def subjects(self):
+        return Subject.query.join(SubjectRole).join(Session).filter(Session.experiment==self).all()
 
     @property
     def is_trash(self):
@@ -309,7 +332,7 @@ class Session(Entity):
     notes = Field(Unicode)
 
     experiment = ManyToOne('Experiment')
-    subject = ManyToOne('Subject')
+    subject_role = ManyToOne('SubjectRole')
     operator = ManyToOne('User')
     epochs = OneToMany('Epoch')
 
@@ -317,10 +340,11 @@ class Session(Entity):
     def from_metadata(cls, md):
         session = cls.query.filter_by(mri_exam=md.mri_exam).first()
         if not session:
-            subject = Subject.by_firstname_lastname_dob(md.subj_fn, md.subj_ln, md.subj_dob)
             owner = ResearchGroup.query.filter_by(gid=md.group_name).one()
             experiment = Experiment.by_owner_name(owner, md.exp_name)
-            session = Session(mri_exam=md.mri_exam, subject=subject, experiment=experiment)
+            subject = Subject.by_firstname_lastname_dob(md.subj_fn, md.subj_ln, md.subj_dob)
+            subject_role = SubjectRole.by_subject_experiment(subject, experiment)
+            session = Session(mri_exam=md.mri_exam, subject_role=subject_role, experiment=experiment)
         return session
 
     @property
@@ -563,14 +587,14 @@ class Pfile(MRIDataset):
     @staticmethod
     def get_metadata(fp):
         try:
-            from nimsutil import pfreader
+            from nimsutil import pfheader
         except ImportError:
-            print '==========  PFREADER NOT FOUND  =========='
+            print '==========  PFHEADER NOT FOUND  =========='
             return None
 
         try:
-            header = pfreader.get_header(fp)
-        except (IOError, pfreader.PfreaderError):
+            header = pfheader.get_header(fp)
+        except (IOError, pfheader.PfreaderError):
             md = None
         else:
             md = Metadata()
@@ -588,3 +612,9 @@ class Pfile(MRIDataset):
             md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(header.exam.patnameff, header.exam.dateofbirth)
             md.group_name, md.exp_name = nimsutil.parse_patient_id(header.exam.patidff, ResearchGroup.get_all_ids())
         return md
+
+
+class Metadata(object):
+
+    def __init__(self):
+        pass
