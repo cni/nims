@@ -2,4 +2,7 @@
 
 from nimsutil import *
 
-#import pfile
+try:
+    import pfile
+except:
+    print 'could not import pfile'

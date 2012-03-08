@@ -167,7 +167,6 @@ class AuthDataController(DataController):
 
         return json.dumps(result)
 
-
     @expose()
     def get_access_privileges(self, **kwargs):
         db_result_accpriv = AccessPrivilege.query.all()

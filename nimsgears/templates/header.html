@@ -20,7 +20,7 @@
     <py:if test="tg.identity">
       <div id="userid">
         <py:if test="tg.predicates.in_group('superusers') and tg.identity.user.admin_mode">
-          <a href="${tg.url('/auth/toggle_admin')}?came_from=${request.url}">Admin: </a>
+          <a href="${tg.url('/auth/toggle_admin')}?came_from=${request.url}">SuperUser: </a>
         </py:if>
         <py:if test="tg.predicates.in_group('superusers') and not tg.identity.user.admin_mode">
           <a href="${tg.url('/auth/toggle_admin')}?came_from=${request.url}">User: </a>
