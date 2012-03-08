@@ -131,6 +131,44 @@ class AuthDataController(DataController):
         return tar_proc.stdout
 
     @expose()
+    def modify_groups(self, **kwargs):
+        user = request.identity['user']
+
+        user_id_list = group_id = membership_src = membership_dst = None
+        if "user_ids" in kwargs:
+            user_id_list = kwargs["user_ids"]
+            if not isinstance(user_id_list, list):
+                user_id_list = [user_id_list]
+        if "group_id" in kwargs:
+            group_id = kwargs["group_id"]
+        if "membership_src" in kwargs:
+            membership_src = kwargs["membership_src"]
+        if "membership_dst" in kwargs:
+            membership_dst = kwargs["membership_dst"]
+
+        result = {'success': False}
+        if user_id_list and group_id and membership_src and membership_dst:
+            db_result_group = ResearchGroup.query.filter_by(gid=group_id).first()
+            if db_result_group:
+                membership_dict = ({
+                        'pis': db_result_group.pis,
+                        'admins': db_result_group.admins,
+                        'members': db_result_group.members
+                    })
+                if user in db_result_group.pis or user in db_result_group.admins:
+                    db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
+                    if not (membership_src == 'pis' and len(db_result_group.pis) == len(db_result_users)):
+                        if membership_src in membership_dict:
+                            [membership_dict[membership_src].remove(item) for item in db_result_users]
+                        if membership_dst in membership_dict:
+                            [membership_dict[membership_dst].append(item) for item in db_result_users]
+                        transaction.commit()
+                        result['success'] = True
+
+        return json.dumps(result)
+
+
+    @expose()
     def get_access_privileges(self, **kwargs):
         db_result_accpriv = AccessPrivilege.query.all()
         accpriv_list = [accpriv.description for accpriv in db_result_accpriv]

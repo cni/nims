@@ -166,7 +166,7 @@ function setupDroppable(source, target, onDrop)
         hoverClass: 'hover',
         tolerance: "pointer",
         drop: onDrop,
-        accept: source.selector
+        accept: source
     });
 };
 
@@ -281,7 +281,7 @@ function refreshExperimentList()
             experiment_rows.mousedown(multiRowSelect);
             experiment_rows.mousedown(experiment_MouseDown);
 
-            setupDroppable($("#sessions .scrolltable_body table"), experiment_rows, dropSessionsOnExperiment);
+            setupDroppable("#sessions .scrolltable_body table", experiment_rows, dropSessionsOnExperiment);
             scrolltable_Resort($("#experiments"));
             refreshSessionList(null);
         },
@@ -842,8 +842,8 @@ function setupCallbacks_Access()
 
     setupDraggable($("#users .scrolltable_body table"));
     setupDraggable($("#experiments .scrolltable_body table"));
-    setupDroppable($("#users .scrolltable_body table"), $("#experiments .scrolltable_body tbody tr"), dropAccessModification);
-    setupDroppable($("#experiments .scrolltable_body table"), $("#users .scrolltable_body tbody tr"), dropAccessModification);
+    setupDroppable("#users .scrolltable_body table", $("#experiments .scrolltable_body tbody tr"), dropAccessModification);
+    setupDroppable("#experiments .scrolltable_body table", $("#users .scrolltable_body tbody tr"), dropAccessModification);
     setupMultiDrop($("#users .scrolltable_body table"));
     setupMultiDrop($("#experiments .scrolltable_body table"));
 
@@ -941,12 +941,14 @@ function dropAccessModification(event, ui)
 
 function dropUsersOnGroup(event, ui)
 {
+    var group_id = $("#group_select").val();
     var dropped_onto_div = $(this);
     var dragged_row = $(event.target).closest('tr');
     var dragged_from_table = dragged_row.closest('table');
     var user_rows;
     var user_ids = new Array();
-    var update_group_to = dropped_onto_div.closest('.scrolltable_wrapper').attr('id');
+    var membership_src = dragged_from_table.data("moving_rows").closest(".scrolltable_wrapper").attr("id");
+    var membership_dst = dropped_onto_div.closest('.scrolltable_wrapper').attr('id');
 
     user_rows = dragged_row.hasClass('ui-selected') ? dragged_from_table.find('.ui-selected') : dragged_row;
     user_rows.each(function()
@@ -956,8 +958,31 @@ function dropUsersOnGroup(event, ui)
         // probably more robust
     });
 
-    console.log(user_ids);
-    console.log(update_group_to);
+    $.ajax(
+    {
+        traditional: true,
+        type: 'POST',
+        url: "modify_groups",
+        dataType: "json",
+        data:
+        {
+            user_ids: user_ids,
+            group_id: group_id,
+            membership_src: membership_src,
+            membership_dst: membership_dst
+        },
+        success: function(data)
+        {
+            if (data['success'])
+            {
+                refreshGroups(group_id);
+            }
+            else
+            {
+                alert('Failed'); // implement better alert
+            }
+        },
+    }); // ajax call
 };
 
 function SetTableHeight()
@@ -981,8 +1006,10 @@ function setupCallbacks_Groups()
     all_rows.mousedown(multiRowSelect);
 
     setupDraggable(all_tables);
-    setupDroppable(all_tables, $(".scrolltable_body"), dropUsersOnGroup);
-    // TODO set it up so you can't drop it on the source table
+    setupDroppable(function(droppable)
+    {
+        return droppable.is('table') && droppable.closest('.scrolltable_wrapper').attr('id') != $(this).closest('.scrolltable_wrapper').attr('id');
+    }, $(".scrolltable_body"), dropUsersOnGroup);
 };
 
 function setupCallbacks()
@@ -1001,8 +1028,8 @@ function setupCallbacks()
     setupDraggable(sessions_table);
     setupDraggable(experiments_table);
     setupDraggable(epochs_table);
-    setupDroppable(sessions_table, $("#download_drop"), dropDownloads);
-    setupDroppable($(".scrolltable_body table"), $("#trash_drop"), dropTrash);
+    setupDroppable("#sessions .scrolltable_body table", sessions_table, $("#download_drop"), dropDownloads);
+    setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
 
     $("#radio_trash input").change(changeTrashFlag);
     $($("#radio_trash input")[getTrashFlag()]).click();

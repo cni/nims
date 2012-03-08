@@ -42,7 +42,7 @@
     <p>This page allows you to view and make changes to access privileges.</p>
     <div style="clear:left;">
         Research Group:
-        <select onchange="refreshGroups(this.value)">
+        <select id="group_select" onchange="refreshGroups(this.value)">
             <option py:for="research_group in research_groups">${research_group}</option>
         </select>
     </div>
