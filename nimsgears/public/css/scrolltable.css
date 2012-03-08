@@ -54,5 +54,5 @@ tr.hover, tr.hover.stripe, tr.multihover, tr.multihover.stripe
 
 tr.trash, tr.trash.ui-selected
 {
-    background-color:blue;
+    color:#8a887d;
 }

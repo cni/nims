@@ -1,6 +1,7 @@
 var SORTED_DATA = "sorted_data";
 var LAST_CLICKED_INDEX = "last_clicked_index";
 var SHIFT_BOUNDARY_INDEX = "shift_boundary_index";
+var ACCESS_DATA = "access_data";
 
 /*
  * SCROLLTABLE CONSTRUCTION
@@ -660,11 +661,6 @@ function changeTrashFlag(event, ui)
     });
 };
 
-function syncRadioButtons(event, ui)
-{
-
-}
-
 function getIdDictionary(selected_rows)
 {
     var id_dict = {};
@@ -799,6 +795,7 @@ function setupMultiDrop(table)
 
 function toggleObject(object, makeVisible, callback)
 {
+
     objectVisible = object.css('display') != 'none';
     if ((makeVisible & !objectVisible) || (!makeVisible & objectVisible))
     {
@@ -808,6 +805,24 @@ function toggleObject(object, makeVisible, callback)
     {
         if (callback) callback();
     }
+};
+
+function getAccessPrivileges()
+{
+    var access_priveleges;
+    $.ajax(
+    {
+        traditional: true,
+        type: 'POST',
+        url: "get_access_privileges",
+        dataType: "json",
+        async: false,
+        success: function(data)
+        {
+            access_privileges = data;
+        },
+    }); // ajax call
+    return access_privileges;
 };
 
 function setupCallbacks_Access()
@@ -831,10 +846,69 @@ function setupCallbacks_Access()
     setupDroppable($("#experiments .scrolltable_body table"), $("#users .scrolltable_body tbody tr"), dropAccessModification);
     setupMultiDrop($("#users .scrolltable_body table"));
     setupMultiDrop($("#experiments .scrolltable_body table"));
+
+    $("#access_dialog").dialog();
+    $("#access_dialog").dialog("destroy");
+    var access_privileges = getAccessPrivileges();
+    access_privileges.push("remove access");
+    var option;
+    var selector = $("#access_select");
+    access_privileges.forEach(function(item)
+    {
+        option = document.createElement('option');
+        option.textContent = item;
+        selector.append(option);
+    });
+};
+
+function showAccessDialog()
+{
+    $("#access_dialog").dialog({
+        resizable:false,
+        height:140,
+        modal:true,
+        buttons: {
+            Okay: function() {
+                var user_ids = $(this).data(ACCESS_DATA)[0];
+                var exp_ids = $(this).data(ACCESS_DATA)[1];
+                var access_level = $("#access_select").val();
+                modifyAccess(user_ids, exp_ids, access_level);
+                $(this).dialog("close");
+            },
+            Cancel: function() {
+                $(this).dialog("close");
+            }
+        }
+    });
+};
+
+function modifyAccess(user_ids, exp_ids, access_level)
+{
+    $.ajax(
+    {
+        traditional: true,
+        type: 'POST',
+        url: "modify_access",
+        dataType: "json",
+        data:
+        {
+            user_ids: user_ids,
+            exp_ids: exp_ids,
+            access_level: access_level
+        },
+        success: function(data)
+        {
+            if (!data['success'])
+            {
+                alert('Failed'); // implement better alert
+            }
+        },
+    }); // ajax call
 };
 
 function dropAccessModification(event, ui)
 {
+    showAccessDialog();
     var experiments_table = $("#experiments .scrolltable_body table");
     var users_table = $("#users .scrolltable_body table");
     var dropped_onto_row = $(this);
@@ -849,11 +923,20 @@ function dropAccessModification(event, ui)
     }
     else
     {
-        modify_experiments = dragged_row.hasClass('ui-elected') ? experiments_table.find('.ui-selected') : dragged_row;
+        modify_experiments = dragged_row.hasClass('ui-selected') ? experiments_table.find('.ui-selected') : dragged_row;
         modify_users = dropped_onto_row.hasClass('ui-selected') ? users_table.find('.ui-selected') : dropped_onto_row;
     }
-    console.log(modify_experiments);
-    console.log(modify_users);
+    var exp_ids = new Array();
+    var user_ids = new Array();
+    modify_users.each(function()
+    {
+        user_ids.push(this.children[0].textContent);
+    });
+    modify_experiments.each(function ()
+    {
+        exp_ids.push(this.id.split('_')[1]);
+    });
+    $("#access_dialog").data(ACCESS_DATA, [user_ids, exp_ids]);
 };
 
 function dropUsersOnGroup(event, ui)

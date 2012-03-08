@@ -131,6 +131,64 @@ class AuthDataController(DataController):
         return tar_proc.stdout
 
     @expose()
+    def get_access_privileges(self, **kwargs):
+        db_result_accpriv = AccessPrivilege.query.all()
+        accpriv_list = [accpriv.description for accpriv in db_result_accpriv]
+        return json.dumps(accpriv_list)
+
+    @expose()
+    def modify_access(self, **kwargs):
+        user = request.identity['user']
+        exp_id_list = user_id_list = access_level = None
+        if "exp_ids" in kwargs:
+            exp_id_list = kwargs["exp_ids"]
+            if isinstance(exp_id_list, list):
+                exp_id_list = [int(item) for item in exp_id_list]
+            else:
+                exp_id_list = [exp_id_list]
+        if "user_ids" in kwargs:
+            user_id_list = kwargs["user_ids"]
+            if not isinstance(user_id_list, list):
+                user_id_list = [user_id_list]
+        if "access_level" in kwargs:
+            access_level = kwargs["access_level"]
+
+        result = {}
+        result['success'] = True
+        if exp_id_list and user_id_list and access_level:
+            mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first() #FIXME constant for mg?
+            set_to_privilege = AccessPrivilege.query.filter_by(description=access_level).first()
+            db_query = Experiment.query.join(Access).filter(Access.user == user)
+            db_query = db_query.filter(Access.privilege == mg_privilege)
+            db_result_exps = db_query.filter(Experiment.id.in_(exp_id_list)).all()
+            db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
+
+            if len(db_result_exps) == len(exp_id_list):
+                for exp in db_result_exps:
+                    for user in db_result_users:
+                        if user not in exp.owner.pis:
+                            acc = Access.query.filter(Access.experiment == exp).filter(Access.user == user).first()
+                            if acc:
+                                if set_to_privilege:
+                                    acc.privilege = set_to_privilege
+                                else:
+                                    acc.delete()
+                            else:
+                                Access(experiment=exp, user=user, privilege=set_to_privilege)
+                        else:
+                            # user is a pi on that exp - you shouldn't be able to modify their access
+                            result['success'] = False
+            else:
+                # we were missing access to one of the experiments
+                result['success'] = False
+        else:
+            # something failed to get posted properly
+            result['success'] = False
+
+        transaction.commit()
+        return json.dumps(result)
+
+    @expose()
     def get_trash_flag(self, **kwargs):
         user = request.identity['user']
         trash_flag = self._get_trash_flag(user)

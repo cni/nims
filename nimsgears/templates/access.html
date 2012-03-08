@@ -14,6 +14,7 @@
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
 <script type="text/javascript" src="${tg.url('/javascript/nimsgears.js')}"></script>
 <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
+<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
 
 <style>
     #users { clear:left; width:25%; }
@@ -36,6 +37,10 @@
 </head>
 
 <body>
+    <div id="access_dialog" title="Select access level to assign:">
+        <select id="access_select">
+        </select>
+    </div>
     <h2>Access</h2>
     <p>This page allows you to view and make changes to access privileges.</p>
 
