@@ -155,7 +155,7 @@ class AuthDataController(DataController):
                         'admins': db_result_group.managers,
                         'members': db_result_group.members
                     })
-                if user in db_result_group.pis or user in db_result_group.managers:
+                if (user in db_result_group.pis or user in db_result_group.managers) or (predicates.in_group('superusers') and user.admin_mode):
                     db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
                     if not (membership_src == 'pis' and len(db_result_group.pis) == len(db_result_users)):
                         if membership_src in membership_dict:
@@ -341,11 +341,12 @@ class AuthDataController(DataController):
 
         return json.dumps({"success":True})
 
-    def get_experiments(self, user):
+    def get_experiments(self, user, trash_flag):
         exp_data_list = []
         exp_attr_list = []
 
-        trash_flag = self._get_trash_flag(user)
+        if not trash_flag:
+            trash_flag = self._get_trash_flag(user)
 
         db_query = DBSession.query(Experiment) # get query set up
 
@@ -465,7 +466,7 @@ class AuthDataController(DataController):
                 data_list, attr_list = self.get_sessions(user, exp_id)
                 result['success'] = True
         elif 'exp_list' in kwargs:
-            data_list, attr_list = self.get_experiments(user)
+            data_list, attr_list = self.get_experiments(user, None)
             result['success'] = True
         else:
             result['success'] = False
@@ -492,7 +493,10 @@ class AuthDataController(DataController):
     def groups(self):
         user = request.identity['user']
 
-        research_groups = user.pi_groups + user.manager_groups
+        if predicates.in_group('superusers') and user.admin_mode:
+            research_groups = ResearchGroup.query.all()
+        else:
+            research_groups = user.pi_groups + user.manager_groups
 
         # all assigned to same list, but we reassign after anyway
         group = research_groups[0] if research_groups else None
@@ -513,7 +517,7 @@ class AuthDataController(DataController):
             group = kwargs['research_group']
             group = ResearchGroup.query.filter(ResearchGroup.gid == group).first()
             # Set group to None if the POSTed group is not actually on that users list of groups
-            group = group if (group in user.pi_groups + user.manager_groups) else None
+            group = group if (group in user.pi_groups + user.manager_groups or predicates.in_group('superusers') and user.admin_mode) else None
         groups_dict = get_groups_dict(group)
         return json.dumps(groups_dict)
 
@@ -521,17 +525,7 @@ class AuthDataController(DataController):
     def access(self):
         user = request.identity['user']
 
-        exp_dict_dict = {} # exp_dict by access level
-        access_levels = [u'mg']
-        for access_level in access_levels:
-            exp_dict = {} # exp by exp_id
-            privilege = AccessPrivilege.query.filter_by(name=access_level).one()
-            db_item_list = DBSession.query(Experiment, Access).join(Access).filter(Access.user == user).filter(Access.privilege == privilege).all()
-            for db_item in db_item_list:
-                exp = db_item.Experiment
-                exp_dict[exp.id] = (exp.owner.gid, exp.name)
-            exp_dict_dict[access_level] = exp_dict
-
+        exp_data_list, exp_attr_list = self.get_experiments(user, 1)
         user_list = [(usr.uid, usr.name if usr.name else 'None') for usr in User.query.all()]
 
         # FIXME i plan to replace these things with just column number
@@ -539,12 +533,11 @@ class AuthDataController(DataController):
         exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
         user_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name')]
 
-        access_levels.insert(0, u'pi')
         return dict(page='access',
                     user_list=user_list,
+                    exp_data_list=exp_data_list,
+                    exp_attr_list=exp_attr_list,
                     user_columns=user_columns,
-                    exp_dict_dict=exp_dict_dict,
-                    access_levels=access_levels,
                     exp_columns=exp_columns,
                     )
 

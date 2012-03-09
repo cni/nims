@@ -69,12 +69,10 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
-                <py:for each="exp_id, exp_params in exp_dict.iteritems()">
-                    <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
-                        <td py:for="param in exp_params">${param}</td>
-                    </tr>
-                </py:for>
+            <py:for each="exp_data, exp_attr in zip(exp_data_list, exp_attr_list)">
+                <tr py:attrs="exp_attr"> <!-- set id for expand queries done on rows later -->
+                    <td py:for="param in exp_data">${param}</td>
+                </tr>
             </py:for>
         </tbody>
     </table>
