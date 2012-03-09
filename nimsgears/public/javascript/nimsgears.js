@@ -850,7 +850,7 @@ function setupCallbacks_Access()
     $("#access_dialog").dialog();
     $("#access_dialog").dialog("destroy");
     var access_privileges = getAccessPrivileges();
-    access_privileges.push("remove access");
+    access_privileges.push("Remove Access");
     var option;
     var selector = $("#access_select");
     access_privileges.forEach(function(item)

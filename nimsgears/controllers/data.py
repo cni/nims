@@ -152,10 +152,10 @@ class AuthDataController(DataController):
             if db_result_group:
                 membership_dict = ({
                         'pis': db_result_group.pis,
-                        'admins': db_result_group.admins,
+                        'admins': db_result_group.managers,
                         'members': db_result_group.members
                     })
-                if user in db_result_group.pis or user in db_result_group.admins:
+                if user in db_result_group.pis or user in db_result_group.managers:
                     db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
                     if not (membership_src == 'pis' and len(db_result_group.pis) == len(db_result_users)):
                         if membership_src in membership_dict:
@@ -402,7 +402,7 @@ class AuthDataController(DataController):
         n_results = len(db_result_sess)
         for i in range(n_results):
             sess = db_result_sess[i]
-            subject_name = unicode(sess.subject) if acc_priv_list[i] != 0 else 'Anonymous'
+            subject_name = unicode(sess.subject_role.subject) if acc_priv_list[i] != 0 else 'Anonymous'
             sess_data_list.append((sess.mri_exam, subject_name))
             sess_attr_list.append({})
             sess_attr_list[i]['id'] = 'sess_%d' % sess.id
@@ -492,7 +492,7 @@ class AuthDataController(DataController):
     def groups(self):
         user = request.identity['user']
 
-        research_groups = user.pi_groups + user.admin_groups
+        research_groups = user.pi_groups + user.manager_groups
 
         # all assigned to same list, but we reassign after anyway
         group = research_groups[0] if research_groups else None
@@ -513,7 +513,7 @@ class AuthDataController(DataController):
             group = kwargs['research_group']
             group = ResearchGroup.query.filter(ResearchGroup.gid == group).first()
             # Set group to None if the POSTed group is not actually on that users list of groups
-            group = group if (group in user.pi_groups + user.admin_groups) else None
+            group = group if (group in user.pi_groups + user.manager_groups) else None
         groups_dict = get_groups_dict(group)
         return json.dumps(groups_dict)
 
@@ -556,7 +556,7 @@ def get_groups_dict(group):
     group_dict['members'], group_dict['admins'], group_dict['pis'], group_dict['others'] = [], [], [], []
     if group:
         group_dict['others'] = User.query.all()
-        for key, users in [('members', group.members), ('admins', group.admins), ('pis', group.pis)]:
+        for key, users in [('members', group.members), ('admins', group.managers), ('pis', group.pis)]:
             for user in users:
                 group_dict[key].append(get_user_tuple(user))
                 group_dict['others'].remove(user)
