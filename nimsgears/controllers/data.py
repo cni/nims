@@ -190,14 +190,14 @@ class AuthDataController(DataController):
         for exp in exp_list:
             for user_ in user_list:
                 if (user_ not in exp.owner.pis) or (predicates.in_group('superusers') and user.admin_mode):
-                    acc = Access.query.filter(Access.experiment == exp).filter(Access.user == user).first()
+                    acc = Access.query.filter(Access.experiment == exp).filter(Access.user == user_).first()
                     if acc:
                         if set_to_privilege:
                             acc.privilege = set_to_privilege
                         else:
                             acc.delete()
                     else:
-                        Access(experiment=exp, user=user, privilege=set_to_privilege)
+                        Access(experiment=exp, user=user_, privilege=set_to_privilege)
                 else:
                     # user is a pi on that exp - you shouldn't be able to modify their access
                     success = False
@@ -232,7 +232,7 @@ class AuthDataController(DataController):
             db_query = Experiment.query
             if not (predicates.in_group('superusers') and user.admin_mode):
                 mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
-                db_query = Experiment.query.join(Access).filter(Access.user == user)
+                db_query = db_query.join(Access).filter(Access.user == user)
                 db_query = db_query.filter(Access.privilege == mg_privilege)
 
             db_result_exps = db_query.filter(Experiment.id.in_(exp_id_list)).all()
@@ -241,6 +241,8 @@ class AuthDataController(DataController):
                 set_to_privilege = AccessPrivilege.query.filter_by(description=access_level).first()
                 db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
                 result['success'] = self._modify_access(user, db_result_exps, db_result_users, set_to_privilege)
+        if result['success']:
+            transaction.commit()
 
         return json.dumps(result)
 
