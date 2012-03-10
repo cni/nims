@@ -2,6 +2,7 @@ var SORTED_DATA = "sorted_data";
 var LAST_CLICKED_INDEX = "last_clicked_index";
 var SHIFT_BOUNDARY_INDEX = "shift_boundary_index";
 var ACCESS_DATA = "access_data";
+var GROUP_DATA = "group_data";
 
 /*
  * SCROLLTABLE CONSTRUCTION
@@ -861,6 +862,27 @@ function setupCallbacks_Access()
     });
 };
 
+function showRetroDialog()
+{
+    $("#retro_dialog").dialog({
+        resizable:false,
+        height:140,
+        modal:true,
+        buttons: {
+            Okay: function() {
+                var user_ids = $(this).data(GROUP_DATA)[0];
+                var exp_ids = $(this).data(GROUP_DATA)[1];
+                var access_level = $("#access_select").val();
+                modifyAccess(user_ids, exp_ids, access_level);
+                $(this).dialog("close");
+            },
+            Cancel: function() {
+                $(this).dialog("close");
+            }
+        }
+    });
+};
+
 function showAccessDialog()
 {
     $("#access_dialog").dialog({
@@ -1010,6 +1032,9 @@ function setupCallbacks_Groups()
     {
         return droppable.is('table') && droppable.closest('.scrolltable_wrapper').attr('id') != $(this).closest('.scrolltable_wrapper').attr('id');
     }, $(".scrolltable_body"), dropUsersOnGroup);
+
+    $("#retro_dialog").dialog();
+    $("#retro_dialog").dialog("destroy");
 };
 
 function setupCallbacks()

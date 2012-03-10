@@ -145,25 +145,36 @@ class AuthDataController(DataController):
             membership_src = kwargs["membership_src"]
         if "membership_dst" in kwargs:
             membership_dst = kwargs["membership_dst"]
+        if "retroactive" in kwargs:
+            retroactive = kwargs["retroactive"]
+        retroactive = True # DEBUG
 
         result = {'success': False}
         if user_id_list and group_id and membership_src and membership_dst:
             db_result_group = ResearchGroup.query.filter_by(gid=group_id).first()
             if db_result_group:
                 membership_dict = ({
-                        'pis': db_result_group.pis,
-                        'admins': db_result_group.managers,
-                        'members': db_result_group.members
+                        'pis': (db_result_group.pis, 'mg'),
+                        'admins': (db_result_group.managers, 'mg'),
+                        'members': (db_result_group.members, 'ro'),
+                        'others': ([], None)
                     })
-                if (user in db_result_group.pis or user in db_result_group.managers) or (predicates.in_group('superusers') and user.admin_mode):
-                    db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
-                    if not (membership_src == 'pis' and len(db_result_group.pis) == len(db_result_users)):
-                        if membership_src in membership_dict:
-                            [membership_dict[membership_src].remove(item) for item in db_result_users]
-                        if membership_dst in membership_dict:
-                            [membership_dict[membership_dst].append(item) for item in db_result_users]
+
+                db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
+                unsafe_transaction = ((user not in db_result_group.pis and user not in db_result_group.managers) or
+                                     ((membership_src == 'pis' or membership_dst == 'pis') and user not in db_result_group.pis) or
+                                     (membership_src == 'pis' and len(db_result_group.pis) == len(db_result_users)))
+                if not unsafe_transaction or (predicates.in_group('superusers') and user.admin_mode):
+                    if membership_src != 'others' and membership_src in membership_dict:
+                        [membership_dict[membership_src][0].remove(item) for item in db_result_users]
+                    if membership_dst in membership_dict:
+                        if retroactive:
+                            set_to_privilege = AccessPrivilege.query.filter_by(name=membership_dict[membership_dst][1]).first()
+                            exp_list = Experiment.query.filter_by(owner=db_result_group).all()
+                            result['success'] = self._modify_access(user, exp_list, db_result_users, set_to_privilege)
+                        [membership_dict[membership_dst][0].append(item) for item in db_result_users]
+                    if result['success']:
                         transaction.commit()
-                        result['success'] = True
 
         return json.dumps(result)
 
@@ -172,6 +183,31 @@ class AuthDataController(DataController):
         db_result_accpriv = AccessPrivilege.query.all()
         accpriv_list = [accpriv.description for accpriv in db_result_accpriv]
         return json.dumps(accpriv_list)
+
+    def _modify_access(self, user, exp_list, user_list, set_to_privilege):
+        success = True
+
+        for exp in exp_list:
+            for user_ in user_list:
+                if (user_ not in exp.owner.pis) or (predicates.in_group('superusers') and user.admin_mode):
+                    acc = Access.query.filter(Access.experiment == exp).filter(Access.user == user).first()
+                    if acc:
+                        if set_to_privilege:
+                            acc.privilege = set_to_privilege
+                        else:
+                            acc.delete()
+                    else:
+                        Access(experiment=exp, user=user, privilege=set_to_privilege)
+                else:
+                    # user is a pi on that exp - you shouldn't be able to modify their access
+                    success = False
+                    transaction.abort()
+                    break
+            if not success:
+                break
+
+        return success
+
 
     @expose()
     def modify_access(self, **kwargs):
@@ -191,38 +227,21 @@ class AuthDataController(DataController):
             access_level = kwargs["access_level"]
 
         result = {}
-        result['success'] = True
+        result['success'] = False
         if exp_id_list and user_id_list and access_level:
-            mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first() #FIXME constant for mg?
-            set_to_privilege = AccessPrivilege.query.filter_by(description=access_level).first()
-            db_query = Experiment.query.join(Access).filter(Access.user == user)
-            db_query = db_query.filter(Access.privilege == mg_privilege)
+            db_query = Experiment.query
+            if not (predicates.in_group('superusers') and user.admin_mode):
+                mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
+                db_query = Experiment.query.join(Access).filter(Access.user == user)
+                db_query = db_query.filter(Access.privilege == mg_privilege)
+
             db_result_exps = db_query.filter(Experiment.id.in_(exp_id_list)).all()
-            db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
 
             if len(db_result_exps) == len(exp_id_list):
-                for exp in db_result_exps:
-                    for user in db_result_users:
-                        if user not in exp.owner.pis:
-                            acc = Access.query.filter(Access.experiment == exp).filter(Access.user == user).first()
-                            if acc:
-                                if set_to_privilege:
-                                    acc.privilege = set_to_privilege
-                                else:
-                                    acc.delete()
-                            else:
-                                Access(experiment=exp, user=user, privilege=set_to_privilege)
-                        else:
-                            # user is a pi on that exp - you shouldn't be able to modify their access
-                            result['success'] = False
-            else:
-                # we were missing access to one of the experiments
-                result['success'] = False
-        else:
-            # something failed to get posted properly
-            result['success'] = False
+                set_to_privilege = AccessPrivilege.query.filter_by(description=access_level).first()
+                db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
+                result['success'] = self._modify_access(user, db_result_exps, db_result_users, set_to_privilege)
 
-        transaction.commit()
         return json.dumps(result)
 
     @expose()
@@ -341,7 +360,7 @@ class AuthDataController(DataController):
 
         return json.dumps({"success":True})
 
-    def get_experiments(self, user, trash_flag):
+    def get_experiments(self, user, trash_flag=None, manager_only=False):
         exp_data_list = []
         exp_attr_list = []
 
@@ -362,6 +381,9 @@ class AuthDataController(DataController):
             acc_str_list = ['mg'] * len(db_result_exp)
         else: # Otherwise, populate access list with relevant entries
             db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
+            if manager_only:
+                mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
+                db_query = db_query.filter(Access.privilege == mg_privilege)
             db_result = db_query.all()
             db_result_exp, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
             acc_str_list = [acc.privilege.name for acc in db_result_acc]
@@ -466,7 +488,7 @@ class AuthDataController(DataController):
                 data_list, attr_list = self.get_sessions(user, exp_id)
                 result['success'] = True
         elif 'exp_list' in kwargs:
-            data_list, attr_list = self.get_experiments(user, None)
+            data_list, attr_list = self.get_experiments(user)
             result['success'] = True
         else:
             result['success'] = False
@@ -525,7 +547,7 @@ class AuthDataController(DataController):
     def access(self):
         user = request.identity['user']
 
-        exp_data_list, exp_attr_list = self.get_experiments(user, 1)
+        exp_data_list, exp_attr_list = self.get_experiments(user, 1, True)
         user_list = [(usr.uid, usr.name if usr.name else 'None') for usr in User.query.all()]
 
         # FIXME i plan to replace these things with just column number
