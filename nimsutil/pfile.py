@@ -25,8 +25,9 @@ class Pfile:
         pf.to_nii(outbase='P56832.7')
     """
 
-    def __init__(self, pfilename):
+    def __init__(self, pfilename, log):
         self.pfilename = pfilename
+        self.log = log
         self.load_header()
         self.image_data = None
         self.fm_data = None
@@ -131,23 +132,31 @@ class Pfile:
 
         # Note: the freq/phase dir isn't meaningful for spiral trajectories.
         if self.header.image.freq_dir==1:
-            fps_dim = [1, 0, 2]
+            nii_header.set_dim_info(freq=1, phase=0, slice=2)
         else:
-            fps_dim = [0, 1, 2]
-        nii_header.set_dim_info(*fps_dim)
+            nii_header.set_dim_info(freq=0, phase=1, slice=2)
 
         # FIXME: There must be a cleaner way to set the TR! Maybe bug Matthew about it.
-        nii_header.structarr['pixdim'][4] = self.header.image.tr/1000.0
+        nii_header.structarr['pixdim'][4] = self.header.image.tr/1e6
+        nii_header.set_slice_duration(nii_header.structarr['pixdim'][4] / slices_per_volume)
+        # We try to set the slope/intercept here, but nibabel will silently overwrite
+        # anything we put here when the data are written out. (It thinks it's smarter
+        # than us). Also, if we don't explicitly cast the data to int16, it sets these
+        # to some crazy values rather than (1,0). Damn you Matthew! :)
+        nii_header.set_slope_inter(1,0)
+        nii_header.structarr['cal_max'] = 32767
 
-        dscale = 32767.0 / np.abs(self.image_data).max()
+        # scale and save as int16.
+        nii_header.set_data_dtype(np.int16)
+        dscale = 32767.0 / np.max(np.abs(self.image_data))
         if num_echoes == 1:
-            nifti = nibabel.Nifti1Image(np.int16((dscale*self.image_data).round()), None, nii_header)
+            nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data).astype(np.int16), None, nii_header)
             nibabel.save(nifti, outbase + '.nii.gz')
         elif num_echoes == 2:
             if saveInOut:
-                nifti = nibabel.Nifti1Image(np.int16((dscale*self.image_data[:,:,:,:,0]).round()), None, nii_header)
+                nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data[:,:,:,:,0]).astype(np.int16), None, nii_header)
                 nibabel.save(nifti, outbase + '_in.nii.gz')
-                nifti = nibabel.Nifti1Image(np.int16((dscale*self.image_data[:,:,:,:,1]).round()), None, nii_header)
+                nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data[:,:,:,:,1]).astype(np.int16), None, nii_header)
                 nibabel.save(nifti, outbase + '_out.nii.gz')
             # FIXME: Do a more robust test for spiralio!
             # Assume spiralio, so do a weighted average of the two echos.
@@ -160,16 +169,17 @@ class Pfile:
             avg = np.zeros(self.image_data.shape[0:4])
             for tp in range(self.image_data.shape[3]):
                 avg[:,:,:,tp] = w_in*self.image_data[:,:,:,tp,0] + w_out*self.image_data[:,:,:,tp,1]
-            avg = np.int16((avg/np.abs(avg).max()*32767.0).round())
-            nifti = nibabel.Nifti1Image(avg, None, nii_header)
+            nifti = nibabel.Nifti1Image(np.round(avg/np.abs(avg).max()*32767.0).astype(np.int16), None, nii_header)
             nibabel.save(nifti, outbase + '.nii.gz')
             # w = out/(in+out)
         else:
             for echo in range(num_echoes):
-                nifti = nibabel.Nifti1Image(np.int16((dscale*self.image_data[:,:,:,:,echo]).round()), None, nii_header)
+                nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data[:,:,:,:,echo]).astype(np.int16), None, nii_header)
                 nibabel.save(nifti, outbase + '_echo%02d.nii.gz' % echo)
 
-        nifti = nibabel.Nifti1Image(np.int16((self.fm_data * 100.0).round()), None, nii_header)
+        nii_header.structarr['cal_max'] = np.ceil(self.fm_data.max() * 100.0)
+        nii_header.structarr['cal_min'] = np.floor(self.fm_data.min() * 100.0)
+        nifti = nibabel.Nifti1Image(np.round(self.fm_data * 100.0).astype(np.int16), None, nii_header)
         nibabel.save(nifti, outbase + '_B0.nii.gz')
 
     def load_fieldmap_files(self, basename, save_unified=True, data_type=np.float32):
@@ -230,16 +240,16 @@ class Pfile:
 
             # run spirec once to get the fieldmap files (one for each coil and slice)
             cmd = spirec + ' -l --fmaponly --savefmap --rotate -90 -r ' + pfilename + ' -t ' + basename
-            print(cmd)
-            sp.call(shlex.split(cmd), cwd=tmp_dir)
+            self.log.debug(cmd)
+            sp.call(shlex.split(cmd), cwd=tmp_dir, stdout=open('/dev/null', 'w'))
 
             # combine the fieldmaps into one unified fieldmap
             [self.fm_data, fm_mask] = self.load_fieldmap_files(basepath, save_unified = True)
 
             # call spirec again, giving it our unified fieldmap, to produce an even better fieldmap
             cmd = spirec + ' -l --savetempfile --loadfmap --just 2 --rotate -90 -r ' + pfilename + ' -t ' + basename
-            print(cmd)
-            sp.call(shlex.split(cmd), cwd=tmp_dir)
+            self.log.debug(cmd)
+            sp.call(shlex.split(cmd), cwd=tmp_dir, stdout=open('/dev/null', 'w'))
 
             data_type = np.complex64
             #complex_image = np.zeros([size_x, size_y, num_slices, 2], dtype=data_type)
@@ -266,8 +276,8 @@ class Pfile:
 
             # Now recon the whole timeseries using the good fieldmaps that we just saved.
             cmd = spirec + ' -l --savetempfile --loadfmap --rotate -90 --b0navigator -r ' + pfilename + ' -t ' + basename
-            print(cmd)
-            sp.call(shlex.split(cmd), cwd=tmp_dir)
+            self.log.debug(cmd)
+            sp.call(shlex.split(cmd), cwd=tmp_dir, stdout=open('/dev/null', 'w'))
 
             # Compute the receive coil weightings (Should become 1 if only a single coil).
             # The values stored in the header are standard deviations from the coil calibration.
@@ -276,50 +286,43 @@ class Pfile:
             coil_weights = np.array(self.header.ps.rec_std[0:self.num_receivers])
             coil_weights = np.power(coil_weights / coil_weights.mean(), -2)
 
-            max_array_bytes = 4*1024*1024*1024
             fn = '%s.complex_float' % basepath
             num_values_per_slice = self.size_x*self.size_y*self.num_timepoints
             num_bytes_per_slice = num_values_per_slice*np.dtype(data_type).itemsize
-            if num_bytes_per_slice*self.num_slices < max_array_bytes:
-                # This actually isn't much faster than looping over slices for smaller files.
-                with open(fn, 'rb') as fp:
-                    complex_image = np.fromfile(file=fp, dtype=data_type).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_slices,self.num_receivers,self.num_echoes],order='F')
-                for cur_recv in range(self.num_receivers):
-                    complex_image[:,:,:,:,cur_recv,] = complex_image[:,:,:,:,cur_recv,] * coil_weights[cur_recv]
-                self.image_data = np.sqrt(np.mean(np.power(np.abs(complex_image),2),4)).transpose([0,1,3,2,4])
-            else:
-                complex_image = np.zeros([self.size_x,self.size_y,self.num_timepoints,self.num_receivers,self.num_echoes], dtype=data_type)
-                with open(fn, 'rb') as fp:
-                    for sl in range(self.num_slices):
-                        for recv in range(self.num_receivers):
-                            for echo in range(self.num_echoes):
-                                fp.seek(sl*num_bytes_per_slice + recv*self.num_slices*num_bytes_per_slice + echo*self.num_receivers*self.num_slices*num_bytes_per_slice)
-                                complex_image[:,:,:,recv,echo] = np.fromfile(file=fp, dtype=data_type, count=num_values_per_slice).reshape([self.size_x,self.size_y,self.num_timepoints],order='F')
-                            complex_image[:,:,:,recv,] = complex_image[:,:,:,recv,] * coil_weights[recv]
-                        self.image_data[:,:,sl,:,:] = np.sqrt(np.mean(np.power(np.abs(complex_image),2),3))
+            complex_image = np.zeros([self.size_x,self.size_y,self.num_timepoints,self.num_receivers,self.num_echoes], dtype=data_type)
+            self.image_data = np.zeros([self.size_x,self.size_y,self.num_slices,self.num_timepoints,self.num_echoes], dtype=np.float32)
+            with open(fn, 'rb') as fp:
+                for sl in range(self.num_slices):
+                    for recv in range(self.num_receivers):
+                        for echo in range(self.num_echoes):
+                            fp.seek(sl*num_bytes_per_slice + recv*self.num_slices*num_bytes_per_slice + echo*self.num_receivers*self.num_slices*num_bytes_per_slice)
+                            complex_image[:,:,:,recv,echo] = np.fromfile(file=fp, dtype=data_type, count=num_values_per_slice).reshape([self.size_x,self.size_y,self.num_timepoints],order='F')
+                        complex_image[:,:,:,recv,] = complex_image[:,:,:,recv,] * coil_weights[recv]
+                    self.image_data[:,:,sl,:,:] = np.sqrt(np.mean(np.power(np.abs(complex_image),2),3))
 
-    def montage(self, x):
-        """
-        Convenience function for looking at image arrays.
 
-        For example:
-            pylab.imshow(np.flipud(np.rot90(montage(im))))
-            pylab.axis('off')
-            pylab.show()
-        """
-        m, n, count = np.shape(x)
-        mm = int(np.ceil(np.sqrt(count)))
-        nn = mm
-        montage = np.zeros((mm * m, nn * n))
-        image_id = 0
-        for j in range(mm):
-            for k in range(nn):
-                if image_id >= count:
-                    break
-                slice_m, slice_n = j * m, k * n
-                montage[slice_n:slice_n + n, slice_m:slice_m + m] = x[:, :, image_id]
-                image_id += 1
-        return montage
+def montage(x):
+    """
+    Convenience function for looking at image arrays.
+
+    For example:
+        pylab.imshow(np.flipud(np.rot90(montage(im))))
+        pylab.axis('off')
+        pylab.show()
+    """
+    m, n, count = np.shape(x)
+    mm = int(np.ceil(np.sqrt(count)))
+    nn = mm
+    montage = np.zeros((mm * m, nn * n))
+    image_id = 0
+    for j in range(mm):
+        for k in range(nn):
+            if image_id >= count:
+                break
+            slice_m, slice_n = j * m, k * n
+            montage[slice_n:slice_n + n, slice_m:slice_m + m] = x[:, :, image_id]
+            image_id += 1
+    return montage
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -329,9 +332,13 @@ class ArgumentParser(argparse.ArgumentParser):
         self.description = """Recons a GE pfile to produce a NIfTI file and a B0 fieldmap."""
         self.add_argument('pfile', help='path to pfile')
         self.add_argument('outbase', nargs='?', help='basename for output files (default: pfile name)')
+        self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
+        self.add_argument('-f', '--logfile', help='path to log file')
+        self.add_argument('-l', '--loglevel', default='info', help='path to log file')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    pf = Pfile(args.pfile)
+    log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
+    pf = Pfile(args.pfile, log)
     pf.to_nii(args.outbase)
