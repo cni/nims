@@ -5,6 +5,7 @@
 
 import os
 import re
+import glob
 import shutil
 import difflib
 import datetime
@@ -14,14 +15,7 @@ import logging, logging.handlers
 
 class TempDirectory:
 
-    """
-    Class constructed for context managed temporary directory creation and
-    destruction.
-
-    Usage:
-        with TempDirectory() as temp_dir:
-            ...
-    """
+    """Context managed temporary directory creation and automatic removal."""
 
     def __enter__(self):
         """Create temporary directory on context entry, returning the path."""
@@ -164,3 +158,19 @@ def ldap_query(uid):
     except:
         email = '%s@stanford.edu' % uid if name else ''
     return unicode(name), unicode(email)
+
+
+def find_ge_physio(data_path, timestamp, psd_name):
+
+    def physio_with_datetime(data_path, timestamp, psd_name):
+        return glob.glob(os.path.join(data_path, '*_%s_%s*' % (psd_name, timestamp.strftime('%m%d%Y'))))
+
+    candidates  = physio_with_datetime(data_path, timestamp, psd_name)
+    candidates += physio_with_datetime(data_path, timestamp + datetime.timedelta(days=1), psd_name)
+    datetime_strings = [re.match('.+(?P<datetime>\d{10}_\d{2}_\d{2}_\d{1,3})', cand).groupdict()['datetime'] for cand in candidates]
+    datetimes = [datetime.datetime.strptime(dts, '%m%d%Y%H_%M_%S_%f') for dts in datetime_strings]
+    physio_dict = {}
+    for physio_datetime, physio_filename in zip(datetimes, candidates):
+        physio_dict.setdefault(physio_datetime, []).append(physio_filename)
+    valid_keys = filter(lambda physio_datetime: physio_datetime >= timestamp, physio_dict)
+    return physio_dict[min(valid_keys)] if valid_keys else []

@@ -1,5 +1,4 @@
 import os
-import gzip
 import random
 import hashlib
 import datetime
@@ -14,11 +13,9 @@ from nimsgears.model import metadata, DBSession
 __session__ = DBSession
 __metadata__ = metadata
 
-__all__  = ['Group', 'User', 'Permission', 'Message', 'Job']
-__all__ += ['Access', 'AccessPrivilege', 'ResearchGroup', 'Subject', 'SubjectRole']
-__all__ += ['Experiment', 'Session', 'Epoch', 'Dataset']
-__all__ += ['FreeDataset', 'Screensave' , 'RawNifti', 'PreprocNifti', 'MRIPhysioData']
-__all__ += ['MRIDataset', 'DicomData', 'Pfile']
+__all__  = ['Group', 'User', 'Permission', 'Message', 'Job', 'Access', 'AccessPrivilege']
+__all__ += ['ResearchGroup', 'Subject', 'SubjectRole', 'DataContainer', 'Experiment', 'Session', 'Epoch']
+__all__ += ['Dataset', 'MRData', 'DicomData' , 'GEPfile', 'NiftiData']
 
 
 class Group(Entity):
@@ -176,14 +173,16 @@ class Message(Entity):
 class Job(Entity):
 
     timestamp = Field(DateTime, default=datetime.datetime.now)
-    task = Field(Unicode(63), required=True)
-    max_workers = Field(Integer, default=1)
     status = Field(Enum(u'new', u'active', u'done', u'failed', name=u'status'), default=u'new')
+    task = Field(Enum(u'find', u'proc', name=u'task'))
+    redo_all = Field(Boolean, default=False)
+    progress = Field(Integer)
+    action = Field(Unicode(255))
 
-    dataset = ManyToOne('Dataset', inverse='jobs')
+    data_container = ManyToOne('DataContainer', inverse='jobs')
 
     def __unicode__(self):
-        return u'<Job %s: %s>' % (self.task, self.dataset)
+        return u'Job %d (%s): %s' % (self.id if self.id else -1, self.task, self.data_container)
 
 
 class Access(Entity):
@@ -250,6 +249,8 @@ class Subject(Entity):
 
 class SubjectRole(Entity):
 
+    #consent_form = Field(Unicode(63))
+
     subject = ManyToOne('Subject')
     sessions = OneToMany('Session')
 
@@ -268,9 +269,27 @@ class SubjectRole(Entity):
         return self.sessions[0].experiment
 
 
-class Experiment(Entity):
+class DataContainer(Entity):
 
+    using_options(inheritance='multi')
+
+    timestamp = Field(DateTime, default=datetime.datetime.now)
     trashtime = Field(DateTime)
+    needs_finding = Field(Boolean, default=False)
+    needs_processing = Field(Boolean, default=False)
+
+    datasets = OneToMany('Dataset')
+    jobs = OneToMany('Job')
+
+    @property
+    def primary_dataset(self):
+        return Dataset.query.filter_by(container=self).filter_by(kind=u'primary').first()
+
+
+class Experiment(DataContainer):
+
+    using_options(inheritance='multi')
+
     name = Field(Unicode(63))
     irb = Field(Unicode(16))
 
@@ -324,11 +343,10 @@ class Experiment(Entity):
         self.trashtime = None
 
 
-class Session(Entity):
+class Session(DataContainer):
 
-    timestamp = Field(DateTime, default=datetime.datetime.now)
-    trashtime = Field(DateTime)
-    mri_exam = Field(Integer)
+    using_options(inheritance='multi')
+
     notes = Field(Unicode)
 
     experiment = ManyToOne('Experiment')
@@ -336,20 +354,28 @@ class Session(Entity):
     operator = ManyToOne('User')
     epochs = OneToMany('Epoch')
 
+    def __unicode__(self):
+        return u'Session'
+
     @classmethod
     def from_metadata(cls, md):
-        session = cls.query.filter_by(mri_exam=md.mri_exam).first()
+        session = cls.query.join(Epoch, Session.epochs).join(Dataset).filter(Dataset.exam==md.mri_exam).first()
         if not session:
             owner = ResearchGroup.query.filter_by(gid=md.group_name).one()
             experiment = Experiment.by_owner_name(owner, md.exp_name)
             subject = Subject.by_firstname_lastname_dob(md.subj_fn, md.subj_ln, md.subj_dob)
             subject_role = SubjectRole.by_subject_experiment(subject, experiment)
-            session = Session(mri_exam=md.mri_exam, subject_role=subject_role, experiment=experiment)
+            session = Session(subject_role=subject_role, experiment=experiment)
         return session
 
     @property
     def name(self):
         return '%s_%d' % (self.timestamp.strftime('%Y%m%d'), self.mri_exam)
+
+    @property
+    def mri_exam(self):
+        dataset = MRData.query.join(Epoch, MRData.container).filter(Epoch.session==self).first()
+        return dataset.exam if dataset else None
 
     @property
     def is_trash(self):
@@ -375,41 +401,49 @@ class Session(Entity):
             self.experiment.untrash()
 
 
-class Epoch(Entity):
+class Epoch(DataContainer):
 
-    timestamp = Field(DateTime, default=datetime.datetime.now)
-    trashtime = Field(DateTime)
-    physio_flag = Field(Boolean, default=False)
-    has_physio = Field(Boolean, default=False)
-
-    mri_series = Field(Integer)
-    mri_acq = Field(Integer)
-    mri_desc = Field(Unicode(255))
+    using_options(inheritance='multi')
 
     session = ManyToOne('Session')
-    datasets = OneToMany('Dataset')
-    free_datasets = ManyToMany('FreeDataset')
 
     def __unicode__(self):
-        return u'<Epoch %5d %04d %02d %s>' % (self.session.mri_exam, self.mri_series, self.mri_acq, self.mri_desc)
+        return u'Epoch %5d %04d %02d %s' % (self.session.mri_exam, self.mri_series, self.mri_acq, self.mri_desc)
 
     @classmethod
     def from_metadata(cls, md):
-        query = cls.query.join(Session, cls.session)
-        query = query.filter(Session.mri_exam==md.mri_exam)
-        query = query.filter(cls.mri_series==md.mri_series)
-        query = query.filter(cls.mri_acq==md.mri_acq)
+        query = cls.query.join(Dataset)
+        query = query.filter(Dataset.exam==md.mri_exam).filter(Dataset.series==md.mri_series).filter(Dataset.acq==md.mri_acq)
         epoch = query.first()
         if not epoch:
             session = Session.from_metadata(md)
             if session.timestamp is None or session.timestamp > md.timestamp:
                 session.timestamp = md.timestamp
-            epoch = cls(session=session, timestamp=md.timestamp, mri_series=md.mri_series, mri_acq=md.mri_acq, mri_desc=md.mri_desc)
+            epoch = cls(session=session, timestamp=md.timestamp)
         return epoch
 
     @property
     def name(self):
         return ('%04d_%02d_%s' % (self.mri_series, self.mri_acq, self.mri_desc)).encode('utf-8')
+
+    @property
+    def original_dataset(self):
+        return self.datasets[0].source
+
+    @property
+    def mri_series(self):
+        dataset = MRData.query.filter(MRData.container==self).first()
+        return dataset.series if dataset else None
+
+    @property
+    def mri_acq(self):
+        dataset = MRData.query.filter(MRData.container==self).first()
+        return dataset.acq if dataset else None
+
+    @property
+    def mri_desc(self):
+        dataset = MRData.query.filter(MRData.container==self).first()
+        return dataset.desc if dataset else None
 
     @property
     def is_trash(self):
@@ -437,27 +471,34 @@ class Epoch(Entity):
 
 class Dataset(Entity):
 
-    tasks = []
-    label = ''
-
+    timestamp = Field(DateTime, default=datetime.datetime.now)
     trashtime = Field(DateTime)
-    offset_secs = Field(Float)
-    duration_secs = Field(Float)
-    name = Field(Unicode(31))
+    kind = Field(Enum(u'primary', u'secondary', u'derived', name=u'kind'), default=u'primary')
+    type = Field(Enum(u'dicom', u'pfile', u'nifti', u'physio', u'screensave', name=u'type'))
     updated_at = Field(DateTime, default=datetime.datetime.now)
-    file_cnt_act = Field(Integer, default=0)
-    file_cnt_tgt = Field(Integer, default=0)
-    is_dirty = Field(Boolean, default=False)
     path_prefix = Field(Unicode(31))
 
-    epoch = ManyToOne('Epoch')
-    jobs = OneToMany('Job')
+    offset = Field(Float)
+    duration = Field(Float)
+    file_cnt_act = Field(Integer, default=0)
+    file_cnt_tgt = Field(Integer, default=0)
+
+    container = ManyToOne('DataContainer')
+    parents = ManyToMany('Dataset')
 
     def __unicode__(self):
-        return u'<%s %s>' % (self.__class__.__name__, self.epoch)
+        return u'<%s %s>' % (self.__class__.__name__, self.container)
+
+    @classmethod
+    def at_path_for_file_and_type(cls, nims_path, filename=None, type=None):
+        dataset = cls(type=type)
+        transaction.commit()
+        DBSession.add(dataset)
+        os.makedirs(os.path.join(nims_path, dataset.relpath))
+        return dataset
 
     @property
-    def path(self):
+    def relpath(self):
         if self.path_prefix is None:
             self.path_prefix = u'%03d' % random.randint(0,999)
         return os.path.join(self.path_prefix, '%08d' % self.id).encode('utf-8')
@@ -479,71 +520,56 @@ class Dataset(Entity):
             self.epoch.untrash()
 
 
-class FreeDataset(Dataset):
+class MRData(Dataset):
 
-    epochs = ManyToMany('Epoch')
-
-
-class Screensave(Dataset):
-
-    pass
-
-
-class MRIPhysioData(Dataset):
-
-    tasks = [u'preproc']
-
-
-class RawNifti(Dataset):
-
-    @property
-    def tasks(self):
-        return [u'find_physio'] if self.epoch.physio_flag else [u'preproc']
-
-
-class PreprocNifti(Dataset):
-
-    pass
-
-
-class MRIDataset(Dataset):
+    """Abstract superclass to all MRI data types."""
 
     priority = 0
     filename_ext = ''
 
-    psd_name = Field(Unicode(255))
-    #is_spiral = Field(Boolean)
+    exam = Field(Integer)
+    series = Field(Integer)
+    acq = Field(Integer)
+    desc = Field(Unicode(255))
+    psd = Field(Unicode(255))
+    physio_flag = Field(Boolean, default=False)
+    has_physio = Field(Boolean, default=False)
+
+    tr = Field(Float)
+    te = Field(Float)
 
     @classmethod
-    def from_file(cls, fp):
-        metadata = cls.get_metadata(fp)
-        return cls.from_metadata(metadata) if metadata else None
+    def at_path_for_file_and_type(cls, nims_path, filename, type=None):
+        metadata = cls.get_metadata(filename)
+        if metadata:
+            dataset = cls.from_metadata(metadata)
+            transaction.commit()
+            DBSession.add(dataset)
+            os.makedirs(os.path.join(nims_path, dataset.relpath))
+        else:
+            dataset = None
+        return dataset
 
     @classmethod
     def from_metadata(cls, md):
-        query = cls.query.join(Epoch, cls.epoch).join(Session, Epoch.session)
-        query = query.filter(Session.mri_exam==md.mri_exam)
-        query = query.filter(Epoch.mri_series==md.mri_series)
-        query = query.filter(Epoch.mri_acq==md.mri_acq)
-        dataset = query.first()
+        dataset = cls.query.filter_by(exam=md.mri_exam).filter_by(series=md.mri_series).filter_by(acq=md.mri_acq).first()
         if not dataset:
             epoch = Epoch.from_metadata(md)
-            epoch.physio_flag = md.physio_flag and u'epi' in md.psd_name.lower()
-            dataset = cls(epoch=epoch, psd_name=md.psd_name)
-            transaction.commit()
-            DBSession.add(dataset)
+            epoch.needs_finding = True
+            epoch.needs_processing = True
+            dataset = cls(container=epoch, exam=md.mri_exam, series=md.mri_series, acq=md.mri_acq, desc=md.mri_desc, psd=md.psd_name)
+            dataset.timestamp = md.timestamp
+            dataset.physio_flag = md.physio_flag and u'epi' in md.psd_name.lower()
         return dataset
 
 
-class DicomData(MRIDataset):
+class DicomData(MRData):
 
     priority = 0
-    label = '.dicoms'
     filename_ext = '.dcm'
-    tasks = [u'dcm_to_nii']
 
     @staticmethod
-    def get_metadata(fp):
+    def get_metadata(filename):
 
         TAG_PSD_NAME =    (0x0019, 0x109c)
         TAG_PHYSIO_FLAG = (0x0019, 0x10ac)
@@ -559,7 +585,7 @@ class DicomData(MRIDataset):
             else:                           return '000000'
 
         try:
-            header = dicom.read_file(fp, stop_before_pixels=True)
+            header = dicom.read_file(filename, stop_before_pixels=True)
             if header.Manufacturer != 'GE MEDICAL SYSTEMS':    # TODO: make code more general
                 raise dicom.filereader.InvalidDicomError
         except (IOError, dicom.filereader.InvalidDicomError):
@@ -578,14 +604,12 @@ class DicomData(MRIDataset):
         return md
 
 
-class Pfile(MRIDataset):
+class GEPfile(MRData):
 
     priority = 1
-    label = 'pfiles'
-    tasks = [u'pfile_to_nii']
 
     @staticmethod
-    def get_metadata(fp):
+    def get_metadata(filename):
         try:
             from nimsutil import pfheader
         except ImportError:
@@ -593,7 +617,7 @@ class Pfile(MRIDataset):
             return None
 
         try:
-            header = pfheader.get_header(fp)
+            header = pfheader.get_header(filename)
         except (IOError, pfheader.PfreaderError):
             md = None
         else:
@@ -614,7 +638,11 @@ class Pfile(MRIDataset):
         return md
 
 
+class NiftiData(Dataset):
+
+    pass
+
+
 class Metadata(object):
 
-    def __init__(self):
         pass

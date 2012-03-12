@@ -142,10 +142,10 @@ class AuthDataController(DataController):
             exp_id = -1
 
         if predicates.in_group('superusers') and user.admin_mode:
-            results = Session.query.join(Experiment).filter(Experiment.id==exp_id).all()
+            results = Session.query.join(Experiment, Session.experiment).filter(Experiment.id==exp_id).all()
             sessions = [session_tuple(session, -1) for session in results]
         else:
-            query = DBSession.query(Session, Access).join(Experiment).join(Access)
+            query = DBSession.query(Session, Access).join(Experiment, Session.experiment).join(Access)
             results = query.filter(Experiment.id==exp_id).filter(Access.user==user).all()
             sessions = [session_tuple(result.Session, result.Access.privilege.value) for result in results]
         return json.dumps(sessions)

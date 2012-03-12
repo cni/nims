@@ -150,21 +150,14 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.configure()
-
-    def configure(self):
         self.add_argument('stage_path', help='path to staging area')
         self.add_argument('dicomserver', help='dicom server and port (hostname:port)')
         self.add_argument('aet', help='caller AE title')
         self.add_argument('aec', help='callee AE title')
-        self.add_argument('sleep_time', type=int, help='time to sleep before checking for new data')
-        self.add_argument('-n', '--logname', default=__file__, help='process name for log')
+        self.add_argument('sleep_time', type=int, default=60, help='time to sleep before checking for new data')
+        self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
         self.add_argument('-l', '--loglevel', default='info', help='path to log file')
-
-    def error(self, message):
-        self.print_help()
-        sys.exit(1)
 
 
 if __name__ == '__main__':
@@ -175,7 +168,7 @@ if __name__ == '__main__':
     scu_ = scu.SCU(host, port, args.aet, args.aec, log=log)
     reap_stage = nimsutil.make_joined_path(args.stage_path, 'reap')
     sort_stage = nimsutil.make_joined_path(args.stage_path, 'sort')
-    datetime_file = '.%s.datetime' % host
+    datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % host)
 
     reaper = DicomReaper(host, scu_, reap_stage, sort_stage, datetime_file, args.sleep_time, log)
 

@@ -20,16 +20,16 @@ from nimsgears import model
 
 class Sorter(object):
 
-    def __init__(self, db_uri, stage_path, junk_path, data_path, sleep_time, log):
+    def __init__(self, db_uri, stage_path, junk_path, nims_path, sleep_time, log):
         super(Sorter, self).__init__()
         self.stage_path = stage_path
         self.junk_path = junk_path
-        self.data_path = data_path
+        self.nims_path = nims_path
         self.sleep_time = sleep_time
         self.log = log
         self.alive = True
         model.init_model(sqlalchemy.create_engine(db_uri))
-        self.mri_dataset_factory = MRIDatasetFactory()
+        self.mr_data_factory = MRDataFactory()
 
     def halt(self):
         self.alive = False
@@ -63,13 +63,12 @@ class Sorter(object):
         Mark dataset as needing processing.
         """
         self.log.debug('Sorting %s' % os.path.basename(filename))
-        dataset = self.mri_dataset_factory.get_dataset(filename)
+        dataset = self.mr_data_factory.dataset_at_path_for_file(self.nims_path, filename)
         if dataset:
-            dest = nimsutil.make_joined_path(self.data_path, dataset.path)
             ext = dataset.filename_ext if os.path.splitext(filename)[1] != dataset.filename_ext else ''
-            shutil.move(filename, os.path.join(dest, os.path.basename(filename) + ext))
+            shutil.move(filename, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filename) + ext))
+            dataset.file_cnt_act += 1
             dataset.untrash()
-            dataset.is_dirty = True
             dataset.updated_at = datetime.datetime.now()
             transaction.commit()
         else:
@@ -78,16 +77,16 @@ class Sorter(object):
             os.rename(filename, unsort_filename)
 
 
-class MRIDatasetFactory(object):
+class MRDataFactory(object):
 
     def __init__(self):
-        super(MRIDatasetFactory, self).__init__()
-        self.dataset_classes = sorted(model.MRIDataset.__subclasses__(), key=lambda cls: cls.priority)
+        super(MRDataFactory, self).__init__()
+        self.dataset_classes = sorted(model.MRData.__subclasses__(), key=lambda cls: cls.priority)
 
-    def get_dataset(self, filename):
+    def dataset_at_path_for_file(self, nims_path, filename):
         """Return instance of appropriate MRIDataset subclass for provided file."""
         for dataset_class in self.dataset_classes:
-            dataset = dataset_class.from_file(filename)
+            dataset = dataset_class.at_path_for_file_and_type(nims_path, filename)
             if dataset: break
         return dataset
 
@@ -96,23 +95,16 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.configure()
-
-    def configure(self):
         self.add_argument('db_uri', help='database URI')
         self.add_argument('stage_path', help='path to staging area')
         self.add_argument('nims_path', help='data destination')
         self.add_argument('-s', '--sleeptime', type=int, default=30, help='time to sleep before checking for new files')
-        self.add_argument('-n', '--logname', default=__file__, help='process name for log')
+        self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
         self.add_argument('-l', '--loglevel', default='info', help='path to log file')
 
-    def error(self, message):
-        self.print_help()
-        sys.exit(1)
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     args = ArgumentParser().parse_args()
 
     log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
