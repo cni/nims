@@ -134,7 +134,7 @@ class AuthDataController(DataController):
     def modify_groups(self, **kwargs):
         user = request.identity['user']
 
-        user_id_list = group_id = membership_src = membership_dst = None
+        user_id_list = group_id = membership_src = membership_dst = is_retroactive = None
         if "user_ids" in kwargs:
             user_id_list = kwargs["user_ids"]
             if not isinstance(user_id_list, list):
@@ -145,9 +145,8 @@ class AuthDataController(DataController):
             membership_src = kwargs["membership_src"]
         if "membership_dst" in kwargs:
             membership_dst = kwargs["membership_dst"]
-        if "retroactive" in kwargs:
-            retroactive = kwargs["retroactive"]
-        retroactive = True # DEBUG
+        if "is_retroactive" in kwargs:
+            is_retroactive = True if kwargs["is_retroactive"] == 'true' else False
 
         result = {'success': False}
         if user_id_list and group_id and membership_src and membership_dst:
@@ -165,16 +164,21 @@ class AuthDataController(DataController):
                                      ((membership_src == 'pis' or membership_dst == 'pis') and user not in db_result_group.pis) or
                                      (membership_src == 'pis' and len(db_result_group.pis) == len(db_result_users)))
                 if not unsafe_transaction or (predicates.in_group('superusers') and user.admin_mode):
+                    result['success'] = True
                     if membership_src != 'others' and membership_src in membership_dict:
-                        [membership_dict[membership_src][0].remove(item) for item in db_result_users]
+                        for item in db_result_users:
+                            if item in membership_dict[membership_src][0]:
+                                membership_dict[membership_src][0].remove(item)
                     if membership_dst in membership_dict:
-                        if retroactive:
+                        if is_retroactive:
                             set_to_privilege = AccessPrivilege.query.filter_by(name=membership_dict[membership_dst][1]).first()
                             exp_list = Experiment.query.filter_by(owner=db_result_group).all()
                             result['success'] = self._modify_access(user, exp_list, db_result_users, set_to_privilege)
                         [membership_dict[membership_dst][0].append(item) for item in db_result_users]
-                    if result['success']:
-                        transaction.commit()
+        if result['success']:
+            transaction.commit()
+        else:
+            transaction.abort()
 
         return json.dumps(result)
 
@@ -197,11 +201,11 @@ class AuthDataController(DataController):
                         else:
                             acc.delete()
                     else:
-                        Access(experiment=exp, user=user_, privilege=set_to_privilege)
+                        if set_to_privilege:
+                            Access(experiment=exp, user=user_, privilege=set_to_privilege)
                 else:
                     # user is a pi on that exp - you shouldn't be able to modify their access
                     success = False
-                    transaction.abort()
                     break
             if not success:
                 break
@@ -243,6 +247,8 @@ class AuthDataController(DataController):
                 result['success'] = self._modify_access(user, db_result_exps, db_result_users, set_to_privilege)
         if result['success']:
             transaction.commit()
+        else:
+            transaction.abort()
 
         return json.dumps(result)
 
