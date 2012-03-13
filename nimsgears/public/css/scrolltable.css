@@ -1,0 +1,58 @@
+.scrolltable
+{
+    margin:0px;
+    border-spacing:0px;
+}
+
+.scrolltable th
+{
+    font-family:Georgia,Times New Roman,Times;
+    color:white;
+    background-color:#820000;
+}
+
+.scrolltable_wrapper
+{
+    cursor:default;
+    float:left;
+}
+
+.scrolltable_body
+{
+    width:100%;
+    overflow:auto;
+}
+
+
+.scrolltable_flat
+{
+    padding:0px;
+    height:0px;
+}
+
+.scrolltable_header th, .scrolltable_body td, #floating td
+{
+    border:1px solid white;
+}
+
+
+tr.stripe.ui-selected, tr.ui-selected
+{
+    background-color: #ddcf99;
+}
+
+tr.stripe
+{
+    background-color: #eee;
+}
+
+tr.hover, tr.hover.stripe, tr.multihover, tr.multihover.stripe
+{
+    background-color:#820000;
+    color: white;
+}
+
+tr.trash, tr.trash.ui-selected
+{
+    color:#8a887d;
+}

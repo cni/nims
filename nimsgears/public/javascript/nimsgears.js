@@ -1,5 +1,235 @@
-var lastClickedIndex = "lastClickedIndex";
-var shiftBoundaryIndex = "shiftBoundaryIndex";
+var SORTED_DATA = "sorted_data";
+var LAST_CLICKED_INDEX = "last_clicked_index";
+var SHIFT_BOUNDARY_INDEX = "shift_boundary_index";
+var ACCESS_DATA = "access_data";
+var GROUP_DATA = "group_data";
+
+/*
+ * SCROLLTABLE CONSTRUCTION
+ */
+function scrolltable_Compare(a, b)
+{
+    if (a < b) { return -1; }
+    else if (a == b) { return 0; }
+    else { return 1; }
+};
+
+
+// Resorts the elements based on the existing sorted order (in case you
+// repopulated the table)
+function scrolltable_Resort(scrolltable_wrapper)
+{
+    var sorted_column;
+    var sorted_direction;
+    var sorted_data = scrolltable_wrapper.data(SORTED_DATA);
+    if (sorted_data != null)
+    {
+        sorted_column = sorted_data[0];
+        sorted_direction = sorted_data[1];
+        scrolltable_SortByColumnIndex(scrolltable_wrapper, sorted_column, sorted_direction);
+    }
+};
+
+function scrolltable_SortByElement(th_element)
+{
+    var scrolltable_wrapper = th_element.closest('.scrolltable_wrapper');
+    var columns = scrolltable_wrapper.find('thead th');
+    var column_index = columns.index(th_element);
+
+    var sorted_column;
+    var sorted_data = scrolltable_wrapper.data(SORTED_DATA);
+    var sorted_direction = 1; // ascending by default
+    if (sorted_data != null)
+    {
+        sorted_column = sorted_data[0];
+        sorted_direction = sorted_data[1];
+    }
+    sorted_direction = (sorted_column == column_index) ? (-sorted_direction) : 1;
+    scrolltable_SortByColumnIndex(scrolltable_wrapper, column_index, sorted_direction);
+};
+
+function scrolltable_SortByColumnIndex(scrolltable_wrapper, column_index, direction)
+{
+    var rows = scrolltable_wrapper.find('.scrolltable_body tbody tr');
+
+    // First operation determines order rows go in:
+    // We actually do this backwards from the 'intended' order, and then put
+    // them all in place backwards
+    var cell_text_a;
+    var cell_text_b;
+    var sorted_rows = rows.sort(function(a, b)
+    {
+        cell_text_a = $(a).children()[column_index].textContent;
+        cell_text_b = $(b).children()[column_index].textContent;
+        return -direction * scrolltable_Compare(cell_text_a, cell_text_b);
+    });
+
+    // Second puts them in the proper order:
+    // With them all sorted 'backwards', we go through all the items besides
+    // the first, and stick them in front of each other.  By the end, we have
+    // our list sorted.  I'm sure I had a reason...
+    var index;
+    var inserting_node;
+    var fixed_node;
+    sorted_rows.slice(1).each(function()
+    {
+        index = sorted_rows.index(this);
+        var inserting_node = this;
+        var fixed_node = sorted_rows[index - 1];
+        this.parentNode.insertBefore(inserting_node, fixed_node);
+    });
+
+    scrolltable_wrapper.data(SORTED_DATA, [column_index, direction]);
+    scrolltable_Stripe(scrolltable_wrapper);
+};
+
+function scrolltable_Stripe(scrolltable_wrapper)
+{
+    scrolltable_wrapper.find('.scrolltable_body tbody tr').removeClass('stripe');
+    scrolltable_wrapper.find('.scrolltable_body tbody tr:odd').addClass('stripe');
+};
+
+function scrolltable_Generate()
+{
+    var table_clone_body;
+    var table_clone_header;
+
+    var scrolltable_body;
+    var scrolltable_header;
+    var scrolltable_wrapper;
+
+    var scrolltables = $(".scrolltable");
+    scrolltables.each(function()
+    {
+        scrolltable_body = document.createElement('div');
+        scrolltable_header = document.createElement('div');
+        scrolltable_wrapper = document.createElement('div');
+        scrolltable_body.className = 'scrolltable_body';
+        scrolltable_header.className = 'scrolltable_header';
+        scrolltable_wrapper.className = 'scrolltable_wrapper';
+        scrolltable_wrapper.appendChild(scrolltable_header);
+        scrolltable_wrapper.appendChild(scrolltable_body);
+
+        table_clone_body = $(this).clone();
+        table_clone_header = table_clone_body.clone();
+
+        scrolltable_wrapper.setAttribute('id', table_clone_body.attr('id'));
+
+        table_clone_body.removeAttr('id');
+        table_clone_header.removeAttr('id');
+
+        // We do a few steps to clean up the header on the table we're putting
+        // into the body. We intend to keep it, because as long as we have a
+        // header we can use it to fix the column widths in the body of the
+        // table.
+        table_clone_body.find('thead th').each(function()
+        {
+            var el = $(this);
+            // Clean out the content - we just need the cells
+            el.children().remove();
+            el.text('');
+            // Set the class to hide header, and remove id to prevent
+            // duplicates in the DOM
+            el.addClass('scrolltable_flat');
+            el.removeAttr('id');
+        });
+
+        // Fewer steps needed on the one for the header - the body is useless
+        // so we just dump it
+        table_clone_header.find('tbody').remove();
+
+        scrolltable_body.appendChild(table_clone_body[0]);
+        scrolltable_header.appendChild(table_clone_header[0]);
+
+        this.parentNode.replaceChild(scrolltable_wrapper, this);
+
+        // Sort first time we create table.  Also lazily instantiates
+        // SORTED_DATA field on table.
+        scrolltable_SortByColumnIndex($(scrolltable_wrapper), 0, 1);
+        $(scrolltable_header).find('th').click(function()
+        {
+            scrolltable_SortByElement($(this));
+        });
+    });
+}
+
+/*
+ ******************************************************************************
+ */
+
+/*
+ * UTILITY
+ */
+
+function setupDroppable(source, target, onDrop)
+{
+    target.droppable({
+        hoverClass: 'hover',
+        tolerance: "pointer",
+        drop: onDrop,
+        accept: source
+    });
+};
+
+function setupDraggable(source) {
+    source.draggable({
+        revert: 'invalid',
+        start: function(event, ui)
+        {
+            if (event.target.tagName != 'TD')
+            {
+                return false;
+            }
+        },
+        stop: function(event, ui)
+        {
+            $(event.target).closest('table').data('moving_rows').css('visibility', 'visible');
+        },
+        helper: function(event, ui)
+        {
+            var moving_rows;
+            var original_table = $(this);
+            var clicked_row = $(event.target).closest("tr");
+            var cloned_table = original_table.clone();
+            cloned_table.width(source.width());
+            if (clicked_row.hasClass('ui-selected'))
+            {
+                moving_rows = original_table.find('tr.ui-selected');
+                cloned_table.find("tr:not(.ui-selected)").css("visibility","hidden");
+            }
+            else
+            {
+                moving_rows = clicked_row;
+                var cloned_rows = cloned_table.find("tr");
+                var clicked_row_ind = original_table.find("tr").index(clicked_row);
+                cloned_rows.css("visibility","hidden");
+                $(cloned_rows[clicked_row_ind]).css("visibility","visible");
+            }
+            if (event.target.tagName == 'TD')
+            {
+                moving_rows.css('visibility', 'hidden');
+            }
+            cloned_table.data('moving_rows', moving_rows);
+            cloned_table.attr('id', 'floating');
+            return cloned_table;
+        },
+        appendTo: 'body',
+        opacity: 0.5,
+    });
+};
+
+function createTableRow(text_tuple)
+{
+    var td;
+    var tr = document.createElement('tr');
+    var n_elements = text_tuple.length;
+    for (var i = 0; i < n_elements; i++) {
+        td = document.createElement('td');
+        td.textContent = text_tuple[i];
+        tr.appendChild(td);
+    }
+    return tr;
+}
 
 function viewport()
 {
@@ -12,6 +242,219 @@ function viewport()
     }
     return { width : e[ a+'Width' ] , height : e[ a+'Height' ] }
 }
+
+/*
+ ******************************************************************************
+ */
+
+/*
+ * REFRESH/AJAX FUNCTIONS
+ */
+
+function refreshExperimentList()
+{
+    var table_body;
+    table_body = $("#experiments .scrolltable_body tbody");
+    $.ajax(
+    {
+        type: 'POST',
+        url: "list_query",
+        dataType: "json",
+        data:
+        {
+            exp_list: true
+        },
+        success: function(data)
+        {
+            var row;
+            if (data['success'])
+            {
+                populateTable(table_body, data);
+            }
+            else
+            {
+                alert('Failed'); // implement better alert
+            }
+
+            var experiment_rows = $("#experiments .scrolltable_body tbody tr");
+            experiment_rows.mouseup(singleRowSelect);
+            experiment_rows.mouseup(experiment_MouseUp);
+            experiment_rows.mousedown(multiRowSelect);
+            experiment_rows.mousedown(experiment_MouseDown);
+
+            setupDroppable("#sessions .scrolltable_body table", experiment_rows, dropSessionsOnExperiment);
+            scrolltable_Resort($("#experiments"));
+            refreshSessionList(null);
+        },
+    }); // ajax call
+};
+
+function populateTable(table_body, data)
+{
+    var row;
+    var n_elements = data['data'].length
+    table_body.children().remove();
+    for (var i = 0; i < n_elements; i++)
+    {
+        row = createTableRow(data['data'][i]);
+        row.id = data['attrs'][i]['id'];
+        row.className = data['attrs'][i]['class'];
+        table_body.append(row);
+    }
+}
+
+function refreshEpochList(session_row)
+{
+    var scrolltable_wrapper = $("#epochs");
+    var table_body = scrolltable_wrapper.find(".scrolltable_body tbody");
+    if (session_row)
+    {
+        var sess_id = session_row.attr('id').split('_')[1];
+        $.ajax(
+        {
+            type: 'POST',
+            url: "list_query",
+            dataType: "json",
+            data: { epoch_list: sess_id },
+            success: function(data)
+            {
+                if (data['success'])
+                {
+                    populateTable(table_body, data);
+                }
+                else
+                {
+                    alert('Failed'); // implement better alert
+                }
+
+                toggleObject(table_body.closest('table'), true, null);
+
+                var epoch_rows = $("#epochs .scrolltable_body tbody tr");
+                epoch_rows.mouseup(singleRowSelect);
+                epoch_rows.mousedown(multiRowSelect);
+                scrolltable_Resort($("#epochs"));
+            },
+        }); // ajax call
+    }
+    else
+    {
+        toggleObject(table_body.closest('table'), false, null);
+    }
+};
+
+function refreshSessionList(experiment_row)
+{
+    var table_body = $("#sessions .scrolltable_body tbody");
+    if (experiment_row)
+    {
+        var exp_id = experiment_row.attr('id').split('_')[1];
+        $.ajax(
+        {
+            type: 'POST',
+            url: "list_query",
+            dataType: "json",
+            data: { sess_list: exp_id },
+            success: function(data)
+            {
+                refreshEpochList(null);
+                if (data['success'])
+                {
+                    populateTable(table_body, data);
+                }
+                else
+                {
+                    alert('Failed'); // implement better alert
+                }
+
+                var experiment_rows = $("#experiments .scrolltable_body tbody tr");
+                if (experiment_row.hasClass('access_mg'))
+                {
+                    experiment_rows.each(function()
+                    {
+                        var disable_drop = !$(this).hasClass('access_mg') || $(this).is(experiment_row);
+                        $(this).droppable("option", "disabled", disable_drop);
+                    });
+                }
+                else
+                {
+                    experiment_rows.droppable("option", "disabled", true);
+                }
+
+                var sessionRows = $("#sessions .scrolltable_body tbody tr");
+                sessionRows.mouseup(singleRowSelect);
+                sessionRows.mouseup(session_MouseUp);
+                sessionRows.mousedown(multiRowSelect);
+                sessionRows.mousedown(session_MouseDown);
+                scrolltable_Resort($("#sessions"));
+
+                toggleObject(table_body.closest('table'), true, null);
+            },
+        });
+    }
+    else
+    {
+        toggleObject($("#epochs .scrolltable_body table"), false, function()
+        {
+            toggleObject(table_body.closest('table'), false, null);
+        });
+    }
+};
+
+function refreshGroups(research_group)
+{
+    if (research_group)
+    {
+        $.ajax(
+        {
+            type: 'POST',
+            url: "groups_query",
+            dataType: "json",
+            data:
+            {
+                research_group: research_group
+            },
+            success: function(data)
+            {
+                var body_selector = " .scrolltable_body tbody";
+                var tables =
+                {
+                    'pis': $("#pis"),
+                    'admins': $("#admins"),
+                    'members': $("#members"),
+                    'others': $("#others")
+                };
+                var cur_table;
+                var cur_body;
+                for (table in tables)
+                {
+                    if (tables.hasOwnProperty(table))
+                    {
+                        cur_table = tables[table];
+                        cur_body = cur_table.find(body_selector);
+                        cur_body.children().remove();
+                        if (data.hasOwnProperty(table))
+                        {
+                            data[table].forEach(function(text_tuple)
+                            {
+                                cur_body.append(createTableRow(text_tuple));
+                            });
+                        }
+                        scrolltable_Resort(cur_table);
+                        var all_rows = $('.scrolltable_body tbody').find('tr');
+                        all_rows.mouseup(singleRowSelect);
+                        all_rows.mousedown(multiRowSelect);
+                    }
+                }
+            },
+        }); // ajax call
+    }
+};
+
+
+/*
+ ******************************************************************************
+ */
+
 
 function toggleActivation(a)
 {
@@ -56,8 +499,8 @@ function singleRowSelect(event)
         var table = row.closest("table");
         var row_list = row.closest("tbody").find("tr");
         var indexClicked = row_list.index(row);
-        table.data(lastClickedIndex, indexClicked);
-        table.data(shiftBoundaryIndex, indexClicked);
+        table.data(LAST_CLICKED_INDEX, indexClicked);
+        table.data(SHIFT_BOUNDARY_INDEX, indexClicked);
         row_list.removeClass('ui-selected');
         row.addClass('ui-selected');
     }
@@ -109,14 +552,14 @@ function multiRowSelect(event)
     var indexClicked = row_list.index(row);
 	if (event.shiftKey)
     {
-        var last = table.data(lastClickedIndex);
-        var bound = table.data(shiftBoundaryIndex);
+        var last = table.data(LAST_CLICKED_INDEX);
+        var bound = table.data(SHIFT_BOUNDARY_INDEX);
 
         if (last != indexClicked)
         {
             setActivation(row_list, last, bound, false);
             setActivation(row_list, last, indexClicked, true);
-            table.data(shiftBoundaryIndex, indexClicked);
+            table.data(SHIFT_BOUNDARY_INDEX, indexClicked);
         }
 	}
     else if (event.metaKey)
@@ -124,46 +567,10 @@ function multiRowSelect(event)
         toggleActivation(row);
         if (row.hasClass('ui-selected'))
         {
-            table.data(lastClickedIndex, indexClicked);
-            table.data(shiftBoundaryIndex, indexClicked);
+            table.data(LAST_CLICKED_INDEX, indexClicked);
+            table.data(SHIFT_BOUNDARY_INDEX, indexClicked);
         }
     }
-};
-
-function makeSessionRow(session_tuple)
-{
-    var session_row = document.createElement('tr');
-    var session_cell;
-    session_row.id = 'sess_' + session_tuple[0];
-    var n_session_tuples = session_tuple.length;
-    for (var i = 1; i < n_session_tuples; i++)
-    {
-        session_cell = document.createElement('td');
-        session_cell.textContent = session_tuple[i];
-        session_row.appendChild(session_cell);
-    }
-    return session_row;
-};
-
-function compare(a, b) {
-   if (a < b)
-      return -1;
-   else if (a == b)
-      return 0;
-   else
-      return 1;
-};
-
-function sortTable(element, direction)
-{
-    var index_of_column = element.closest('thead').find('th').index(element);
-    var rows = element.closest('table').find('tbody tr');
-    var sorted_rows = rows.sort(function mysort(a, b) {
-        return -direction * compare($($(a).find('td')[index_of_column]).text(), $($(b).find('td')[index_of_column]).text()); });
-    sorted_rows.slice(1).each(function() {
-        this.parentNode.insertBefore(this, sorted_rows[sorted_rows.index(this) - 1]); });
-    sorted_rows.removeClass('alternate');
-    sorted_rows.closest("tbody").find("tr:odd").addClass('alternate');
 };
 
 function blurOnEnter(event)
@@ -172,63 +579,6 @@ function blurOnEnter(event)
     if (chCode == 13) {
         $(this).blur();
     };
-};
-
-function setupDraggable(source) {
-    source.draggable({
-        revert: 'invalid',
-        start: function(event, ui)
-        {
-            if (event.target.tagName != 'TD')
-            {
-                return false;
-            }
-        },
-        stop: function(event, ui)
-        {
-            $(event.target).closest('table').data('moving_rows').css('visibility', 'visible');
-        },
-        helper: function(event, ui)
-        {
-            var moving_rows;
-            var original_table = $(this);
-            var clicked_row = $(event.target).closest("tr");
-            var cloned_table = original_table.clone();
-            cloned_table.width(source.width());
-            if (clicked_row.hasClass('ui-selected'))
-            {
-                moving_rows = original_table.find('tr.ui-selected');
-                cloned_table.find("tr:not(.ui-selected)").css("visibility","hidden");
-            }
-            else
-            {
-                moving_rows = clicked_row;
-                var cloned_rows = cloned_table.find("tr");
-                var clicked_row_ind = original_table.find("tr").index(clicked_row);
-                cloned_rows.css("visibility","hidden");
-                $(cloned_rows[clicked_row_ind]).css("visibility","visible");
-            }
-            if (event.target.tagName == 'TD')
-            {
-                moving_rows.css('visibility', 'hidden');
-            }
-            cloned_table.data('moving_rows', moving_rows);
-            cloned_table.attr('id', 'floating');
-            return cloned_table;
-        },
-        appendTo: 'body',
-        opacity: 0.5,
-    });
-};
-
-function setupDroppable(source, target, onDrop)
-{
-    target.droppable({
-        hoverClass: 'hover',
-        tolerance: "pointer",
-        drop: onDrop,
-        accept: source.selector
-    });
 };
 
 function dropSessionsOnExperiment(event, ui)
@@ -254,8 +604,12 @@ function dropSessionsOnExperiment(event, ui)
                 if (data.success)
                 {
                     selected_rows.remove();
-                    $("#sessions tbody tr").removeClass('alternate');
-                    $("#sessions tbody tr:odd").addClass('alternate');
+                    $("#sessions .scrolltable_body tbody tr").removeClass('stripe');
+                    $("#sessions .scrolltable_body tbody tr:odd").addClass('stripe');
+                    if (selected_rows.length == 1 && selected_rows.first().hasClass("ui-selected"))
+                    {
+                        refreshEpochList(null);
+                    }
                 }
                 else
                 {
@@ -264,6 +618,49 @@ function dropSessionsOnExperiment(event, ui)
         },
     });
 }
+
+function getTrashFlag()
+{
+    var trash_flag;
+    $.ajax({
+        traditional: true,
+        type: 'POST',
+        url: "get_trash_flag",
+        dataType: "json",
+        async: false,
+        success: function(data)
+        {
+            trash_flag = data;
+        },
+    });
+    return trash_flag;
+};
+
+function changeTrashFlag(event, ui)
+{
+    var trash_flag = this.id.split('_')[1];
+    $.ajax({
+        traditional: true,
+        type: 'POST',
+        url: "set_trash_flag",
+        dataType: "json",
+        data:
+        {
+            trash_flag: trash_flag
+        },
+        success: function(data)
+        {
+            if (data['success'])
+            {
+                refreshExperimentList();
+            }
+            else
+            {
+                alert('Failed');
+            }
+        },
+    });
+};
 
 function getIdDictionary(selected_rows)
 {
@@ -281,15 +678,46 @@ function getIdDictionary(selected_rows)
     return id_dict;
 };
 
+function labelTrash(selected_rows)
+{
+    var wrapper_id = selected_rows.closest('.scrolltable_wrapper').attr('id');
+    var n_rows = selected_rows.length;
+    switch (wrapper_id)
+    {
+        case 'experiments':
+        {
+            selected_rows.addClass('trash');
+            if (n_rows == 1 && selected_rows.hasClass('ui-selected'))
+            {
+                $("#sessions .scrolltable_body tbody tr").addClass('trash');
+                labelTrash($("#sessions .ui-selected"));
+            }
+            break;
+        }
+        case 'sessions':
+        {
+            selected_rows.addClass('trash');
+            if (n_rows == 1 && selected_rows.hasClass('ui-selected'))
+            {
+                $("#epochs .scrolltable_body tbody tr").addClass('trash');
+                labelTrash($("#epochs .ui-selected"));
+            }
+            break;
+        }
+        case 'epochs':
+        {
+            selected_rows.addClass('trash');
+            break;
+        }
+    }
+};
+
 function dropTrash(event, ui)
 {
     var selected_rows;
     selected_rows = ui.helper.data('moving_rows');
 
     var id_dict = getIdDictionary(selected_rows);
-    alert(id_dict);
-    console.log(id_dict);
-    /*
     $.ajax({
         traditional: true,
         type: 'POST',
@@ -297,10 +725,18 @@ function dropTrash(event, ui)
         dataType: "json",
         data:
         {
-            id_dict: id_dict
+            exp: id_dict['exp'],
+            sess: id_dict['sess'],
+            epoch: id_dict['epoch'],
+        },
+        success: function(data)
+        {
+            if (data['success'])
+            {
+                labelTrash(selected_rows);
+            }
         },
     });
-    */
 };
 
 function dropDownloads(event, ui)
@@ -325,119 +761,6 @@ function dropDownloads(event, ui)
     */
 };
 
-function makeEpochRow(epoch_tuple)
-{
-    var epoch_row = document.createElement('tr');
-    var epoch_cell;
-    epoch_row.id = 'epoch_' + epoch_tuple[0];
-    for (var i = 1; i < epoch_tuple.length; i++) {
-        epoch_cell = document.createElement('td');
-        epoch_cell.textContent = epoch_tuple[i];
-        epoch_row.appendChild(epoch_cell);
-    }
-    return epoch_row;
-};
-
-function refreshEpochList(session_row)
-{
-    var table_body;
-    table_body = $("#epochs tbody");
-    if (session_row)
-    {
-        var sess_id = session_row.attr('id').split('_')[1];
-        $.ajax(
-        {
-            type: 'POST',
-            url: "epoch_query",
-            dataType: "json",
-            data:
-            {
-                id: sess_id
-            },
-            success: function(data)
-            {
-                table_body.children().remove();
-                for (var i = 0; i < data.length; i++)
-                {
-                    table_body.append(makeEpochRow(data[i]));
-                }
-                sortTable($("#epochs thead th").first(), 1);
-                toggleObject(table_body.closest('table'), true);
-
-                var epoch_rows = $("#epochs tbody tr");
-                epoch_rows.mouseup(singleRowSelect);
-                epoch_rows.mousedown(multiRowSelect);
-                sortTable($("#epochs thead th").first(), 1);
-                setupDraggable($("#epochs"));
-            },
-        }); // ajax call
-    }
-    else
-    {
-        toggleObject(table_body.closest('table'), false);
-        table_body.children().remove();
-    }
-};
-
-function refreshSessionList(experiment_row)
-{
-    var table_body = $("#sessions tbody");
-    if (experiment_row)
-    {
-        var exp_id = experiment_row.attr('id').split('_')[1];
-        $.ajax(
-        {
-            type: 'POST',
-            url: "session_query",
-            dataType: "json",
-            data: { id: exp_id },
-            success: function(data)
-            {
-                var experiment_rows = $("#experiments tbody tr");
-                if (experiment_row.hasClass('access_mg'))
-                {
-                    experiment_rows.each(function()
-                    {
-                        if (!$(this).hasClass('access_mg') || $(this).is(experiment_row))
-                        {
-                            $(this).droppable("option", "disabled", true);
-                        }
-                        else
-                        {
-                            $(this).droppable("option", 'disabled', false);
-                        }
-                    });
-                }
-                else
-                {
-                    $("#experiments tbody tr").droppable("option", "disabled", true);
-                }
-
-                refreshEpochList(null);
-                table_body.children().remove();
-                for (var i = 0; i < data.length; i++) // repopulate session table
-                {
-                    table_body.append(makeSessionRow(data[i]));
-                }
-
-                var sessionRows = $("#sessions tbody tr");
-                sessionRows.mouseup(singleRowSelect);
-                sessionRows.mouseup(session_MouseUp);
-                sessionRows.mousedown(multiRowSelect);
-                sessionRows.mousedown(session_MouseDown);
-                sortTable($("#sessions thead th").first(), 1);
-                toggleObject(table_body.closest('table'), true);
-            },
-        });
-    }
-    else
-    {
-        refreshEpochList(null);
-        toggleObject(table_body.closest('table'), false);
-        table_body.children().remove(); // clean up session table
-    }
-};
-
 function setupMultiDrop(table)
 {
     var table_rows = table.find("tbody tr");
@@ -449,9 +772,9 @@ function setupMultiDrop(table)
         clearTimeout(ui.helper.data("timer"));
         if (hovered_row.hasClass('ui-selected'))
         {
-            selected_rows.addClass('multiDragHover');
+            selected_rows.addClass('multihover');
         } else {
-            selected_rows.removeClass('multiDragHover');
+            selected_rows.removeClass('multihover');
         }
     });
     table_rows.bind("dropout", function (event, ui)
@@ -461,23 +784,46 @@ function setupMultiDrop(table)
         {
             ui.helper.data("timer", setTimeout(function()
             {
-                $(".multiDragHover").removeClass('multiDragHover');
+                $(".multihover").removeClass('multihover');
             }, 100));
         }
     });
     table_rows.bind("drop", function (event, ui)
     {
-        $(".multiDragHover").removeClass('multiDragHover');
+        $(".multihover").removeClass('multihover');
     });
 }
 
-function toggleObject(object, makeVisible)
+function toggleObject(object, makeVisible, callback)
 {
+
     objectVisible = object.css('display') != 'none';
     if ((makeVisible & !objectVisible) || (!makeVisible & objectVisible))
     {
-        object.toggle('slide');
+        object.toggle('slide', null, 150, callback);
     }
+    else
+    {
+        if (callback) callback();
+    }
+};
+
+function getAccessPrivileges()
+{
+    var access_priveleges;
+    $.ajax(
+    {
+        traditional: true,
+        type: 'POST',
+        url: "get_access_privileges",
+        dataType: "json",
+        async: false,
+        success: function(data)
+        {
+            access_privileges = data;
+        },
+    }); // ajax call
+    return access_privileges;
 };
 
 function setupCallbacks_Access()
@@ -486,77 +832,232 @@ function setupCallbacks_Access()
     $(window).resize(function() { SetTableHeight(); });
 
     $("body").disableSelection();
-    sortTable($("#users thead th").first(), 1);
-    sortTable($("#experiments thead th").first(), 1);
-    $("table.access").data(lastClickedIndex,0);
-    $("table.access").data(shiftBoundaryIndex,0);
-    experiments_rows = $("#experiments tbody tr");
+    $("table.access").data(LAST_CLICKED_INDEX,0);
+    $("table.access").data(SHIFT_BOUNDARY_INDEX,0);
+    experiments_rows = $("#experiments .scrolltable_body tbody tr");
     experiments_rows.mouseup(singleRowSelect);
     experiments_rows.mousedown(multiRowSelect);
-    users_rows = $("#users tbody tr");
+    users_rows = $("#users .scrolltable_body tbody tr");
     users_rows.mouseup(singleRowSelect);
     users_rows.mousedown(multiRowSelect);
 
-    setupDraggable($("#users"));
-    setupDraggable($("#experiments"));
-    setupDroppable($("#users"), $("#experiments tbody tr"), dropAccessModification);
-    setupDroppable($("#experiments"), $("#users tbody tr"), dropAccessModification);
-    setupMultiDrop($("#users"));
-    setupMultiDrop($("#experiments"));
+    setupDraggable($("#users .scrolltable_body table"));
+    setupDraggable($("#experiments .scrolltable_body table"));
+    setupDroppable("#users .scrolltable_body table", $("#experiments .scrolltable_body tbody tr"), dropAccessModification);
+    setupDroppable("#experiments .scrolltable_body table", $("#users .scrolltable_body tbody tr"), dropAccessModification);
+    setupMultiDrop($("#users .scrolltable_body table"));
+    setupMultiDrop($("#experiments .scrolltable_body table"));
+
+    $("#access_dialog").dialog();
+    $("#access_dialog").dialog("destroy");
+    var access_privileges = getAccessPrivileges();
+    access_privileges.push("Remove Access");
+    var option;
+    var selector = $("#access_select");
+    access_privileges.forEach(function(item)
+    {
+        option = document.createElement('option');
+        option.textContent = item;
+        selector.append(option);
+    });
+};
+
+function showRetroDialog()
+{
+    $("#retro_dialog").dialog({
+        resizable:false,
+        height:140,
+        modal:true,
+        buttons: {
+            Okay: function() {
+                var user_ids = $(this).data(GROUP_DATA)[0];
+                var exp_ids = $(this).data(GROUP_DATA)[1];
+                var access_level = $("#access_select").val();
+                modifyAccess(user_ids, exp_ids, access_level);
+                $(this).dialog("close");
+            },
+            Cancel: function() {
+                $(this).dialog("close");
+            }
+        }
+    });
+};
+
+function showAccessDialog()
+{
+    $("#access_dialog").dialog({
+        resizable:false,
+        height:140,
+        modal:true,
+        buttons: {
+            Okay: function() {
+                var user_ids = $(this).data(ACCESS_DATA)[0];
+                var exp_ids = $(this).data(ACCESS_DATA)[1];
+                var access_level = $("#access_select").val();
+                modifyAccess(user_ids, exp_ids, access_level);
+                $(this).dialog("close");
+            },
+            Cancel: function() {
+                $(this).dialog("close");
+            }
+        }
+    });
+};
+
+function modifyAccess(user_ids, exp_ids, access_level)
+{
+    $.ajax(
+    {
+        traditional: true,
+        type: 'POST',
+        url: "modify_access",
+        dataType: "json",
+        data:
+        {
+            user_ids: user_ids,
+            exp_ids: exp_ids,
+            access_level: access_level
+        },
+        success: function(data)
+        {
+            if (!data['success'])
+            {
+                alert('Failed'); // implement better alert
+            }
+        },
+    }); // ajax call
 };
 
 function dropAccessModification(event, ui)
 {
-    var experiments = $("#experiments");
-    var users = $("#users");
-    var dropped_onto_table = $(this).closest('table');
+    showAccessDialog();
+    var experiments_table = $("#experiments .scrolltable_body table");
+    var users_table = $("#users .scrolltable_body table");
     var dropped_onto_row = $(this);
+    var dropped_onto_table = dropped_onto_row.closest('table');
     var dragged_row = $(event.target).closest('tr');
     var modify_experiments;
     var modify_users;
-    if (experiments.is(dropped_onto_table))
+    if (experiments_table.is(dropped_onto_table))
     {
-        modify_users = dragged_row.hasClass('ui-selected') ? users.find('.ui-selected') : dragged_row;
-        modify_experiments = dropped_onto_row.hasClass('ui-selected') ? experiments.find('.ui-selected') : dropped_onto_row;
+        modify_users = dragged_row.hasClass('ui-selected') ? users_table.find('.ui-selected') : dragged_row;
+        modify_experiments = dropped_onto_row.hasClass('ui-selected') ? experiments_table.find('.ui-selected') : dropped_onto_row;
     }
     else
     {
-        modify_experiments = dragged_row.hasClass('ui-elected') ? experiments.find('.ui-selected') : dragged_row;
-        modify_users = dropped_onto_row.hasClass('ui-selected') ? users.find('.ui-selected') : dropped_onto_row;
+        modify_experiments = dragged_row.hasClass('ui-selected') ? experiments_table.find('.ui-selected') : dragged_row;
+        modify_users = dropped_onto_row.hasClass('ui-selected') ? users_table.find('.ui-selected') : dropped_onto_row;
     }
-    console.log(modify_experiments);
-    console.log(modify_users);
-}
+    var exp_ids = new Array();
+    var user_ids = new Array();
+    modify_users.each(function()
+    {
+        user_ids.push(this.children[0].textContent);
+    });
+    modify_experiments.each(function ()
+    {
+        exp_ids.push(this.id.split('_')[1]);
+    });
+    $("#access_dialog").data(ACCESS_DATA, [user_ids, exp_ids]);
+};
+
+function dropUsersOnGroup(event, ui)
+{
+    var group_id = $("#group_select").val();
+    var dropped_onto_div = $(this);
+    var dragged_row = $(event.target).closest('tr');
+    var dragged_from_table = dragged_row.closest('table');
+    var user_rows;
+    var user_ids = new Array();
+    var membership_src = dragged_from_table.data("moving_rows").closest(".scrolltable_wrapper").attr("id");
+    var membership_dst = dropped_onto_div.closest('.scrolltable_wrapper').attr('id');
+
+    user_rows = dragged_row.hasClass('ui-selected') ? dragged_from_table.find('.ui-selected') : dragged_row;
+    user_rows.each(function()
+    {
+        user_ids.push(this.children[0].textContent);
+        // TODO do this with an id on the rows instead of just using first TD -
+        // probably more robust
+    });
+
+    $.ajax(
+    {
+        traditional: true,
+        type: 'POST',
+        url: "modify_groups",
+        dataType: "json",
+        data:
+        {
+            user_ids: user_ids,
+            group_id: group_id,
+            membership_src: membership_src,
+            membership_dst: membership_dst
+        },
+        success: function(data)
+        {
+            if (data['success'])
+            {
+                refreshGroups(group_id);
+            }
+            else
+            {
+                alert('Failed'); // implement better alert
+            }
+        },
+    }); // ajax call
+};
 
 function SetTableHeight()
 {
-        var vp_size = viewport();
-        var table_height = vp_size.height - 320;
-        table_height = table_height > 200 ? table_height : 200;
-        $(".table_body").height(table_height);
-}
+    var vp_size = viewport();
+    var table_height = vp_size.height - 320;
+    table_height = table_height > 200 ? table_height : 200;
+    $(".scrolltable_body").height(table_height);
+};
 
-function setupCallbacks()
+function setupCallbacks_Groups()
 {
     SetTableHeight();
     $(window).resize(function() { SetTableHeight(); });
     $("body").disableSelection();
-    sortTable($("#experiments thead th").first(), 1);
-    $("table.manage").data(lastClickedIndex,0);
-    $("table.manage").data(shiftBoundaryIndex,0);
-    var experiments_rows = $("#experiments tbody tr");
-    experiments_rows.mouseup(singleRowSelect);
-    experiments_rows.mouseup(experiment_MouseUp);
-    experiments_rows.mousedown(multiRowSelect);
-    experiments_rows.mousedown(experiment_MouseDown);
-    var sessions_table = $("#sessions");
-    var experiments_table = $("#experiments");
-    var epochs_table = $("#epochs");
+    $("table.scrolltable").data(LAST_CLICKED_INDEX,0);
+    $("table.scrolltable").data(SHIFT_BOUNDARY_INDEX,0);
+    var all_tables = $(".scrolltable_body table");
+    var all_rows = all_tables.find('tr');
+    all_rows.mouseup(singleRowSelect);
+    all_rows.mousedown(multiRowSelect);
+
+    setupDraggable(all_tables);
+    setupDroppable(function(droppable)
+    {
+        return droppable.is('table') && droppable.closest('.scrolltable_wrapper').attr('id') != $(this).closest('.scrolltable_wrapper').attr('id');
+    }, $(".scrolltable_body"), dropUsersOnGroup);
+
+    $("#retro_dialog").dialog();
+    $("#retro_dialog").dialog("destroy");
+};
+
+function setupCallbacks()
+{
+    refreshExperimentList();
+    SetTableHeight();
+    $(window).resize(function() { SetTableHeight(); });
+    $("body").disableSelection();
+    $("table.scrolltable").data(LAST_CLICKED_INDEX,0);
+    $("table.scrolltable").data(SHIFT_BOUNDARY_INDEX,0);
+    var sessions_table = $("#sessions .scrolltable_body table");
+    var experiments_table = $("#experiments .scrolltable_body table");
+    var epochs_table = $("#epochs .scrolltable_body table");
+    var experiments_rows = $("#experiments .scrolltable_body tbody tr");
+
     setupDraggable(sessions_table);
     setupDraggable(experiments_table);
     setupDraggable(epochs_table);
-    setupDroppable(sessions_table, $("#download_drop"), dropDownloads);
-    setupDroppable($(".table_body table"), $("#trash_drop"), dropTrash);
-    setupDroppable($("#sessions"), $("#experiments tbody tr"), dropSessionsOnExperiment);
-    $("th").click(function() { sortTable($(this), 1);});
+    setupDroppable("#sessions .scrolltable_body table", sessions_table, $("#download_drop"), dropDownloads);
+    setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
+
+    $("#radio_trash input").change(changeTrashFlag);
+    $($("#radio_trash input")[getTrashFlag()]).click();
+
+    //$("th").click(function() { scrolltable_Resort($(this), 1);});
 };

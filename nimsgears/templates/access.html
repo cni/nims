@@ -13,113 +13,68 @@
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
 <script type="text/javascript" src="${tg.url('/javascript/nimsgears.js')}"></script>
+<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
+<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
+
 <style>
+    #users { clear:left; width:25%; }
+    #experiments { width:25%; }
 
-tr.alternate.ui-selected td, tr.ui-selected td { background-color: #ddcf99; }
-tr.hover td, tr.hover.alternate td, tr.multiDragHover td, tr.multiDragHover.alternate td { background-color:#820000; color: white}
-
-.access thead th {font-family: Georgia,Times New Roman,Times; color: white; background-color: #820000}
-table.access { border-spacing:0px; }
-.table_header table.access thead th, table.access tbody td { border:1px solid white; }
-
-#style_wrapper { width:100%;}
-#style_wrapper table, #floating { vertical-align:top; margin:0px; }
-
-.access thead .col_sunet { width:40%; }
-.access thead .col_exam, #floating .col_exam { width:25%; }
-.access thead .col_sa { width:25%; }
-.access thead .col_access { width:20%; }
-
-.table_header, .table_body { cursor:default; }
-.table_body { width:100%; overflow:auto; }
-.table_wrap { float:left; vertical-align:top; }
-
-.flat { padding:0px; height:0px }
+    .col_sunet { width:40%; }
+    .col_exam { width:25%; }
+    .col_sa { width:25%; }
+    .col_access { width:20%; }
 
 </style>
 
 <script type="text/javascript">
     $(document).ready(function() {
+        scrolltable_Generate();
         setupCallbacks_Access();
-        $("th").click(function() { sortTable($(this), 1);});
     });
 </script>
 
 </head>
 
 <body>
-    <div id="style_wrapper">
-
-        <h2>Access</h2>
-        <p>This page allows you to view and make changes to access privileges.</p>
-
-        <div class="table_wrap" style='width:25%; clear:left;'>
-            <div class="table_header users">
-                <table class='access'>
-                    <thead>
-                        <tr>
-                            <py:for each="col in user_columns">
-                                <th py:with="name, cls = col" class="${cls}">${name}</th>
-                            </py:for>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-            <div class='table_body users'>
-                <table id="users" class="access">
-                    <thead>
-                        <tr>
-                            <py:for each="col in user_columns">
-                                <th py:with="name, cls = col" class="${cls} flat"></th>
-                            </py:for>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <py:for each="user_params in user_list">
-                            <tr>
-                                <td py:for="param in user_params">${param}</td>
-                            </tr>
-                        </py:for>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="table_wrap" style='width:25%;'>
-            <div class="table_header exp">
-                <table class='access'>
-                    <thead>
-                        <tr>
-                            <py:for each="col in exp_columns">
-                                <th py:with="name, cls = col" class="${cls}">${name}</th>
-                            </py:for>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-            <div class='table_body exp'>
-                <table id="experiments" class="access">
-                    <thead>
-                        <tr>
-                            <py:for each="col in exp_columns">
-                                <th py:with="name, cls = col" class="${cls} flat"></th>
-                            </py:for>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <py:for each="access, exp_dict in exp_dict_dict.iteritems()">
-                            <py:for each="exp_id, exp_params in exp_dict.iteritems()">
-                                <tr class='access_${access}' id="exp_${exp_id}"> <!-- set id for expand queries done on rows later -->
-                                    <td py:for="param in exp_params">${param}</td>
-                                </tr>
-                            </py:for>
-                        </py:for>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <div id="access_dialog" title="Select access level to assign:">
+        <select id="access_select">
+        </select>
     </div>
+    <h2>Access</h2>
+    <p>This page allows you to view and make changes to access privileges.</p>
+
+    <table id="users" class="scrolltable">
+        <thead>
+            <tr>
+                <py:for each="col in user_columns">
+                    <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+        </thead>
+        <tbody>
+            <py:for each="user_params in user_list">
+                <tr>
+                    <td py:for="param in user_params">${param}</td>
+                </tr>
+            </py:for>
+        </tbody>
+    </table>
+    <table id="experiments" class="scrolltable">
+        <thead>
+            <tr>
+                <py:for each="col in exp_columns">
+                    <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+        </thead>
+        <tbody>
+            <py:for each="exp_data, exp_attr in zip(exp_data_list, exp_attr_list)">
+                <tr py:attrs="exp_attr"> <!-- set id for expand queries done on rows later -->
+                    <td py:for="param in exp_data">${param}</td>
+                </tr>
+            </py:for>
+        </tbody>
+    </table>
 </body>
 </html>
