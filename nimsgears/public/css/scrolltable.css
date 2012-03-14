@@ -23,6 +23,10 @@
     overflow:auto;
 }
 
+.scrolltable_body table
+{
+    table-layout:fixed;
+}
 
 .scrolltable_flat
 {
@@ -33,8 +37,9 @@
 .scrolltable_header th, .scrolltable_body td, #floating td
 {
     border:1px solid white;
+    overflow:hidden;
+    white-space:nowrap;
 }
-
 
 tr.stripe.ui-selected, tr.ui-selected
 {
