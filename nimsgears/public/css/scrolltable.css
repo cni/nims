@@ -1,3 +1,14 @@
+.scrolltable_title
+{
+    font-weight:400;
+    color:#820000;
+    text-align:center;
+    font-family: Georgia, "Times New Roman", Times, serif;
+    font-size: 1.3em;
+    line-height: 1.2em; letter-spacing: 0.03em;
+    margin: 1em 0em 0.4em 0em;
+}
+
 .scrolltable
 {
     margin:0px;
@@ -21,9 +32,10 @@
 {
     width:100%;
     overflow:auto;
+    color:black;
 }
 
-.scrolltable_body table
+.scrolltable_wrapper table
 {
     table-layout:fixed;
 }

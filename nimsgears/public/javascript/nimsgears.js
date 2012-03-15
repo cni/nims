@@ -89,6 +89,9 @@ function scrolltable_Stripe(scrolltable_wrapper)
 
 function scrolltable_Generate()
 {
+    var table;
+    var table_title;
+    var scrolltable_title;
     var table_clone_body;
     var table_clone_header;
 
@@ -105,10 +108,21 @@ function scrolltable_Generate()
         scrolltable_body.className = 'scrolltable_body';
         scrolltable_header.className = 'scrolltable_header';
         scrolltable_wrapper.className = 'scrolltable_wrapper';
+
+        table = $(this);
+        table_title = table.attr('name');
+        if (table_title)
+        {
+            scrolltable_title = document.createElement('div');
+            scrolltable_title.className = 'scrolltable_title';
+            scrolltable_title.textContent = table_title;
+            scrolltable_wrapper.appendChild(scrolltable_title);
+        }
+
         scrolltable_wrapper.appendChild(scrolltable_header);
         scrolltable_wrapper.appendChild(scrolltable_body);
 
-        table_clone_body = $(this).clone();
+        table_clone_body = table.clone();
         table_clone_header = table_clone_body.clone();
 
         scrolltable_wrapper.setAttribute('id', table_clone_body.attr('id'));

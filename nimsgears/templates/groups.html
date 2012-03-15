@@ -51,7 +51,7 @@
         </select>
     </div>
 
-    <table id="pis" class="scrolltable">
+    <table id="pis" class="scrolltable" name="Primary Investigators">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -67,7 +67,7 @@
             </py:for>
         </tbody>
     </table>
-    <table id="admins" class="scrolltable">
+    <table id="admins" class="scrolltable" name="Administrators">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -83,7 +83,7 @@
             </py:for>
         </tbody>
     </table>
-    <table id="members" class="scrolltable">
+    <table id="members" class="scrolltable" name="Members">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -99,7 +99,7 @@
             </py:for>
         </tbody>
     </table>
-    <table id="others" class="scrolltable">
+    <table id="others" class="scrolltable" name="Unaffiliated">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
