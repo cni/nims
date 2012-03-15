@@ -747,6 +747,10 @@ function dropTrash(event, ui)
             {
                 labelTrash(selected_rows);
             }
+            else
+            {
+                alert('Failed');
+            }
         },
     });
 };

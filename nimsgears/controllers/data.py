@@ -281,29 +281,44 @@ class AuthDataController(DataController):
 
     @expose()
     def trash(self, **kwargs):
-        db_query = None
-        query_type = None
+        user = request.identity['user']
+        id_list = query_type = db_query = None
         if "exp" in kwargs:
             id_list = kwargs["exp"]
             query_type = Experiment
+            db_query = Experiment.query.join(Access, AccessPrivilege)
         elif "sess" in kwargs:
             id_list = kwargs["sess"]
             query_type = Session
+            db_query = Session.query.join(Experiment, Access, AccessPrivilege)
         elif "epoch" in kwargs:
             id_list = kwargs["epoch"]
             query_type = Epoch
+            db_query = Epoch.query.join(Session, Experiment, Access, AccessPrivilege)
 
-        if isinstance(id_list, list):
-            id_list = [int(item) for item in id_list]
-        else:
-            id_list = [id_list]
+        result = {'success': False}
+        if id_list and query_type and db_query:
+            if isinstance(id_list, list):
+                id_list = [int(item) for item in id_list]
+            else:
+                id_list = [id_list]
 
-        db_result = query_type.query.filter(query_type.id.in_(id_list)).all()
+            mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
+            db_query = (db_query.filter(Access.user == user)
+                .filter(AccessPrivilege.value >= mg_privilege.value)
+                .filter(query_type.id.in_(id_list)))
 
-        for db_item in db_result:
-            db_item.trash()
+            db_result = db_query.all()
 
-        return json.dumps({'success':True})
+            # Verify that we still have all of the requested items after access
+            # filtering
+            if len(db_result) == len(id_list):
+                result['success'] = True
+                for db_item in db_result:
+                    db_item.trash()
+                transaction.commit()
+
+        return json.dumps(result)
 
     @expose()
     def update_epoch(self, **kwargs):
@@ -349,24 +364,38 @@ class AuthDataController(DataController):
     def transfer_sessions(self, **kwargs):
         """ Queries DB given info found in POST, TODO perhaps verify access level another time here??
         """
-        # STILL NEED TO IMPLEMENT ACCESS CHECKING TODO
-        # FOR NOW, JUST TRANSFERRING WITHOUT A CHECK SO I CAN DEMONSTRATE CONCEPT FIXME
+        user = request.identity['user']
 
-        sess_id_list = kwargs["sess_id_list"]
-        if isinstance(sess_id_list, list):
-            sess_id_list = [int(item) for item in kwargs["sess_id_list"]]
-        else:
-            sess_id_list = [sess_id_list]
-        exp_id = int(kwargs["exp_id"])
+        sess_id_list = exp_id = None
+        if "sess_id_list" in kwargs:
+            sess_id_list = kwargs["sess_id_list"]
+            if isinstance(sess_id_list, list):
+                sess_id_list = [int(item) for item in kwargs["sess_id_list"]]
+            else:
+                sess_id_list = [sess_id_list]
+        if "exp_id" in kwargs:
+            exp_id = int(kwargs["exp_id"])
 
-        exp = DBSession.query(Experiment).filter_by(id = exp_id).one()
-        sess_list = DBSession.query(Session).filter(Session.id.in_(sess_id_list)).all()
-        for session in sess_list:
-            session.experiment = exp
+        result = {'success': False}
 
-        transaction.commit()
+        if sess_id_list and exp_id:
+            mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
+            exp = DBSession.query(Experiment).filter_by(id = exp_id).one()
+            db_query = (Session.query.join(Experiment, Access, AccessPrivilege)
+                .filter(Session.id.in_(sess_id_list))
+                .filter(Access.user == user)
+                .filter(AccessPrivilege.value > mg_privilege.value))
+            db_result_sess = db_query.all()
 
-        return json.dumps({"success":True})
+            # Verify that we still have all of the requested sessions after
+            # access filtering
+            if len(db_result_sess) == len(sess_id_list):
+                result['success'] = True
+                for session in db_result_sess:
+                    session.experiment = exp
+                transaction.commit()
+
+        return json.dumps(result)
 
     def get_experiments(self, user, trash_flag=None, manager_only=False):
         exp_data_list = []
