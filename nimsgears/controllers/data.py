@@ -397,8 +397,17 @@ class AuthDataController(DataController):
             # access filtering
             if len(db_result_sess) == len(sess_id_list):
                 result['success'] = True
+                result['untrashed'] = False
+                all_trash = True
                 for session in db_result_sess:
                     session.experiment = exp
+                    if all_trash and session.trashtime == None:
+                        all_trash = False
+                if not all_trash:
+                    if session.experiment.trashtime != None:
+                        session.experiment.untrash()
+                        result['untrashed'] = True
+
                 transaction.commit()
 
         return json.dumps(result)

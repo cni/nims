@@ -601,6 +601,7 @@ function dropSessionsOnExperiment(event, ui)
     var sess_id_list = Array();
     selected_rows.each(function() { sess_id_list.push(this.id.split('_')[1]); });
     var target_exp_id = this.id.split("_")[1];
+    var target_exp_row = $(this);
     $.ajax({
         traditional: true,
         type: 'POST',
@@ -621,6 +622,10 @@ function dropSessionsOnExperiment(event, ui)
                     if (selected_rows.length == 1 && selected_rows.first().hasClass("ui-selected"))
                     {
                         refreshEpochList(null);
+                    }
+                    if (data.untrashed)
+                    {
+                        target_exp_row.removeClass('trash');
                     }
                 }
                 else
