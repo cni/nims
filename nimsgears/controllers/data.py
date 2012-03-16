@@ -234,6 +234,7 @@ class AuthDataController(DataController):
         result['success'] = False
         if exp_id_list and user_id_list and access_level:
             db_query = Experiment.query
+
             if not (predicates.in_group('superusers') and user.admin_mode):
                 mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
                 db_query = db_query.join(Access).filter(Access.user == user)
@@ -303,10 +304,13 @@ class AuthDataController(DataController):
             else:
                 id_list = [id_list]
 
-            mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
-            db_query = (db_query.filter(Access.user == user)
-                .filter(AccessPrivilege.value >= mg_privilege.value)
-                .filter(query_type.id.in_(id_list)))
+            db_query = db_query.filter(query_type.id.in_(id_list))
+
+            if not (predicates.in_group('superusers') and user.admin_mode):
+                mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
+                db_query = (db_query
+                    .filter(Access.user == user)
+                    .filter(AccessPrivilege.value >= mg_privilege.value))
 
             db_result = db_query.all()
 
@@ -382,9 +386,11 @@ class AuthDataController(DataController):
             mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
             exp = DBSession.query(Experiment).filter_by(id = exp_id).one()
             db_query = (Session.query.join(Experiment, Access, AccessPrivilege)
-                .filter(Session.id.in_(sess_id_list))
-                .filter(Access.user == user)
-                .filter(AccessPrivilege.value > mg_privilege.value))
+                .filter(Session.id.in_(sess_id_list)))
+            if not (predicates.in_group('superusers') and user.admin_mode):
+                db_query = (db_query
+                    .filter(Access.user == user)
+                    .filter(AccessPrivilege.value >= mg_privilege.value))
             db_result_sess = db_query.all()
 
             # Verify that we still have all of the requested sessions after
