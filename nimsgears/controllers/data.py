@@ -318,8 +318,18 @@ class AuthDataController(DataController):
             # filtering
             if len(db_result) == len(id_list):
                 result['success'] = True
+                result['untrashed'] = False
+                all_trash = True
                 for db_item in db_result:
-                    db_item.trash()
+                    if all_trash and db_item.trashtime == None:
+                        all_trash = False
+                if not all_trash:
+                    for db_item in db_result:
+                        db_item.trash()
+                else:
+                    for db_item in db_result:
+                        db_item.untrash()
+                    result['untrashed'] = True
                 transaction.commit()
 
         return json.dumps(result)

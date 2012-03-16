@@ -279,7 +279,7 @@ function refreshExperimentList()
         success: function(data)
         {
             var row;
-            if (data['success'])
+            if (data.success)
             {
                 populateTable(table_body, data);
             }
@@ -330,7 +330,7 @@ function refreshEpochList(session_row)
             data: { epoch_list: sess_id },
             success: function(data)
             {
-                if (data['success'])
+                if (data.success)
                 {
                     populateTable(table_body, data);
                 }
@@ -369,7 +369,7 @@ function refreshSessionList(experiment_row)
             success: function(data)
             {
                 refreshEpochList(null);
-                if (data['success'])
+                if (data.success)
                 {
                     populateTable(table_body, data);
                 }
@@ -667,7 +667,7 @@ function changeTrashFlag(event, ui)
         },
         success: function(data)
         {
-            if (data['success'])
+            if (data.success)
             {
                 refreshExperimentList();
             }
@@ -695,35 +695,83 @@ function getIdDictionary(selected_rows)
     return id_dict;
 };
 
-function labelTrash(selected_rows)
+function countSelectedRows(rows)
 {
-    var wrapper_id = selected_rows.closest('.scrolltable_wrapper').attr('id');
-    var n_rows = selected_rows.length;
+    n_rows = rows.length;
+    n_selected_rows = 0;
+    for (var i = 0; i < n_rows; i++)
+    {
+        n_selected_rows += $(rows[i]).hasClass('ui-selected') ? 1 : 0;
+    }
+    return n_selected_rows;
+}
+
+function labelTrash(selected_rows, trash_flag, untrashed)
+{
+    var wrapper = selected_rows.closest('.scrolltable_wrapper');
+    var wrapper_id = wrapper.attr('id');
+    var n_selected_rows;
     switch (wrapper_id)
     {
         case 'experiments':
         {
-            selected_rows.addClass('trash');
-            if (n_rows == 1 && selected_rows.hasClass('ui-selected'))
+            if (untrashed)
             {
-                $("#sessions .scrolltable_body tbody tr").addClass('trash');
-                labelTrash($("#sessions .ui-selected"));
+                selected_rows.removeClass('trash');
+            }
+            else
+            {
+                selected_rows.addClass('trash');
+                if (trash_flag == 0)
+                {
+                    selected_rows.remove();
+                    scrolltable_Resort(wrapper);
+                }
+                if (countSelectedRows(selected_rows) == 1)
+                {
+                    labelTrash($("#sessions .scrolltable_body tbody tr"), trash_flag, untrashed);
+                }
             }
             break;
         }
         case 'sessions':
         {
-            selected_rows.addClass('trash');
-            if (n_rows == 1 && selected_rows.hasClass('ui-selected'))
+            if (untrashed)
             {
-                $("#epochs .scrolltable_body tbody tr").addClass('trash');
-                labelTrash($("#epochs .ui-selected"));
+                selected_rows.removeClass('trash');
+                labelTrash($("#experiments .ui-selected"), trash_flag, untrashed);
+            }
+            else
+            {
+                selected_rows.addClass('trash');
+                if (trash_flag == 0)
+                {
+                    selected_rows.remove();
+                    scrolltable_Resort(wrapper);
+                }
+                if (countSelectedRows(selected_rows) == 1)
+                {
+                    labelTrash($("#epochs .scrolltable_body tbody tr"), trash_flag, untrashed);
+                }
             }
             break;
         }
         case 'epochs':
         {
-            selected_rows.addClass('trash');
+            if (untrashed)
+            {
+                selected_rows.removeClass('trash');
+                labelTrash($("#sessions .ui-selected"), trash_flag, untrashed);
+            }
+            else
+            {
+                selected_rows.addClass('trash');
+                if (trash_flag == 0)
+                {
+                    selected_rows.remove();
+                    scrolltable_Resort(wrapper);
+                }
+            }
             break;
         }
     }
@@ -748,9 +796,9 @@ function dropTrash(event, ui)
         },
         success: function(data)
         {
-            if (data['success'])
+            if (data.success)
             {
-                labelTrash(selected_rows);
+                labelTrash(selected_rows, getTrashFlag(), data.untrashed);
             }
             else
             {
@@ -968,7 +1016,7 @@ function modifyAccess(user_ids, exp_ids, access_level)
         },
         success: function(data)
         {
-            if (!data['success'])
+            if (!data.success)
             {
                 alert('Failed'); // implement better alert
             }
