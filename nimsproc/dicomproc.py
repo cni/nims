@@ -181,9 +181,15 @@ class DicomToNifti(processor.Worker):
             fps_dim = [0, 1, 2]
         nii_header.set_dim_info(*fps_dim)
 
+        # Set the size of the voxels + TR:
+        nii_header.set_zooms([first_dcm.PixelSpacing[0],
+                              first_dcm.PixelSpacing[0],
+                              first_dcm.SliceThickness,
+                              first_dcm.RepetitionTime])
+        
         nifti = nibabel.Nifti1Image(image_data, None, nii_header)
         nibabel.save(nifti, outfile_path)
-
+        
 
 if __name__ == "__main__":
     args = processor.ArgumentParser().parse_args()
