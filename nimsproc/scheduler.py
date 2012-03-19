@@ -31,9 +31,9 @@ class Scheduler(object):
 
     def run(self):
         while self.alive:
-            query = DataContainer.query.join(Dataset)
+            query = DataContainer.query
             query = query.filter((DataContainer.needs_finding==True) | (DataContainer.needs_processing==True))
-            query = query.filter(Dataset.updated_at < (datetime.datetime.now() - self.cooltime))
+            query = query.filter(~DataContainer.datasets.any(Dataset.updated_at > (datetime.datetime.now() - self.cooltime)))
             data_container = query.all()
             for dc in data_container:
                 if dc.needs_finding:

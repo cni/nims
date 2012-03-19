@@ -43,20 +43,15 @@ class Processor(object):
     def run(self):
         while self.alive:
             if threading.active_count()-1 < self.max_jobs:
-                query = Job.query.filter(Job.status==u'new')
+                Job_A = sqlalchemy.orm.aliased(Job)
+                subquery = sqlalchemy.exists().where(Job_A.data_container_id == DataContainer.id)
+                subquery = subquery.where((Job_A.id < Job.id) & ((Job_A.status == u'new') | (Job_A.status == u'active')))
+                query = Job.query.join(DataContainer).filter(Job.status==u'new')
                 if self.task:
                     query = query.filter(Job.task==self.task)
-                jobs = query.order_by(Job.id).limit(100).all()
-                for job in jobs:
-                    query = Job.query.filter(Job.data_container==job.data_container)
-                    older_job = query.filter(Job.id<job.id).filter((Job.status==u'new') | (Job.status==u'active')).first()
-                    if older_job:
-                        job = None
-                        continue
-                    break
-                else:
-                    job = None
-                if job and (job.task == self.task or self.task is None):
+                job = query.filter(~subquery).order_by(Job.id).first()
+
+                if job:
                     if isinstance(job.data_container, Epoch):
                         pri_ds = job.data_container.primary_dataset
                         if isinstance(pri_ds, DicomData):
