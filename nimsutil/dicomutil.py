@@ -138,5 +138,7 @@ def dcm_to_nii(dcm_list, outbase):
         fps_dim = [0, 1, 2]
     nii_header.set_dim_info(*fps_dim)
 
+    nii_header.structarr['pixdim'][4] = first_dcm.RepetitionTime / 1000.
+
     nifti = nibabel.Nifti1Image(image_data, None, nii_header)
     nibabel.save(nifti, outbase + '.nii.gz')
