@@ -171,7 +171,7 @@ def print_parser(pool_header, object_dict):
     print 'import os'
     print 'import struct'
     print '\n'
-    print 'class PfreaderError(Exception):'
+    print 'class PfheaderError(Exception):'
     print '    pass'
 
     for struct in structs:
@@ -193,11 +193,11 @@ def print_parser(pool_header, object_dict):
     print '        pool_header = POOL_HEADER(file_object)'
     print '    except struct.error:'
     print '        pool_header = None'
-    print '        raise PfreaderError, "error reading field in pfile"'
+    print '        raise PfheaderError, "Error reading header field in pfile %s" % file_object.name'
     print '    else:'
     print '        logo = pool_header.rec.logo'
     print '        if logo != "GE_MED_NMR" and logo != "INVALIDNMR":'
-    print '            raise PfreaderError, "the specified file is not a valid pfile"'
+    print '            raise PfheaderError, "%s is not a valid pfile" % file_object.name'
     print '    finally:'
     print '        if close_file_on_exit:'
     print '            file_object.close()'
