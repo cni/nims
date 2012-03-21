@@ -1,8 +1,6 @@
 var SORTED_DATA = "sorted_data";
 var LAST_CLICKED_INDEX = "last_clicked_index";
 var SHIFT_BOUNDARY_INDEX = "shift_boundary_index";
-var ACCESS_DATA = "access_data";
-var GROUP_DATA = "group_data";
 
 /*
  * SCROLLTABLE CONSTRUCTION
@@ -91,6 +89,9 @@ function scrolltable_Stripe(scrolltable_wrapper)
 
 function scrolltable_Generate()
 {
+    var table;
+    var table_title;
+    var scrolltable_title;
     var table_clone_body;
     var table_clone_header;
 
@@ -107,10 +108,21 @@ function scrolltable_Generate()
         scrolltable_body.className = 'scrolltable_body';
         scrolltable_header.className = 'scrolltable_header';
         scrolltable_wrapper.className = 'scrolltable_wrapper';
+
+        table = $(this);
+        table_title = table.attr('name');
+        if (table_title)
+        {
+            scrolltable_title = document.createElement('div');
+            scrolltable_title.className = 'scrolltable_title';
+            scrolltable_title.textContent = table_title;
+            scrolltable_wrapper.appendChild(scrolltable_title);
+        }
+
         scrolltable_wrapper.appendChild(scrolltable_header);
         scrolltable_wrapper.appendChild(scrolltable_body);
 
-        table_clone_body = $(this).clone();
+        table_clone_body = table.clone();
         table_clone_header = table_clone_body.clone();
 
         scrolltable_wrapper.setAttribute('id', table_clone_body.attr('id'));
@@ -267,7 +279,7 @@ function refreshExperimentList()
         success: function(data)
         {
             var row;
-            if (data['success'])
+            if (data.success)
             {
                 populateTable(table_body, data);
             }
@@ -318,7 +330,7 @@ function refreshEpochList(session_row)
             data: { epoch_list: sess_id },
             success: function(data)
             {
-                if (data['success'])
+                if (data.success)
                 {
                     populateTable(table_body, data);
                 }
@@ -357,7 +369,7 @@ function refreshSessionList(experiment_row)
             success: function(data)
             {
                 refreshEpochList(null);
-                if (data['success'])
+                if (data.success)
                 {
                     populateTable(table_body, data);
                 }
@@ -589,6 +601,7 @@ function dropSessionsOnExperiment(event, ui)
     var sess_id_list = Array();
     selected_rows.each(function() { sess_id_list.push(this.id.split('_')[1]); });
     var target_exp_id = this.id.split("_")[1];
+    var target_exp_row = $(this);
     $.ajax({
         traditional: true,
         type: 'POST',
@@ -609,6 +622,10 @@ function dropSessionsOnExperiment(event, ui)
                     if (selected_rows.length == 1 && selected_rows.first().hasClass("ui-selected"))
                     {
                         refreshEpochList(null);
+                    }
+                    if (data.untrashed)
+                    {
+                        target_exp_row.removeClass('trash');
                     }
                 }
                 else
@@ -650,7 +667,7 @@ function changeTrashFlag(event, ui)
         },
         success: function(data)
         {
-            if (data['success'])
+            if (data.success)
             {
                 refreshExperimentList();
             }
@@ -678,35 +695,83 @@ function getIdDictionary(selected_rows)
     return id_dict;
 };
 
-function labelTrash(selected_rows)
+function countSelectedRows(rows)
 {
-    var wrapper_id = selected_rows.closest('.scrolltable_wrapper').attr('id');
-    var n_rows = selected_rows.length;
+    n_rows = rows.length;
+    n_selected_rows = 0;
+    for (var i = 0; i < n_rows; i++)
+    {
+        n_selected_rows += $(rows[i]).hasClass('ui-selected') ? 1 : 0;
+    }
+    return n_selected_rows;
+}
+
+function labelTrash(selected_rows, trash_flag, untrashed)
+{
+    var wrapper = selected_rows.closest('.scrolltable_wrapper');
+    var wrapper_id = wrapper.attr('id');
+    var n_selected_rows;
     switch (wrapper_id)
     {
         case 'experiments':
         {
-            selected_rows.addClass('trash');
-            if (n_rows == 1 && selected_rows.hasClass('ui-selected'))
+            if (untrashed)
             {
-                $("#sessions .scrolltable_body tbody tr").addClass('trash');
-                labelTrash($("#sessions .ui-selected"));
+                selected_rows.removeClass('trash');
+            }
+            else
+            {
+                selected_rows.addClass('trash');
+                if (trash_flag == 0)
+                {
+                    selected_rows.remove();
+                    scrolltable_Resort(wrapper);
+                }
+                if (countSelectedRows(selected_rows) == 1)
+                {
+                    labelTrash($("#sessions .scrolltable_body tbody tr"), trash_flag, untrashed);
+                }
             }
             break;
         }
         case 'sessions':
         {
-            selected_rows.addClass('trash');
-            if (n_rows == 1 && selected_rows.hasClass('ui-selected'))
+            if (untrashed)
             {
-                $("#epochs .scrolltable_body tbody tr").addClass('trash');
-                labelTrash($("#epochs .ui-selected"));
+                selected_rows.removeClass('trash');
+                labelTrash($("#experiments .ui-selected"), trash_flag, untrashed);
+            }
+            else
+            {
+                selected_rows.addClass('trash');
+                if (trash_flag == 0)
+                {
+                    selected_rows.remove();
+                    scrolltable_Resort(wrapper);
+                }
+                if (countSelectedRows(selected_rows) == 1)
+                {
+                    labelTrash($("#epochs .scrolltable_body tbody tr"), trash_flag, untrashed);
+                }
             }
             break;
         }
         case 'epochs':
         {
-            selected_rows.addClass('trash');
+            if (untrashed)
+            {
+                selected_rows.removeClass('trash');
+                labelTrash($("#sessions .ui-selected"), trash_flag, untrashed);
+            }
+            else
+            {
+                selected_rows.addClass('trash');
+                if (trash_flag == 0)
+                {
+                    selected_rows.remove();
+                    scrolltable_Resort(wrapper);
+                }
+            }
             break;
         }
     }
@@ -731,9 +796,13 @@ function dropTrash(event, ui)
         },
         success: function(data)
         {
-            if (data['success'])
+            if (data.success)
             {
-                labelTrash(selected_rows);
+                labelTrash(selected_rows, getTrashFlag(), data.untrashed);
+            }
+            else
+            {
+                alert('Failed');
             }
         },
     });
@@ -862,28 +931,57 @@ function setupCallbacks_Access()
     });
 };
 
-function showRetroDialog()
+function showRetroDialog(user_ids, group_id, membership_src, membership_dst)
 {
     $("#retro_dialog").dialog({
         resizable:false,
         height:140,
         modal:true,
         buttons: {
-            Okay: function() {
-                var user_ids = $(this).data(GROUP_DATA)[0];
-                var exp_ids = $(this).data(GROUP_DATA)[1];
-                var access_level = $("#access_select").val();
-                modifyAccess(user_ids, exp_ids, access_level);
+            "Yes": function() {
+                modifyGroups(user_ids, group_id, membership_src, membership_dst, true);
                 $(this).dialog("close");
             },
-            Cancel: function() {
+            "No": function() {
+                modifyGroups(user_ids, group_id, membership_src, membership_dst, false);
                 $(this).dialog("close");
             }
         }
     });
 };
 
-function showAccessDialog()
+function modifyGroups(user_ids, group_id, membership_src, membership_dst, is_retroactive)
+{
+    console.log(is_retroactive);
+    $.ajax(
+    {
+        traditional: true,
+        type: 'POST',
+        url: "modify_groups",
+        dataType: "json",
+        data:
+        {
+            user_ids: user_ids,
+            group_id: group_id,
+            membership_src: membership_src,
+            membership_dst: membership_dst,
+            is_retroactive: is_retroactive
+        },
+        success: function(data)
+        {
+            if (data['success'])
+            {
+                refreshGroups(group_id);
+            }
+            else
+            {
+                alert('Failed'); // implement better alert
+            }
+        },
+    }); // ajax call
+};
+
+function showAccessDialog(user_ids, exp_ids, access_level)
 {
     $("#access_dialog").dialog({
         resizable:false,
@@ -891,8 +989,6 @@ function showAccessDialog()
         modal:true,
         buttons: {
             Okay: function() {
-                var user_ids = $(this).data(ACCESS_DATA)[0];
-                var exp_ids = $(this).data(ACCESS_DATA)[1];
                 var access_level = $("#access_select").val();
                 modifyAccess(user_ids, exp_ids, access_level);
                 $(this).dialog("close");
@@ -920,7 +1016,7 @@ function modifyAccess(user_ids, exp_ids, access_level)
         },
         success: function(data)
         {
-            if (!data['success'])
+            if (!data.success)
             {
                 alert('Failed'); // implement better alert
             }
@@ -930,7 +1026,6 @@ function modifyAccess(user_ids, exp_ids, access_level)
 
 function dropAccessModification(event, ui)
 {
-    showAccessDialog();
     var experiments_table = $("#experiments .scrolltable_body table");
     var users_table = $("#users .scrolltable_body table");
     var dropped_onto_row = $(this);
@@ -958,7 +1053,7 @@ function dropAccessModification(event, ui)
     {
         exp_ids.push(this.id.split('_')[1]);
     });
-    $("#access_dialog").data(ACCESS_DATA, [user_ids, exp_ids]);
+    showAccessDialog(user_ids, exp_ids);
 };
 
 function dropUsersOnGroup(event, ui)
@@ -979,32 +1074,7 @@ function dropUsersOnGroup(event, ui)
         // TODO do this with an id on the rows instead of just using first TD -
         // probably more robust
     });
-
-    $.ajax(
-    {
-        traditional: true,
-        type: 'POST',
-        url: "modify_groups",
-        dataType: "json",
-        data:
-        {
-            user_ids: user_ids,
-            group_id: group_id,
-            membership_src: membership_src,
-            membership_dst: membership_dst
-        },
-        success: function(data)
-        {
-            if (data['success'])
-            {
-                refreshGroups(group_id);
-            }
-            else
-            {
-                alert('Failed'); // implement better alert
-            }
-        },
-    }); // ajax call
+    showRetroDialog(user_ids, group_id, membership_src, membership_dst);
 };
 
 function SetTableHeight()

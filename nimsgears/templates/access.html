@@ -44,7 +44,7 @@
     <h2>Access</h2>
     <p>This page allows you to view and make changes to access privileges.</p>
 
-    <table id="users" class="scrolltable">
+    <table id="users" class="scrolltable" name="Users">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -60,7 +60,7 @@
             </py:for>
         </tbody>
     </table>
-    <table id="experiments" class="scrolltable">
+    <table id="experiments" class="scrolltable" name="Experiments">
         <thead>
             <tr>
                 <py:for each="col in exp_columns">
