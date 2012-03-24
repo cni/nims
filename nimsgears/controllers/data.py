@@ -134,7 +134,7 @@ class AuthDataController(DataController):
         user = request.identity['user']
 
         def session_tuple(session, axs_priv_val):
-            return (session.id, session.mri_exam, unicode(session.subject_role.subject) if axs_priv_val != 0 else 'Anonymous')
+            return (session.id, session.timestamp.strftime('%Y-%m-%d'), session.subject.code)
 
         try:
             exp_id = int(kwargs['id'])
@@ -145,7 +145,7 @@ class AuthDataController(DataController):
             results = Session.query.join(Experiment, Session.experiment).filter(Experiment.id==exp_id).all()
             sessions = [session_tuple(session, -1) for session in results]
         else:
-            query = DBSession.query(Session, Access).join(Experiment, Session.experiment).join(Access)
+            query = DBSession.query(Session, Access).join(Subject, Session.subject).join(Experiment, Subject.experiment).join(Access)
             results = query.filter(Experiment.id==exp_id).filter(Access.user==user).all()
             sessions = [session_tuple(result.Session, result.Access.privilege.value) for result in results]
         return json.dumps(sessions)
@@ -178,7 +178,7 @@ class AuthDataController(DataController):
         """ Queries DB given info found in POST, TODO perhaps verify access level another time here??
         """
         def summarize_epoch(epoch, sess_id):
-            return (epoch.id, "%2d/%2d" % (epoch.mri_series, epoch.mri_acq), epoch.mri_desc)
+            return (epoch.id, epoch.timestamp.strftime('%H:%M:%S'), '%s [%d/%d]' % (epoch.mri_desc, epoch.mri_series, epoch.mri_acq))
 
         try:
             sess_id = int(kwargs['id'])
@@ -186,7 +186,7 @@ class AuthDataController(DataController):
             sess_id = -1
 
         epoch_list = ([summarize_epoch(item.Epoch, sess_id) for item in
-            DBSession.query(Epoch, Session).join('session').filter(Session.id == sess_id).all()])
+            DBSession.query(Epoch, Session).join(Session, Epoch.session).filter(Session.id == sess_id).all()])
 
         return json.dumps(epoch_list)
 

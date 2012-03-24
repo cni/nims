@@ -55,14 +55,19 @@ def get_logger(name, filename=None, level='debug'):
 
 
 def parse_subject(name, dob):
-    lastname, firstname = name.split('^') if '^' in name else ('', '')
+    if '@' in name:
+        code = re.sub(r'^[^@]*@([^\^]*).*', ur'\1', name)
+        lastname, firstname = ('', '')
+    else:
+        code = None
+        lastname, firstname = name.split('^') if '^' in name else ('', '')
     try:
         dob = datetime.datetime.strptime(dob, '%Y%m%d')
         if dob < datetime.datetime(1900, 1, 1):
             raise ValueError
-    except:
+    except ValueError:
         dob = None
-    return (unicode(firstname.capitalize()), unicode(lastname.capitalize()), dob)
+    return (code, unicode(firstname.capitalize()), unicode(lastname.capitalize()), dob)
 
 
 def parse_patient_id(patient_id, known_ids):

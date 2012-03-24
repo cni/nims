@@ -1,4 +1,5 @@
 import os
+import re
 import random
 import hashlib
 import datetime
@@ -14,7 +15,7 @@ __session__ = DBSession
 __metadata__ = metadata
 
 __all__  = ['Group', 'User', 'Permission', 'Message', 'Job', 'Access', 'AccessPrivilege']
-__all__ += ['ResearchGroup', 'Subject', 'SubjectRole', 'DataContainer', 'Experiment', 'Session', 'Epoch']
+__all__ += ['ResearchGroup', 'Person', 'Subject', 'DataContainer', 'Experiment', 'Session', 'Epoch']
 __all__ += ['Dataset', 'MRData', 'DicomData' , 'GEPfile', 'NiftiData']
 
 
@@ -131,8 +132,7 @@ class User(Entity):
     def dataset_cnt(self):
         query = DBSession.query(Session)
         if not self in Group.by_gid(u'superusers').users or not self.admin_mode:
-            query = query.join(Experiment, Session.experiment)
-            query = query.join(Access, Experiment.accesses)
+            query = query.join(Subject, Session.subject).join(Experiment, Subject.experiment).join(Access)
             query = query.filter(Access.user==self)
         return query.count()
 
@@ -224,49 +224,13 @@ class ResearchGroup(Entity):
         return [rg.gid for rg in cls.query.all()]
 
 
-class Subject(Entity):
+class Person(Entity):
 
-    firstname = Field(Unicode(63))
-    lastname = Field(Unicode(63))
-    dob = Field(Date)
-
-    roles = OneToMany('SubjectRole')
-
-    def __unicode__(self):
-        return u'%s, %s' % (self.lastname, self.firstname)
-
-    @classmethod
-    def by_firstname_lastname_dob(cls, firstname, lastname, dob):
-        subject = cls.query.filter_by(firstname=firstname).filter_by(lastname=lastname).filter_by(dob=dob).first()
-        if not subject:
-            subject = cls(firstname=firstname, lastname=lastname, dob=dob)
-        return subject
+    roles = OneToMany('Subject')
 
     @property
     def experiments(self):
-        return Experiment.query.join(Session).join(SubjectRole).filter(SubjectRole.subject==self).all()
-
-
-class SubjectRole(Entity):
-
-    #consent_form = Field(Unicode(63))
-
-    subject = ManyToOne('Subject')
-    sessions = OneToMany('Session')
-
-    def __unicode__(self):
-        return u'%s: %s' % (self.experiment, self.subject)
-
-    @classmethod
-    def by_subject_experiment(cls, subject, experiment):
-        role = cls.query.join(Session).filter(cls.subject==subject).filter(Session.experiment==experiment).first()
-        if not role:
-            role = cls(subject=subject)
-        return role
-
-    @property
-    def experiment(self):
-        return self.sessions[0].experiment
+        return [r.experiment for r in roles]
 
 
 class DataContainer(Entity):
@@ -295,13 +259,13 @@ class Experiment(DataContainer):
 
     owner = ManyToOne('ResearchGroup', required=True)
     accesses = OneToMany('Access')
-    sessions = OneToMany('Session')
+    subjects = OneToMany('Subject')
 
     def __unicode__(self):
         return u'%s: %s' % (self.owner, self.name)
 
     @classmethod
-    def by_owner_name(cls, owner, name):
+    def from_owner_name(cls, owner, name):
         experiment = cls.query.filter_by(owner=owner).filter_by(name=name).first()
         if not experiment:
             experiment = cls(owner=owner, name=name)
@@ -314,12 +278,8 @@ class Experiment(DataContainer):
         return experiment
 
     @property
-    def subject_roles(self):
-        return SubjectRole.query.join(Session).filter(Session.experiment==self).all()
-
-    @property
-    def subjects(self):
-        return Subject.query.join(SubjectRole).join(Session).filter(Session.experiment==self).all()
+    def persons(self):
+        return [s.person for s in self.subject]
 
     @property
     def is_trash(self):
@@ -343,14 +303,48 @@ class Experiment(DataContainer):
         self.trashtime = None
 
 
+class Subject(DataContainer):
+
+    using_options(inheritance='multi')
+
+    code = Field(Unicode(31))
+    firstname = Field(Unicode(63))
+    lastname = Field(Unicode(63))
+    dob = Field(Date)
+    #consent_form = Field(Unicode(63))
+
+    experiment = ManyToOne('Experiment')
+    person = ManyToOne('Person')
+    sessions = OneToMany('Session')
+
+    def __unicode__(self):
+        return u'%s, %s' % (self.lastname, self.firstname)
+
+    @classmethod
+    def from_metadata(cls, md):
+        query = cls.query.join(Experiment, cls.experiment).filter(Experiment.name==md.exp_name)
+        if md.subj_code:
+            query = query.filter(cls.code==md.subj_code)
+        else:
+            query = query.filter(cls.firstname==md.subj_fn).filter(cls.lastname==md.subj_ln).filter(cls.dob==md.subj_dob)
+        subject = query.first()
+        if not subject:
+            owner = ResearchGroup.query.filter_by(gid=md.group_name).one()
+            experiment = Experiment.from_owner_name(owner, md.exp_name)
+            if md.subj_code is None:
+                code_num = max([int('0%s' % re.sub(r'[^0-9]+', '', s.code)) for s in experiment.subjects]) + 1 if experiment.subjects else 1
+                md.subj_code = u's%03d' % code_num
+            subject = cls(experiment=experiment, person=Person(), code=md.subj_code, firstname=md.subj_fn, lastname=md.subj_ln, dob=md.subj_dob)
+        return subject
+
+
 class Session(DataContainer):
 
     using_options(inheritance='multi')
 
     notes = Field(Unicode)
 
-    experiment = ManyToOne('Experiment')
-    subject_role = ManyToOne('SubjectRole')
+    subject = ManyToOne('Subject')
     operator = ManyToOne('User')
     epochs = OneToMany('Epoch')
 
@@ -361,11 +355,9 @@ class Session(DataContainer):
     def from_metadata(cls, md):
         session = cls.query.join(Epoch, Session.epochs).join(Dataset).filter(Dataset.exam==md.mri_exam).first()
         if not session:
-            owner = ResearchGroup.query.filter_by(gid=md.group_name).one()
-            experiment = Experiment.by_owner_name(owner, md.exp_name)
-            subject = Subject.by_firstname_lastname_dob(md.subj_fn, md.subj_ln, md.subj_dob)
-            subject_role = SubjectRole.by_subject_experiment(subject, experiment)
-            session = Session(subject_role=subject_role, experiment=experiment)
+            subject = Subject.from_metadata(md)
+            operator = None # FIXME: set operator to an actual user, creating user if necessary
+            session = Session(subject=subject, operator=operator)
         return session
 
     @property
@@ -599,7 +591,7 @@ class DicomData(MRData):
             md.physio_flag = bool(header[TAG_PHYSIO_FLAG].value) if TAG_PHYSIO_FLAG in header else False
             md.mri_desc = nimsutil.clean_string(header.SeriesDescription)
             md.timestamp = datetime.datetime.strptime(acq_date(header) + acq_time(header), '%Y%m%d%H%M%S')
-            md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(header.PatientsName, header.PatientsBirthDate)
+            md.subj_code, md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(header.PatientsName, header.PatientsBirthDate)
             md.group_name, md.exp_name = nimsutil.parse_patient_id(header.PatientID, ResearchGroup.get_all_ids())
         return md
 
@@ -618,7 +610,7 @@ class GEPfile(MRData):
 
         try:
             header = pfheader.get_header(filename)
-        except (IOError, pfheader.PfreaderError):
+        except (IOError, pfheader.PfheaderError):
             md = None
         else:
             md = Metadata()
@@ -633,7 +625,7 @@ class GEPfile(MRData):
             hour, minute = map(int, header.rec.scan_time.split(':'))
             md.timestamp = datetime.datetime(year + 1900, month, day, hour, minute) # GE's epoch begins in 1900
             all_groups = [rg.id for rg in ResearchGroup.query.all()]
-            md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(header.exam.patnameff, header.exam.dateofbirth)
+            md.subj_code, md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(header.exam.patnameff, header.exam.dateofbirth)
             md.group_name, md.exp_name = nimsutil.parse_patient_id(header.exam.patidff, ResearchGroup.get_all_ids())
         return md
 
