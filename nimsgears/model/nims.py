@@ -289,18 +289,21 @@ class Experiment(DataContainer):
     def contains_trash(self):
         if self.is_trash:
             return True
-        for session in self.sessions:
-            if session.contains_trash:
+        for subject in self.subjects:
+            if subject.contains_trash:
                 return True
         return False
 
     def trash(self, trashtime=datetime.datetime.now()):
         self.trashtime = trashtime
-        for session in self.sessions:
-            session.trash(trashtime)
+        for subject in self.subjects:
+            subject.trash(trashtime)
 
     def untrash(self):
-        self.trashtime = None
+        if self.is_trash:
+            self.trashtime = None
+            for subject in self.subjects:
+                subject.untrash()
 
 
 class Subject(DataContainer):
@@ -336,6 +339,31 @@ class Subject(DataContainer):
                 md.subj_code = u's%03d' % code_num
             subject = cls(experiment=experiment, person=Person(), code=md.subj_code, firstname=md.subj_fn, lastname=md.subj_ln, dob=md.subj_dob)
         return subject
+
+    @property
+    def is_trash(self):
+        return bool(self.trashtime)
+
+    @property
+    def contains_trash(self):
+        if self.is_trash:
+            return True
+        for session in self.sessions:
+            if session.contains_trash:
+                return True
+        return False
+
+    def trash(self, trashtime=datetime.datetime.now()):
+        self.trashtime = trashtime
+        for session in self.sessions:
+            session.trash(trashtime)
+
+    def untrash(self):
+        if self.is_trash:
+            self.trashtime = None
+            self.experiment.untrash()
+            for session in self.sessions:
+                session.untrash()
 
 
 class Session(DataContainer):
@@ -390,7 +418,9 @@ class Session(DataContainer):
     def untrash(self):
         if self.is_trash:
             self.trashtime = None
-            self.experiment.untrash()
+            self.subject.untrash()
+            for epoch in self.epochs:
+                epoch.untrash()
 
 
 class Epoch(DataContainer):
@@ -459,6 +489,8 @@ class Epoch(DataContainer):
         if self.is_trash:
             self.trashtime = None
             self.session.untrash()
+            for dataset in self.datasets:
+                dataset.untrash()
 
 
 class Dataset(Entity):
@@ -509,7 +541,7 @@ class Dataset(Entity):
     def untrash(self):
         if self.is_trash:
             self.trashtime = None
-            self.epoch.untrash()
+            self.container.untrash()
 
 
 class MRData(Dataset):

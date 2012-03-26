@@ -1,0 +1,75 @@
+.scrolltable_title
+{
+    font-weight:400;
+    color:#820000;
+    text-align:center;
+    font-family: Georgia, "Times New Roman", Times, serif;
+    font-size: 1.3em;
+    line-height: 1.2em; letter-spacing: 0.03em;
+    margin: 1em 0em 0.4em 0em;
+}
+
+.scrolltable
+{
+    margin:0px;
+    border-spacing:0px;
+}
+
+.scrolltable th
+{
+    font-family:Georgia,Times New Roman,Times;
+    color:white;
+    background-color:#820000;
+}
+
+.scrolltable_wrapper
+{
+    cursor:default;
+    float:left;
+}
+
+.scrolltable_body
+{
+    width:100%;
+    overflow:auto;
+    color:black;
+}
+
+.scrolltable_wrapper table
+{
+    table-layout:fixed;
+}
+
+.scrolltable_flat
+{
+    padding:0px;
+    height:0px;
+}
+
+.scrolltable_header th, .scrolltable_body td, #floating td
+{
+    border:1px solid white;
+    overflow:hidden;
+    white-space:nowrap;
+}
+
+tr.stripe.ui-selected, tr.ui-selected
+{
+    background-color: #ddcf99;
+}
+
+tr.stripe
+{
+    background-color: #eee;
+}
+
+tr.hover, tr.hover.stripe, tr.multihover, tr.multihover.stripe
+{
+    background-color:#820000;
+    color: white;
+}
+
+tr.trash, tr.trash.ui-selected
+{
+    color:#8a887d;
+}
