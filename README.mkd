@@ -27,7 +27,7 @@ Clone NIMS from GitHub and install its dependencies:
 
 Optionally, add PostgreSQL and LDAP support:
 
-    sudo apt-get install libpq-dev postgresql-common
+    sudo apt-get install postgresql-client libpq-dev
     easy_install psycopg2
 
     sudo apt-get install libldap2-dev libsasl2-dev
