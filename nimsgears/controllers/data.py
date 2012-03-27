@@ -6,8 +6,6 @@ from repoze.what import predicates
 from tgext.admin.controller import AdminController
 from tgext.admin.tgadminconfig import TGAdminConfig
 
-from sqlalchemy import or_
-
 from collections import OrderedDict
 
 from nimsgears import model
@@ -377,27 +375,23 @@ class AuthDataController(DataController):
         if sess_id_list and exp_id:
             mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
             exp = DBSession.query(Experiment).filter_by(id = exp_id).one()
-            db_query = (Session.query.join(Experiment, Access, AccessPrivilege)
-                .filter(Session.id.in_(sess_id_list)))
+            db_query = DBSession.query(Session).join(Subject, Session.subject).join(Experiment, Subject.experiment).join(Access).join(AccessPrivilege).filter(Session.id.in_(sess_id_list))
             if not (predicates.in_group('superusers') and user.admin_mode):
-                db_query = (db_query
-                    .filter(Access.user == user)
-                    .filter(AccessPrivilege.value >= mg_privilege.value))
+                db_query = db_query.filter(Access.user == user).filter(AccessPrivilege.value >= mg_privilege.value)
             db_result_sess = db_query.all()
 
-            # Verify that we still have all of the requested sessions after
-            # access filtering
+            # Verify that we still have all of the requested sessions after access filtering
             if len(db_result_sess) == len(sess_id_list):
                 result['success'] = True
                 result['untrashed'] = False
                 all_trash = True
                 for session in db_result_sess:
-                    session.experiment = exp
+                    session.subject.experiment = exp
                     if all_trash and session.trashtime == None:
                         all_trash = False
                 if not all_trash:
-                    if session.experiment.trashtime != None:
-                        session.experiment.untrash()
+                    if session.subject.experiment.trashtime != None:
+                        session.subject.experiment.untrash()
                         result['untrashed'] = True
 
                 transaction.commit()
@@ -416,7 +410,8 @@ class AuthDataController(DataController):
         if trash_flag == 0: # when trash flag off, only accept those with no trash time
             db_query = db_query.filter(Experiment.trashtime == None)
         elif trash_flag == 2: # when trash flag on, make sure everything is or contains trash
-            db_query = db_query.join(Session, Epoch).filter(or_(Experiment.trashtime != None, Session.trashtime != None, Epoch.trashtime != None))
+            db_query = db_query.join(Subject, Experiment.subjects).join(Session, Subject.sessions).join(Epoch, Session.epochs)
+            db_query = db_query.filter((Experiment.trashtime != None) | (Session.trashtime != None) | (Epoch.trashtime != None))
 
         # If a superuser, ignore access items and set all to manage
         acc_str_list = []
@@ -454,7 +449,7 @@ class AuthDataController(DataController):
         if trash_flag == 0: # when trash flag off, only accept those with no trash time
             db_query = db_query.filter(Session.trashtime == None)
         elif trash_flag == 2: # when trash flag on, make sure everything is or contains trash
-            db_query = db_query.join(Epoch).filter(or_(Session.trashtime != None, Epoch.trashtime != None))
+            db_query = db_query.join(Epoch, Session.epochs).filter((Session.trashtime != None) | (Epoch.trashtime != None))
 
         acc_priv_list = []
         if predicates.in_group('superusers') and user.admin_mode:
@@ -470,7 +465,7 @@ class AuthDataController(DataController):
         for i in range(n_results):
             sess = db_result_sess[i]
             #subject_name = unicode(sess.subject_role.subject) if acc_priv_list[i] != 0 else 'Anonymous'
-            sess_data_list.append((sess.timestamp.strftime('%Y-%m-%d'), sess.subject.code))
+            sess_data_list.append((sess.timestamp.strftime('%Y-%m-%d %H:%M'), sess.subject.code))
             sess_attr_list.append({})
             sess_attr_list[i]['id'] = 'sess_%d' % sess.id
             if sess.trashtime != None:
@@ -500,7 +495,7 @@ class AuthDataController(DataController):
 
         for i in range(len(db_result_epoch)):
             epoch = db_result_epoch[i]
-            epoch_data_list.append((epoch.timestamp.strftime('%H:%M:%S'), '%s [%d/%d]' % (epoch.mri_desc, epoch.mri_series, epoch.mri_acq)))
+            epoch_data_list.append((epoch.timestamp.strftime('%H:%M'), '%s [%d/%d]' % (epoch.mri_desc, epoch.mri_series, epoch.mri_acq)))
             epoch_attr_list.append({})
             epoch_attr_list[i]['id'] = 'epoch_%d' % epoch.id
             if epoch.trashtime != None:
@@ -547,7 +542,7 @@ class AuthDataController(DataController):
 
         # Table columns and their relevant classes
         exp_columns = [('Group', 'col_sunet'), ('Experiment', 'col_name')]
-        session_columns = [('Date', 'col_exam'), ('Subj. Code', 'col_sname')]
+        session_columns = [('Date & Time', 'col_exam'), ('Subj. Code', 'col_sname')]
         epoch_columns = [('Time', 'col_sa'), ('Description', 'col_desc')]
 
         return dict(page='browse',
