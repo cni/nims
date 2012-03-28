@@ -26,9 +26,9 @@ SLICE_ORDER_ALT_DEC = 4
 
 
 def dcm_to_img(dcm_list, outbase):
-    """Create a bitmap image from a dicom pixel array."""
+    """Create bitmap files for each image in a list of dicoms."""
     for i, pixels in enumerate([dcm.pixel_array for dcm in dcm_list]):
-        with open(outbase + '_%d.png' % i, 'wb') as fd:
+        with open(outbase + '_%d.png' % (i+1), 'wb') as fd:
             if pixels.ndim == 2:
                 pixels = pixels.astype(np.int)
                 pixels = pixels.clip(0, (pixels * (pixels != (2**15 - 1))).max())   # -32768->0; 32767->brain.max
@@ -40,7 +40,7 @@ def dcm_to_img(dcm_list, outbase):
 
 
 def dcm_to_dti(dcm_list, outbase):
-    """Create bval and bvec file from a list of dicoms."""
+    """Create bval and bvec files from an ordered list of dicoms."""
     images_per_volume = dcm_list[0][TAG_SLICES_PER_VOLUME].value
     bvals = np.array([dcm[TAG_BVALUE].value[0] for dcm in dcm_list[0::images_per_volume]], dtype=float)
     bvecs = np.array([(dcm[TAG_BVEC[0]].value, dcm[TAG_BVEC[1]].value, dcm[TAG_BVEC[2]].value) for dcm in dcm_list[0::images_per_volume]]).transpose()
@@ -53,7 +53,7 @@ def dcm_to_dti(dcm_list, outbase):
 
 
 def dcm_to_nii(dcm_list, outbase):
-    """Create a single nifti file from a list of dicoms."""
+    """Create a single nifti file from an ordered list of dicoms."""
     first_dcm = dcm_list[0]
     flipped = False
     slice_loc = [dcm_i.SliceLocation for dcm_i in dcm_list]

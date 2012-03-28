@@ -18,7 +18,6 @@ import sqlalchemy
 import transaction
 
 import nimsutil
-from nimsutil import dicomutil
 from nimsgears.model import *
 
 
@@ -157,12 +156,12 @@ class DicomPipeline(Pipeline):
             outbase = os.path.join(outputdir, pri_ds.container.name)
 
             if image_type == self.TYPE_SCREEN:
-                dicomutil.dcm_to_img(dcm_list, outbase)
+                nimsutil.dcm_to_img(dcm_list, outbase)
             if image_type == self.TYPE_ORIGINAL and self.TAG_DIFFUSION_DIRS in header and header[self.TAG_DIFFUSION_DIRS].value > 0:
-                dicomutil.dcm_to_dti(dcm_list, outbase)
+                nimsutil.dcm_to_dti(dcm_list, outbase)
             if image_type == self.TYPE_ORIGINAL or header.ImageType == self.TYPE_EPI:
-                try: # FIXME: this try/except should not be here; bandaid since dicomutil.dcm_to_nii fails for single slice
-                    dicomutil.dcm_to_nii(dcm_list, outbase)
+                try: # FIXME: this try/except should not be here; bandaid since dcm_to_nii fails for single slice
+                    nimsutil.dcm_to_nii(dcm_list, outbase)
                 except ValueError:
                     pass
 

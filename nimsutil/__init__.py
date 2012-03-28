@@ -1,8 +1,9 @@
 # @author:  Gunnar Schaefer
 
 from nimsutil import *
+from dicomutil import *
 
 try:
     import pfile
 except:
-    print 'could not import pfile'
+    print 'Warning: could not import pfile'
