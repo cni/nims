@@ -3,7 +3,6 @@ body {
 }
 
 a {
-    border-bottom: none;
     color: black;
 }
 
@@ -76,93 +75,4 @@ form.prefsform input#submit {
 form.prefsform textarea#comment {
     height: 10ex;
     width: 40em;
-}
-
-
-select.filter {
-    width:12em;
-}
-
-
-table.tablesorter {
-    width:100%;
-    color: black;
-    background-color: #820000;
-    margin:10px auto 15px auto;
-}
-table.tablesorter thead tr th, table.tablesorter tfoot tr th {
-    background-color: #ffffff;
-    padding: 2px;
-}
-table.tablesorter thead tr .header {
-    background-image: url(../images/asc_desc.gif);
-    background-repeat: no-repeat;
-    background-position: center right;
-    cursor: pointer;
-}
-table.tablesorter thead tr .headerSortUp {
-    background-image: url(../images/asc.gif);
-}
-table.tablesorter thead tr .headerSortDown {
-    background-image: url(../images/desc.gif);
-}
-table.tablesorter thead tr .headerSortDown, table.tablesorter thead tr .headerSortUp {
-    background-color: #cccccc;
-}
-table.tablesorter tbody td {
-    background-color: #ffffff;
-    padding: 2px 4px;
-}
-table.tablesorter tbody tr.odd td {
-    background-color:#e5e5e5;
-}
-
-
-.ui-dropdownchecklist {
-    height: 20px;
-    width: 300px;
-    border: 1px solid #ddd;
-    border-right: 0;
-    background: #fff url("../images/desc.gif") no-repeat center right;
-}
-.ui-dropdownchecklist-hover, .ui-dropdownchecklist-active {
-    background-image: url("../images/desc.gif");
-    border-color: #5794bf;
-}
-
-.ui-dropdownchecklist-text {
-    font-size: 12px;
-    height: 20px;
-    line-height: 20px;
-    margin-right: 17px; /* background dropdown.png image */
-}
-
-.ui-dropdownchecklist-dropcontainer {
-    background-color: #fff;
-    border: 1px solid #999;
-}
-
-.ui-dropdownchecklist-item {
-
-}
-
-.ui-dropdownchecklist-item-hover {
-    background-color: #39f;
-}
-
-.ui-dropdownchecklist-item-disabled label {
-    color: #ccc;
-}
-
-.ui-dropdownchecklist-item-hover .ui-dropdownchecklist-text {
-    color: #fff;
-}
-
-.ui-dropdownchecklist-group {
-    font-weight: bold;
-    font-style: italic;
-}
-
-.ui-dropdownchecklist-indent {
-    padding-left: 20px;
 }
