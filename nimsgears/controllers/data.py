@@ -465,7 +465,7 @@ class AuthDataController(DataController):
         for i in range(n_results):
             sess = db_result_sess[i]
             #subject_name = unicode(sess.subject_role.subject) if acc_priv_list[i] != 0 else 'Anonymous'
-            sess_data_list.append((sess.timestamp.strftime('%Y-%m-%d %H:%M'), sess.subject.code))
+            sess_data_list.append((sess.subject.code, sess.timestamp.strftime('%Y-%m-%d %H:%M')))
             sess_attr_list.append({})
             sess_attr_list[i]['id'] = 'sess_%d' % sess.id
             if sess.trashtime != None:
@@ -542,7 +542,7 @@ class AuthDataController(DataController):
 
         # Table columns and their relevant classes
         exp_columns = [('Group', 'col_sunet'), ('Experiment', 'col_name')]
-        session_columns = [('Date & Time', 'col_exam'), ('Subj. Code', 'col_sname')]
+        session_columns = [('Subj. Code', 'col_exam'), ('Date & Time', 'col_sname')]
         epoch_columns = [('Time', 'col_sa'), ('Description', 'col_desc')]
 
         return dict(page='browse',
