@@ -120,17 +120,12 @@ class Pipeline(threading.Thread):
 
 class DicomPipeline(Pipeline):
 
-    TYPE_ORIGINAL = ['ORIGINAL', 'PRIMARY', 'OTHER']
-    TYPE_EPI =      ['ORIGINAL', 'PRIMARY', 'EPI', 'NONE']
-    TYPE_SCREEN =   ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
-    TAG_DIFFUSION_DIRS = (0x0019, 0x10e0)
-
     def find(self):
         pri_ds = self.job.data_container.primary_dataset
         if pri_ds.physio_flag:
             physio_files = nimsutil.find_ge_physio(self.physio_path, pri_ds.timestamp, pri_ds.psd.encode('utf-8'))
             if physio_files:
-                self.log.info('Found physio files: %s' % str(physio_files))
+                self.log.info('Found physio files: %s' % ', '.join([os.path.basename(pf) for pf in physio_files]))
                 dataset = Dataset.at_path_for_file_and_type(self.nims_path, None, u'physio')
                 dataset.file_cnt_tgt = len(physio_files)
                 for f in physio_files:
@@ -143,27 +138,11 @@ class DicomPipeline(Pipeline):
     def process(self):
         pri_ds = self.job.data_container.primary_dataset
         dcm_dir = os.path.join(self.nims_path, pri_ds.relpath)
-        dcm_list = sorted([dicom.read_file(os.path.join(dcm_dir, f)) for f in os.listdir(dcm_dir)], key=lambda dcm: dcm.InstanceNumber)
-        header = dcm_list[0]
-
-        try:
-            image_type = header.ImageType
-        except:
-            return False
 
         with nimsutil.TempDirectory() as tmpdir:
             outputdir = nimsutil.make_joined_path(tmpdir, 'outputdir')
             outbase = os.path.join(outputdir, pri_ds.container.name)
-
-            if image_type == self.TYPE_SCREEN:
-                nimsutil.dcm_to_img(dcm_list, outbase)
-            if image_type == self.TYPE_ORIGINAL and self.TAG_DIFFUSION_DIRS in header and header[self.TAG_DIFFUSION_DIRS].value > 0:
-                nimsutil.dcm_to_dti(dcm_list, outbase)
-            if image_type == self.TYPE_ORIGINAL or header.ImageType == self.TYPE_EPI:
-                try: # FIXME: this try/except should not be here; bandaid since dcm_to_nii fails for single slice
-                    nimsutil.dcm_to_nii(dcm_list, outbase)
-                except ValueError:
-                    pass
+            nimsutil.dcm_convert(dcm_dir, outbase, self.log)
 
             if os.listdir(outputdir):
                 self.log.info('Dicom files converted to %s' % os.listdir(outputdir))

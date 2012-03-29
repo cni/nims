@@ -22,7 +22,7 @@ class TempDirectory:
         self.temp_dir = tempfile.mkdtemp()
         return self.temp_dir
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback):
         """Remove temporary directory tree."""
         shutil.rmtree(self.temp_dir)
 
@@ -49,7 +49,8 @@ def get_logger(name, filename=None, level='debug'):
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-    logger.warning('********** Logging initialized **********')
+    if filename:
+        logger.warning('********** Logging initialized **********')
 
     return logger
 

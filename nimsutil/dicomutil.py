@@ -5,6 +5,7 @@
 
 import os
 import signal
+import argparse
 
 import numpy as np
 
@@ -12,6 +13,12 @@ import dicom
 import nibabel
 
 import png
+import nimsutil
+
+TYPE_ORIGINAL = ['ORIGINAL', 'PRIMARY', 'OTHER']
+TYPE_EPI =      ['ORIGINAL', 'PRIMARY', 'EPI', 'NONE']
+TYPE_SCREEN =   ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
+TAG_DIFFUSION_DIRS = (0x0019, 0x10e0)
 
 TAG_PHASE_ENCODE_DIR =  (0x0018, 0x1312)
 TAG_SLICES_PER_VOLUME = (0x0021, 0x104f)
@@ -25,10 +32,11 @@ SLICE_ORDER_ALT_INC = 3
 SLICE_ORDER_ALT_DEC = 4
 
 
-def dcm_to_img(dcm_list, outbase):
+def dcm_to_img(dcm_list, outbase, log):
     """Create bitmap files for each image in a list of dicoms."""
     for i, pixels in enumerate([dcm.pixel_array for dcm in dcm_list]):
-        with open(outbase + '_%d.png' % (i+1), 'wb') as fd:
+        filename = outbase + '_%d.png' % (i+1)
+        with open(filename, 'wb') as fd:
             if pixels.ndim == 2:
                 pixels = pixels.astype(np.int)
                 pixels = pixels.clip(0, (pixels * (pixels != (2**15 - 1))).max())   # -32768->0; 32767->brain.max
@@ -37,22 +45,27 @@ def dcm_to_img(dcm_list, outbase):
             elif pixels.ndim == 3:
                 pixels = pixels.flatten().reshape((pixels.shape[1], pixels.shape[0]*pixels.shape[2]))
                 png.Writer(pixels.shape[0], pixels.shape[1]/3).write(fd, pixels)
+        log.info('generated %s' % os.path.basename(filename))
 
 
-def dcm_to_dti(dcm_list, outbase):
+def dcm_to_dti(dcm_list, outbase, log):
     """Create bval and bvec files from an ordered list of dicoms."""
     images_per_volume = dcm_list[0][TAG_SLICES_PER_VOLUME].value
     bvals = np.array([dcm[TAG_BVALUE].value[0] for dcm in dcm_list[0::images_per_volume]], dtype=float)
     bvecs = np.array([(dcm[TAG_BVEC[0]].value, dcm[TAG_BVEC[1]].value, dcm[TAG_BVEC[2]].value) for dcm in dcm_list[0::images_per_volume]]).transpose()
-    with open(outbase + '.bval', 'w') as bvals_file:
+    filename = outbase + '.bval'
+    with open(filename, 'w') as bvals_file:
         bvals_file.write(' '.join(['%f' % value for value in bvals]))
-    with open(outbase + '.bvec', 'w') as bvecs_file:
+    log.info('generated %s' % os.path.basename(filename))
+    filename = outbase + '.bvec'
+    with open(filename, 'w') as bvecs_file:
         bvecs_file.write(' '.join(['%f' % value for value in bvecs[0,:]]) + '\n')
         bvecs_file.write(' '.join(['%f' % value for value in bvecs[1,:]]) + '\n')
         bvecs_file.write(' '.join(['%f' % value for value in bvecs[2,:]]) + '\n')
+    log.info('generated %s' % os.path.basename(filename))
 
 
-def dcm_to_nii(dcm_list, outbase):
+def dcm_to_nii(dcm_list, outbase, log):
     """Create a single nifti file from an ordered list of dicoms."""
     first_dcm = dcm_list[0]
     flipped = False
@@ -71,12 +84,12 @@ def dcm_to_nii(dcm_list, outbase):
     if np.prod(dims) == np.size(image_data):
         image_data = image_data.reshape(dims, order='F')
     else:
-        #LOG.warning("dimensions inconsistent with size, attempting to construct volume")
+        log.warning("dimensions inconsistent with size, attempting to construct volume")
         # round up slices to nearest multiple of slices_per_volume
         slices_total_rounded_up = ((slices_total + slices_per_volume - 1) / slices_per_volume) * slices_per_volume
         slices_padding = slices_total_rounded_up - slices_total
         if slices_padding: #LOOK AT THIS MORE CLOSELY TODO
-            #LOG.warning("dimensions indicate missing slices from volume - zero padding the gap")
+            log.warning("dimensions indicate missing slices from volume - zero padding the gap")
             padding = np.zeros((first_dcm.Rows, first_dcm.Columns, slices_padding))
             image_data = np.dstack([image_data, padding])
         volume_start_indices = range(0, slices_total_rounded_up, slices_per_volume)
@@ -102,7 +115,7 @@ def dcm_to_nii(dcm_list, outbase):
     qto_xyz[2,2] = slice_norm[2]
 
     if np.dot(slice_norm, image_position[0]) > np.dot(slice_norm, image_position[-1]):
-        #LOG.info('flipping image order')
+        log.info('flipping image order')
         flipped = True
         slice_num = slice_num[::-1]
         slice_loc = slice_loc[::-1]
@@ -141,4 +154,41 @@ def dcm_to_nii(dcm_list, outbase):
     nii_header.structarr['pixdim'][4] = first_dcm.RepetitionTime / 1000.
 
     nifti = nibabel.Nifti1Image(image_data, None, nii_header)
-    nibabel.save(nifti, outbase + '.nii.gz')
+    filename = outbase + '.nii.gz'
+    nibabel.save(nifti, filename)
+    log.info('generated %s' % os.path.basename(filename))
+
+
+def dcm_convert(dcm_dir, outbase, log):
+    dcm_list = sorted([dicom.read_file(os.path.join(dcm_dir, f)) for f in os.listdir(dcm_dir)], key=lambda dcm: dcm.InstanceNumber)
+    header = dcm_list[0]
+
+    try:
+        image_type = header.ImageType
+    except:
+        log.warning('dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(dcm_dir))
+    else:
+        if image_type == TYPE_SCREEN:
+            dcm_to_img(dcm_list, outbase, log)
+        if image_type == TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in header and header[TAG_DIFFUSION_DIRS].value > 0:
+            dcm_to_dti(dcm_list, outbase, log)
+        if image_type == TYPE_ORIGINAL or header.ImageType == TYPE_EPI:
+            try:
+                dcm_to_nii(dcm_list, outbase, log)
+            except ValueError:
+                pass
+
+
+class ArgumentParser(argparse.ArgumentParser):
+
+    def __init__(self):
+        super(ArgumentParser, self).__init__()
+        self.description = """Convert a directory of dicom images to a NIfTI or bitmap."""
+        self.add_argument('dcm_dir', help='directory of dicoms to convert')
+        self.add_argument('outbase', nargs='?', help='basename for output files (default: dcm_dir)')
+
+
+if __name__ == '__main__':
+    args = ArgumentParser().parse_args()
+    log = nimsutil.get_logger(os.path.splitext(os.path.basename(__file__))[0])
+    dcm_convert(args.dcm_dir, args.outbase or os.path.basename(args.dcm_dir.rstrip('/')), log)
