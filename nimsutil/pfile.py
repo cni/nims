@@ -45,11 +45,8 @@ class Pfile:
         self.size_y = self.header.image.imatrix_Y
         self.deltaTE = self.header.rec.user15
 
-    def to_nii(self, outbase=None, spirec='spirec', saveInOut=False):
+    def to_nii(self, outbase, spirec='spirec', saveInOut=False):
         """Create NIfTI file from pfile."""
-        if outbase is None:
-            outbase = os.path.basename(self.pfilename)
-
         if self.image_data is None:
             self.recon(spirec)
 
@@ -332,13 +329,10 @@ class ArgumentParser(argparse.ArgumentParser):
         self.description = """Recons a GE pfile to produce a NIfTI file and a B0 fieldmap."""
         self.add_argument('pfile', help='path to pfile')
         self.add_argument('outbase', nargs='?', help='basename for output files (default: pfile name)')
-        self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
-        self.add_argument('-f', '--logfile', help='path to log file')
-        self.add_argument('-l', '--loglevel', default='info', help='path to log file')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
+    log = nimsutil.get_logger(os.path.splitext(os.path.basename(__file__))[0])
     pf = Pfile(args.pfile, log)
-    pf.to_nii(args.outbase)
+    pf.to_nii(args.outbase or os.path.basename(args.pfile))
