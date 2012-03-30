@@ -39,6 +39,7 @@ install_requires=[
     "tw.forms",
     "elixir >= 0.7.1",
     "pydicom >= 0.9.6",
+    "nibabel",
     ]
 
 if sys.version_info[:2] == (2,4):
