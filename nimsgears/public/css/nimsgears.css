@@ -1,20 +1,8 @@
-body {
-    color: black;
-}
-
-a {
-    color: black;
-}
-
-#nav ul li.right {
-    margin: 0px 0px 0px 50px;
-    padding: 5px 0px 8px 0px;
-    float: right;
-}
-
-#copyright a {
-    border-bottom: none;
-}
+body {color: black;}
+a {color: black;}
+#layout {background: url("../images/body_bg2.jpg") 0px 0px repeat-x;}
+#nav ul li.right {margin: 0px 0px 0px 50px; padding: 5px 0px 8px 0px; float: right;}
+#copyright a {border-bottom: none;}
 
 
 #header #userid {
