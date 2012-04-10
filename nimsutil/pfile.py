@@ -4,6 +4,7 @@ import os
 import shlex
 import argparse
 import subprocess as sp
+import datetime
 
 import numpy as np
 import nibabel
@@ -66,10 +67,11 @@ class Pfile:
             # TO DO: adjust the image.tlhc... fields to match the correct geometry.
         self.tr = self.header.image.tr/1e6  # tr in seconds
         # Why do we need utcfromtimestamp? Who knows. Maybe GE reverse-corrected for UTC?
-        self.acquisition_start_time = datetime.datetime.utcfromtimestamp(self.header.series.se_datetime)
+        self.acquisition_start_time = datetime.datetime.utcfromtimestamp(self.header.image.im_datetime)
         # Note: the following uis true for single-shot planar acquisitions (EPI and 1-shot spiral).
         # For multishot sequences, we need to multiply the # of shots. And for non-planar aquisitions,
         # we'd need to multiply by the # of phase encodes (accounting for any acceleration factors).
+        # Even for planar sequences, this will be wrong (under-estimate) for cardiac-gated datasets.
         self.acquisition_duration = self.num_timepoints * self.tr
         self.acquisition_end_time = self.acquisition_start_time + datetime.timedelta(seconds=self.acquisition_duration)
 
