@@ -179,55 +179,6 @@ class Pfile:
         nifti = nibabel.Nifti1Image(np.round(self.fm_data * 100.0).astype(np.int16), None, nii_header)
         nibabel.save(nifti, outbase + '_B0.nii.gz')
 
-    def load_fieldmap_files(self, basename, save_unified=True, data_type=np.float32):
-        xyres = self.size_x
-        if xyres != self.size_y:
-            raise IndexError('non-square matrix: spiral recon requires a square matrix!')
-
-        fm_freq = np.zeros([xyres,xyres,self.num_slices,self.num_echoes], dtype=data_type)
-        fm_mask = np.zeros([xyres,xyres,self.num_slices,self.num_echoes], dtype=data_type)
-
-        for echo in range(self.num_echoes):
-            # loop over slices
-            for cur_slice in range(self.num_slices):
-                #print 'Combining field maps for slice %g, echo %g ....' % (cur_slice,echo)
-                # Initialize arrays
-                Sx   = np.zeros(xyres*xyres, dtype=data_type) # Sum of maps
-                Sm   = np.zeros(xyres*xyres, dtype=data_type) # Sum of masks
-                # Loop over receivers
-                for recnum in range(self.num_receivers):
-                    # build up file name
-                    thisfilename = '%s.freq_%03d' % (basename,(recnum*self.num_slices+cur_slice)*self.num_echoes+echo)
-                    with open(thisfilename ,'rb') as fp:
-                        thisfile = np.fromfile(file = fp, dtype=data_type)
-                    #os.remove(thisfilename)
-
-                    thismaskname = '%s.mask_%03d' % (basename,(recnum*self.num_slices+cur_slice)*self.num_echoes+echo)
-                    with open(thismaskname ,'rb') as fp:
-                        thismask = np.fromfile(file = fp, dtype=data_type)
-                    #os.remove(thismaskname)
-
-                    Sx = Sx + thisfile*thismask
-                    Sm = Sm + thismask
-
-                fm_freq[:,:,cur_slice,echo] = (Sx/Sm).reshape(xyres,xyres) # take the mean
-                fm_mask[:,:,cur_slice,echo] = Sm.reshape(xyres,xyres)
-
-        if save_unified:
-            # We always use the corresponding echo. Could change this to always use just one of the echoes.
-            echo_to_use = range(self.num_echoes)
-            for echo in range(self.num_echoes):
-                for cur_slice in range(self.num_slices):
-                    for recnum in range(self.num_receivers):
-                        thisfilename = '%s.freq_%03d' % (basename,(recnum*self.num_slices+cur_slice)*self.num_echoes+echo)
-                        with open(thisfilename ,'wb') as fp:
-                            fm_freq[:,:,cur_slice,echo_to_use[echo]].tofile(file = fp)
-                        thismaskname = '%s.mask_%03d' % (basename,(recnum*self.num_slices+cur_slice)*self.num_echoes+echo)
-                        with open(thismaskname ,'wb') as fp:
-                            np.sqrt(fm_mask[:,:,cur_slice,echo_to_use[echo]]).tofile(file = fp)
-
-        return fm_freq, fm_mask
-
     def recon(self, spirec):
         """Do image reconstruction and populate self.image_data."""
         with nimsutil.TempDirectory() as tmp_dir:
@@ -235,67 +186,13 @@ class Pfile:
             basepath = os.path.join(tmp_dir, basename)
             pfilename = os.path.abspath(self.pfilename)
 
-            # run spirec once to get the fieldmap files (one for each coil and slice)
-            cmd = spirec + ' -l --fmaponly --savefmap --rotate -90 -r ' + pfilename + ' -t ' + basename
+            # run spirec to get the mag file and the fieldmap file
+            cmd = spirec + ' -l --rotate -90 --magfile --savefmap2 --b0navigator -r ' + pfilename + ' -t ' + basename
             self.log.debug(cmd)
             sp.call(shlex.split(cmd), cwd=tmp_dir, stdout=open('/dev/null', 'w'))
 
-            # combine the fieldmaps into one unified fieldmap
-            [self.fm_data, fm_mask] = self.load_fieldmap_files(basepath, save_unified = True)
-
-            # call spirec again, giving it our unified fieldmap, to produce an even better fieldmap
-            cmd = spirec + ' -l --savetempfile --loadfmap --just 2 --rotate -90 -r ' + pfilename + ' -t ' + basename
-            self.log.debug(cmd)
-            sp.call(shlex.split(cmd), cwd=tmp_dir, stdout=open('/dev/null', 'w'))
-
-            data_type = np.complex64
-            #complex_image = np.zeros([size_x, size_y, num_slices, 2], dtype=data_type)
-            fn = '%s.complex_float' % basepath
-            # Why do we need 'F'ortran order for our reshape?!?!
-            with open(fn, 'rb') as fp:
-                complex_image = np.fromfile(file=fp, dtype=data_type).reshape([self.size_x,self.size_y,2,self.num_slices,self.num_receivers,self.num_echoes],order='F')
-            sos_recdata2 = np.mean( np.conj(complex_image[:,:,0,:,:,:]) * complex_image[:,:,1,:,:,:], 3)
-            self.fm_data = -np.angle(sos_recdata2[:,:,:,0])/(2*np.pi*(self.deltaTE/1e6))
-            fm_mask = np.abs(sos_recdata2[:,:,:,0])
-
-            # Now save the resulting fieldmaps (these are now as good as it gets)
-            # Note the transpose in there. Apparently the data saved in the tempfile are
-            # x,y flipped compared to the data in the individula field map files.
-            for echo in range(self.num_echoes):
-                for cur_slice in range(self.num_slices):
-                    for cur_recv in range(self.num_receivers):
-                        thisfilename = '%s.freq_%03d' % (basepath,(cur_recv*self.num_slices+cur_slice)*self.num_echoes+echo)
-                        with open(thisfilename ,'wb') as fp:
-                            self.fm_data[:,:,cur_slice].transpose().tofile(file = fp)
-                        thismaskname = '%s.mask_%03d' % (basepath,(cur_recv*self.num_slices+cur_slice)*self.num_echoes+echo)
-                        with open(thismaskname ,'wb') as fp:
-                            np.sqrt(fm_mask[:,:,cur_slice].transpose()).tofile(file = fp)
-
-            # Now recon the whole timeseries using the good fieldmaps that we just saved.
-            cmd = spirec + ' -l --savetempfile --loadfmap --rotate -90 --b0navigator -r ' + pfilename + ' -t ' + basename
-            self.log.debug(cmd)
-            sp.call(shlex.split(cmd), cwd=tmp_dir, stdout=open('/dev/null', 'w'))
-
-            # Compute the receive coil weightings (Should become 1 if only a single coil).
-            # The values stored in the header are standard deviations from the coil calibration.
-            # We load those and convert to the 1 / (mean-normalized variance) scale factor.
-            # Apparently, this is also what GE does in their recon code.
-            coil_weights = np.array(self.header.ps.rec_std[0:self.num_receivers])
-            coil_weights = np.power(coil_weights / coil_weights.mean(), -2)
-
-            fn = '%s.complex_float' % basepath
-            num_values_per_slice = self.size_x*self.size_y*self.num_timepoints
-            num_bytes_per_slice = num_values_per_slice*np.dtype(data_type).itemsize
-            complex_image = np.zeros([self.size_x,self.size_y,self.num_timepoints,self.num_receivers,self.num_echoes], dtype=data_type)
-            self.image_data = np.zeros([self.size_x,self.size_y,self.num_slices,self.num_timepoints,self.num_echoes], dtype=np.float32)
-            with open(fn, 'rb') as fp:
-                for sl in range(self.num_slices):
-                    for recv in range(self.num_receivers):
-                        for echo in range(self.num_echoes):
-                            fp.seek(sl*num_bytes_per_slice + recv*self.num_slices*num_bytes_per_slice + echo*self.num_receivers*self.num_slices*num_bytes_per_slice)
-                            complex_image[:,:,:,recv,echo] = np.fromfile(file=fp, dtype=data_type, count=num_values_per_slice).reshape([self.size_x,self.size_y,self.num_timepoints],order='F')
-                        complex_image[:,:,:,recv,] = complex_image[:,:,:,recv,] * coil_weights[recv]
-                    self.image_data[:,:,sl,:,:] = np.sqrt(np.mean(np.power(np.abs(complex_image),2),3))
+            self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echoes,self.num_slices],order='F').transpose((0,1,4,2,3))
+            self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echoes,self.num_slices],order='F').transpose((0,1,3,2))
 
 
 def montage(x):
