@@ -25,7 +25,7 @@ class Pfile:
         pf.to_nii(outbase='P56832.7')
     """
 
-    def __init__(self, pfilename, log):
+    def __init__(self, pfilename, log=None):
         self.pfilename = pfilename
         self.log = log
         self.load_header()
@@ -43,7 +43,35 @@ class Pfile:
         self.num_echoes = self.header.rec.nechoes
         self.size_x = self.header.image.imatrix_X
         self.size_y = self.header.image.imatrix_Y
-        self.deltaTE = self.header.rec.user15
+        self.psd_name = unicode(os.path.basename(self.header.image.psdname))
+        self.scan_type = self.header.image.psd_iname
+        self.physio_flag = bool(self.header.rec.user2) and u'sprt' in self.psd_name.lower()
+        self.mri_desc = nimsutil.clean_string(self.header.series.se_desc)
+        if self.psd_name == 'sprt':
+            # You might think this is stored in self.header.rec.nframes, but for our spiral it's here:
+            self.num_timepoints = int(self.header.rec.user0)
+            self.deltaTE = self.header.rec.user15
+            self.num_bands = 0
+            self.band_spacing = 0
+            self.scale_data = True
+        else:
+            self.num_timepoints = self.header.rec.nframes
+            self.deltaTE = 0.0
+            self.scale_data = False
+        if self.psd_name.startswith('mux') and self.psd_name.endswith('epi') and self.header.rec.user6 > 0:
+            # Multi-band EPI!
+            self.num_bands = int(self.header.rec.user6)
+            self.band_spacing_mm = self.header.rec.user8
+            self.num_slices = self.header.image.slquant * self.num_bands
+            # TO DO: adjust the image.tlhc... fields to match the correct geometry.
+        self.tr = self.header.image.tr/1e6  # tr in seconds
+        # Why do we need utcfromtimestamp? Who knows. Maybe GE reverse-corrected for UTC?
+        self.acquisition_start_time = datetime.datetime.utcfromtimestamp(self.header.series.se_datetime)
+        # Note: the following uis true for single-shot planar acquisitions (EPI and 1-shot spiral).
+        # For multishot sequences, we need to multiply the # of shots. And for non-planar aquisitions,
+        # we'd need to multiply by the # of phase encodes (accounting for any acceleration factors).
+        self.acquisition_duration = self.num_timepoints * self.tr
+        self.acquisition_end_time = self.acquisition_start_time + datetime.timedelta(seconds=self.acquisition_duration)
 
     def to_nii(self, outbase, spirec='spirec', saveInOut=False):
         """Create NIfTI file from pfile."""
@@ -86,7 +114,8 @@ class Pfile:
             pos = image_tlhc - slice_norm*slice_fov
             # FIXME: since we are reversing the slice order here, should we change the slice_order field below?
             self.image_data = self.image_data[:,:,-1:0:-1,]
-            self.fm_data    = self.fm_data[:,:,-1:0:-1,]
+            if self.fm_data != None:
+                self.fm_data = self.fm_data[:,:,-1:0:-1,]
         else:
             pos = image_tlhc
 
@@ -119,7 +148,7 @@ class Pfile:
         nii_header['slice_end'] = slices_per_volume - 1
         # nifti slice order codes: 0 = unknown, 1 = sequential incrementing, 2 = seq. dec., 3 = alternating inc., 4 = alt. dec.
         slice_order = 0
-        nii_header['slice_duration'] = self.header.image.tr / slices_per_volume / 1000
+        nii_header['slice_duration'] = self.tr * 1000 / slices_per_volume
         # FIXME: check that this is correct.
         if   self.header.series.se_sortorder == 0:
             slice_order = 1  # or 2?
@@ -134,7 +163,7 @@ class Pfile:
             nii_header.set_dim_info(freq=0, phase=1, slice=2)
 
         # FIXME: There must be a cleaner way to set the TR! Maybe bug Matthew about it.
-        nii_header.structarr['pixdim'][4] = self.header.image.tr/1e6
+        nii_header.structarr['pixdim'][4] = self.tr
         nii_header.set_slice_duration(nii_header.structarr['pixdim'][4] / slices_per_volume)
         # We try to set the slope/intercept here, but nibabel will silently overwrite
         # anything we put here when the data are written out. (It thinks it's smarter
@@ -188,11 +217,12 @@ class Pfile:
 
             # run spirec to get the mag file and the fieldmap file
             cmd = spirec + ' -l --rotate -90 --magfile --savefmap2 --b0navigator -r ' + pfilename + ' -t ' + basename
-            self.log.debug(cmd)
+            self.log and self.log.debug(cmd)
             sp.call(shlex.split(cmd), cwd=tmp_dir, stdout=open('/dev/null', 'w'))
 
             self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echoes,self.num_slices],order='F').transpose((0,1,4,2,3))
-            self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echoes,self.num_slices],order='F').transpose((0,1,3,2))
+            if os.path.exists(basepath+'.B0freq2'):
+                self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echoes,self.num_slices],order='F').transpose((0,1,3,2))
 
 
 def montage(x):
