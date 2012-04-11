@@ -3,14 +3,18 @@
 import os
 import shlex
 import argparse
-import subprocess as sp
 import datetime
+import subprocess as sp
 
 import numpy as np
 import nibabel
 
 import nimsutil
 import pfheader
+
+
+class PfileError(Exception):
+    pass
 
 
 class Pfile:
@@ -34,7 +38,10 @@ class Pfile:
         self.fm_data = None
 
     def load_header(self):
-        self.header = pfheader.get_header(self.pfilename)
+        try:
+            self.header = pfheader.get_header(self.pfilename)
+        except (IOError, pfheader.PfheaderError):
+            raise PfileError
         # Pull out some common fields for convenience
         # *** CHECK THAT THESE ARE THE RIGHT FIELDS (ATSUSHI?)
         self.num_slices = self.header.rec.nslices
@@ -44,10 +51,18 @@ class Pfile:
         self.num_echoes = self.header.rec.nechoes
         self.size_x = self.header.image.imatrix_X
         self.size_y = self.header.image.imatrix_Y
-        self.psd_name = unicode(os.path.basename(self.header.image.psdname))
+        self.psd_name = os.path.basename(self.header.image.psdname)
         self.scan_type = self.header.image.psd_iname
         self.physio_flag = bool(self.header.rec.user2) and u'sprt' in self.psd_name.lower()
-        self.mri_desc = nimsutil.clean_string(self.header.series.se_desc)
+        self.patient_id = self.header.exam.patidff
+        self.patient_name = self.header.exam.patnameff
+        self.patient_dob = self.header.exam.dateofbirth
+        self.exam_no= self.header.exam.ex_no
+        self.series_no = self.header.series.se_no
+        self.acq_no = self.header.image.scanactno
+        self.exam_uid = self.header.exam.study_uid
+        self.series_uid = self.header.series.series_uid
+        self.series_desc = nimsutil.clean_string(self.header.series.se_desc)
         if self.psd_name == 'sprt':
             # You might think this is stored in self.header.rec.nframes, but for our spiral it's here:
             self.num_timepoints = int(self.header.rec.user0)
@@ -67,13 +82,13 @@ class Pfile:
             # TO DO: adjust the image.tlhc... fields to match the correct geometry.
         self.tr = self.header.image.tr/1e6  # tr in seconds
         # Why do we need utcfromtimestamp? Who knows. Maybe GE reverse-corrected for UTC?
-        self.acquisition_start_time = datetime.datetime.utcfromtimestamp(self.header.image.im_datetime)
+        self.start_time = datetime.datetime.utcfromtimestamp(self.header.image.im_datetime)
         # Note: the following uis true for single-shot planar acquisitions (EPI and 1-shot spiral).
         # For multishot sequences, we need to multiply the # of shots. And for non-planar aquisitions,
         # we'd need to multiply by the # of phase encodes (accounting for any acceleration factors).
         # Even for planar sequences, this will be wrong (under-estimate) for cardiac-gated datasets.
-        self.acquisition_duration = self.num_timepoints * self.tr
-        self.acquisition_end_time = self.acquisition_start_time + datetime.timedelta(seconds=self.acquisition_duration)
+        self.duration = datetime.timedelta(seconds=(self.num_timepoints * self.tr))
+        self.end_time = self.start_time + self.duration
 
     def to_nii(self, outbase, spirec='spirec', saveInOut=False):
         """Create NIfTI file from pfile."""
@@ -116,7 +131,7 @@ class Pfile:
             pos = image_tlhc - slice_norm*slice_fov
             # FIXME: since we are reversing the slice order here, should we change the slice_order field below?
             self.image_data = self.image_data[:,:,-1:0:-1,]
-            if self.fm_data != None:
+            if self.fm_data is not None:
                 self.fm_data = self.fm_data[:,:,-1:0:-1,]
         else:
             pos = image_tlhc
@@ -205,10 +220,11 @@ class Pfile:
                 nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data[:,:,:,:,echo]).astype(np.int16), None, nii_header)
                 nibabel.save(nifti, outbase + '_echo%02d.nii.gz' % echo)
 
-        nii_header.structarr['cal_max'] = np.ceil(self.fm_data.max() * 100.0)
-        nii_header.structarr['cal_min'] = np.floor(self.fm_data.min() * 100.0)
-        nifti = nibabel.Nifti1Image(np.round(self.fm_data * 100.0).astype(np.int16), None, nii_header)
-        nibabel.save(nifti, outbase + '_B0.nii.gz')
+        if self.fm_data is not None:
+            nii_header.structarr['cal_max'] = np.ceil(self.fm_data.max() * 100.0)
+            nii_header.structarr['cal_min'] = np.floor(self.fm_data.min() * 100.0)
+            nifti = nibabel.Nifti1Image(np.round(self.fm_data * 100.0).astype(np.int16), None, nii_header)
+            nibabel.save(nifti, outbase + '_B0.nii.gz')
 
     def recon(self, spirec):
         """Do image reconstruction and populate self.image_data."""
@@ -227,30 +243,6 @@ class Pfile:
                 self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echoes,self.num_slices],order='F').transpose((0,1,3,2))
 
 
-def montage(x):
-    """
-    Convenience function for looking at image arrays.
-
-    For example:
-        pylab.imshow(np.flipud(np.rot90(montage(im))))
-        pylab.axis('off')
-        pylab.show()
-    """
-    m, n, count = np.shape(x)
-    mm = int(np.ceil(np.sqrt(count)))
-    nn = mm
-    montage = np.zeros((mm * m, nn * n))
-    image_id = 0
-    for j in range(mm):
-        for k in range(nn):
-            if image_id >= count:
-                break
-            slice_m, slice_n = j * m, k * n
-            montage[slice_n:slice_n + n, slice_m:slice_m + m] = x[:, :, image_id]
-            image_id += 1
-    return montage
-
-
 class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
@@ -262,6 +254,5 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    log = nimsutil.get_logger(os.path.splitext(os.path.basename(__file__))[0])
-    pf = Pfile(args.pfile, log)
+    pf = Pfile(args.pfile)
     pf.to_nii(args.outbase or os.path.basename(args.pfile))
