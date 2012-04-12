@@ -561,13 +561,11 @@ class AuthDataController(DataController):
 
         # all assigned to same list, but we reassign after anyway
         group = research_groups[0] if research_groups else None
-        groups_dict = get_groups_dict(group)
 
         user_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name')]
         return dict(page='groups',
                     user_columns = user_columns,
                     research_groups = research_groups,
-                    groups_dict = groups_dict,
                     )
 
     @expose()
@@ -607,12 +605,12 @@ def get_user_tuple(user_object):
 
 def get_groups_dict(group):
     group_dict = {}
-    group_dict['members'], group_dict['admins'], group_dict['pis'], group_dict['others'] = [], [], [], []
+    group_dict['members'], group_dict['admins'], group_dict['pis'], group_dict['others'] = {'data':[]}, {'data':[]}, {'data':[]}, {'data':[]}
     if group:
-        group_dict['others'] = User.query.all()
+        others = User.query.all()
         for key, users in [('members', group.members), ('admins', group.managers), ('pis', group.pis)]:
             for user in users:
-                group_dict[key].append(get_user_tuple(user))
-                group_dict['others'].remove(user)
-        group_dict['others'] = [get_user_tuple(user) for user in group_dict['others']]
+                group_dict[key]['data'].append(get_user_tuple(user))
+                others.remove(user)
+        group_dict['others']['data'] = [get_user_tuple(user) for user in others]
     return group_dict

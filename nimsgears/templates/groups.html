@@ -12,7 +12,7 @@
 <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
-<script type="text/javascript" src="${tg.url('/javascript/nimsgears.js')}"></script>
+<script data-main="${tg.url('/javascript/groups')}" src="${tg.url('/javascript/require.js')}"></script>
 <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
 <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
 
@@ -29,13 +29,6 @@
     .col_access { width:20%; }
 </style>
 
-<script type="text/javascript">
-    $(document).ready(function() {
-        scrolltable_Generate();
-        setupCallbacks_Groups();
-    });
-</script>
-
 </head>
 
 <body>
@@ -46,7 +39,7 @@
     <p>This page allows you to view and make changes to access privileges.</p>
     <div style="clear:left;">
         Research Group:
-        <select id="group_select" onchange="refreshGroups(this.value)">
+        <select id="group_select">
             <option py:for="research_group in research_groups">${research_group}</option>
         </select>
     </div>
@@ -60,11 +53,6 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="user_params in groups_dict['pis']">
-                <tr><!-- set id for expand queries done on rows later -->
-                    <td py:for="param in user_params">${param}</td>
-                </tr>
-            </py:for>
         </tbody>
     </table>
     <table id="admins" class="scrolltable" name="Managers">
@@ -76,11 +64,6 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="user_params in groups_dict['admins']">
-                <tr><!-- set id for expand queries done on rows later -->
-                    <td py:for="param in user_params">${param}</td>
-                </tr>
-            </py:for>
         </tbody>
     </table>
     <table id="members" class="scrolltable" name="Members">
@@ -92,11 +75,6 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="user_params in groups_dict['members']">
-                <tr><!-- set id for expand queries done on rows later -->
-                    <td py:for="param in user_params">${param}</td>
-                </tr>
-            </py:for>
         </tbody>
     </table>
     <table id="others" class="scrolltable" name="Unaffiliated Users">
@@ -108,11 +86,6 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="user_params in groups_dict['others']">
-                <tr><!-- set id for expand queries done on rows later -->
-                    <td py:for="param in user_params">${param}</td>
-                </tr>
-            </py:for>
         </tbody>
     </table>
 </body>
