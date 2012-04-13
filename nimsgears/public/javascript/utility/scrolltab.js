@@ -23,7 +23,26 @@ define([], function()
         var resort = function() { sortByColumnIndex(sorted_column, sorted_direction); };
         var refresh = function(args) { _onRefresh(args); };
         var select = function(args) { _onSelect(args); };
-        var getSelectedRows = function() { return selected_rows; };
+        var getSelectedRows = function() { return (selected_rows && selected_rows.length != 0) ? selected_rows : $();};
+
+        var synchronizeSelections = function()
+        {
+            var selected_rows = getSelectedRows();
+            var all_rows = getRows();
+
+            selected_rows.each(function(selected_ind)
+            {
+                all_rows.each(function(row_ind)
+                {
+                    if (selected_rows[selected_ind].id == all_rows[row_ind].id)
+                    {
+                        $(all_rows[row_ind]).addClass('ui-selected');
+                        last_clicked_index = shift_boundary_index = row_ind;
+                    }
+                });
+            });
+            updateSelectedRows();
+        };
 
         var createTableRowFromTuple = function(text_tuple)
         {
@@ -265,19 +284,20 @@ define([], function()
         return {
             init: init,
             resort: resort,
-            sortByElement: sortByElement,
             refresh: refresh,
             select: select,
             onRefresh: onRefresh,
             onSelect: onSelect,
+            getBody: getBody,
             getRows: getRows,
             getElement: getElement,
             getHeader: getHeader,
-            getBody: getBody,
+            sortByElement: sortByElement,
             populateTable: populateTable,
             setClickEvents: setClickEvents,
             getSelectedRows: getSelectedRows,
             updateSelectedRows: updateSelectedRows,
+            synchronizeSelections: synchronizeSelections,
         };
     };
 });

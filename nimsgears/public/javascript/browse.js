@@ -75,7 +75,8 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
             {
                 if (data.success)
                 {
-                    labelTrash(selected_rows, getTrashFlag(), data.untrashed);
+                    // TODO Replace functionality here, simple refresh?
+                    // labelTrash(selected_rows, getTrashFlag(), data.untrashed);
                 }
                 else
                 {
@@ -186,8 +187,10 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                 if (data.success)
                 {
                     experiments.populateTable(data);
+                    experiments.synchronizeSelections();
                     experiments.setClickEvents();
                     TableDragAndDrop.setupDroppable(sessions.getBody().closest('table'), experiments.getRows(), dropSessionsOnExperiment);
+                    refreshSessions(experiments.getSelectedRows());
                 }
                 else
                 {
@@ -214,9 +217,8 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                 {
                     if (data.success)
                     {
-                        epochs.refresh(null);
-
                         sessions.populateTable(data);
+                        sessions.synchronizeSelections();
                         sessions.setClickEvents();
 
                         // Disable rows that you don't have manage access to
@@ -234,6 +236,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                             experiment_rows.droppable("option", "disabled", true);
                         }
                         toggleObject(table_body.closest('table'), true, null);
+                        refreshEpochs(sessions.getSelectedRows());
                     }
                     else
                     {
