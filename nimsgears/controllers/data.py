@@ -473,14 +473,55 @@ class AuthDataController(DataController):
 
         return (sess_data_list, sess_attr_list)
 
-    def get_epochs(self, user, exp_id):
+    def get_datasets(self, user, epoch_id):
+        dataset_data_list = []
+        dataset_attr_list = []
+
+        trash_flag = self._get_trash_flag(user)
+
+        db_query = (DBSession.query(Dataset)
+                    .join(Epoch)
+                    .filter(Epoch.id == epoch_id)
+                    .join(Session, Epoch.session)
+                    .join(Subject, Session.subject)
+                    .join(Experiment, Subject.experiment)
+                    ) # get query set up
+
+        if trash_flag == 0: # when trash flag off, only accept those with no trash time
+            db_query = db_query.filter(Dataset.trashtime == None)
+        elif trash_flag == 2: # when trash flag on, make sure everything is or contains trash
+            db_query = db_query.filter(Dataset.trashtime != None)
+
+        if predicates.in_group('superusers') and user.admin_mode:
+            db_result_epoch = db_query.all()
+        else:
+            db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
+            db_result = db_query.all()
+            db_result_dataset, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
+
+        for i in range(len(db_result_dataset)):
+            dataset = db_result_dataset[i]
+            dataset_data_list.append((dataset.__class__.__name__,))
+            dataset_attr_list.append({})
+            dataset_attr_list[i]['id'] = 'dataset_%d' % dataset.id
+            if dataset.trashtime != None:
+                dataset[i]['class'] = 'trash'
+
+        return (dataset_data_list, dataset_attr_list)
+
+    def get_epochs(self, user, sess_id):
         epoch_data_list = []
         epoch_attr_list = []
 
         trash_flag = self._get_trash_flag(user)
 
-        db_query = DBSession.query(Epoch).join(Session, Epoch.session).filter(Session.id == exp_id).join(Subject, Session.subject).join(Experiment, Subject.experiment) # get query set up
-
+        db_query = (DBSession.query(Epoch)
+                    .join(Session, Epoch.session)
+                    .filter(Session.id == sess_id)
+                    .join(Subject, Session.subject)
+                    .join(Experiment, Subject.experiment)
+                    )
+# get query set up
         if trash_flag == 0: # when trash flag off, only accept those with no trash time
             db_query = db_query.filter(Epoch.trashtime == None)
         elif trash_flag == 2: # when trash flag on, make sure everything is or contains trash
@@ -510,7 +551,15 @@ class AuthDataController(DataController):
 
         result = {}
         data_list, attr_list = [], []
-        if 'epoch_list' in kwargs:
+        if 'dataset_list' in kwargs:
+            try:
+                epoch_id = int(kwargs['dataset_list'])
+            except:
+                result['success'] = False
+            else:
+                data_list, attr_list = self.get_datasets(user, epoch_id)
+                result['success'] = True
+        elif 'epoch_list' in kwargs:
             try:
                 sess_id = int(kwargs['epoch_list'])
             except:
@@ -544,11 +593,14 @@ class AuthDataController(DataController):
         exp_columns = [('Group', 'col_sunet'), ('Experiment', 'col_name')]
         session_columns = [('Subj. Code', 'col_exam'), ('Date & Time', 'col_sname')]
         epoch_columns = [('Time', 'col_sa'), ('Description', 'col_desc')]
+        dataset_columns = [('Data Type', 'col_type')]
 
         return dict(page='browse',
                     exp_columns=exp_columns,
                     session_columns=session_columns,
-                    epoch_columns=epoch_columns)
+                    epoch_columns=epoch_columns,
+                    dataset_columns=dataset_columns,
+                    )
 
     @expose('nimsgears.templates.groups')
     def groups(self):

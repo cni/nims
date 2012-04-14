@@ -23,9 +23,11 @@
     #experiments { clear:left; width:25%; }
     #sessions { width:20%; }
     #epochs { width:30%; }
+    #datasets { width:25%; }
 
-    #sessions .scrolltable_body table {display:none;}
+   /* #sessions .scrolltable_body table {display:none;}
     #epochs .scrolltable_body table {display:none;}
+    */
 
     .col_sunet { width:30%; }
     .col_exam { width:43%; }
@@ -87,6 +89,17 @@
         <thead>
             <tr>
                 <py:for each="col in epoch_columns">
+                    <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+    <table id="datasets" class="scrolltable" name="Datasets">
+        <thead>
+            <tr>
+                <py:for each="col in dataset_columns">
                     <th py:with="name, cls = col" class="${cls}">${name}</th>
                 </py:for>
             </tr>

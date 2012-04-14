@@ -2,6 +2,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
     var experiments;
     var sessions;
     var epochs;
+    var datasets;
 
     var toggleObject = function (object, makeVisible, callback)
     {
@@ -249,9 +250,12 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         else
         {
             sessions.updateSelectedRows();
-            toggleObject(epochs.getBody().closest('table'), false, function()
+            toggleObject(datasets.getBody().closest('table'), false, function()
             {
-                toggleObject(table_body.closest('table'), false, null);
+                toggleObject(epochs.getBody().closest('table'), false, function()
+                {
+                    toggleObject(table_body.closest('table'), false, null);
+                });
             });
         }
     };
@@ -273,14 +277,52 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                     if (data.success)
                     {
                         epochs.populateTable(data);
+                        epochs.synchronizeSelections();
+                        epochs.setClickEvents();
+                        refreshDatasets(epochs.getSelectedRows());
+                        toggleObject(table_body.closest('table'), true, null);
                     }
                     else
                     {
                         alert('Failed'); // implement better alert
                     }
+                },
+            }); // ajax call
+        }
+        else
+        {
+            toggleObject(datasets.getBody().closest('table'), false, function()
+            {
+                toggleObject(table_body.closest('table'), false, null);
+            });
+        }
+    };
 
-                    toggleObject(table_body.closest('table'), true, null);
-                    epochs.setClickEvents();
+    var refreshDatasets = function(epoch_row)
+    {
+        var table_body = datasets.getBody();
+        if (epoch_row && epoch_row.length == 1) // make sure we didn't get passed an empty list
+        {
+            var epoch_id = epoch_row.attr('id').split('_')[1];
+            $.ajax(
+            {
+                type: 'POST',
+                url: "list_query",
+                dataType: "json",
+                data: { dataset_list: epoch_id },
+                success: function(data)
+                {
+                    if (data.success)
+                    {
+                        datasets.populateTable(data);
+                        datasets.synchronizeSelections();
+                        datasets.setClickEvents();
+                        toggleObject(table_body.closest('table'), true, null);
+                    }
+                    else
+                    {
+                        alert('Failed'); // implement better alert
+                    }
                 },
             }); // ajax call
         }
@@ -295,27 +337,32 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         ScrolltableManager.init();
         ScrolltableManager.setTableHeights();
         ScrolltableManager.autoSetTableHeights();
+
         experiments = ScrolltableManager.getById("experiments");
         sessions = ScrolltableManager.getById("sessions");
         epochs = ScrolltableManager.getById("epochs");
+        datasets = ScrolltableManager.getById("datasets");
 
         experiments.onRefresh(refreshExperiments);
         sessions.onRefresh(refreshSessions);
         epochs.onRefresh(refreshEpochs);
+        datasets.onRefresh(refreshDatasets);
 
         experiments.onSelect(refreshSessions);
         sessions.onSelect(refreshEpochs);
+        epochs.onSelect(refreshDatasets);
 
         experiments.refresh();
 
         var sessions_table = $("#sessions .scrolltable_body table");
         var experiments_table = $("#experiments .scrolltable_body table");
         var epochs_table = $("#epochs .scrolltable_body table");
-        var experiments_rows = $("#experiments .scrolltable_body tbody tr");
+        var datasets_table = $("#datasets .scrolltable_body table");
 
         TableDragAndDrop.setupDraggable(sessions_table);
         TableDragAndDrop.setupDraggable(experiments_table);
         TableDragAndDrop.setupDraggable(epochs_table);
+        TableDragAndDrop.setupDraggable(datasets_table);
         TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table", sessions_table, $("#download_drop"), dropDownloads);
         TableDragAndDrop.setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
 
