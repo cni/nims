@@ -289,11 +289,24 @@ class AuthDataController(DataController):
         elif "sess" in kwargs:
             id_list = kwargs["sess"]
             query_type = Session
-            db_query = Session.query.join(Subject, Session.subject).join(Experiment, Subject.experiment)
+            db_query = (Session.query
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment))
         elif "epoch" in kwargs:
             id_list = kwargs["epoch"]
             query_type = Epoch
-            db_query = Epoch.query.join(Session, Epoch.session).join(Subject, Session.subject).join(Experiment, Subject.experiment)
+            db_query = (Epoch.query
+                .join(Session, Epoch.session)
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment))
+        elif "dataset" in kwargs:
+            id_list = kwargs["dataset"]
+            query_type = Dataset
+            db_query = (Dataset.query
+                .join(Epoch)
+                .join(Session, Epoch.session)
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment))
         db_query = db_query.join(Access).join(AccessPrivilege)
 
         result = {'success': False}
@@ -505,7 +518,7 @@ class AuthDataController(DataController):
             dataset_attr_list.append({})
             dataset_attr_list[i]['id'] = 'dataset_%d' % dataset.id
             if dataset.trashtime != None:
-                dataset[i]['class'] = 'trash'
+                dataset_attr_list[i]['class'] = 'trash'
 
         return (dataset_data_list, dataset_attr_list)
 

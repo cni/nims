@@ -71,12 +71,14 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                 exp: id_dict['exp'],
                 sess: id_dict['sess'],
                 epoch: id_dict['epoch'],
+                dataset: id_dict['dataset'],
             },
             success: function(data)
             {
                 if (data.success)
                 {
                     // TODO Replace functionality here, simple refresh?
+                    refreshExperiments();
                     // labelTrash(selected_rows, getTrashFlag(), data.untrashed);
                 }
                 else
