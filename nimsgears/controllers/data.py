@@ -495,7 +495,7 @@ class AuthDataController(DataController):
 
         for i in range(len(db_result_epoch)):
             epoch = db_result_epoch[i]
-            epoch_data_list.append((epoch.timestamp.strftime('%H:%M'), '%s [%d/%d]' % (epoch.mri_desc, epoch.mri_series, epoch.mri_acq)))
+            epoch_data_list.append((epoch.timestamp.strftime('%H:%M'), '%s' % epoch.description))
             epoch_attr_list.append({})
             epoch_attr_list[i]['id'] = 'epoch_%d' % epoch.id
             if epoch.trashtime != None:

@@ -167,16 +167,50 @@ def ldap_query(uid):
 
 
 def find_ge_physio(data_path, timestamp, psd_name):
+    physio_files = os.listdir(data_path)
+    if not physio_files:
+        return False, []
 
-    def physio_with_datetime(data_path, timestamp, psd_name):
-        return glob.glob(os.path.join(data_path, '*_%s_%s*' % (psd_name, timestamp.strftime('%m%d%Y'))))
-
-    candidates  = physio_with_datetime(data_path, timestamp, psd_name)
-    candidates += physio_with_datetime(data_path, timestamp + datetime.timedelta(days=1), psd_name)
-    datetime_strings = [re.match('.+(?P<datetime>\d{10}_\d{2}_\d{2}_\d{1,3})', cand).groupdict()['datetime'] for cand in candidates]
-    datetimes = [datetime.datetime.strptime(dts, '%m%d%Y%H_%M_%S_%f') for dts in datetime_strings]
     physio_dict = {}
-    for physio_datetime, physio_filename in zip(datetimes, candidates):
-        physio_dict.setdefault(physio_datetime, []).append(physio_filename)
-    valid_keys = filter(lambda physio_datetime: physio_datetime >= timestamp, physio_dict)
-    return physio_dict[min(valid_keys)] if valid_keys else []
+    leadtime = datetime.timedelta(days=1)
+    regexp = '.+%s_((%s.+)|(%s.+))' % (psd_name, timestamp.strftime('%m%d%Y'), (timestamp+leadtime).strftime('%m%d%Y'))
+
+    physio_files = filter(lambda pf: re.match(regexp, pf), physio_files)
+    for pdt, pfn in [re.match(regexp, pf).group(1,0) for pf in physio_files]:
+        physio_dict.setdefault(datetime.datetime.strptime(pdt, '%m%d%Y%H_%M_%S_%f'), []).append(pfn)
+    valid_keys = filter(lambda pdt: pdt >= timestamp, physio_dict)
+    return True, [os.path.join(data_path, pf) for pf in physio_dict[min(valid_keys)]] if valid_keys else []
+
+
+def pack_dicom_uid(uid):
+    """Convert standard DICOM UID to packed DICOM UID."""
+    return bytearray(map(lambda i,j: (int(i)+1 if i != '.' else 11) << 4 | ((int(j)+1 if j != '.' else 11) if j else 0), uid[0::2], uid[1::2]))
+
+
+def unpack_dicom_uid(uid):
+    """Convert packed DICOM UID to standard DICOM UID."""
+    return ''.join([str(i-1) if i < 11 else '.' for pair in [(c >> 4, c & 15) for c in uid] for i in pair if i > 0])
+
+
+def montage(x):
+    """
+    Convenience function for looking at image arrays.
+
+    For example:
+        pylab.imshow(np.flipud(np.rot90(montage(im))))
+        pylab.axis('off')
+        pylab.show()
+    """
+    m, n, count = np.shape(x)
+    mm = int(np.ceil(np.sqrt(count)))
+    nn = mm
+    montage = np.zeros((mm * m, nn * n))
+    image_id = 0
+    for j in range(mm):
+        for k in range(nn):
+            if image_id >= count:
+                break
+            slice_m, slice_n = j * m, k * n
+            montage[slice_n:slice_n + n, slice_m:slice_m + m] = x[:, :, image_id]
+            image_id += 1
+    return montage

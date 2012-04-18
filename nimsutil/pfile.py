@@ -1,23 +1,27 @@
 #!/usr/bin/env python
+#
+# @author:  Bob Dougherty
+#           Gunnar Schaefer
 
 import os
 import shlex
+import shutil
 import argparse
 import datetime
+import tempfile
 import subprocess as sp
 
 import numpy as np
 import nibabel
 
-import nimsutil
 import pfheader
 
 
-class PfileError(Exception):
+class PFileError(Exception):
     pass
 
 
-class Pfile:
+class PFile(object):
     """
     Read pfile data and/or header.
 
@@ -25,8 +29,8 @@ class Pfile:
     and generates a NIfTI object, including header information.
 
     Example:
-        from nimsutil import pfile
-        pf = pfile.Pfile(pfilename='P56832.7')
+        import pfile
+        pf = pfile.PFile(pfilename='P56832.7')
         pf.to_nii(outbase='P56832.7')
     """
 
@@ -38,16 +42,19 @@ class Pfile:
         self.fm_data = None
 
     def load_header(self):
+
+        def unpack_dicom_uid(uid):
+            """Convert packed DICOM UID to standard DICOM UID."""
+            return ''.join([str(i-1) if i < 11 else '.' for pair in [(ord(c) >> 4, ord(c) & 15) for c in uid] for i in pair if i > 0])
+
         try:
             self.header = pfheader.get_header(self.pfilename)
         except (IOError, pfheader.PfheaderError):
-            raise PfileError
-        # Pull out some common fields for convenience
-        # *** CHECK THAT THESE ARE THE RIGHT FIELDS (ATSUSHI?)
+            raise PFileError
+
+        self.tr = self.header.image.tr / 1e6  # tr in seconds
         self.num_slices = self.header.rec.nslices
         self.num_receivers = self.header.rec.dab[0].stop_rcv - self.header.rec.dab[0].start_rcv + 1
-        # You might think this is stored in self.header.rec.nframes, but for our spiral it's here:
-        self.num_timepoints = int(self.header.rec.user0)
         self.num_echoes = self.header.rec.nechoes
         self.size_x = self.header.image.imatrix_X
         self.size_y = self.header.image.imatrix_Y
@@ -60,12 +67,12 @@ class Pfile:
         self.exam_no= self.header.exam.ex_no
         self.series_no = self.header.series.se_no
         self.acq_no = self.header.image.scanactno
-        self.exam_uid = self.header.exam.study_uid
-        self.series_uid = self.header.series.series_uid
-        self.series_desc = nimsutil.clean_string(self.header.series.se_desc)
+        self.exam_uid = unpack_dicom_uid(self.header.exam.study_uid)
+        self.series_uid = unpack_dicom_uid(self.header.series.series_uid)
+        self.series_desc = self.header.series.se_desc
+
         if self.psd_name == 'sprt':
-            # You might think this is stored in self.header.rec.nframes, but for our spiral it's here:
-            self.num_timepoints = int(self.header.rec.user0)
+            self.num_timepoints = int(self.header.rec.user0)    # not in self.header.rec.nframes for sprt
             self.deltaTE = self.header.rec.user15
             self.num_bands = 0
             self.band_spacing = 0
@@ -74,21 +81,25 @@ class Pfile:
             self.num_timepoints = self.header.rec.nframes
             self.deltaTE = 0.0
             self.scale_data = False
-        if self.psd_name.startswith('mux') and self.psd_name.endswith('epi') and self.header.rec.user6 > 0:
-            # Multi-band EPI!
+
+        if self.psd_name.startswith('mux') and self.psd_name.endswith('epi') and self.header.rec.user6 > 0: # multi-band EPI!
             self.num_bands = int(self.header.rec.user6)
             self.band_spacing_mm = self.header.rec.user8
             self.num_slices = self.header.image.slquant * self.num_bands
-            # TO DO: adjust the image.tlhc... fields to match the correct geometry.
-        self.tr = self.header.image.tr/1e6  # tr in seconds
-        # Why do we need utcfromtimestamp? Who knows. Maybe GE reverse-corrected for UTC?
-        self.start_time = datetime.datetime.utcfromtimestamp(self.header.image.im_datetime)
-        # Note: the following uis true for single-shot planar acquisitions (EPI and 1-shot spiral).
-        # For multishot sequences, we need to multiply the # of shots. And for non-planar aquisitions,
+            # TODO: adjust the image.tlhc... fields to match the correct geometry.
+
+        if self.header.image.im_datetime > 0:
+            self.timestamp = datetime.datetime.utcfromtimestamp(self.header.image.im_datetime)
+        else:   # HOShims don't have self.header.image.im_datetime
+            month, day, year = map(int, self.header.rec.scan_date.split('/'))
+            hour, minute = map(int, self.header.rec.scan_time.split(':'))
+            self.timestamp = datetime.datetime(year + 1900, month, day, hour, minute) # GE's epoch begins in 1900
+
+        # Note: the following is true for single-shot planar acquisitions (EPI and 1-shot spiral).
+        # For multishot sequences, we need to multiply by the # of shots. And for non-planar aquisitions,
         # we'd need to multiply by the # of phase encodes (accounting for any acceleration factors).
-        # Even for planar sequences, this will be wrong (under-estimate) for cardiac-gated datasets.
+        # Even for planar sequences, this will be wrong (under-estimate) in case of cardiac-gating.
         self.duration = datetime.timedelta(seconds=(self.num_timepoints * self.tr))
-        self.end_time = self.start_time + self.duration
 
     def to_nii(self, outbase, spirec='spirec', saveInOut=False):
         """Create NIfTI file from pfile."""
@@ -152,9 +163,7 @@ class Pfile:
         qto_xyz[:,3] = np.append(pos, 1).T
         qto_xyz[0:3,0:3] = np.dot(qto_xyz[0:3,0:3], np.diag(mm_per_vox))
 
-        slices_per_volume = self.image_data.shape[2]
-        num_volumes = self.image_data.shape[3]
-        num_echoes = self.image_data.shape[4]
+        self.image_data = np.atleast_3d(self.image_data)
 
         nii_header = nibabel.Nifti1Header()
         nii_header.set_xyzt_units('mm', 'sec')
@@ -162,10 +171,10 @@ class Pfile:
         nii_header.set_sform(qto_xyz, 'scanner')
 
         nii_header['slice_start'] = 0
-        nii_header['slice_end'] = slices_per_volume - 1
+        nii_header['slice_end'] = self.num_slices - 1
         # nifti slice order codes: 0 = unknown, 1 = sequential incrementing, 2 = seq. dec., 3 = alternating inc., 4 = alt. dec.
         slice_order = 0
-        nii_header['slice_duration'] = self.tr * 1000 / slices_per_volume
+        nii_header['slice_duration'] = self.tr * 1000 / self.num_slices
         # FIXME: check that this is correct.
         if   self.header.series.se_sortorder == 0:
             slice_order = 1  # or 2?
@@ -181,25 +190,18 @@ class Pfile:
 
         # FIXME: There must be a cleaner way to set the TR! Maybe bug Matthew about it.
         nii_header.structarr['pixdim'][4] = self.tr
-        nii_header.set_slice_duration(nii_header.structarr['pixdim'][4] / slices_per_volume)
-        # We try to set the slope/intercept here, but nibabel will silently overwrite
-        # anything we put here when the data are written out. (It thinks it's smarter
-        # than us). Also, if we don't explicitly cast the data to int16, it sets these
-        # to some crazy values rather than (1,0). Damn you Matthew! :)
-        nii_header.set_slope_inter(1,0)
-        nii_header.structarr['cal_max'] = 32767
+        nii_header.set_slice_duration(nii_header.structarr['pixdim'][4] / self.num_slices)
+        nii_header.structarr['cal_max'] = self.image_data.max()
+        nii_header.structarr['cal_min'] = self.image_data.min()
 
-        # scale and save as int16.
-        nii_header.set_data_dtype(np.int16)
-        dscale = 32767.0 / np.max(np.abs(self.image_data))
-        if num_echoes == 1:
-            nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data).astype(np.int16), None, nii_header)
+        if self.num_echoes == 1:
+            nifti = nibabel.Nifti1Image(self.image_data, None, nii_header)
             nibabel.save(nifti, outbase + '.nii.gz')
-        elif num_echoes == 2:
+        elif self.num_echoes == 2:
             if saveInOut:
-                nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data[:,:,:,:,0]).astype(np.int16), None, nii_header)
+                nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,0], None, nii_header)
                 nibabel.save(nifti, outbase + '_in.nii.gz')
-                nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data[:,:,:,:,1]).astype(np.int16), None, nii_header)
+                nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,1], None, nii_header)
                 nibabel.save(nifti, outbase + '_out.nii.gz')
             # FIXME: Do a more robust test for spiralio!
             # Assume spiralio, so do a weighted average of the two echos.
@@ -212,35 +214,35 @@ class Pfile:
             avg = np.zeros(self.image_data.shape[0:4])
             for tp in range(self.image_data.shape[3]):
                 avg[:,:,:,tp] = w_in*self.image_data[:,:,:,tp,0] + w_out*self.image_data[:,:,:,tp,1]
-            nifti = nibabel.Nifti1Image(np.round(avg/np.abs(avg).max()*32767.0).astype(np.int16), None, nii_header)
+            nifti = nibabel.Nifti1Image(avg, None, nii_header)
             nibabel.save(nifti, outbase + '.nii.gz')
-            # w = out/(in+out)
         else:
-            for echo in range(num_echoes):
-                nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data[:,:,:,:,echo]).astype(np.int16), None, nii_header)
+            for echo in range(self.num_echoes):
+                nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,echo], None, nii_header)
                 nibabel.save(nifti, outbase + '_echo%02d.nii.gz' % echo)
 
         if self.fm_data is not None:
-            nii_header.structarr['cal_max'] = np.ceil(self.fm_data.max() * 100.0)
-            nii_header.structarr['cal_min'] = np.floor(self.fm_data.min() * 100.0)
-            nifti = nibabel.Nifti1Image(np.round(self.fm_data * 100.0).astype(np.int16), None, nii_header)
+            nii_header.structarr['cal_max'] = self.fm_data.max()
+            nii_header.structarr['cal_min'] = self.fm_data.min()
+            nifti = nibabel.Nifti1Image(self.fm_data, None, nii_header)
             nibabel.save(nifti, outbase + '_B0.nii.gz')
 
     def recon(self, spirec):
         """Do image reconstruction and populate self.image_data."""
-        with nimsutil.TempDirectory() as tmp_dir:
-            basename = 'recon'
-            basepath = os.path.join(tmp_dir, basename)
-            pfilename = os.path.abspath(self.pfilename)
+        tmpdir = tempfile.mkdtemp()
+        basename = 'recon'
+        basepath = os.path.join(tmpdir, basename)
+        pfilename = os.path.abspath(self.pfilename)
 
-            # run spirec to get the mag file and the fieldmap file
-            cmd = spirec + ' -l --rotate -90 --magfile --savefmap2 --b0navigator -r ' + pfilename + ' -t ' + basename
-            self.log and self.log.debug(cmd)
-            sp.call(shlex.split(cmd), cwd=tmp_dir, stdout=open('/dev/null', 'w'))
+        # run spirec to get the mag file and the fieldmap file
+        cmd = spirec + ' -l --rotate -90 --magfile --savefmap2 --b0navigator -r ' + pfilename + ' -t ' + basename
+        self.log and self.log.debug(cmd)
+        sp.call(shlex.split(cmd), cwd=tmpdir, stdout=open('/dev/null', 'w'))
 
-            self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echoes,self.num_slices],order='F').transpose((0,1,4,2,3))
-            if os.path.exists(basepath+'.B0freq2'):
-                self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echoes,self.num_slices],order='F').transpose((0,1,3,2))
+        self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echoes,self.num_slices],order='F').transpose((0,1,4,2,3))
+        if os.path.exists(basepath+'.B0freq2'):
+            self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echoes,self.num_slices],order='F').transpose((0,1,3,2))
+        shutil.rmtree(tmpdir)
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -249,10 +251,15 @@ class ArgumentParser(argparse.ArgumentParser):
         super(ArgumentParser, self).__init__()
         self.description = """Recons a GE pfile to produce a NIfTI file and a B0 fieldmap."""
         self.add_argument('pfile', help='path to pfile')
-        self.add_argument('outbase', nargs='?', help='basename for output files (default: pfile name)')
+        self.add_argument('outbase', nargs='?', help='basename for output files (default: pfile name in cwd)')
+        self.add_argument('-m', '--matfile', help='path to reconstructed data in .mat format')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    pf = Pfile(args.pfile)
+    pf = PFile(args.pfile)
+    if args.matfile:
+        import h5py
+        datafile = h5py.File(args.matfile, 'r')
+        pf.image_data = datafile.get('data_block').value.transpose((2,3,1,0))
     pf.to_nii(args.outbase or os.path.basename(args.pfile))

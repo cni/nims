@@ -1,6 +1,5 @@
 import os
 import re
-import random
 import hashlib
 import datetime
 
@@ -16,7 +15,7 @@ __metadata__ = metadata
 
 __all__  = ['Group', 'User', 'Permission', 'Message', 'Job', 'Access', 'AccessPrivilege']
 __all__ += ['ResearchGroup', 'Person', 'Subject', 'DataContainer', 'Experiment', 'Session', 'Epoch']
-__all__ += ['Dataset', 'MRData', 'DicomData' , 'GEPfile', 'NiftiData']
+__all__ += ['Dataset', 'PrimaryMRData', 'DicomData' , 'GEPFile', 'NiftiData']
 
 
 class Group(Entity):
@@ -238,6 +237,7 @@ class DataContainer(Entity):
     using_options(inheritance='multi')
 
     timestamp = Field(DateTime, default=datetime.datetime.now)
+    duration = Field(Interval, default=datetime.timedelta())
     trashtime = Field(DateTime)
     needs_finding = Field(Boolean, default=False)
     needs_processing = Field(Boolean, default=False)
@@ -337,7 +337,14 @@ class Subject(DataContainer):
             if md.subj_code is None:
                 code_num = max([int('0%s' % re.sub(r'[^0-9]+', '', s.code)) for s in experiment.subjects]) + 1 if experiment.subjects else 1
                 md.subj_code = u's%03d' % code_num
-            subject = cls(experiment=experiment, person=Person(), code=md.subj_code, firstname=md.subj_fn, lastname=md.subj_ln, dob=md.subj_dob)
+            subject = cls(
+                    experiment=experiment,
+                    person=Person(),
+                    code=md.subj_code,
+                    firstname=md.subj_fn,
+                    lastname=md.subj_ln,
+                    dob=md.subj_dob,
+                    )
         return subject
 
     @property
@@ -370,6 +377,8 @@ class Session(DataContainer):
 
     using_options(inheritance='multi')
 
+    uid = Field(Binary(32), index=True)
+    exam = Field(Integer)
     notes = Field(Unicode)
 
     subject = ManyToOne('Subject')
@@ -381,21 +390,16 @@ class Session(DataContainer):
 
     @classmethod
     def from_metadata(cls, md):
-        session = cls.query.join(Epoch, Session.epochs).join(Dataset).filter(Dataset.exam==md.mri_exam).first()
+        session = cls.query.filter_by(uid=md.exam_uid).first()
         if not session:
             subject = Subject.from_metadata(md)
             operator = None # FIXME: set operator to an actual user, creating user if necessary
-            session = Session(subject=subject, operator=operator)
+            session = Session(uid=md.exam_uid, exam=md.exam_no, subject=subject, operator=operator)
         return session
 
     @property
     def name(self):
-        return '%s_%d' % (self.timestamp.strftime('%Y%m%d'), self.mri_exam)
-
-    @property
-    def mri_exam(self):
-        dataset = MRData.query.join(Epoch, MRData.container).filter(Epoch.session==self).first()
-        return dataset.exam if dataset else None
+        return self.timestamp.strftime('%Y-%m-%d_%H%M')
 
     @property
     def is_trash(self):
@@ -430,42 +434,36 @@ class Epoch(DataContainer):
     session = ManyToOne('Session')
 
     def __unicode__(self):
-        return u'Epoch %5d %04d %02d %s' % (self.session.mri_exam, self.mri_series, self.mri_acq, self.mri_desc)
+        return u'Epoch %5d %04d %02d %s' % (self.session.exam, self.series, self.acq, self.description)
 
     @classmethod
     def from_metadata(cls, md):
-        query = cls.query.join(Dataset)
-        query = query.filter(Dataset.exam==md.mri_exam).filter(Dataset.series==md.mri_series).filter(Dataset.acq==md.mri_acq)
-        epoch = query.first()
+        epoch = cls.query.join(Dataset).filter(Dataset.uid==md.series_uid).filter(Dataset.acq==md.acq_no).first()
         if not epoch:
             session = Session.from_metadata(md)
-            if session.timestamp is None or session.timestamp > md.timestamp:
+            if session.timestamp is None or session.timestamp > md.timestamp > datetime.datetime.utcfromtimestamp(0):
                 session.timestamp = md.timestamp
-            epoch = cls(session=session, timestamp=md.timestamp)
+            epoch = cls(session=session, timestamp=md.timestamp, duration=md.duration)
         return epoch
 
     @property
     def name(self):
-        return ('%04d_%02d_%s' % (self.mri_series, self.mri_acq, self.mri_desc)).encode('utf-8')
+        return ('%04d_%02d_%s' % (self.series, self.acq, self.description)).encode('utf-8')
 
     @property
-    def original_dataset(self):
-        return self.datasets[0].source
+    def description(self):
+        dataset = PrimaryMRData.query.filter(PrimaryMRData.container==self).first()
+        return dataset.desc if dataset else None
 
     @property
-    def mri_series(self):
-        dataset = MRData.query.filter(MRData.container==self).first()
+    def series(self):
+        dataset = PrimaryMRData.query.filter(PrimaryMRData.container==self).first()
         return dataset.series if dataset else None
 
     @property
-    def mri_acq(self):
-        dataset = MRData.query.filter(MRData.container==self).first()
+    def acq(self):
+        dataset = PrimaryMRData.query.filter(PrimaryMRData.container==self).first()
         return dataset.acq if dataset else None
-
-    @property
-    def mri_desc(self):
-        dataset = MRData.query.filter(MRData.container==self).first()
-        return dataset.desc if dataset else None
 
     @property
     def is_trash(self):
@@ -495,15 +493,12 @@ class Epoch(DataContainer):
 
 class Dataset(Entity):
 
-    timestamp = Field(DateTime, default=datetime.datetime.now)
+    offset = Field(Interval, default=datetime.timedelta())
     trashtime = Field(DateTime)
     kind = Field(Enum(u'primary', u'secondary', u'derived', name=u'kind'), default=u'primary')
-    type = Field(Enum(u'dicom', u'pfile', u'nifti', u'physio', u'screensave', name=u'type'))
+    datatype = Field(Enum(u'dicom', u'pfile', u'nifti', u'physio', u'screensave', name=u'type'))
     updated_at = Field(DateTime, default=datetime.datetime.now)
-    path_prefix = Field(Unicode(31))
 
-    offset = Field(Float)
-    duration = Field(Float)
     file_cnt_act = Field(Integer, default=0)
     file_cnt_tgt = Field(Integer, default=0)
 
@@ -514,18 +509,20 @@ class Dataset(Entity):
         return u'<%s %s>' % (self.__class__.__name__, self.container)
 
     @classmethod
-    def at_path_for_file_and_type(cls, nims_path, filename=None, type=None):
-        dataset = cls(type=type)
+    def at_path_for_file_and_datatype(cls, nims_path, filename=None, datatype=None):
+        dataset = cls(datetype=datatype)
         transaction.commit()
         DBSession.add(dataset)
-        os.makedirs(os.path.join(nims_path, dataset.relpath))
+        nimsutil.make_joined_path(nims_path, dataset.relpath)
         return dataset
 
     @property
+    def name(self):
+        return '%s_%s'% (self.timestamp.strftime('%H%M%S'), self.datatype)
+
+    @property
     def relpath(self):
-        if self.path_prefix is None:
-            self.path_prefix = u'%03d' % random.randint(0,999)
-        return os.path.join(self.path_prefix, '%08d' % self.id).encode('utf-8')
+        return ('%03d/%08d' % (self.id % 1000, self.id)).encode('utf-8')
 
     @property
     def is_trash(self):
@@ -543,122 +540,116 @@ class Dataset(Entity):
             self.trashtime = None
             self.container.untrash()
 
+    def needs_finding_and_processing(self):
+        self.container.needs_finding = True
+        self.container.needs_processing = True
 
-class MRData(Dataset):
+
+class PrimaryMRData(Dataset):
 
     """Abstract superclass to all MRI data types."""
 
     priority = 0
     filename_ext = ''
 
-    exam = Field(Integer)
+    uid = Field(Binary(32), index=True)
     series = Field(Integer)
-    acq = Field(Integer)
+    acq = Field(Integer, index=True)
     desc = Field(Unicode(255))
     psd = Field(Unicode(255))
     physio_flag = Field(Boolean, default=False)
-    has_physio = Field(Boolean, default=False)
 
     tr = Field(Float)
     te = Field(Float)
 
     @classmethod
-    def at_path_for_file_and_type(cls, nims_path, filename, type=None):
+    def at_path_for_file_and_datatype(cls, nims_path, filename, datatype=None):
         metadata = cls.get_metadata(filename)
         if metadata:
             dataset = cls.from_metadata(metadata)
+            dataset.container.untrash()
             transaction.commit()
             DBSession.add(dataset)
-            os.makedirs(os.path.join(nims_path, dataset.relpath))
+            nimsutil.make_joined_path(nims_path, dataset.relpath)
         else:
             dataset = None
         return dataset
 
     @classmethod
     def from_metadata(cls, md):
-        dataset = cls.query.filter_by(exam=md.mri_exam).filter_by(series=md.mri_series).filter_by(acq=md.mri_acq).first()
+        dataset = cls.query.filter_by(uid=md.series_uid).filter_by(acq=md.acq_no).first()
         if not dataset:
             epoch = Epoch.from_metadata(md)
             epoch.needs_finding = True
             epoch.needs_processing = True
-            dataset = cls(container=epoch, exam=md.mri_exam, series=md.mri_series, acq=md.mri_acq, desc=md.mri_desc, psd=md.psd_name)
-            dataset.timestamp = md.timestamp
-            dataset.physio_flag = md.physio_flag and u'epi' in md.psd_name.lower()
+            dataset = cls(
+                    container=epoch,
+                    uid=md.series_uid,
+                    series=md.series_no,
+                    acq=md.acq_no,
+                    desc=md.series_desc,
+                    psd=md.psd_name,
+                    datatype=md.datatype,
+                    physio_flag = md.physio_flag and u'epi' in md.psd_name.lower(),
+                    )
         return dataset
 
 
-class DicomData(MRData):
+class DicomData(PrimaryMRData):
 
     priority = 0
     filename_ext = '.dcm'
 
     @staticmethod
     def get_metadata(filename):
-
-        TAG_PSD_NAME =    (0x0019, 0x109c)
-        TAG_PHYSIO_FLAG = (0x0019, 0x10ac)
-
-        def acq_date(header):
-            if 'AcquisitionDate' in header: return header.AcquisitionDate
-            elif 'StudyDate' in header:     return header.StudyDate
-            else:                           return '19000101'
-
-        def acq_time(header):
-            if 'AcquisitionTime' in header: return header.AcquisitionTime
-            elif 'StudyTime' in header:     return header.StudyTime
-            else:                           return '000000'
-
         try:
-            header = dicom.read_file(filename, stop_before_pixels=True)
-            if header.Manufacturer != 'GE MEDICAL SYSTEMS':    # TODO: make code more general
-                raise dicom.filereader.InvalidDicomError
-        except (IOError, dicom.filereader.InvalidDicomError):
+            dcm = nimsutil.dicomutil.DicomFile(filename)
+        except nimsutil.dicomutil.DicomError:
             md = None
         else:
             md = Metadata()
-            md.mri_exam = int(header.StudyID)
-            md.mri_series = int(header.SeriesNumber)
-            md.mri_acq = int(header.AcquisitionNumber) if 'AcquisitionNumber' in header else 0
-            md.psd_name = unicode(os.path.basename(header[TAG_PSD_NAME].value)) if TAG_PSD_NAME in header else u''
-            md.physio_flag = bool(header[TAG_PHYSIO_FLAG].value) if TAG_PHYSIO_FLAG in header else False
-            md.mri_desc = nimsutil.clean_string(header.SeriesDescription)
-            md.timestamp = datetime.datetime.strptime(acq_date(header) + acq_time(header), '%Y%m%d%H%M%S')
-            md.subj_code, md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(header.PatientsName, header.PatientsBirthDate)
-            md.group_name, md.exp_name = nimsutil.parse_patient_id(header.PatientID, ResearchGroup.get_all_ids())
+            md.datatype = u'dicom'
+            md.exam_no = dcm.exam_no
+            md.series_no = dcm.series_no
+            md.acq_no = dcm.acq_no
+            md.exam_uid = nimsutil.pack_dicom_uid(dcm.exam_uid)
+            md.series_uid = nimsutil.pack_dicom_uid(dcm.series_uid)
+            md.psd_name = unicode(dcm.psd_name)
+            md.physio_flag = dcm.physio_flag
+            md.series_desc = nimsutil.clean_string(dcm.series_desc)
+            md.timestamp = dcm.timestamp
+            md.duration = dcm.duration
+            md.subj_code, md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(dcm.patient_name, dcm.patient_dob)
+            md.group_name, md.exp_name = nimsutil.parse_patient_id(dcm.patient_id, ResearchGroup.get_all_ids())
         return md
 
 
-class GEPfile(MRData):
+class GEPFile(PrimaryMRData):
 
     priority = 1
 
     @staticmethod
     def get_metadata(filename):
         try:
-            from nimsutil import pfheader
-        except ImportError:
-            print '==========  PFHEADER NOT FOUND  =========='
-            return None
-
-        try:
-            header = pfheader.get_header(filename)
-        except (IOError, pfheader.PfheaderError):
+            pf = nimsutil.pfile.PFile(filename)
+        except nimsutil.pfile.PFileError:
             md = None
         else:
             md = Metadata()
-            md.mri_exam = header.exam.ex_no
-            md.mri_series = header.series.se_no
-            md.mri_acq = header.image.scanactno
-
-            md.psd_name = unicode(os.path.basename(header.image.psdname))
-            md.physio_flag = bool(header.rec.user2) and u'sprt' in md.psd_name.lower()
-            md.mri_desc = nimsutil.clean_string(header.series.se_desc)
-            month, day, year = map(int, header.rec.scan_date.split('/'))
-            hour, minute = map(int, header.rec.scan_time.split(':'))
-            md.timestamp = datetime.datetime(year + 1900, month, day, hour, minute) # GE's epoch begins in 1900
+            md.datatype = u'pfile'
+            md.exam_no = pf.exam_no
+            md.series_no = pf.series_no
+            md.acq_no = pf.acq_no
+            md.exam_uid = nimsutil.pack_dicom_uid(pf.exam_uid)
+            md.series_uid = nimsutil.pack_dicom_uid(pf.series_uid)
+            md.psd_name = unicode(pf.psd_name)
+            md.physio_flag = pf.physio_flag
+            md.series_desc = nimsutil.clean_string(pf.series_desc)
+            md.timestamp = pf.timestamp
+            md.duration = pf.duration
             all_groups = [rg.id for rg in ResearchGroup.query.all()]
-            md.subj_code, md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(header.exam.patnameff, header.exam.dateofbirth)
-            md.group_name, md.exp_name = nimsutil.parse_patient_id(header.exam.patidff, ResearchGroup.get_all_ids())
+            md.subj_code, md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(pf.patient_name, pf.patient_dob)
+            md.group_name, md.exp_name = nimsutil.parse_patient_id(pf.patient_id, ResearchGroup.get_all_ids())
         return md
 
 
