@@ -17,7 +17,7 @@ Set up a virtual python environment:
 Install iPython and the TurboGears development tools:
 
     easy_install ipython readline
-    easy_install -i http://tg.gy/current/index/ tg.devtools
+    easy_install -i http://tg.gy/current tg.devtools
 
 Clone NIMS from GitHub and install its dependencies:
 
@@ -50,7 +50,7 @@ Set up a virtual python environment:
 
 Clone NIMS from GitHub and install its dependencies:
 
-    easy_install -i http://tg.gy/current/index/ tg.devtools
+    easy_install -i http://tg.gy/current tg.devtools
     git clone git://github.com/cni/nims.git /usr/local/tg2env/nims
     cd !$
     python setup.py develop
