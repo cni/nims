@@ -6,6 +6,7 @@ define([], function()
         var header;
         var body;
         var selected_rows = [];
+        var timeout;
 
         var last_clicked_index = 0;
         var shift_boundary_index = 0;
@@ -13,16 +14,30 @@ define([], function()
         var sorted_direction = 1;
 
         var _onRefresh = function() {};
-        var _onSelect = function() {};
+        var _onSelect = new Array;
         var getElement = function() { return element; };
         var getHeader = function() { return header; };
         var getBody = function() { return body; };
         var getRows = function() { return body.find('tr'); };
         var onRefresh = function(fn) { _onRefresh = fn; };
-        var onSelect = function(fn) { _onSelect = fn; };
+        var onSelect = function(fn)
+        {
+            _onSelect.push(fn);
+        };
         var resort = function() { sortByColumnIndex(sorted_column, sorted_direction); };
         var refresh = function(args) { _onRefresh(args); };
-        var select = function(args) { _onSelect(args); };
+        var select = function()
+        {
+            updateSelectedRows();
+            _onSelect.forEach(function(fn)
+            {
+                fn(
+                {
+                    selected_rows: selected_rows,
+                    table_key: element.attr('id')
+                });
+            });
+        };
         var getSelectedRows = function() { return (selected_rows && selected_rows.length != 0) ? selected_rows : $();};
 
         var synchronizeSelections = function()
@@ -164,6 +179,23 @@ define([], function()
             else { subset.removeClass('ui-selected'); }
         };
 
+        var changeRow = function(delta)
+        {
+            var row_list = getRows();
+            move_to = shift_boundary_index + delta;
+            if (move_to > -1 && move_to < row_list.length)
+            {
+                row_list.removeClass('ui-selected');
+                last_clicked_index = shift_boundary_index = move_to;
+                $(row_list[shift_boundary_index]).addClass('ui-selected');
+                if (timeout) { // account for fast button presses by forcing a timeout to finish before sending DB call
+                    clearTimeout(timeout);
+                    timeout = null;
+                }
+                timeout = setTimeout(select, 250);
+            }
+        };
+
         var singleselect = function(event)
         {
             if (!(event.shiftKey || event.metaKey))
@@ -177,8 +209,7 @@ define([], function()
                 row_list.removeClass('ui-selected');
                 row.addClass('ui-selected');
 
-                updateSelectedRows();
-                _onSelect(selected_rows);
+                select();
             }
         };
 
@@ -200,8 +231,7 @@ define([], function()
                     shift_boundary_index = index_clicked;
                 }
 
-                updateSelectedRows();
-                _onSelect(selected_rows);
+                select();
             }
             else if (event.metaKey || event.ctrlKey)
             {
@@ -212,8 +242,7 @@ define([], function()
                     shift_boundary_index = index_clicked;
                 }
 
-                updateSelectedRows();
-                _onSelect(selected_rows);
+                select();
             }
         };
 
@@ -284,10 +313,8 @@ define([], function()
         return {
             init: init,
             resort: resort,
-            refresh: refresh,
-            select: select,
-            onRefresh: onRefresh,
             onSelect: onSelect,
+            changeRow: changeRow,
             getBody: getBody,
             getRows: getRows,
             getElement: getElement,

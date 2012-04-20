@@ -3,6 +3,15 @@ define(['utility/scrolltab'], function (Scrolltable)
     var table_with_focus;
     var tables_by_id = new Array(); // dictionary
 
+    var setFocus = function(table_key)
+    {
+        set_to_table = tables_by_id[table_key];
+        if (set_to_table)
+        {
+            table_with_focus = set_to_table;
+        }
+    };
+
     var setTableHeights = function ()
     {
         var vp_size = viewport();
@@ -49,6 +58,7 @@ define(['utility/scrolltab'], function (Scrolltable)
             {
                 scrolltable = Scrolltable($(this));
                 scrolltable.init();
+                scrolltable.onSelect(tableSelected);
                 tables_by_id[this.getAttribute('id')] = scrolltable;
             }
         });
@@ -81,10 +91,22 @@ define(['utility/scrolltab'], function (Scrolltable)
         }
     };
 
+    var tableSelected = function(event)
+    {
+        table_with_focus = getById(event.table_key);
+    };
+
+    var getFocus = function()
+    {
+        return table_with_focus;
+    };
+
     return {
         init: init,
         resortAll: resortAll,
         getById: getById,
+        getFocus: getFocus,
+        setFocus: setFocus,
         setTableHeights: setTableHeights,
         setClickEventsAll: setClickEventsAll,
         autoSetTableHeights: autoSetTableHeights

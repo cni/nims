@@ -4,16 +4,16 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
     var epochs;
     var datasets;
 
-    var toggleObject = function (object, makeVisible, callback)
+    var toggleObject = function (object, makeVisible)
     {
         objectVisible = object.css('display') != 'none';
-        if ((makeVisible & !objectVisible) || (!makeVisible & objectVisible))
+        if (makeVisible & !objectVisible)
         {
-            object.toggle('slide', null, 150, callback);
+            object.show();
         }
-        else
+        else if (!makeVisible & objectVisible)
         {
-            if (callback) callback();
+            object.hide();
         }
     };
 
@@ -77,9 +77,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
             {
                 if (data.success)
                 {
-                    // TODO Replace functionality here, simple refresh?
                     refreshExperiments();
-                    // labelTrash(selected_rows, getTrashFlag(), data.untrashed);
                 }
                 else
                 {
@@ -193,7 +191,10 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                     experiments.synchronizeSelections();
                     experiments.setClickEvents();
                     TableDragAndDrop.setupDroppable(sessions.getBody().closest('table'), experiments.getRows(), dropSessionsOnExperiment);
-                    refreshSessions(experiments.getSelectedRows());
+                    refreshSessions(
+                    {
+                        selected_rows: experiments.getSelectedRows()
+                    });
                 }
                 else
                 {
@@ -204,8 +205,9 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         }); // ajax call
     };
 
-    var refreshSessions = function(experiment_row)
+    var refreshSessions = function(event)
     {
+        var experiment_row = event ? event.selected_rows : null;
         var table_body = sessions.getBody();
         if (experiment_row && experiment_row.length == 1) // make sure we didn't just get passed an empty list
         {
@@ -238,8 +240,11 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                         {
                             experiment_rows.droppable("option", "disabled", true);
                         }
-                        toggleObject(table_body.closest('table'), true, null);
-                        refreshEpochs(sessions.getSelectedRows());
+                        toggleObject(table_body.closest('table'), true);
+                        refreshEpochs(
+                        {
+                            selected_rows: sessions.getSelectedRows()
+                        });
                     }
                     else
                     {
@@ -252,18 +257,15 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         else
         {
             sessions.updateSelectedRows();
-            toggleObject(datasets.getBody().closest('table'), false, function()
-            {
-                toggleObject(epochs.getBody().closest('table'), false, function()
-                {
-                    toggleObject(table_body.closest('table'), false, null);
-                });
-            });
+            toggleObject(datasets.getBody().closest('table'), false);
+            toggleObject(epochs.getBody().closest('table'), false);
+            toggleObject(table_body.closest('table'), false);
         }
     };
 
-    var refreshEpochs = function(session_row)
+    var refreshEpochs = function(event)
     {
+        var session_row = event ? event.selected_rows : null;
         var table_body = epochs.getBody();
         if (session_row && session_row.length == 1) // make sure we didn't get passed an empty list
         {
@@ -281,7 +283,10 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                         epochs.populateTable(data);
                         epochs.synchronizeSelections();
                         epochs.setClickEvents();
-                        refreshDatasets(epochs.getSelectedRows());
+                        refreshDatasets(
+                        {
+                            selected_rows: epochs.getSelectedRows()
+                        });
                         toggleObject(table_body.closest('table'), true, null);
                     }
                     else
@@ -293,15 +298,14 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         }
         else
         {
-            toggleObject(datasets.getBody().closest('table'), false, function()
-            {
-                toggleObject(table_body.closest('table'), false, null);
-            });
+            toggleObject(datasets.getBody().closest('table'), false);
+            toggleObject(table_body.closest('table'), false);
         }
     };
 
-    var refreshDatasets = function(epoch_row)
+    var refreshDatasets = function(event)
     {
+        var epoch_row = event ? event.selected_rows : null;
         var table_body = datasets.getBody();
         if (epoch_row && epoch_row.length == 1) // make sure we didn't get passed an empty list
         {
@@ -319,7 +323,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                         datasets.populateTable(data);
                         datasets.synchronizeSelections();
                         datasets.setClickEvents();
-                        toggleObject(table_body.closest('table'), true, null);
+                        toggleObject(table_body.closest('table'), true);
                     }
                     else
                     {
@@ -330,12 +334,52 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         }
         else
         {
-            toggleObject(table_body.closest('table'), false, null);
+            toggleObject(table_body.closest('table'), false);
         }
     };
 
     var init = function()
     {
+        document.onkeydown = function(e)
+        {
+            var k = e.keyCode;
+            if (k >= 37 && k <= 40)
+            {
+                if (k == 38)
+                {
+                    ScrolltableManager.getFocus().changeRow(-1);
+                }
+                else if (k == 40)
+                {
+                    ScrolltableManager.getFocus().changeRow(1);
+                }
+                else if (k == 37 || k == 39)
+                {
+                    var current_focus = ScrolltableManager.getFocus().getElement().attr('id');
+                    if ((current_focus == "experiments" && k == 39) || (current_focus == "epochs" && k == 37))
+                    {
+                        ScrolltableManager.setFocus("sessions");
+                        sessions.changeRow(0);
+                    }
+                    else if ((current_focus == "sessions" && k == 39) || (current_focus == "datasets" && k == 37))
+                    {
+                        ScrolltableManager.setFocus("epochs");
+                        epochs.changeRow(0);
+                    }
+                    else if (current_focus == "epochs" && k == 39)
+                    {
+                        ScrolltableManager.setFocus("datasets");
+                        datasets.changeRow(0);
+                    }
+                    else if (current_focus == "sessions" && k == 37)
+                    {
+                        ScrolltableManager.setFocus("experiments");
+                        experiments.changeRow(0);
+                    }
+                }
+                return false;
+            }
+        }
         ScrolltableManager.init();
         ScrolltableManager.setTableHeights();
         ScrolltableManager.autoSetTableHeights();
@@ -345,16 +389,11 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         epochs = ScrolltableManager.getById("epochs");
         datasets = ScrolltableManager.getById("datasets");
 
-        experiments.onRefresh(refreshExperiments);
-        sessions.onRefresh(refreshSessions);
-        epochs.onRefresh(refreshEpochs);
-        datasets.onRefresh(refreshDatasets);
-
         experiments.onSelect(refreshSessions);
         sessions.onSelect(refreshEpochs);
         epochs.onSelect(refreshDatasets);
 
-        experiments.refresh();
+        refreshExperiments();
 
         var sessions_table = $("#sessions .scrolltable_body table");
         var experiments_table = $("#experiments .scrolltable_body table");
