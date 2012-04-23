@@ -90,6 +90,8 @@ define([], function()
                     body.append(row);
                 }
                 resort();
+                last_clicked_index = 0;
+                shift_boundary_index = 0;
             }
         };
 
