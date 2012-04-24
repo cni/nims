@@ -45,13 +45,13 @@ NIMS Deployment on FreeBSD and Apache
 Set up a virtual python environment:
 
     portmaster devel/py-virtualenv
-    virtualenv --no-site-packages /usr/local/tg2env
-    source /usr/local/tg2env/bin/activate
+    virtualenv --no-site-packages /usr/local/www/tg2env
+    source /usr/local/www/tg2env/bin/activate
 
 Clone NIMS from GitHub and install its dependencies:
 
     easy_install -i http://tg.gy/current tg.devtools
-    git clone git://github.com/cni/nims.git /usr/local/tg2env/nims
+    git clone git://github.com/cni/nims.git /usr/local/www/nims
     cd !$
     python setup.py develop
 
@@ -63,7 +63,7 @@ Add PostgreSQL and LDAP support:
 
 Generate the production database:
 
-    # obtain or create production.ini
+    # first, obtain or create production.ini
     paster setup-app production.ini
 
 Configure and restart Apache:
