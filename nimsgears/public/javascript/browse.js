@@ -175,6 +175,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
 
     var refreshExperiments = function()
     {
+        experiments.startLoading();
         var table_body = experiments.getBody();
         $.ajax(
         {
@@ -195,6 +196,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                     {
                         selected_rows: experiments.getSelectedRows()
                     });
+                    experiments.stopLoading();
                 }
                 else
                 {
@@ -207,6 +209,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
 
     var refreshSessions = function(event)
     {
+        sessions.startLoading();
         var experiment_row = event ? event.selected_rows : null;
         var table_body = sessions.getBody();
         if (experiment_row && experiment_row.length == 1) // make sure we didn't just get passed an empty list
@@ -245,6 +248,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                         {
                             selected_rows: sessions.getSelectedRows()
                         });
+                        sessions.stopLoading();
                     }
                     else
                     {
@@ -260,11 +264,13 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
             toggleObject(datasets.getBody().closest('table'), false);
             toggleObject(epochs.getBody().closest('table'), false);
             toggleObject(table_body.closest('table'), false);
+            sessions.stopLoading();
         }
     };
 
     var refreshEpochs = function(event)
     {
+        epochs.startLoading();
         var session_row = event ? event.selected_rows : null;
         var table_body = epochs.getBody();
         if (session_row && session_row.length == 1) // make sure we didn't get passed an empty list
@@ -288,6 +294,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                             selected_rows: epochs.getSelectedRows()
                         });
                         toggleObject(table_body.closest('table'), true, null);
+                        epochs.stopLoading();
                     }
                     else
                     {
@@ -300,11 +307,13 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         {
             toggleObject(datasets.getBody().closest('table'), false);
             toggleObject(table_body.closest('table'), false);
+            epochs.stopLoading();
         }
     };
 
     var refreshDatasets = function(event)
     {
+        datasets.startLoading();
         var epoch_row = event ? event.selected_rows : null;
         var table_body = datasets.getBody();
         if (epoch_row && epoch_row.length == 1) // make sure we didn't get passed an empty list
@@ -324,6 +333,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                         datasets.synchronizeSelections();
                         datasets.setClickEvents();
                         toggleObject(table_body.closest('table'), true);
+                        datasets.stopLoading();
                     }
                     else
                     {
@@ -335,6 +345,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         else
         {
             toggleObject(table_body.closest('table'), false);
+            datasets.stopLoading();
         }
     };
 

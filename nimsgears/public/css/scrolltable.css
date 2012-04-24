@@ -1,3 +1,9 @@
+.scrolltable_loading
+{
+    text-align:center;
+    display:none;
+}
+
 .scrolltable_title
 {
     font-weight:400;

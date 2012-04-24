@@ -7,6 +7,7 @@ define([], function()
         var body;
         var selected_rows = [];
         var timeout;
+        var loading_elem;
 
         var last_clicked_index = 0;
         var shift_boundary_index = 0;
@@ -57,6 +58,18 @@ define([], function()
                 });
             });
             updateSelectedRows();
+        };
+
+        var startLoading = function()
+        {
+            body.hide();
+            loading_elem.show();
+        };
+
+        var stopLoading = function()
+        {
+            body.show()
+            loading_elem.hide();
         };
 
         var createTableRowFromTuple = function(text_tuple)
@@ -253,9 +266,15 @@ define([], function()
             var scrolltable_body = document.createElement('div');
             var scrolltable_header = document.createElement('div');
             var scrolltable_wrapper = document.createElement('div');
+            var scrolltable_loading = document.createElement('div');
+            var scrolltable_loading_img = document.createElement('img');
+            scrolltable_loading_img.src = "/images/ajax-loader.gif";
+            scrolltable_loading.appendChild(scrolltable_loading_img);
+
             scrolltable_body.className = 'scrolltable_body';
             scrolltable_header.className = 'scrolltable_header';
             scrolltable_wrapper.className = 'scrolltable_wrapper';
+            scrolltable_loading.className = 'scrolltable_loading';
 
             var scrolltable_title;
             var table_title = original_table.attr('name');
@@ -298,12 +317,14 @@ define([], function()
             // so we just dump it
             table_clone_header.find('tbody').remove();
 
+            scrolltable_body.appendChild(scrolltable_loading);
             scrolltable_body.appendChild(table_clone_body[0]);
             scrolltable_header.appendChild(table_clone_header[0]);
 
             original_table[0].parentNode.replaceChild(scrolltable_wrapper, original_table[0]);
 
             element = $(scrolltable_wrapper);
+            loading_elem = $(scrolltable_loading);
             header = element.find('.scrolltable_header thead');
             body = element.find(".scrolltable_body tbody");
             $(scrolltable_header).find('th').click(function()
@@ -327,6 +348,8 @@ define([], function()
             getSelectedRows: getSelectedRows,
             updateSelectedRows: updateSelectedRows,
             synchronizeSelections: synchronizeSelections,
+            stopLoading: stopLoading,
+            startLoading: startLoading,
         };
     };
 });
