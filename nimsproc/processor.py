@@ -52,11 +52,11 @@ class Processor(object):
 
                 if job:
                     if isinstance(job.data_container, Epoch):
-                        pri_ds = job.data_container.primary_dataset
-                        if isinstance(pri_ds, DicomData):
+                        ds = job.data_container.primary_dataset
+                        if isinstance(ds, DicomData):
                             pipeline_class = DicomPipeline
-                        elif isinstance(pri_ds, GEPfile):
-                            pipeline_class = PfilePipeline
+                        elif isinstance(ds, GEPFile):
+                            pipeline_class = PFilePipeline
 
                     pipeline = pipeline_class(job, self.nims_path, self.physio_path, self.log)
                     job.status = u'active'      # make sure that this job is not picked up again in the next iteration
@@ -76,7 +76,7 @@ class Processor(object):
             query = query.filter(Job.task==self.task)
         jobs = query.all()
         for job in jobs:
-            self.log.info(u'Resetting job %s' % job)
+            self.log.info(u'Resetting  %s' % job)
             job.status = u'new'
         transaction.commit()
 
@@ -108,12 +108,28 @@ class Pipeline(threading.Thread):
         transaction.commit()
 
     @abc.abstractmethod
-    def find():
+    def find(self):
         # FIXME: wipe out all secondary datasets on the job's data_container
-        return True
+        dc = self.job.data_container
+        ds = self.job.data_container.primary_dataset
+        if ds.physio_flag:
+            success, physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.duration, ds.psd.encode('utf-8'))
+            if physio_files:
+                self.log.info('Found physio files: %s' % ', '.join([os.path.basename(pf) for pf in physio_files]))
+                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'physio')
+                dataset.file_cnt_act = 0
+                dataset.file_cnt_tgt = len(physio_files)
+                for f in physio_files:
+                    shutil.copy2(f, os.path.join(self.nims_path, dataset.relpath))
+                    dataset.file_cnt_act += 1
+        else:
+            success = True
+        transaction.commit()
+        DBSession.add(self.job)
+        return success
 
     @abc.abstractmethod
-    def process():
+    def process(self):
         # FIXME: wipe out all derived datasets on the job's data_container
         return True
 
@@ -121,53 +137,57 @@ class Pipeline(threading.Thread):
 class DicomPipeline(Pipeline):
 
     def find(self):
-        pri_ds = self.job.data_container.primary_dataset
-        if pri_ds.physio_flag:
-            physio_files = nimsutil.find_ge_physio(self.physio_path, pri_ds.timestamp, pri_ds.psd.encode('utf-8'))
-            if physio_files:
-                self.log.info('Found physio files: %s' % ', '.join([os.path.basename(pf) for pf in physio_files]))
-                dataset = Dataset.at_path_for_file_and_type(self.nims_path, None, u'physio')
-                dataset.file_cnt_tgt = len(physio_files)
-                for f in physio_files:
-                    shutil.copy2(f, os.path.join(self.nims_path, dataset.relpath))
-                    dataset.file_cnt_act += 1
-        transaction.commit()
-        DBSession.add(self.job)
-        return True
+        return super(DicomPipeline, self).find()
 
     def process(self):
-        pri_ds = self.job.data_container.primary_dataset
-        dcm_dir = os.path.join(self.nims_path, pri_ds.relpath)
+        success = True
+        ds = self.job.data_container.primary_dataset
+        with nimsutil.TempDirectory() as outputdir:
+            outbase = os.path.join(outputdir, ds.container.name)
+            dcm_series = nimsutil.dicomutil.DicomSeries(os.path.join(self.nims_path, ds.relpath), self.log)
+            dcm_series.convert(outbase)
 
-        with nimsutil.TempDirectory() as tmpdir:
-            outputdir = nimsutil.make_joined_path(tmpdir, 'outputdir')
-            outbase = os.path.join(outputdir, pri_ds.container.name)
-            nimsutil.dcm_convert(dcm_dir, outbase, self.log)
-
-            if os.listdir(outputdir):
-                self.log.info('Dicom files converted to %s' % os.listdir(outputdir))
-                dataset = Dataset.at_path_for_file_and_type(self.nims_path, None, u'nifti')
-                dataset.file_cnt_tgt = len(os.listdir(outputdir))
-                for f in os.listdir(outputdir):
+            outputdir_list = os.listdir(outputdir)
+            if outputdir_list:
+                self.log.info('Dicom files converted to %s' % outputdir_list)
+                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'nifti')
+                dataset.file_cnt_act = 0
+                dataset.file_cnt_tgt = len(outputdir_list)
+                for f in outputdir_list:
                     shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, dataset.relpath))
                     dataset.file_cnt_act += 1
 
         transaction.commit()
         DBSession.add(self.job)
-        return True
+        return success
 
 
-class PfilePipeline(Pipeline):
+class PFilePipeline(Pipeline):
 
     def find(self):
-        import random
-        time.sleep(5 * random.random())
-        return True
+        return super(PFilePipeline, self).find()
 
     def process(self):
-        import random
-        time.sleep(5 * random.random())
-        return True
+        success = True
+        ds = self.job.data_container.primary_dataset
+        with nimsutil.TempDirectory() as outputdir:
+            if u'sprt' in ds.psd:
+                pfilepath = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
+                pf = nimsutil.pfile.PFile(pfilepath, self.log).to_nii(os.path.join(outputdir, ds.container.name))
+
+            outputdir_list = os.listdir(outputdir)
+            if outputdir_list:
+                self.log.info('PFile converted to %s' % outputdir_list)
+                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'nifti')
+                dataset.file_cnt_act = 0
+                dataset.file_cnt_tgt = len(outputdir_list)
+                for f in outputdir_list:
+                    shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, dataset.relpath))
+                    dataset.file_cnt_act += 1
+
+        transaction.commit()
+        DBSession.add(self.job)
+        return success
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -177,7 +197,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('db_uri', help='database URI')
         self.add_argument('nims_path', help='data location')
         self.add_argument('physio_path', help='path to physio data')
-        self.add_argument('task', nargs='?', help='find|proc  (default is all)')
+        self.add_argument('-t', '--task', help='find|proc  (default is all)')
         self.add_argument('-j', '--jobs', type=int, default=1, help='maximum number of concurrent threads')
         self.add_argument('-s', '--sleeptime', type=int, default=10, help='time to sleep between db queries')
         self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')

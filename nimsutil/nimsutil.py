@@ -60,7 +60,7 @@ def parse_subject(name, dob):
         code = re.sub(r'^[^@]*@([^\^]*).*', ur'\1', name)
         lastname, firstname = ('', '')
     else:
-        code = None
+        code = ''
         lastname, firstname = name.split('^') if '^' in name else ('', '')
     try:
         dob = datetime.datetime.strptime(dob, '%Y%m%d')
@@ -68,7 +68,7 @@ def parse_subject(name, dob):
             raise ValueError
     except ValueError:
         dob = None
-    return (code, unicode(firstname.capitalize()), unicode(lastname.capitalize()), dob)
+    return (unicode(code), unicode(firstname.capitalize()), unicode(lastname.capitalize()), dob)
 
 
 def parse_patient_id(patient_id, known_ids):

@@ -98,21 +98,14 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.configure()
-
-    def configure(self):
         self.add_argument('stage_path', help='path to staging area')
         self.add_argument('data_host', help='username@hostname of data source')
         self.add_argument('data_path', help='path to data source')
-        self.add_argument('sleep_time', help='time to sleep before checking for new data')
-        self.add_argument('data_glob', nargs='?', help='glob format for files to move', default='*')
+        self.add_argument('-g', '--data_glob', default='*', help='glob format for files to move')
+        self.add_argument('-s', '--sleeptime', type=int, default=60, help='time to sleep before checking for new data')
         self.add_argument('-n', '--logname', default=__file__, help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
         self.add_argument('-l', '--loglevel', default='info', help='path to log file')
-
-    def error(self, message):
-        self.print_help()
-        sys.exit(1)
 
 
 if __name__ == '__main__':
@@ -120,7 +113,7 @@ if __name__ == '__main__':
 
     REAPER_ID = os.path.basename(args.data_path.rstrip('/'))
     LOG = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
-    SLEEP_TIME = int(args.sleep_time)
+    SLEEP_TIME = int(args.sleeptime)
     REAP_STAGE = nimsutil.make_joined_path(args.stage_path, 'reap')
     DATA_PATH = os.path.join(args.data_path, args.data_glob)
     SORT_STAGE = nimsutil.make_joined_path(args.stage_path, 'sort')
@@ -130,7 +123,8 @@ if __name__ == '__main__':
     DATE_FIND_CMD = 'ssh %s \'%s; %s\'' % (args.data_host, DATE_CMD, FIND_CMD)
     REAP_CMD = 'rsync -a %s:%%s %%s' % args.data_host
 
-    reaper = DataReaper('.%s.datetime' % REAPER_ID)
+    datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % REAPER_ID)
+    reaper = DataReaper(datetime_file)
 
     def term_handler(signum, stack):
         reaper.halt()

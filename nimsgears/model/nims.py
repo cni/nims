@@ -135,6 +135,10 @@ class User(Entity):
             query = query.filter(Access.user==self)
         return query.count()
 
+    @property
+    def job_cnt(self):
+        return Job.query.filter((Job.status == u'new') | (Job.status == u'active')).count()
+
 
 class Permission(Entity):
 
@@ -239,8 +243,9 @@ class DataContainer(Entity):
     timestamp = Field(DateTime, default=datetime.datetime.now)
     duration = Field(Interval, default=datetime.timedelta())
     trashtime = Field(DateTime)
-    needs_finding = Field(Boolean, default=False)
-    needs_processing = Field(Boolean, default=False)
+    updated = Field(Boolean, default=False, index=True)
+    needs_finding = Field(Boolean, default=False, index=True)
+    needs_processing = Field(Boolean, default=False, index=True)
 
     datasets = OneToMany('Dataset')
     jobs = OneToMany('Job')
@@ -262,7 +267,7 @@ class Experiment(DataContainer):
     subjects = OneToMany('Subject')
 
     def __unicode__(self):
-        return u'%s: %s' % (self.owner, self.name)
+        return u'%s:%s' % (self.owner, self.name)
 
     @classmethod
     def from_owner_name(cls, owner, name):
@@ -327,14 +332,15 @@ class Subject(DataContainer):
     def from_metadata(cls, md):
         query = cls.query.join(Experiment, cls.experiment).filter(Experiment.name==md.exp_name)
         if md.subj_code:
-            query = query.filter(cls.code==md.subj_code)
+            subject = query.filter(cls.code==md.subj_code).first()
+        elif md.subj_fn and md.subj_ln:
+            subject = query.filter(cls.firstname==md.subj_fn).filter(cls.lastname==md.subj_ln).filter(cls.dob==md.subj_dob).first()
         else:
-            query = query.filter(cls.firstname==md.subj_fn).filter(cls.lastname==md.subj_ln).filter(cls.dob==md.subj_dob)
-        subject = query.first()
+            subject = None
         if not subject:
             owner = ResearchGroup.query.filter_by(gid=md.group_name).one()
             experiment = Experiment.from_owner_name(owner, md.exp_name)
-            if md.subj_code is None:
+            if not md.subj_code:
                 code_num = max([int('0%s' % re.sub(r'[^0-9]+', '', s.code)) for s in experiment.subjects]) + 1 if experiment.subjects else 1
                 md.subj_code = u's%03d' % code_num
             subject = cls(
@@ -434,14 +440,14 @@ class Epoch(DataContainer):
     session = ManyToOne('Session')
 
     def __unicode__(self):
-        return u'Epoch %5d %04d %02d %s' % (self.session.exam, self.series, self.acq, self.description)
+        return u'Epoch %s %s' % (self.session.subject.experiment, self.timestamp.strftime('%Y-%m-%d %H:%M:%S'))
 
     @classmethod
     def from_metadata(cls, md):
         epoch = cls.query.join(Dataset).filter(Dataset.uid==md.series_uid).filter(Dataset.acq==md.acq_no).first()
         if not epoch:
             session = Session.from_metadata(md)
-            if session.timestamp is None or session.timestamp > md.timestamp > datetime.datetime.utcfromtimestamp(0):
+            if session.timestamp is None or session.timestamp > md.timestamp:
                 session.timestamp = md.timestamp
             epoch = cls(session=session, timestamp=md.timestamp, duration=md.duration)
         return epoch
@@ -452,18 +458,15 @@ class Epoch(DataContainer):
 
     @property
     def description(self):
-        dataset = PrimaryMRData.query.filter(PrimaryMRData.container==self).first()
-        return dataset.desc if dataset else None
+        return self.primary_dataset.desc
 
     @property
     def series(self):
-        dataset = PrimaryMRData.query.filter(PrimaryMRData.container==self).first()
-        return dataset.series if dataset else None
+        return self.primary_dataset.series
 
     @property
     def acq(self):
-        dataset = PrimaryMRData.query.filter(PrimaryMRData.container==self).first()
-        return dataset.acq if dataset else None
+        return self.primary_dataset.acq
 
     @property
     def is_trash(self):
@@ -497,10 +500,11 @@ class Dataset(Entity):
     trashtime = Field(DateTime)
     kind = Field(Enum(u'primary', u'secondary', u'derived', name=u'kind'), default=u'primary')
     datatype = Field(Enum(u'dicom', u'pfile', u'nifti', u'physio', u'screensave', name=u'type'))
-    updated_at = Field(DateTime, default=datetime.datetime.now)
+    _updatetime = Field(DateTime, default=datetime.datetime.now, colname='updatetime', synonym='updatetime')
+    digest = Field(Binary(20))
 
-    file_cnt_act = Field(Integer, default=0)
-    file_cnt_tgt = Field(Integer, default=0)
+    file_cnt_act = Field(Integer)
+    file_cnt_tgt = Field(Integer)
 
     container = ManyToOne('DataContainer')
     parents = ManyToMany('Dataset')
@@ -518,11 +522,19 @@ class Dataset(Entity):
 
     @property
     def name(self):
-        return '%s_%s'% (self.timestamp.strftime('%H%M%S'), self.datatype)
+        return '%s_%s'% (self.container.name, self.datatype)
+        return '%s_%s'% (self.container.timestamp.strftime('%H%M%S'), self.datatype)
 
     @property
     def relpath(self):
         return ('%03d/%08d' % (self.id % 1000, self.id)).encode('utf-8')
+
+    def _get_updatetime(self):
+        return self._updatetime
+    def _set_updatetime(self, updatetime):
+        self._updatetime = updatetime
+        self.container.updated = True
+    updatetime = property(_get_updatetime, _set_updatetime)
 
     @property
     def is_trash(self):
@@ -540,9 +552,17 @@ class Dataset(Entity):
             self.trashtime = None
             self.container.untrash()
 
-    def needs_finding_and_processing(self):
-        self.container.needs_finding = True
-        self.container.needs_processing = True
+    def update_file_cnt_and_digest(self, nims_path):
+        old_digest = self.digest
+        new_hash = hashlib.sha1()
+        filelist = os.listdir(os.path.join(nims_path, self.relpath))
+        for filename in sorted(filelist):
+            with open(os.path.join(nims_path, self.relpath, filename), 'rb') as fd:
+                for chunk in iter(lambda: fd.read(1048576 * new_hash.block_size), ''):
+                    new_hash.update(chunk)
+        self.digest = new_hash.digest()
+        self.file_cnt_act = len(filelist)
+        return self.digest != old_digest
 
 
 class PrimaryMRData(Dataset):
@@ -580,8 +600,6 @@ class PrimaryMRData(Dataset):
         dataset = cls.query.filter_by(uid=md.series_uid).filter_by(acq=md.acq_no).first()
         if not dataset:
             epoch = Epoch.from_metadata(md)
-            epoch.needs_finding = True
-            epoch.needs_processing = True
             dataset = cls(
                     container=epoch,
                     uid=md.series_uid,

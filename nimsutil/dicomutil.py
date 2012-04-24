@@ -80,11 +80,11 @@ class DicomSeries(object):
         self.first_dcm = self.dcm_list[0]
         self.log = log
 
-    def to_nii_dti_img(self, outbase):
+    def convert(self, outbase):
         try:
             image_type = self.first_dcm.ImageType
         except:
-            self.log and self.log.warning('dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(dcm_dir))
+            self.log and self.log.warning('dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase))
         else:
             if image_type == TYPE_SCREEN:
                 self.to_img(outbase)
@@ -106,7 +106,7 @@ class DicomSeries(object):
                 elif pixels.ndim == 3:
                     pixels = pixels.flatten().reshape((pixels.shape[1], pixels.shape[0]*pixels.shape[2]))
                     png.Writer(pixels.shape[0], pixels.shape[1]/3).write(fd, pixels)
-            self.log and self.log.info('generated %s' % os.path.basename(filename))
+            self.log and self.log.debug('generated %s' % os.path.basename(filename))
 
     def to_dti(self, outbase):
         """Create bval and bvec files from an ordered list of dicoms."""
@@ -116,13 +116,13 @@ class DicomSeries(object):
         filename = outbase + '.bval'
         with open(filename, 'w') as bvals_file:
             bvals_file.write(' '.join(['%f' % value for value in bvals]))
-        self.log and self.log.info('generated %s' % os.path.basename(filename))
+        self.log and self.log.debug('generated %s' % os.path.basename(filename))
         filename = outbase + '.bvec'
         with open(filename, 'w') as bvecs_file:
             bvecs_file.write(' '.join(['%f' % value for value in bvecs[0,:]]) + '\n')
             bvecs_file.write(' '.join(['%f' % value for value in bvecs[1,:]]) + '\n')
             bvecs_file.write(' '.join(['%f' % value for value in bvecs[2,:]]) + '\n')
-        self.log and self.log.info('generated %s' % os.path.basename(filename))
+        self.log and self.log.debug('generated %s' % os.path.basename(filename))
 
     def to_nii(self, outbase):
         """Create a single nifti file from an ordered list of dicoms."""
@@ -217,7 +217,7 @@ class DicomSeries(object):
         nifti = nibabel.Nifti1Image(image_data, None, nii_header)
         filename = outbase + '.nii.gz'
         nibabel.save(nifti, filename)
-        self.log and self.log.info('generated %s' % os.path.basename(filename))
+        self.log and self.log.debug('generated %s' % os.path.basename(filename))
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -232,4 +232,4 @@ class ArgumentParser(argparse.ArgumentParser):
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
     dcm_series = DicomSeries(args.dcm_dir)
-    dcm_series.to_nii_dti_img(args.outbase or os.path.basename(args.dcm_dir.rstrip('/')))
+    dcm_series.convert(args.outbase or os.path.basename(args.dcm_dir.rstrip('/')))
