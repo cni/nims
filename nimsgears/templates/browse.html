@@ -12,7 +12,7 @@
 <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
-<script type="text/javascript" src="${tg.url('/javascript/nimsgears.js')}"></script>
+<script data-main="${tg.url('/javascript/browse')}" src="${tg.url('/javascript/require.js')}"></script>
 <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
 
 <style>
@@ -23,9 +23,11 @@
     #experiments { clear:left; width:25%; }
     #sessions { width:20%; }
     #epochs { width:30%; }
+    #datasets { width:25%; }
 
-    #sessions .scrolltable_body table {display:none;}
+   /* #sessions .scrolltable_body table {display:none;}
     #epochs .scrolltable_body table {display:none;}
+    */
 
     .col_sunet { width:30%; }
     .col_exam { width:43%; }
@@ -36,10 +38,10 @@
 </style>
 
 <script type="text/javascript">
-    $(document).ready(function() {
-        scrolltable_Generate();
-        setupCallbacks();
-    });
+//    $(document).ready(function() {
+        //scrolltable_Generate();
+        //setupCallbacks();
+//    });
 </script>
 
 </head>
@@ -87,6 +89,17 @@
         <thead>
             <tr>
                 <py:for each="col in epoch_columns">
+                    <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+    <table id="datasets" class="scrolltable" name="Datasets">
+        <thead>
+            <tr>
+                <py:for each="col in dataset_columns">
                     <th py:with="name, cls = col" class="${cls}">${name}</th>
                 </py:for>
             </tr>
