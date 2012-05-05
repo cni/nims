@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 """Sample controller with all its actions protected."""
-from tg import config, expose, flash, redirect, request, require, session
+from tg import config, expose, flash, redirect, request, response, require, session
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 from repoze.what import predicates
 from tgext.admin.controller import AdminController
 from tgext.admin.tgadminconfig import TGAdminConfig
 
+import os
+import shlex
+import subprocess as sp
 from collections import OrderedDict
 
 from nimsgears import model
@@ -110,22 +113,18 @@ class AuthDataController(DataController):
 
     @expose(content_type='application/x-tar')
     def download(self, *args, **kwargs):
+        import tempfile
+        tempdir = tempfile.mkdtemp()
+        store_path = config.get('store_path')
+
         session_id = kwargs['session_id']
-        query = DBSession.query(Dataset)
-        query = query.join(Epoch, Dataset.epoch).join(Session, Epoch.session)
-        results = query.filter(Session.id == session_id).all()
-
-        paths = ' '.join([dataset.path for dataset in results])
-
-        import shlex
-        import subprocess as sp
-        tar_proc = sp.Popen(shlex.split('tar -czf - %s' % paths), stdout=sp.PIPE, cwd=config.get('store_path'))
-        ## tried this to get async pipe working with paster, but doesn't seem to do anything
-        ## should work outright with apache once python bug is fixed: http://bugs.python.org/issue13156
-        #import fcntl, os
-        #fd = tar_proc.stdout.fileno()
-        #file_flags = fcntl.fcntl(fd, fcntl.F_GETFL)
-        #fcntl.fcntl(fd, fcntl.F_SETFL, file_flags | os.O_NDELAY)
+        session = Session.query.filter(Session.id == session_id).first()
+        datasets = Dataset.query.join(Epoch, Dataset.container).filter(Epoch.session == session).all()
+        tardir = nimsutil.make_joined_path(tempdir, session.name)
+        for dataset in datasets:
+            os.symlink(os.path.join(store_path, dataset.relpath), os.path.join(tardir, dataset.name))
+        tar_proc = sp.Popen(shlex.split('tar -cLf - %s' % session.name), stdout=sp.PIPE, cwd=tempdir)
+        response.headerlist.append(('Content-Disposition', 'attachment; filename=%s' % session.name))
         return tar_proc.stdout
 
     @expose()
@@ -639,7 +638,7 @@ class AuthDataController(DataController):
 
         for i in range(len(db_result_epoch)):
             epoch = db_result_epoch[i]
-            epoch_data_list.append((epoch.timestamp.strftime('%H:%M'), '%s [%d/%d]' % (epoch.mri_desc, epoch.mri_series, epoch.mri_acq)))
+            epoch_data_list.append((epoch.timestamp.strftime('%H:%M'), '%s' % epoch.description))
             epoch_attr_list.append({})
             epoch_attr_list[i]['id'] = 'epoch_%d' % epoch.id
             if epoch.trashtime != None:

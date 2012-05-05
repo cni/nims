@@ -1,18 +1,27 @@
 #!/usr/bin/env python
+#
+# @author:  Bob Dougherty
+#           Gunnar Schaefer
 
 import os
 import shlex
+import shutil
 import argparse
+import datetime
+import tempfile
 import subprocess as sp
 
 import numpy as np
 import nibabel
 
-import nimsutil
 import pfheader
 
 
-class Pfile:
+class PFileError(Exception):
+    pass
+
+
+class PFile(object):
     """
     Read pfile data and/or header.
 
@@ -20,12 +29,12 @@ class Pfile:
     and generates a NIfTI object, including header information.
 
     Example:
-        from nimsutil import pfile
-        pf = pfile.Pfile(pfilename='P56832.7')
+        import pfile
+        pf = pfile.PFile(pfilename='P56832.7')
         pf.to_nii(outbase='P56832.7')
     """
 
-    def __init__(self, pfilename, log):
+    def __init__(self, pfilename, log=None):
         self.pfilename = pfilename
         self.log = log
         self.load_header()
@@ -33,17 +42,64 @@ class Pfile:
         self.fm_data = None
 
     def load_header(self):
-        self.header = pfheader.get_header(self.pfilename)
-        # Pull out some common fields for convenience
-        # *** CHECK THAT THESE ARE THE RIGHT FIELDS (ATSUSHI?)
+
+        def unpack_dicom_uid(uid):
+            """Convert packed DICOM UID to standard DICOM UID."""
+            return ''.join([str(i-1) if i < 11 else '.' for pair in [(ord(c) >> 4, ord(c) & 15) for c in uid] for i in pair if i > 0])
+
+        try:
+            self.header = pfheader.get_header(self.pfilename)
+        except (IOError, pfheader.PfheaderError):
+            raise PFileError
+
+        self.tr = self.header.image.tr / 1e6  # tr in seconds
         self.num_slices = self.header.rec.nslices
         self.num_receivers = self.header.rec.dab[0].stop_rcv - self.header.rec.dab[0].start_rcv + 1
-        # You might think this is stored in self.header.rec.nframes, but for our spiral it's here:
-        self.num_timepoints = int(self.header.rec.user0)
         self.num_echoes = self.header.rec.nechoes
         self.size_x = self.header.image.imatrix_X
         self.size_y = self.header.image.imatrix_Y
-        self.deltaTE = self.header.rec.user15
+        self.psd_name = os.path.basename(self.header.image.psdname)
+        self.scan_type = self.header.image.psd_iname
+        self.physio_flag = bool(self.header.rec.user2) and u'sprt' in self.psd_name.lower()
+        self.patient_id = self.header.exam.patidff
+        self.patient_name = self.header.exam.patnameff
+        self.patient_dob = self.header.exam.dateofbirth
+        self.exam_no= self.header.exam.ex_no
+        self.series_no = self.header.series.se_no
+        self.acq_no = self.header.image.scanactno
+        self.exam_uid = unpack_dicom_uid(self.header.exam.study_uid)
+        self.series_uid = unpack_dicom_uid(self.header.series.series_uid)
+        self.series_desc = self.header.series.se_desc
+
+        if self.psd_name == 'sprt':
+            self.num_timepoints = int(self.header.rec.user0)    # not in self.header.rec.nframes for sprt
+            self.deltaTE = self.header.rec.user15
+            self.num_bands = 0
+            self.band_spacing = 0
+            self.scale_data = True
+        else:
+            self.num_timepoints = self.header.rec.nframes
+            self.deltaTE = 0.0
+            self.scale_data = False
+
+        if self.psd_name.startswith('mux') and self.psd_name.endswith('epi') and self.header.rec.user6 > 0: # multi-band EPI!
+            self.num_bands = int(self.header.rec.user6)
+            self.band_spacing_mm = self.header.rec.user8
+            self.num_slices = self.header.image.slquant * self.num_bands
+            # TODO: adjust the image.tlhc... fields to match the correct geometry.
+
+        if self.header.image.im_datetime > 0:
+            self.timestamp = datetime.datetime.utcfromtimestamp(self.header.image.im_datetime)
+        else:   # HOShims don't have self.header.image.im_datetime
+            month, day, year = map(int, self.header.rec.scan_date.split('/'))
+            hour, minute = map(int, self.header.rec.scan_time.split(':'))
+            self.timestamp = datetime.datetime(year + 1900, month, day, hour, minute) # GE's epoch begins in 1900
+
+        # Note: the following is true for single-shot planar acquisitions (EPI and 1-shot spiral).
+        # For multishot sequences, we need to multiply by the # of shots. And for non-planar aquisitions,
+        # we'd need to multiply by the # of phase encodes (accounting for any acceleration factors).
+        # Even for planar sequences, this will be wrong (under-estimate) in case of cardiac-gating.
+        self.duration = datetime.timedelta(seconds=(self.num_timepoints * self.tr))
 
     def to_nii(self, outbase, spirec='spirec', saveInOut=False):
         """Create NIfTI file from pfile."""
@@ -86,7 +142,8 @@ class Pfile:
             pos = image_tlhc - slice_norm*slice_fov
             # FIXME: since we are reversing the slice order here, should we change the slice_order field below?
             self.image_data = self.image_data[:,:,-1:0:-1,]
-            self.fm_data    = self.fm_data[:,:,-1:0:-1,]
+            if self.fm_data is not None:
+                self.fm_data = self.fm_data[:,:,-1:0:-1,]
         else:
             pos = image_tlhc
 
@@ -106,9 +163,7 @@ class Pfile:
         qto_xyz[:,3] = np.append(pos, 1).T
         qto_xyz[0:3,0:3] = np.dot(qto_xyz[0:3,0:3], np.diag(mm_per_vox))
 
-        slices_per_volume = self.image_data.shape[2]
-        num_volumes = self.image_data.shape[3]
-        num_echoes = self.image_data.shape[4]
+        self.image_data = np.atleast_3d(self.image_data)
 
         nii_header = nibabel.Nifti1Header()
         nii_header.set_xyzt_units('mm', 'sec')
@@ -116,10 +171,10 @@ class Pfile:
         nii_header.set_sform(qto_xyz, 'scanner')
 
         nii_header['slice_start'] = 0
-        nii_header['slice_end'] = slices_per_volume - 1
+        nii_header['slice_end'] = self.num_slices - 1
         # nifti slice order codes: 0 = unknown, 1 = sequential incrementing, 2 = seq. dec., 3 = alternating inc., 4 = alt. dec.
         slice_order = 0
-        nii_header['slice_duration'] = self.header.image.tr / slices_per_volume / 1000
+        nii_header['slice_duration'] = self.tr * 1000 / self.num_slices
         # FIXME: check that this is correct.
         if   self.header.series.se_sortorder == 0:
             slice_order = 1  # or 2?
@@ -134,26 +189,19 @@ class Pfile:
             nii_header.set_dim_info(freq=0, phase=1, slice=2)
 
         # FIXME: There must be a cleaner way to set the TR! Maybe bug Matthew about it.
-        nii_header.structarr['pixdim'][4] = self.header.image.tr/1e6
-        nii_header.set_slice_duration(nii_header.structarr['pixdim'][4] / slices_per_volume)
-        # We try to set the slope/intercept here, but nibabel will silently overwrite
-        # anything we put here when the data are written out. (It thinks it's smarter
-        # than us). Also, if we don't explicitly cast the data to int16, it sets these
-        # to some crazy values rather than (1,0). Damn you Matthew! :)
-        nii_header.set_slope_inter(1,0)
-        nii_header.structarr['cal_max'] = 32767
+        nii_header.structarr['pixdim'][4] = self.tr
+        nii_header.set_slice_duration(nii_header.structarr['pixdim'][4] / self.num_slices)
+        nii_header.structarr['cal_max'] = self.image_data.max()
+        nii_header.structarr['cal_min'] = self.image_data.min()
 
-        # scale and save as int16.
-        nii_header.set_data_dtype(np.int16)
-        dscale = 32767.0 / np.max(np.abs(self.image_data))
-        if num_echoes == 1:
-            nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data).astype(np.int16), None, nii_header)
+        if self.num_echoes == 1:
+            nifti = nibabel.Nifti1Image(self.image_data, None, nii_header)
             nibabel.save(nifti, outbase + '.nii.gz')
-        elif num_echoes == 2:
+        elif self.num_echoes == 2:
             if saveInOut:
-                nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data[:,:,:,:,0]).astype(np.int16), None, nii_header)
+                nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,0], None, nii_header)
                 nibabel.save(nifti, outbase + '_in.nii.gz')
-                nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data[:,:,:,:,1]).astype(np.int16), None, nii_header)
+                nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,1], None, nii_header)
                 nibabel.save(nifti, outbase + '_out.nii.gz')
             # FIXME: Do a more robust test for spiralio!
             # Assume spiralio, so do a weighted average of the two echos.
@@ -166,160 +214,35 @@ class Pfile:
             avg = np.zeros(self.image_data.shape[0:4])
             for tp in range(self.image_data.shape[3]):
                 avg[:,:,:,tp] = w_in*self.image_data[:,:,:,tp,0] + w_out*self.image_data[:,:,:,tp,1]
-            nifti = nibabel.Nifti1Image(np.round(avg/np.abs(avg).max()*32767.0).astype(np.int16), None, nii_header)
+            nifti = nibabel.Nifti1Image(avg, None, nii_header)
             nibabel.save(nifti, outbase + '.nii.gz')
-            # w = out/(in+out)
         else:
-            for echo in range(num_echoes):
-                nifti = nibabel.Nifti1Image(np.round(dscale*self.image_data[:,:,:,:,echo]).astype(np.int16), None, nii_header)
+            for echo in range(self.num_echoes):
+                nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,echo], None, nii_header)
                 nibabel.save(nifti, outbase + '_echo%02d.nii.gz' % echo)
 
-        nii_header.structarr['cal_max'] = np.ceil(self.fm_data.max() * 100.0)
-        nii_header.structarr['cal_min'] = np.floor(self.fm_data.min() * 100.0)
-        nifti = nibabel.Nifti1Image(np.round(self.fm_data * 100.0).astype(np.int16), None, nii_header)
-        nibabel.save(nifti, outbase + '_B0.nii.gz')
-
-    def load_fieldmap_files(self, basename, save_unified=True, data_type=np.float32):
-        xyres = self.size_x
-        if xyres != self.size_y:
-            raise IndexError('non-square matrix: spiral recon requires a square matrix!')
-
-        fm_freq = np.zeros([xyres,xyres,self.num_slices,self.num_echoes], dtype=data_type)
-        fm_mask = np.zeros([xyres,xyres,self.num_slices,self.num_echoes], dtype=data_type)
-
-        for echo in range(self.num_echoes):
-            # loop over slices
-            for cur_slice in range(self.num_slices):
-                #print 'Combining field maps for slice %g, echo %g ....' % (cur_slice,echo)
-                # Initialize arrays
-                Sx   = np.zeros(xyres*xyres, dtype=data_type) # Sum of maps
-                Sm   = np.zeros(xyres*xyres, dtype=data_type) # Sum of masks
-                # Loop over receivers
-                for recnum in range(self.num_receivers):
-                    # build up file name
-                    thisfilename = '%s.freq_%03d' % (basename,(recnum*self.num_slices+cur_slice)*self.num_echoes+echo)
-                    with open(thisfilename ,'rb') as fp:
-                        thisfile = np.fromfile(file = fp, dtype=data_type)
-                    #os.remove(thisfilename)
-
-                    thismaskname = '%s.mask_%03d' % (basename,(recnum*self.num_slices+cur_slice)*self.num_echoes+echo)
-                    with open(thismaskname ,'rb') as fp:
-                        thismask = np.fromfile(file = fp, dtype=data_type)
-                    #os.remove(thismaskname)
-
-                    Sx = Sx + thisfile*thismask
-                    Sm = Sm + thismask
-
-                fm_freq[:,:,cur_slice,echo] = (Sx/Sm).reshape(xyres,xyres) # take the mean
-                fm_mask[:,:,cur_slice,echo] = Sm.reshape(xyres,xyres)
-
-        if save_unified:
-            # We always use the corresponding echo. Could change this to always use just one of the echoes.
-            echo_to_use = range(self.num_echoes)
-            for echo in range(self.num_echoes):
-                for cur_slice in range(self.num_slices):
-                    for recnum in range(self.num_receivers):
-                        thisfilename = '%s.freq_%03d' % (basename,(recnum*self.num_slices+cur_slice)*self.num_echoes+echo)
-                        with open(thisfilename ,'wb') as fp:
-                            fm_freq[:,:,cur_slice,echo_to_use[echo]].tofile(file = fp)
-                        thismaskname = '%s.mask_%03d' % (basename,(recnum*self.num_slices+cur_slice)*self.num_echoes+echo)
-                        with open(thismaskname ,'wb') as fp:
-                            np.sqrt(fm_mask[:,:,cur_slice,echo_to_use[echo]]).tofile(file = fp)
-
-        return fm_freq, fm_mask
+        if self.fm_data is not None:
+            nii_header.structarr['cal_max'] = self.fm_data.max()
+            nii_header.structarr['cal_min'] = self.fm_data.min()
+            nifti = nibabel.Nifti1Image(self.fm_data, None, nii_header)
+            nibabel.save(nifti, outbase + '_B0.nii.gz')
 
     def recon(self, spirec):
         """Do image reconstruction and populate self.image_data."""
-        with nimsutil.TempDirectory() as tmp_dir:
-            basename = 'recon'
-            basepath = os.path.join(tmp_dir, basename)
-            pfilename = os.path.abspath(self.pfilename)
+        tmpdir = tempfile.mkdtemp()
+        basename = 'recon'
+        basepath = os.path.join(tmpdir, basename)
+        pfilename = os.path.abspath(self.pfilename)
 
-            # run spirec once to get the fieldmap files (one for each coil and slice)
-            cmd = spirec + ' -l --fmaponly --savefmap --rotate -90 -r ' + pfilename + ' -t ' + basename
-            self.log.debug(cmd)
-            sp.call(shlex.split(cmd), cwd=tmp_dir, stdout=open('/dev/null', 'w'))
+        # run spirec to get the mag file and the fieldmap file
+        cmd = spirec + ' -l --rotate -90 --magfile --savefmap2 --b0navigator -r ' + pfilename + ' -t ' + basename
+        self.log and self.log.debug(cmd)
+        sp.call(shlex.split(cmd), cwd=tmpdir, stdout=open('/dev/null', 'w'))
 
-            # combine the fieldmaps into one unified fieldmap
-            [self.fm_data, fm_mask] = self.load_fieldmap_files(basepath, save_unified = True)
-
-            # call spirec again, giving it our unified fieldmap, to produce an even better fieldmap
-            cmd = spirec + ' -l --savetempfile --loadfmap --just 2 --rotate -90 -r ' + pfilename + ' -t ' + basename
-            self.log.debug(cmd)
-            sp.call(shlex.split(cmd), cwd=tmp_dir, stdout=open('/dev/null', 'w'))
-
-            data_type = np.complex64
-            #complex_image = np.zeros([size_x, size_y, num_slices, 2], dtype=data_type)
-            fn = '%s.complex_float' % basepath
-            # Why do we need 'F'ortran order for our reshape?!?!
-            with open(fn, 'rb') as fp:
-                complex_image = np.fromfile(file=fp, dtype=data_type).reshape([self.size_x,self.size_y,2,self.num_slices,self.num_receivers,self.num_echoes],order='F')
-            sos_recdata2 = np.mean( np.conj(complex_image[:,:,0,:,:,:]) * complex_image[:,:,1,:,:,:], 3)
-            self.fm_data = -np.angle(sos_recdata2[:,:,:,0])/(2*np.pi*(self.deltaTE/1e6))
-            fm_mask = np.abs(sos_recdata2[:,:,:,0])
-
-            # Now save the resulting fieldmaps (these are now as good as it gets)
-            # Note the transpose in there. Apparently the data saved in the tempfile are
-            # x,y flipped compared to the data in the individula field map files.
-            for echo in range(self.num_echoes):
-                for cur_slice in range(self.num_slices):
-                    for cur_recv in range(self.num_receivers):
-                        thisfilename = '%s.freq_%03d' % (basepath,(cur_recv*self.num_slices+cur_slice)*self.num_echoes+echo)
-                        with open(thisfilename ,'wb') as fp:
-                            self.fm_data[:,:,cur_slice].transpose().tofile(file = fp)
-                        thismaskname = '%s.mask_%03d' % (basepath,(cur_recv*self.num_slices+cur_slice)*self.num_echoes+echo)
-                        with open(thismaskname ,'wb') as fp:
-                            np.sqrt(fm_mask[:,:,cur_slice].transpose()).tofile(file = fp)
-
-            # Now recon the whole timeseries using the good fieldmaps that we just saved.
-            cmd = spirec + ' -l --savetempfile --loadfmap --rotate -90 --b0navigator -r ' + pfilename + ' -t ' + basename
-            self.log.debug(cmd)
-            sp.call(shlex.split(cmd), cwd=tmp_dir, stdout=open('/dev/null', 'w'))
-
-            # Compute the receive coil weightings (Should become 1 if only a single coil).
-            # The values stored in the header are standard deviations from the coil calibration.
-            # We load those and convert to the 1 / (mean-normalized variance) scale factor.
-            # Apparently, this is also what GE does in their recon code.
-            coil_weights = np.array(self.header.ps.rec_std[0:self.num_receivers])
-            coil_weights = np.power(coil_weights / coil_weights.mean(), -2)
-
-            fn = '%s.complex_float' % basepath
-            num_values_per_slice = self.size_x*self.size_y*self.num_timepoints
-            num_bytes_per_slice = num_values_per_slice*np.dtype(data_type).itemsize
-            complex_image = np.zeros([self.size_x,self.size_y,self.num_timepoints,self.num_receivers,self.num_echoes], dtype=data_type)
-            self.image_data = np.zeros([self.size_x,self.size_y,self.num_slices,self.num_timepoints,self.num_echoes], dtype=np.float32)
-            with open(fn, 'rb') as fp:
-                for sl in range(self.num_slices):
-                    for recv in range(self.num_receivers):
-                        for echo in range(self.num_echoes):
-                            fp.seek(sl*num_bytes_per_slice + recv*self.num_slices*num_bytes_per_slice + echo*self.num_receivers*self.num_slices*num_bytes_per_slice)
-                            complex_image[:,:,:,recv,echo] = np.fromfile(file=fp, dtype=data_type, count=num_values_per_slice).reshape([self.size_x,self.size_y,self.num_timepoints],order='F')
-                        complex_image[:,:,:,recv,] = complex_image[:,:,:,recv,] * coil_weights[recv]
-                    self.image_data[:,:,sl,:,:] = np.sqrt(np.mean(np.power(np.abs(complex_image),2),3))
-
-
-def montage(x):
-    """
-    Convenience function for looking at image arrays.
-
-    For example:
-        pylab.imshow(np.flipud(np.rot90(montage(im))))
-        pylab.axis('off')
-        pylab.show()
-    """
-    m, n, count = np.shape(x)
-    mm = int(np.ceil(np.sqrt(count)))
-    nn = mm
-    montage = np.zeros((mm * m, nn * n))
-    image_id = 0
-    for j in range(mm):
-        for k in range(nn):
-            if image_id >= count:
-                break
-            slice_m, slice_n = j * m, k * n
-            montage[slice_n:slice_n + n, slice_m:slice_m + m] = x[:, :, image_id]
-            image_id += 1
-    return montage
+        self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echoes,self.num_slices],order='F').transpose((0,1,4,2,3))
+        if os.path.exists(basepath+'.B0freq2'):
+            self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echoes,self.num_slices],order='F').transpose((0,1,3,2))
+        shutil.rmtree(tmpdir)
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -328,11 +251,15 @@ class ArgumentParser(argparse.ArgumentParser):
         super(ArgumentParser, self).__init__()
         self.description = """Recons a GE pfile to produce a NIfTI file and a B0 fieldmap."""
         self.add_argument('pfile', help='path to pfile')
-        self.add_argument('outbase', nargs='?', help='basename for output files (default: pfile name)')
+        self.add_argument('outbase', nargs='?', help='basename for output files (default: pfile name in cwd)')
+        self.add_argument('-m', '--matfile', help='path to reconstructed data in .mat format')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    log = nimsutil.get_logger(os.path.splitext(os.path.basename(__file__))[0])
-    pf = Pfile(args.pfile, log)
+    pf = PFile(args.pfile)
+    if args.matfile:
+        import h5py
+        datafile = h5py.File(args.matfile, 'r')
+        pf.image_data = datafile.get('data_block').value.transpose((2,3,1,0))
     pf.to_nii(args.outbase or os.path.basename(args.pfile))

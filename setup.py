@@ -38,7 +38,7 @@ install_requires=[
     "repoze.what.plugins.sql>=1.0.1",
     "tw.forms",
     "elixir >= 0.7.1",
-    "pydicom >= 0.9.6",
+    "pydicom >= 0.9.7",
     "nibabel",
     ]
 

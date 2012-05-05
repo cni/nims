@@ -34,10 +34,10 @@ class RemoteUserIdentifier(object):
         value = getattr(cookie, 'value', None)
         if value != cookie_value:
             # return a Set-Cookie header
-            cookie = '%s=%s; Path=/;' % (self.cookie_name, cookie_value)
+            cookie = '%s=%s; Path=/; Max-Age=3600;' % (self.cookie_name, cookie_value)
             return [('Set-Cookie', cookie)]
 
     def forget(self, environ, identity):
         # clear and expire the cookie
-        cookie = ('%s=""; Path=/; Expires=Fri, 22-Jun-1979 22:05:00 CET' % self.cookie_name)
+        cookie = ('%s=""; Path=/; Expires=Fri, 22-Jun-1979 20:05:00 GMT' % self.cookie_name)
         return [('Set-Cookie', cookie)]

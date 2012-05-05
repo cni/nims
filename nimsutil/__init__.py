@@ -3,7 +3,7 @@
 from nimsutil import *
 
 try:
-    from dicomutil import *
+    import dicomutil
 except:
     print 'Warning: could not import dicomutil module'
 
