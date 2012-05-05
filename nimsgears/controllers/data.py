@@ -723,6 +723,24 @@ class AuthDataController(DataController):
                     )
 
     @expose()
+    def users_with_access(self, **kwargs):
+        user = request.identity['user']
+        id_ = int(kwargs['exp_id'])
+        db_query = Experiment.query.filter_by(id=id_)
+        db_query = self.filter_access(db_query, user)
+        db_result = db_query.first()
+        acc_data_list = []
+        acc_attr_list = []
+        if db_result:
+            for access in db_result.accesses:
+                acc_data_list.append((access.user.uid, access.user.name, access.privilege.__unicode__()))
+                acc_attr_list.append({'class': access.privilege.name})
+        return json.dumps(dict(success=True,
+                               data=acc_data_list,
+                               attrs=acc_attr_list))
+
+
+    @expose()
     def groups_query(self, **kwargs):
         user = request.identity['user']
         group = None
@@ -745,9 +763,11 @@ class AuthDataController(DataController):
         # indicators computed in the front end code... keep class names out of back end
         exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
         user_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name')]
+        acc_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name'), ('Access Level', 'col_access')]
 
         return dict(page='access',
                     user_list=user_list,
+                    acc_columns=acc_columns,
                     exp_data_list=exp_data_list,
                     exp_attr_list=exp_attr_list,
                     user_columns=user_columns,
