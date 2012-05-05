@@ -4,6 +4,16 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
     var epochs;
     var datasets;
 
+    var experiments_popup;
+    var sessions_popup;
+    var epochs_popup;
+    var datasets_popup;
+
+    var getId = function(string)
+    {
+        return string.split("_")[1];
+    };
+
     var toggleObject = function (object, makeVisible)
     {
         objectVisible = object.css('display') != 'none';
@@ -93,8 +103,8 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         selected_rows = ui.helper.data('moving_rows');
 
         var sess_id_list = Array();
-        selected_rows.each(function() { sess_id_list.push(this.id.split('_')[1]); });
-        var target_exp_id = this.id.split("_")[1];
+        selected_rows.each(function() { sess_id_list.push(getId(this.id)); });
+        var target_exp_id = getId(this.id);
         var target_exp_row = $(this);
         $.ajax({
             traditional: true,
@@ -149,7 +159,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
 
     var changeTrashFlag = function(event, ui)
     {
-        var trash_flag = this.id.split('_')[1];
+        var trash_flag = getId(this.id);
         $.ajax({
             traditional: true,
             type: 'POST',
@@ -191,6 +201,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                     experiments.populateTable(data);
                     experiments.synchronizeSelections();
                     experiments.setClickEvents();
+                    experiments.onDoubleClick(function() { showDialog(experiments_popup, { exp_id: getId(this.id) }); });
                     TableDragAndDrop.setupDroppable(sessions.getBody().closest('table'), experiments.getRows(), dropSessionsOnExperiment);
                     refreshSessions(
                     {
@@ -202,7 +213,6 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                 {
                     alert('Failed'); // implement better alert
                 }
-
             },
         }); // ajax call
     };
@@ -214,7 +224,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         var table_body = sessions.getBody();
         if (experiment_row && experiment_row.length == 1) // make sure we didn't just get passed an empty list
         {
-            var exp_id = experiment_row.attr('id').split('_')[1];
+            var exp_id = getId(experiment_row.attr('id'));
             $.ajax(
             {
                 type: 'POST',
@@ -228,6 +238,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                         sessions.populateTable(data);
                         sessions.synchronizeSelections();
                         sessions.setClickEvents();
+                        sessions.onDoubleClick(function() { showDialog(sessions_popup, { sess_id: getId(this.id) }); });
 
                         // Disable rows that you don't have manage access to
                         var experiment_rows = experiments.getRows();
@@ -275,7 +286,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         var table_body = epochs.getBody();
         if (session_row && session_row.length == 1) // make sure we didn't get passed an empty list
         {
-            var sess_id = session_row.attr('id').split('_')[1];
+            var sess_id = getId(session_row.attr('id'));
             $.ajax(
             {
                 type: 'POST',
@@ -289,6 +300,8 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                         epochs.populateTable(data);
                         epochs.synchronizeSelections();
                         epochs.setClickEvents();
+                        epochs.onDoubleClick(function() { showDialog(epochs_popup, { epoch_id: getId(this.id) }); });
+
                         refreshDatasets(
                         {
                             selected_rows: epochs.getSelectedRows()
@@ -318,7 +331,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         var table_body = datasets.getBody();
         if (epoch_row && epoch_row.length == 1) // make sure we didn't get passed an empty list
         {
-            var epoch_id = epoch_row.attr('id').split('_')[1];
+            var epoch_id = getId(epoch_row.attr('id'))
             $.ajax(
             {
                 type: 'POST',
@@ -332,6 +345,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                         datasets.populateTable(data);
                         datasets.synchronizeSelections();
                         datasets.setClickEvents();
+                        datasets.onDoubleClick(function() { showDialog(datasets_popup, { dataset_id: getId(this.id) }); });
                         toggleObject(table_body.closest('table'), true);
                         datasets.stopLoading();
                     }
@@ -349,7 +363,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         }
     };
 
-    var init = function()
+    var wireUpDrillDown = function()
     {
         document.onkeydown = function(e)
         {
@@ -391,6 +405,68 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                 return false;
             }
         }
+    };
+
+    var showDialog = function(popup, ajax_data)
+    {
+        console.log(ajax_data);
+        $.ajax({
+            traditional: true,
+            type: 'POST',
+            url: "get_popup_data",
+            dataType: "json",
+            data: ajax_data,
+            success: function(data)
+            {
+                if (data.success)
+                {
+                    // Do to all boxes
+                    popup.find('p').text(data.name);
+                    // Box specific modifications
+                    switch (data.type)
+                    {
+                        case "experiment":
+                            popup.attr('title', data.type + " " + ajax_data.exp_id);
+                            break;
+                        case "session":
+                            popup.attr('title', data.type + " " + ajax_data.sess_id);
+                            break;
+                        case "epoch":
+                            popup.attr('title', data.type + " " + ajax_data.epoch_id);
+                            break;
+                        case "dataset":
+                            popup.attr('title', data.type + " " + ajax_data.dataset_id);
+                            break;
+                    }
+                    popup.dialog({
+                        resizable:false,
+                        modal:true,
+                        buttons: {
+                            Okay: function() {
+                                $(this).dialog("close");
+                            },
+                            Cancel: function() {
+                                $(this).dialog("close");
+                            }
+                        },
+                    });
+                    console.log('wat');
+                }
+                else
+                {
+                    console.log('failed');
+                }
+            },
+        });
+    };
+
+// TODO - separate functions for each popup - handle custom populating the divs
+// that represent the popups. showdialog will be one core function for popping
+// up the dialog, and perhaps ill rename the other functions so it's not too
+// confusing
+    var init = function()
+    {
+        wireUpDrillDown();
         ScrolltableManager.init();
         ScrolltableManager.setTableHeights();
         ScrolltableManager.autoSetTableHeights();
@@ -420,6 +496,14 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
 
         $("#radio_trash input").change(changeTrashFlag);
         $($("#radio_trash input")[getTrashFlag()]).click();
+
+        $(".pop").dialog();
+        $(".pop").dialog("destroy");
+
+        experiments_popup = $("#experiments_pop");
+        sessions_popup = $("#sessions_pop");
+        epochs_popup = $("#epochs_pop");
+        datasets_popup = $("#datasets_pop");
     };
 
     $(function() {

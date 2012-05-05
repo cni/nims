@@ -210,6 +210,96 @@ class AuthDataController(DataController):
 
         return success
 
+    def filter_access(self, db_query, user):
+        db_query = db_query.join(Access).join(AccessPrivilege)
+        if not (predicates.in_group('superusers') and user.admin_mode):
+            mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
+            db_query = db_query.filter(Access.user == user).filter(AccessPrivilege.value >= mg_privilege.value)
+        return db_query
+
+    def get_popup_data_experiment(self, user, id_):
+        db_query = Experiment.query.filter_by(id=id_)
+        db_query = self.filter_access(db_query, user)
+        db_result = db_query.first()
+        return {
+            'type': 'experiment',
+            'name': db_result.name
+            }
+
+    def get_popup_data_session(self, user, id_):
+        db_query = (Session.query.filter_by(id=id_)
+            .join(Subject, Session.subject)
+            .join(Experiment, Subject.experiment))
+        db_query = self.filter_access(db_query, user)
+        db_result = db_query.first()
+        return {
+            'type': 'session',
+            'name': db_result.name
+            }
+
+    def get_popup_data_epoch(self, user, id_):
+        db_query = (Epoch.query.filter_by(id=id_)
+            .join(Session, Epoch.session)
+            .join(Subject, Session.subject)
+            .join(Experiment, Subject.experiment))
+        db_query = self.filter_access(db_query, user)
+        db_result = db_query.first()
+        return {
+            'type': 'epoch',
+            'name': db_result.name
+            }
+
+    def get_popup_data_dataset(self, user, id_):
+        db_query = (Dataset.query.filter_by(id=id_)
+            .join(Epoch)
+            .join(Session, Epoch.session)
+            .join(Subject, Session.subject)
+            .join(Experiment, Subject.experiment))
+        db_query = self.filter_access(db_query, user)
+        db_result = db_query.first()
+        return {
+            'type': 'dataset',
+            'name': db_result.__class__.__name__
+            }
+
+    @expose()
+    def get_popup_data(self, **kwargs):
+        user = request.identity['user']
+        popup_data = []
+        if "exp_id" in kwargs:
+            try:
+                id_ = int(kwargs["exp_id"])
+            except:
+                pass
+            else:
+                popup_data = self.get_popup_data_experiment(user, id_)
+
+        elif "sess_id" in kwargs:
+            try:
+                id_ = int(kwargs["sess_id"])
+            except:
+                pass
+            else:
+                popup_data = self.get_popup_data_session(user, id_)
+
+        elif "epoch_id" in kwargs:
+            try:
+                id_ = int(kwargs["epoch_id"])
+            except:
+                pass
+            else:
+                popup_data = self.get_popup_data_epoch(user, id_)
+
+        elif "dataset_id" in kwargs:
+            try:
+                id_ = int(kwargs["dataset_id"])
+            except:
+                pass
+            else:
+                popup_data = self.get_popup_data_dataset(user, id_)
+
+        popup_data.update({'success': True})
+        return json.dumps(popup_data)
 
     @expose()
     def modify_access(self, **kwargs):
@@ -506,7 +596,7 @@ class AuthDataController(DataController):
             db_query = db_query.filter(Dataset.trashtime != None)
 
         if predicates.in_group('superusers') and user.admin_mode:
-            db_result_epoch = db_query.all()
+            db_result_dataset = db_query.all()
         else:
             db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
             db_result = db_query.all()

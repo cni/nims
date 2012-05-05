@@ -5,9 +5,13 @@ define([], function()
         var element;
         var header;
         var body;
+        var title;
         var selected_rows = [];
-        var timeout;
+        var change_row_timeout;
+        var loading_timeout;
         var loading_elem;
+
+        var is_in_focus = false;
 
         var last_clicked_index = 0;
         var shift_boundary_index = 0;
@@ -62,14 +66,24 @@ define([], function()
 
         var startLoading = function()
         {
-            body.hide();
-            loading_elem.show();
+            if (loading_timeout) { // account for fast button presses by forcing a timeout to finish before sending DB call
+                clearTimeout(loading_timeout);
+                loading_timeout = null;
+            }
+            loading_timeout = setTimeout(function(){ body.hide(); loading_elem.show(); }, 250);
         };
 
         var stopLoading = function()
         {
+            clearTimeout(loading_timeout);
             body.show()
             loading_elem.hide();
+        };
+
+        var onDoubleClick = function(callback)
+        {
+            rows = getRows()
+            rows.dblclick(callback);
         };
 
         var createTableRowFromTuple = function(text_tuple)
@@ -171,6 +185,26 @@ define([], function()
             stripe();
         };
 
+        var setFocus = function(set_to_focus)
+        {
+            if (is_in_focus && !set_to_focus)
+            {
+                is_in_focus = false;
+                if (title)
+                {
+                    title.removeClass("ui-selected");
+                }
+            }
+            else if (!is_in_focus && set_to_focus)
+            {
+                is_in_focus = true;
+                if (title)
+                {
+                    title.addClass("ui-selected");
+                }
+            }
+        };
+
         var stripe = function()
         {
             body.find('tr').removeClass('stripe');
@@ -202,18 +236,20 @@ define([], function()
             {
                 row_list.removeClass('ui-selected');
                 last_clicked_index = shift_boundary_index = move_to;
-                $(row_list[shift_boundary_index]).addClass('ui-selected');
-                if (timeout) { // account for fast button presses by forcing a timeout to finish before sending DB call
-                    clearTimeout(timeout);
-                    timeout = null;
+                var row_to_select = row_list[shift_boundary_index];
+                row_to_select.scrollIntoViewIfNeeded(delta <= 0)
+                $(row_to_select).addClass('ui-selected');
+                if (change_row_timeout) { // account for fast button presses by forcing a timeout to finish before sending DB call
+                    clearTimeout(change_row_timeout);
+                    change_row_timeout = null;
                 }
-                timeout = setTimeout(select, 250);
+                change_row_timeout = setTimeout(select, 250);
             }
         };
 
         var singleselect = function(event)
         {
-            if (!(event.shiftKey || event.metaKey))
+            if (!(event.shiftKey || event.metaKey || event.ctrlKey))
             {
                 var row = $(this);
                 var table = row.closest("table");
@@ -327,6 +363,7 @@ define([], function()
             loading_elem = $(scrolltable_loading);
             header = element.find('.scrolltable_header thead');
             body = element.find(".scrolltable_body tbody");
+            title = element.find(".scrolltable_title");
             $(scrolltable_header).find('th').click(function()
             {
                 sortByElement($(this));
@@ -338,6 +375,7 @@ define([], function()
             resort: resort,
             onSelect: onSelect,
             changeRow: changeRow,
+            setFocus: setFocus,
             getBody: getBody,
             getRows: getRows,
             getElement: getElement,
@@ -350,6 +388,7 @@ define([], function()
             synchronizeSelections: synchronizeSelections,
             stopLoading: stopLoading,
             startLoading: startLoading,
+            onDoubleClick: onDoubleClick,
         };
     };
 });
