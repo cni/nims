@@ -223,7 +223,7 @@ class AuthDataController(DataController):
         return {
             'type': 'experiment',
             'name': db_result.name
-            }
+            } if db_result else None
 
     def get_popup_data_session(self, user, id_):
         db_query = (Session.query.filter_by(id=id_)
@@ -234,7 +234,7 @@ class AuthDataController(DataController):
         return {
             'type': 'session',
             'name': db_result.name
-            }
+            } if db_result else None
 
     def get_popup_data_epoch(self, user, id_):
         db_query = (Epoch.query.filter_by(id=id_)
@@ -246,7 +246,7 @@ class AuthDataController(DataController):
         return {
             'type': 'epoch',
             'name': db_result.name
-            }
+            } if db_result else None
 
     def get_popup_data_dataset(self, user, id_):
         db_query = (Dataset.query.filter_by(id=id_)
@@ -259,12 +259,12 @@ class AuthDataController(DataController):
         return {
             'type': 'dataset',
             'name': db_result.__class__.__name__
-            }
+            } if db_result else None
 
     @expose()
     def get_popup_data(self, **kwargs):
         user = request.identity['user']
-        popup_data = []
+        popup_data = {}
         if "exp_id" in kwargs:
             try:
                 id_ = int(kwargs["exp_id"])
@@ -297,7 +297,11 @@ class AuthDataController(DataController):
             else:
                 popup_data = self.get_popup_data_dataset(user, id_)
 
-        popup_data.update({'success': True})
+        if popup_data:
+            popup_data.update({'success': True})
+        else:
+            popup_data = {'success': False}
+
         return json.dumps(popup_data)
 
     @expose()
@@ -458,7 +462,7 @@ class AuthDataController(DataController):
 
     @expose()
     def transfer_sessions(self, **kwargs):
-        """ Queries DB given info found in POST, TODO perhaps verify access level another time here??
+        """ Queries DB given info found in POST
         """
         user = request.identity['user']
 
