@@ -8,7 +8,12 @@ define(['utility/scrolltab'], function (Scrolltable)
         set_to_table = tables_by_id[table_key];
         if (set_to_table)
         {
+            if (table_with_focus)
+            {
+                table_with_focus.setFocus(false);
+            }
             table_with_focus = set_to_table;
+            table_with_focus.setFocus(true);
         }
     };
 
@@ -93,7 +98,12 @@ define(['utility/scrolltab'], function (Scrolltable)
 
     var tableSelected = function(event)
     {
+        if (table_with_focus)
+        {
+            table_with_focus.setFocus(false);
+        }
         table_with_focus = getById(event.table_key);
+        table_with_focus.setFocus(true);
     };
 
     var getFocus = function()

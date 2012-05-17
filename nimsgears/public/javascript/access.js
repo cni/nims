@@ -1,6 +1,31 @@
 require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAndDrop, ScrolltableManager) {
     var users;
     var experiments;
+    var current_access;
+
+    var refreshCurrentAccess = function(event)
+    {
+        if (event.selected_rows.length == 1)
+        {
+            exp_id = event.selected_rows.attr('id').split('_')[1];
+            $.ajax(
+            {
+                traditional: true,
+                type: 'POST',
+                url: "users_with_access",
+                data: { exp_id: exp_id },
+                dataType: "json",
+                async: false,
+                success: function(data)
+                {
+                    if (data.success)
+                    {
+                        current_access.populateTable(data);
+                    }
+                },
+            }); // ajax call
+        }
+    }
 
     var getAccessPrivileges = function()
     {
@@ -102,10 +127,14 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         ScrolltableManager.autoSetTableHeights();
 
         ScrolltableManager.resortAll();
-        ScrolltableManager.setClickEventsAll();
 
         users = ScrolltableManager.getById("users");
         experiments = ScrolltableManager.getById("experiments");
+        current_access = ScrolltableManager.getById("current_access");
+
+        users.setClickEvents();
+        experiments.setClickEvents();
+        experiments.onSelect(refreshCurrentAccess);
 
         var users_table = $("#users .scrolltable_body table");
         var experiments_table = $("#experiments .scrolltable_body table");

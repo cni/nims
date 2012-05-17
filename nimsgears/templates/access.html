@@ -13,17 +13,20 @@
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
 <script data-main="${tg.url('/javascript/access')}" src="${tg.url('/javascript/require.js')}"></script>
-<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
 <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
+<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
 
 <style>
     #users { clear:left; width:25%; }
     #experiments { width:25%; }
+    #current_access { width:40%; }
+    #current_access { margin-left: 10%; }
 
     .col_sunet { width:40%; }
     .col_exam { width:25%; }
     .col_sa { width:25%; }
-    .col_access { width:20%; }
+    #current_access .col_sunet { width:25%; }
+    #current_access .col_name { width:25%; }
 
 </style>
 
@@ -70,6 +73,17 @@
                     <td py:for="param in exp_data">${param}</td>
                 </tr>
             </py:for>
+        </tbody>
+    </table>
+    <table id="current_access" class="scrolltable" name="Current Access">
+        <thead>
+            <tr>
+                <py:for each="col in acc_columns">
+                    <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+        </thead>
+        <tbody>
         </tbody>
     </table>
 </body>

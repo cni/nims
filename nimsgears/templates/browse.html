@@ -14,6 +14,7 @@
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
 <script data-main="${tg.url('/javascript/browse')}" src="${tg.url('/javascript/require.js')}"></script>
 <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
+<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
 
 <style>
     .dropbox { text-align:center; float:right; height:15px; width:70px; border:2px solid #820000; padding:10px; margin:5px; }
@@ -25,10 +26,6 @@
     #epochs { width:30%; }
     #datasets { width:25%; }
 
-   /* #sessions .scrolltable_body table {display:none;}
-    #epochs .scrolltable_body table {display:none;}
-    */
-
     .col_sunet { width:30%; }
     .col_exam { width:43%; }
     .col_sa { width:20%; }
@@ -36,16 +33,23 @@
 
     .access_mg { font-weight:bold; }
 </style>
-
-<script type="text/javascript">
-//    $(document).ready(function() {
-        //scrolltable_Generate();
-        //setupCallbacks();
-//    });
-</script>
-
 </head>
-<body style="overflow-y:none">
+
+<body>
+    <!-- Pop Overs -->
+    <div id="experiments_pop" class="pop">
+        <p></p>
+    </div>
+    <div id="sessions_pop" class="pop">
+        <p></p>
+    </div>
+    <div id="epochs_pop" class="pop">
+        <p></p>
+    </div>
+    <div id="datasets_pop" class="pop">
+        <p></p>
+    </div>
+
     <div id="radio_trash">
         <input type="radio" id="trashflag_0" name="radio">Hide Trash</input>
         <input type="radio" id="trashflag_1" name="radio">Show Trash</input>
@@ -57,10 +61,10 @@
         <p>This page allows you to view and make changes to your data.</p>
     </div>
     <div class="dropbox" id="trash_drop">
-    Trash
+        Trash
     </div>
     <div class="dropbox" id="download_drop">
-    Download
+        Download
     </div>
 
     <table id="experiments" class="scrolltable" name="Experiments">
