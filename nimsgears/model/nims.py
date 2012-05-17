@@ -454,7 +454,7 @@ class Epoch(DataContainer):
 
     @property
     def name(self):
-        return ('%04d_%02d_%s' % (self.series, self.acq, self.description)).encode('utf-8')
+        return ('%s_%d_%s' % (self.timestamp.strftime('%Y%m%d_%H%M%S'), self.acq, self.description)).encode('utf-8')
 
     @property
     def description(self):
@@ -498,8 +498,8 @@ class Dataset(Entity):
 
     offset = Field(Interval, default=datetime.timedelta())
     trashtime = Field(DateTime)
-    kind = Field(Enum(u'primary', u'secondary', u'derived', name=u'kind'), default=u'primary')
-    datatype = Field(Enum(u'dicom', u'pfile', u'nifti', u'physio', u'screensave', name=u'type'))
+    kind = Field(Enum(u'primary', u'secondary', u'derived', name=u'kind'), default=u'derived')
+    datatype = Field(Unicode(63))
     _updatetime = Field(DateTime, default=datetime.datetime.now, colname='updatetime', synonym='updatetime')
     digest = Field(Binary(20))
 
@@ -514,7 +514,7 @@ class Dataset(Entity):
 
     @classmethod
     def at_path_for_file_and_datatype(cls, nims_path, filename=None, datatype=None):
-        dataset = cls(datetype=datatype)
+        dataset = cls(datatype=datatype)
         transaction.commit()
         DBSession.add(dataset)
         nimsutil.make_joined_path(nims_path, dataset.relpath)
@@ -608,6 +608,7 @@ class PrimaryMRData(Dataset):
                     desc=md.series_desc,
                     psd=md.psd_name,
                     datatype=md.datatype,
+                    kind=u'primary',
                     physio_flag = md.physio_flag and u'epi' in md.psd_name.lower(),
                     )
         return dataset
@@ -626,7 +627,7 @@ class DicomData(PrimaryMRData):
             md = None
         else:
             md = Metadata()
-            md.datatype = u'dicom'
+            md.datatype = u'Dicom Files'
             md.exam_no = dcm.exam_no
             md.series_no = dcm.series_no
             md.acq_no = dcm.acq_no
@@ -654,7 +655,7 @@ class GEPFile(PrimaryMRData):
             md = None
         else:
             md = Metadata()
-            md.datatype = u'pfile'
+            md.datatype = u'PFile'
             md.exam_no = pf.exam_no
             md.series_no = pf.series_no
             md.acq_no = pf.acq_no

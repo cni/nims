@@ -116,9 +116,13 @@ class Pipeline(threading.Thread):
             success, physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.duration, ds.psd.encode('utf-8'))
             if physio_files:
                 self.log.info('Found physio files: %s' % ', '.join([os.path.basename(pf) for pf in physio_files]))
-                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'physio')
+                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'Physio Data')
+                DBSession.add(self.job)
+                DBSession.add(self.job.data_container)
                 dataset.file_cnt_act = 0
                 dataset.file_cnt_tgt = len(physio_files)
+                dataset.kind = u'secondary'
+                dataset.container = self.job.data_container
                 for f in physio_files:
                     shutil.copy2(f, os.path.join(self.nims_path, dataset.relpath))
                     dataset.file_cnt_act += 1
@@ -150,9 +154,13 @@ class DicomPipeline(Pipeline):
             outputdir_list = os.listdir(outputdir)
             if outputdir_list:
                 self.log.info('Dicom files converted to %s' % outputdir_list)
-                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'nifti')
+                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'NIfTI (raw)')
+                DBSession.add(self.job)
+                DBSession.add(self.job.data_container)
                 dataset.file_cnt_act = 0
                 dataset.file_cnt_tgt = len(outputdir_list)
+                dataset.kind = u'derived'
+                dataset.container = self.job.data_container
                 for f in outputdir_list:
                     shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, dataset.relpath))
                     dataset.file_cnt_act += 1
@@ -178,9 +186,13 @@ class PFilePipeline(Pipeline):
             outputdir_list = os.listdir(outputdir)
             if outputdir_list:
                 self.log.info('PFile converted to %s' % outputdir_list)
-                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'nifti')
+                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'NIfTI (raw)')
+                DBSession.add(self.job)
+                DBSession.add(self.job.data_container)
                 dataset.file_cnt_act = 0
                 dataset.file_cnt_tgt = len(outputdir_list)
+                dataset.kind = u'derived'
+                dataset.container = self.job.data_container
                 for f in outputdir_list:
                     shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, dataset.relpath))
                     dataset.file_cnt_act += 1
