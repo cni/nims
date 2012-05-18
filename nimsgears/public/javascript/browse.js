@@ -74,7 +74,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         $.ajax({
             traditional: true,
             type: 'POST',
-            url: "trash",
+            url: "browse/trash",
             dataType: "json",
             data:
             {
@@ -109,7 +109,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         $.ajax({
             traditional: true,
             type: 'POST',
-            url: "transfer_sessions",
+            url: "browse/transfer_sessions",
             dataType: "json",
             data:
             {
@@ -146,7 +146,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         $.ajax({
             traditional: true,
             type: 'POST',
-            url: "get_trash_flag",
+            url: "browse/get_trash_flag",
             dataType: "json",
             async: false,
             success: function(data)
@@ -163,7 +163,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         $.ajax({
             traditional: true,
             type: 'POST',
-            url: "set_trash_flag",
+            url: "browse/set_trash_flag",
             dataType: "json",
             data:
             {
@@ -190,7 +190,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         $.ajax(
         {
             type: 'POST',
-            url: "list_query",
+            url: "browse/list_query",
             dataType: "json",
             data: { exp_list: true },
             success: function(data)
@@ -228,7 +228,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
             $.ajax(
             {
                 type: 'POST',
-                url: "list_query",
+                url: "browse/list_query",
                 dataType: "json",
                 data: { sess_list: exp_id },
                 success: function(data)
@@ -290,7 +290,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
             $.ajax(
             {
                 type: 'POST',
-                url: "list_query",
+                url: "browse/list_query",
                 dataType: "json",
                 data: { epoch_list: sess_id },
                 success: function(data)
@@ -335,7 +335,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
             $.ajax(
             {
                 type: 'POST',
-                url: "list_query",
+                url: "browse/list_query",
                 dataType: "json",
                 data: { dataset_list: epoch_id },
                 success: function(data)
@@ -413,7 +413,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         $.ajax({
             traditional: true,
             type: 'POST',
-            url: "get_popup_data",
+            url: "browse/get_popup_data",
             dataType: "json",
             data: ajax_data,
             success: function(data)
@@ -450,11 +450,6 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                             }
                         },
                     });
-                    console.log('wat');
-                }
-                else
-                {
-                    console.log('failed');
                 }
             },
         });

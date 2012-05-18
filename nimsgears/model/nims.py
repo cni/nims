@@ -9,6 +9,7 @@ from elixir import *
 
 import nimsutil
 from nimsgears.model import metadata, DBSession
+from repoze.what import predicates
 
 __session__ = DBSession
 __metadata__ = metadata
@@ -310,6 +311,34 @@ class Experiment(DataContainer):
             for subject in self.subjects:
                 subject.untrash()
 
+    @classmethod
+    def find_all_for_user(cls, user, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None):
+        query = Experiment.query
+
+        if including_trash:
+            pass # including everything, so no filter necessary
+        elif only_trash or contains_trash:
+            query = (query
+                .join(Subject, Experiment.subjects)
+                .join(Session, Subject.sessions)
+                .join(Epoch, Session.epochs)
+                .join(Dataset, Epoch.datasets))
+            if only_trash:
+                query = (query
+                    .filter(Experiment.trashtime != None))
+            else: # contains_trash
+                query = (query
+                    .filter((Experiment.trashtime != None) |
+                            (Session.trashtime != None) |
+                            (Epoch.trashtime != None) |
+                            (Dataset.trashtime != None)))
+        else: # no trash
+            query = (query
+                .filter(Experiment.trashtime == None))
+
+        query = filter_query_by_user(query, user, with_privilege)
+
+        return query.all()
 
 class Subject(DataContainer):
 
@@ -432,6 +461,37 @@ class Session(DataContainer):
             for epoch in self.epochs:
                 epoch.untrash()
 
+    @classmethod
+    def find_all_for_user(cls, user, by_experiment_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None):
+        query = (Session.query
+            .join(Subject, Session.subject)
+            .join(Experiment, Subject.experiment))
+
+        if by_experiment_id:
+            query = (query
+                .filter(Experiment.id == by_experiment_id))
+
+        if including_trash:
+            pass # including everything, so no filter necessary
+        elif contains_trash or only_trash:
+            query = (query
+                .join(Epoch, Session.epochs)
+                .join(Dataset, Epoch.datasets))
+            if only_trash:
+                query = (query
+                    .filter(Session.trashtime != None))
+            else: # contains_trash
+                query = (query
+                    .filter((Session.trashtime != None) |
+                            (Epoch.trashtime != None) |
+                            (Dataset.trashtime != None)))
+        else: # no trash
+            query = (query
+                .filter(Session.trashtime == None))
+
+        query = filter_query_by_user(query, user, with_privilege)
+
+        return query.all()
 
 class Epoch(DataContainer):
 
@@ -492,6 +552,44 @@ class Epoch(DataContainer):
             self.session.untrash()
             for dataset in self.datasets:
                 dataset.untrash()
+
+    @classmethod
+    def find_all_for_user(cls, user, by_experiment_id=None, by_session_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None):
+        query = (Epoch.query
+            .join(Session, Epoch.session))
+
+        if by_session_id:
+            query = (query
+                .filter(Session.id == by_session_id))
+
+        query = (query
+            .join(Subject, Session.subject)
+            .join(Experiment, Subject.experiment))
+
+        if by_experiment_id:
+            query = (query
+                .filter(Experiment.id == by_experiment_id))
+
+        if including_trash:
+            pass # including everything, so no filter necessary
+        elif only_trash or contains_trash:
+            query = (query
+                .join(Epoch, Session.epochs)
+                .join(Dataset, Epoch.datasets))
+            if only_trash:
+                query = (query
+                    .filter(Epoch.trashtime != None))
+            else: # contains_trash
+                query = (query
+                    .filter((Epoch.trashtime != None) |
+                            (Dataset.trashtime != None)))
+        else: # no trash
+            query = (query
+                .filter(Epoch.trashtime == None))
+
+        query = filter_query_by_user(query, user, with_privilege)
+
+        return query.all()
 
 
 class Dataset(Entity):
@@ -563,7 +661,6 @@ class Dataset(Entity):
         self.digest = new_hash.digest()
         self.file_cnt_act = len(filelist)
         return self.digest != old_digest
-
 
 class PrimaryMRData(Dataset):
 
@@ -679,3 +776,17 @@ class NiftiData(Dataset):
 class Metadata(object):
 
         pass
+
+def filter_query_by_user(query, user, with_privilege=None):
+    if predicates.in_group('superusers') and user.admin_mode:
+        pass # superusers get access to everything, so no filtration
+    else:
+        query = (query
+            .join(Access)
+            .filter(Access.user == user))
+
+    if with_privilege:
+        query = (query
+            .join(AccessPrivilege, Access.privilege)
+            .filter(AccessPrivilege.value >= with_privilege.value))
+    return query

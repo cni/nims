@@ -304,7 +304,7 @@ define([], function()
             var scrolltable_wrapper = document.createElement('div');
             var scrolltable_loading = document.createElement('div');
             var scrolltable_loading_img = document.createElement('img');
-            scrolltable_loading_img.src = "/images/ajax-loader.gif";
+            scrolltable_loading_img.src = "../images/ajax-loader.gif";
             scrolltable_loading.appendChild(scrolltable_loading_img);
 
             scrolltable_body.className = 'scrolltable_body';
