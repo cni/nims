@@ -155,24 +155,55 @@ class User(Entity):
 
     def _filter_query(self, query, with_privilege=None):
         query = (query
+            .add_entity(Access)
             .join(Access)
             .filter(Access.user == self)
-            .add_entity(AccessPrivilege)
             .join(AccessPrivilege, Access.privilege))
         if with_privilege:
-            acc_privilege = AccessPrivilege.query.filter_by(name=with_privilege).one()
+            acc_privilege = AccessPrivilege.query.filter_by(name=unicode(with_privilege)).one()
             query = (query
                 .filter(AccessPrivilege.value >= acc_privilege.value))
 
         return query
 
+    def has_access_to(self, element, with_privilege=None):
+        if isinstance(element, Experiment):
+            query = Experiment.query
+        elif isinstance(element, Session):
+            query = (Session.query
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment))
+        elif isinstance(element, Epoch):
+            query = (Epoch.query
+                .join(Session, Epoch.session)
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment))
+        elif isinstance(element, Dataset):
+            query = (Dataset.query
+                .filter(Dataset.id == element.id)
+                .join(Epoch)
+                .join(Session, Epoch.session)
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment))
+        query = (query
+            .join(Access)
+            .filter(Access.user == self)
+            .join(AccessPrivilege, Access.privilege))
+        if with_privilege:
+            acc_privilege = AccessPrivilege.query.filter_by(name=unicode(with_privilege)).one()
+            query = (query
+                .filter(AccessPrivilege.value >= acc_privilege.value))
+        result = query.first()
+        return result != None
+
+
     def get_experiments(self, including_trash=None, only_trash=None, contains_trash=None, with_privilege=None):
         if not (including_trash or only_trash or contains_trash):
             trash_flag = self.get_trash_flag()
             if trash_flag == 1:
-                contains_trash = True
-            elif trash_flag == 2:
                 including_trash = True
+            elif trash_flag == 2:
+                contains_trash = True
 
         query = Experiment.query
 
@@ -212,7 +243,7 @@ class User(Entity):
         if self.in_superuser:
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
-                    result_dict[key] = NamedTuple([value, None], ['Experiment', 'AccessPrivilege'])
+                    result_dict[key] = NamedTuple([value, None], ['Experiment', 'Access'])
 
         return result_dict
 
@@ -220,9 +251,9 @@ class User(Entity):
         if not (including_trash or only_trash or contains_trash):
             trash_flag = self.get_trash_flag()
             if trash_flag == 1:
-                contains_trash = True
-            elif trash_flag == 2:
                 including_trash = True
+            elif trash_flag == 2:
+                contains_trash = True
 
         query = (Session.query
             .join(Subject, Session.subject)
@@ -265,7 +296,7 @@ class User(Entity):
         if self.in_superuser:
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
-                    result_dict[key] = NamedTuple([value, None], ['Experiment', 'AccessPrivilege'])
+                    result_dict[key] = NamedTuple([value, None], ['Session', 'Access'])
 
         return result_dict
 
@@ -273,9 +304,9 @@ class User(Entity):
         if not (including_trash or only_trash or contains_trash):
             trash_flag = self.get_trash_flag()
             if trash_flag == 1:
-                contains_trash = True
-            elif trash_flag == 2:
                 including_trash = True
+            elif trash_flag == 2:
+                contains_trash = True
 
         query = (Epoch.query
             .join(Session, Epoch.session))
@@ -296,7 +327,6 @@ class User(Entity):
             pass # including everything, so no filter necessary
         elif only_trash or contains_trash:
             query = (query
-                .join(Epoch, Session.epochs)
                 .join(Dataset, Epoch.datasets))
             if only_trash:
                 query = (query
@@ -324,7 +354,65 @@ class User(Entity):
         if self.in_superuser:
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
-                    result_dict[key] = NamedTuple([value, None], ['Experiment', 'AccessPrivilege'])
+                    result_dict[key] = NamedTuple([value, None], ['Epoch', 'Access'])
+
+        return result_dict
+
+    def get_datasets(self, by_experiment_id=None, by_session_id=None, by_epoch_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None):
+        if not (including_trash or only_trash or contains_trash):
+            trash_flag = self.get_trash_flag()
+            if trash_flag == 1:
+                including_trash = True
+            elif trash_flag == 2:
+                contains_trash = True
+
+        query = (Dataset.query
+            .join(Epoch))
+
+        if by_epoch_id:
+            query = (query
+                .filter(Epoch.id == by_epoch_id))
+
+        query = (query
+            .join(Session, Epoch.session))
+
+        if by_session_id:
+            query = (query
+                .filter(Session.id == by_session_id))
+
+        query = (query
+            .join(Subject, Session.subject)
+            .join(Experiment, Subject.experiment))
+
+        if by_experiment_id:
+            query = (query
+                .filter(Experiment.id == by_experiment_id))
+
+        if including_trash:
+            pass # including everything, so no filter necessary
+        elif only_trash or contains_trash:
+            query = (query
+                .filter(Dataset.trashtime != None))
+        else: # no trash
+            query = (query
+                .filter(Dataset.trashtime == None))
+
+        result_dict = {}
+        if self.in_superuser:
+            unfiltered_results = query.all()
+            for result in unfiltered_results:
+                result_dict[result.id] = result
+
+        filtered_results = self._filter_query(query, with_privilege).all()
+        for result in filtered_results:
+            result_dict[result.Dataset.id] = result
+
+        # Since these don't hit the filter, and thus don't get access
+        # privileges appended to them, we add them
+        if self.in_superuser:
+            for key, value in result_dict.iteritems():
+                if not isinstance(value, NamedTuple):
+                    result_dict[key] = NamedTuple([value, None], ['Dataset', 'Access'])
 
         return result_dict
 

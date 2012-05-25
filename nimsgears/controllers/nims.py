@@ -2,6 +2,7 @@ from tg import expose, flash, require, lurl, request, redirect
 from nimsgears.model import *
 from nimsgears.lib.base import BaseController
 from repoze.what import predicates
+import json
 
 class NimsController(BaseController):
     @expose()
@@ -41,125 +42,50 @@ class NimsController(BaseController):
             db_query = db_query.filter(Access.user == user).filter(AccessPrivilege.value >= mg_privilege.value)
         return db_query
 
-    def get_experiments(self, user, trash_flag=None, manager_only=False):
+    def get_experiments(self, user, manager_only=False):
         exp_data_list = []
         exp_attr_list = []
 
         # If a superuser, ignore access items and set all to manage
-        experiment_list = user.get_experiments(with_privilege='mg')
+        experiment_dict = user.get_experiments()
 
-        for experiment
+        for key, value in experiment_dict.iteritems():
+            exp = value.Experiment
+            acc = 'mg' if user.in_superuser else value.Access.privilege.name
             exp_data_list.append((exp.owner.gid, exp.name))
-            exp_attr_list.append({})
-            exp_attr_list[i]['id'] = 'exp_%d' % exp.id
-            exp_attr_list[i]['class'] = 'access_%s' % acc_str_list[i]
-            if exp.trashtime != None:
-                exp_attr_list[i]['class'] += ' trash'
-
+            exp_attr_list.append({'id':'exp_%d' % key, 'class':'access_%s %s' % (acc, 'trash' if exp.trashtime else '')})
         return (exp_data_list, exp_attr_list)
 
     def get_sessions(self, user, exp_id):
         sess_data_list = []
         sess_attr_list = []
 
-        trash_flag = self._get_trash_flag(user)
-
-        db_query = DBSession.query(Session).join(Subject, Session.subject).join(Experiment, Subject.experiment).filter(Experiment.id == exp_id) # get query set up
-
-        if trash_flag == 0: # when trash flag off, only accept those with no trash time
-            db_query = db_query.filter(Session.trashtime == None)
-        elif trash_flag == 2: # when trash flag on, make sure everything is or contains trash
-            db_query = db_query.join(Epoch, Session.epochs).filter((Session.trashtime != None) | (Epoch.trashtime != None))
-
-        acc_priv_list = []
-        if predicates.in_group('superusers') and user.admin_mode:
-            db_result_sess = db_query.all()
-            acc_priv_list = [99] * len(db_result_sess) # arbitrary nonzero number to indicate > anonymized access
-        else:
-            db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
-            db_result = db_query.all()
-            db_result_sess, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
-            acc_priv_list = [acc.privilege.value for acc in db_result_acc]
-
-        n_results = len(db_result_sess)
-        for i in range(n_results):
-            sess = db_result_sess[i]
-            #subject_name = unicode(sess.subject_role.subject) if acc_priv_list[i] != 0 else 'Anonymous'
+        session_dict = user.get_sessions(by_experiment_id=exp_id)
+        for key, value in session_dict.iteritems():
+            sess = value.Session
             sess_data_list.append((sess.subject.code, sess.timestamp.strftime('%Y-%m-%d %H:%M')))
-            sess_attr_list.append({})
-            sess_attr_list[i]['id'] = 'sess_%d' % sess.id
-            if sess.trashtime != None:
-                sess_attr_list[i]['class'] = 'trash'
-
+            sess_attr_list.append({'id':'sess_%d' % key, 'class':'%s' % ('trash' if sess.trashtime else '')})
         return (sess_data_list, sess_attr_list)
 
     def get_datasets(self, user, epoch_id):
         dataset_data_list = []
         dataset_attr_list = []
 
-        trash_flag = self._get_trash_flag(user)
-
-        db_query = (DBSession.query(Dataset)
-                    .join(Epoch)
-                    .filter(Epoch.id == epoch_id)
-                    .join(Session, Epoch.session)
-                    .join(Subject, Session.subject)
-                    .join(Experiment, Subject.experiment)
-                    ) # get query set up
-
-        if trash_flag == 0: # when trash flag off, only accept those with no trash time
-            db_query = db_query.filter(Dataset.trashtime == None)
-        elif trash_flag == 2: # when trash flag on, make sure everything is or contains trash
-            db_query = db_query.filter(Dataset.trashtime != None)
-
-        if predicates.in_group('superusers') and user.admin_mode:
-            db_result_dataset = db_query.all()
-        else:
-            db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
-            db_result = db_query.all()
-            db_result_dataset, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
-
-        for i in range(len(db_result_dataset)):
-            dataset = db_result_dataset[i]
+        dataset_dict = user.get_datasets(by_epoch_id=epoch_id)
+        for key, value in dataset_dict.iteritems():
+            dataset = value.Dataset
             dataset_data_list.append((dataset.__class__.__name__,))
-            dataset_attr_list.append({})
-            dataset_attr_list[i]['id'] = 'dataset_%d' % dataset.id
-            if dataset.trashtime != None:
-                dataset_attr_list[i]['class'] = 'trash'
-
+            dataset_attr_list.append({'id':'dataset_%d' % key, 'class':'%s' % ('trash' if dataset.trashtime else '')})
         return (dataset_data_list, dataset_attr_list)
 
     def get_epochs(self, user, sess_id):
         epoch_data_list = []
         epoch_attr_list = []
 
-        trash_flag = self._get_trash_flag(user)
+        epoch_dict = user.get_epochs(by_session_id=sess_id)
 
-        db_query = (DBSession.query(Epoch)
-                    .join(Session, Epoch.session)
-                    .filter(Session.id == sess_id)
-                    .join(Subject, Session.subject)
-                    .join(Experiment, Subject.experiment)
-                    )
-# get query set up
-        if trash_flag == 0: # when trash flag off, only accept those with no trash time
-            db_query = db_query.filter(Epoch.trashtime == None)
-        elif trash_flag == 2: # when trash flag on, make sure everything is or contains trash
-            db_query = db_query.filter(Epoch.trashtime != None)
-
-        if predicates.in_group('superusers') and user.admin_mode:
-            db_result_epoch = db_query.all()
-        else:
-            db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
-            db_result = db_query.all()
-            db_result_epoch, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
-
-        for i in range(len(db_result_epoch)):
-            epoch = db_result_epoch[i]
+        for key, value in epoch_dict.iteritems():
+            epoch = value.Epoch
             epoch_data_list.append((epoch.timestamp.strftime('%H:%M'), '%s' % epoch.description))
-            epoch_attr_list.append({})
-            epoch_attr_list[i]['id'] = 'epoch_%d' % epoch.id
-            if epoch.trashtime != None:
-                epoch_attr_list[i]['class'] = 'trash'
-
+            epoch_attr_list.append({'id':'epoch_%d' % key, 'class':'%s' % ('trash' if epoch.trashtime else '')})
         return (epoch_data_list, epoch_attr_list)
