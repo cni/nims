@@ -4,6 +4,12 @@ from nimsgears.lib.base import BaseController
 from repoze.what import predicates
 
 class NimsController(BaseController):
+    @expose()
+    def get_trash_flag(self, **kwargs):
+        user = request.identity['user']
+        trash_flag = user.get_trash_flag()
+        return json.dumps(trash_flag)
+
     def _modify_access(self, user, exp_list, user_list, set_to_privilege):
         success = True
 
@@ -39,33 +45,10 @@ class NimsController(BaseController):
         exp_data_list = []
         exp_attr_list = []
 
-        if not trash_flag:
-            trash_flag = self._get_trash_flag(user)
-
-        db_query = DBSession.query(Experiment) # get query set up
-
-        if trash_flag == 0: # when trash flag off, only accept those with no trash time
-            db_query = db_query.filter(Experiment.trashtime == None)
-        elif trash_flag == 2: # when trash flag on, make sure everything is or contains trash
-            db_query = db_query.join(Subject, Experiment.subjects).join(Session, Subject.sessions).join(Epoch, Session.epochs)
-            db_query = db_query.filter((Experiment.trashtime != None) | (Session.trashtime != None) | (Epoch.trashtime != None))
-
         # If a superuser, ignore access items and set all to manage
-        acc_str_list = []
-        if predicates.in_group('superusers') and user.admin_mode:
-            db_result_exp = db_query.all()
-            acc_str_list = ['mg'] * len(db_result_exp)
-        else: # Otherwise, populate access list with relevant entries
-            db_query = db_query.add_entity(Access).join(Access).filter(Access.user == user)
-            if manager_only:
-                mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
-                db_query = db_query.filter(Access.privilege == mg_privilege)
-            db_result = db_query.all()
-            db_result_exp, db_result_acc = map(list, zip(*db_result)) if db_result else ([], [])
-            acc_str_list = [acc.privilege.name for acc in db_result_acc]
+        experiment_list = user.get_experiments(with_privilege='mg')
 
-        for i in range(len(db_result_exp)):
-            exp = db_result_exp[i]
+        for experiment
             exp_data_list.append((exp.owner.gid, exp.name))
             exp_attr_list.append({})
             exp_attr_list[i]['id'] = 'exp_%d' % exp.id

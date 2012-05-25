@@ -41,18 +41,6 @@ class BrowseController(NimsController):
             result['success'] = False
         return json.dumps(result)
 
-
-    @expose()
-    def get_trash_flag(self, **kwargs):
-        user = request.identity['user']
-        trash_flag = self._get_trash_flag(user)
-        return json.dumps(trash_flag)
-
-    def _get_trash_flag(self, user):
-        trash_flag = session.get(user.uid, 0)
-        return trash_flag
-
-
     @expose()
     def list_query(self, **kwargs):
         """ Return info about sessions for given experiment id."""
