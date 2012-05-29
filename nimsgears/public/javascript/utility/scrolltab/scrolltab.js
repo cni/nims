@@ -158,7 +158,5 @@ define([], function()
         }
     };
 
-    return {
-        Scrolltable: Scrolltable
-    };
+    return Scrolltable;
 });

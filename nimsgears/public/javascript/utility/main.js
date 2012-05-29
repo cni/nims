@@ -1,9 +1,9 @@
-require(['scrolltab2', 'scrolltab_mixins'], function (scrolltab, mixins) {
-    mixins.asSortable.call(scrolltab.Scrolltable.prototype);
-    mixins.asLoadable.call(scrolltab.Scrolltable.prototype);
-    mixins.asSelectable.call(scrolltab.Scrolltable.prototype);
-    var el = new scrolltab.Scrolltable("test", "HI");
+require(['scrolltab/scrolltab', 'scrolltab/mixins/sortable', 'scrolltab/mixins/loadable', 'scrolltab/mixins/selectable'], function (Scrolltable, asSortable, asLoadable, asSelectable) {
+    asSortable.call(Scrolltable.prototype);
+    asLoadable.call(Scrolltable.prototype);
+    asSelectable.call(Scrolltable.prototype);
+    var el = new Scrolltable("test", "HI");
     el.enableHeaderClickSorting();
-    el.enableClickSelection();
+    el.enableSelection();
     el._body.style.height = "80px";
 });
