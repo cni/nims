@@ -2,6 +2,22 @@
 <head>
 <script data-main="main.js" src="../require.js"></script>
 <style>
+.scrolltable_wrapper
+{
+    display:inline-block;
+    position:relative;
+}
+
+.scrolltable_header, .scrolltable_title, .scrolltable_body
+{
+    float:left;
+}
+
+.scrolltable_body
+{
+    overflow-y:scroll;
+}
+
 .stripe
 {
     background-color:rgb(220,220,220);
@@ -15,6 +31,15 @@
 tr.ui-selected
 {
     background-color:rgb(0,220,220);
+}
+
+.ONE
+{
+    width:100px;
+}
+.TWO
+{
+    width:300px;
 }
 </style>
 </head>

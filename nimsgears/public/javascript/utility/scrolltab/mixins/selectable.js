@@ -54,9 +54,9 @@ define([], function()
             }
         };
 
-        this._toggleSelect = function(row)
+        this._toggleSelect = function(row, to_value)
         {
-            if (row.classList.contains("ui-selected"))
+            if (row.classList.contains("ui-selected") || ((to_value !== undefined) && to_value == false))
             {
                 row.classList.remove("ui-selected");
             }
@@ -126,7 +126,7 @@ define([], function()
 
         this._updateSelectedRows = function()
         {
-            this._selected_rows = this._listToArray(this._body.getElementsByClassName(".ui-selected"));
+            this._selected_rows = this._listToArray(this._body.getElementsByClassName("ui-selected"));
         };
 
         this.synchronizeSelections = function()
@@ -158,7 +158,7 @@ define([], function()
             this._updateSelectedRows();
         };
 
-        this.enableSelection = function()
+        this.enableMouseSelection = function()
         {
             var rows = this.getRows();
             var obj = this;

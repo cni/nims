@@ -81,14 +81,19 @@ define([], function()
             this.element.appendChild(this._title);
         }
 
+        this.element.appendChild(this.createSpacer());
+
         this._header = document.createElement('div');
         this._header.className = "scrolltable_header";
         this.element.appendChild(this._header);
 
+        this.element.appendChild(this.createSpacer());
+
         this._body = document.createElement('div');
         this._body.className = "scrolltable_body";
-        this._body.style.overflowY = "scroll";
         this.element.appendChild(this._body);
+
+        this.element.appendChild(this.createSpacer());
 
         var table = this._original.cloneNode(true);
         table.hidden = false;
@@ -115,6 +120,13 @@ define([], function()
         var thead_height = thead.offsetHeight;
         this._header.style.marginBottom = -thead_height + "px";
         this._stripe();
+    }
+
+    Scrolltable.prototype.createSpacer = function()
+    {
+        var spacer = document.createElement("div");
+        spacer.style.clear = "both";
+        return spacer;
     }
 
     Scrolltable.prototype.createTableRowFromTuple = function(text_tuple)
