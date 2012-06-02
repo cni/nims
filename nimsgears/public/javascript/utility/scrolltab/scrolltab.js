@@ -143,19 +143,24 @@ define([], function()
         return tr;
     };
 
-    Scrolltable.prototype.populateTable = function(table_dict)
+    Scrolltable.prototype.emptyTable = function()
     {
         var rows = this.getRows();
         var n_rows = rows.length;
-        var tbody = this._body.getElementsByTagName("tbody");
+        var tbody = this._body.getElementsByTagName("tbody")[0];
         for (var i = 0; i < n_rows; i++)
         {
             tbody.removeChild(rows[i]);
         }
+    }
 
+    Scrolltable.prototype.populateTable = function(table_dict)
+    {
+        this.emptyTable();
         if (table_dict['data'])
         {
             var row;
+            var tbody = this._body.getElementsByTagName("tbody")[0];
             var n_elements = table_dict['data'].length;
             for (var i = 0; i < n_elements; i++)
             {
@@ -167,6 +172,7 @@ define([], function()
                 }
                 tbody.appendChild(row);
             }
+            this._stripe();
         }
     };
 

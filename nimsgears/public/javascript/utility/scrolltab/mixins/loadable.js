@@ -5,9 +5,12 @@ define([], function()
         // Allows insertion of a loader div to be displayed when table is in
         // process of loading. Hides table content and shows loader div, then
         // redisplays table when stopLoading called.
-        this.timeout = 250; // ms
-        this._loading_timeout;
-        this._loading_div;
+        this.init_loadable = function()
+        {
+            this.timeout = 250; // ms
+            this._loading_timeout;
+            this._loading_div;
+        };
 
         this._getBodyTable = function()
         {

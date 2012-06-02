@@ -3,6 +3,13 @@ define(['scrolltab/mixins/selectable'], function(asSelectable)
     return function()
     {
         asSelectable.call(this);
+
+        this.init_kbsupport = function()
+        {
+            this.init_selectable();
+            this.enableKeyboardSelection();
+        };
+
         this.changeRow = function(direction)
         {
             var rows = this.getRows();

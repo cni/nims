@@ -1,10 +1,12 @@
 define([], function()
 {
-    function ScrolltableDrilldown(table_array)
+    function ScrolltableDrilldown(tables, populators)
     {
         var obj = this;
         this._tables = [];
-        table_array.forEach(function(table) { obj._tables.push(table); });
+        this._populators = [];
+        tables.forEach(function(table) { obj._tables.push(table); });
+        populators.forEach(function(populator) { obj._populators.push(populator); });
         this._unlocked = true;
         this._focus_index = 0;
         this._max_index = this._tables.length - 1;
@@ -13,8 +15,30 @@ define([], function()
     ScrolltableDrilldown.prototype.enableKeyboardNavigation = function()
     {
         var obj = this;
+        var n_tables = this._tables.length;
+        for (var i = 0; i < this._max_index; i++)
+        {
+            (function()
+            {
+                var next_table = obj._tables[i+1];
+                obj._tables[i].onSelect(function(event)
+                {
+                    var table_data = obj._populators[i](event);
+                    next_table.populateTable(table_data);
+                    next_table.enableMouseSelection();
+                });
+            })();
+        }
         this._tables.forEach(function(table)
         {
+            table.element.addEventListener("focus", function(event)
+            {
+                obj._focus_index = obj._tables.indexOf(table);
+                for (var i = obj._max_index; i > obj._focus_index; i--)
+                {
+                    obj._tables[i].cleanUp();
+                }
+            });
             table.element.addEventListener("keyup", function(event)
             {
                 var key = event.keyCode;
@@ -27,23 +51,32 @@ define([], function()
                     obj.focusNext();
                 }
             });
-        });
 
-    }
+        });
+    };
+
+    ScrolltableDrilldown.prototype.tableInFocus = function()
+    {
+        return this._tables[this._focus_index];
+    };
 
     ScrolltableDrilldown.prototype.focusNext = function()
     {
-        if (this._unlocked && (this._focus_index != this._max_index))
+        if (this._unlocked &&
+            this.tableInFocus().onlyOneSelected() &&
+            (this._focus_index != this._max_index))
         {
             this._focus_index++;
             this._tables[this._focus_index].element.focus();
+            this._tables[this._focus_index].changeRow(1);
         }
     };
 
     ScrolltableDrilldown.prototype.focusPrev = function()
     {
-        if (this._unlocked && (this._focus_index != 0))
+        if (this._unlocked && (this._focus_index > 0))
         {
+            this._tables[this._focus_index].cleanUp();
             this._focus_index--;
             this._tables[this._focus_index].element.focus();
         }

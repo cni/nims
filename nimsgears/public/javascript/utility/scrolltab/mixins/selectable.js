@@ -2,10 +2,16 @@ define([], function()
 {
     return function()
     {
-        this._onSelect = [];
-        this._selected_rows = [];
-        this.last_clicked_index = 0;
-        this.shift_clicked_index = 0;
+        // we do this so we don't wind up sharing variables across instances...
+        // this refers to the prototype so if you set crap on it you will find
+        // yourself very unhappy
+        this.init_selectable = function() {
+            this._onSelect = [];
+            this._selected_rows = [];
+            this.last_clicked_index = -1;
+            this.shift_clicked_index = -1;
+            this.enableMouseSelection();
+        };
 
         this.select = function()
         {
@@ -16,15 +22,27 @@ define([], function()
                 fn(
                 {
                     selected_rows: obj._selected_rows,
-                    table_key: obj.element.attr('id')
+                    table: obj
                 });
             });
         };
 
         this.onSelect = function(fn)
         {
-            _onSelect.push(fn);
+            this._onSelect.push(fn);
         };
+
+        this.cleanUp = function()
+        {
+            this.emptyTable();
+            this.last_clicked_index = this.shift_clicked_index = -1;
+            this._selected_rows = [];
+        };
+
+        this.onlyOneSelected = function()
+        {
+            return (this._selected_rows.length == 1);
+        }
 
         this._batchSelect = function(rows, a, b, with_value)
         {

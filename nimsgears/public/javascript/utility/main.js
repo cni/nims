@@ -3,18 +3,25 @@ require(['scrolltab/scrolltab', 'scrolltab/mixins/sortable', 'scrolltab/mixins/l
     asSortable.call(Scrolltable.prototype);
     asLoadable.call(Scrolltable.prototype);
     withKbSupport.call(Scrolltable.prototype);
-
+    var rand = function() { return Math.floor((Math.random()*10)+1); };
+    var blah = function(event)
+    {
+        return {'data':[
+        ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
+        ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
+        ]};
+    };
+    var populators = [blah, blah, blah];
     // table creation and set up
-    var el = new Scrolltable("test", "HI");
-    var el2 = new Scrolltable("test1", "HI");
-    el.enableHeaderClickSorting();
-    el2.enableHeaderClickSorting();
-    el.enableMouseSelection();
-    el2.enableMouseSelection();
-    el.enableKeyboardSelection();
-    el2.enableKeyboardSelection();
-    el._body.style.height = "120px";
-    el2._body.style.height = "120px";
-    var blah = new Drilldown([el, el2]);
+    var tables = [new Scrolltable("test", "HI1"), new Scrolltable("test1", "HI2"), new Scrolltable("test2", "HI3")];
+    tables.forEach(function (table)
+    {
+        table.init_sortable();
+        table.init_loadable();
+        table.init_kbsupport();
+        table._body.style.height = "120px";
+    });
+    var blah = new Drilldown(tables, populators);
     blah.enableKeyboardNavigation();
+    console.log('fuck');
 });

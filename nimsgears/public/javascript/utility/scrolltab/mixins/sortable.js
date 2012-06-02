@@ -4,8 +4,12 @@ define([], function()
     {
         // Enables sorting of table columns by text content, and can enable
         // sort on header click
-        this.sorted_column = 0;
-        this.sorted_direction = 1;
+        this.init_sortable = function()
+        {
+            this.sorted_column = 0;
+            this.sorted_direction = 1;
+            this.enableHeaderClickSorting();
+        };
 
         this.resort = function()
         {
