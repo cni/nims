@@ -33,10 +33,18 @@ define([], function()
         {
             table.element.addEventListener("focus", function(event)
             {
-                obj._focus_index = obj._tables.indexOf(table);
-                for (var i = obj._max_index; i > obj._focus_index; i--)
+                if (table.getRows().length == 0)
                 {
-                    obj._tables[i].cleanUp();
+                    table.element.blur();
+                }
+                else
+                {
+                    obj._focus_index = obj._tables.indexOf(table);
+                    for (var i = obj._max_index; i > obj._focus_index; i--)
+                    {
+                        obj._tables[i].cleanUp();
+                    }
+                    table.select();
                 }
             });
             table.element.addEventListener("keyup", function(event)
