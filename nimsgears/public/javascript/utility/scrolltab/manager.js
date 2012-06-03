@@ -18,10 +18,37 @@ define([], function()
         next_table.enableMouseSelection();
     };
 
+    ScrolltableDrilldown.prototype.selectTable = function(table)
+    {
+        // The table is empty, remove focus from it immediately
+        if (table.getRows().length == 0)
+        {
+            table.element.blur();
+            this.tableInFocus().element.focus();
+        }
+        else
+        {
+            // Table has data, so clean up nested tables and repopulate
+            // the nested with a select call
+            this._focus_index = this._tables.indexOf(table);
+            for (var i = this._max_index; i > (this._focus_index + 1); i--)
+            {
+                this._tables[i].cleanUp();
+            }
+            if (table._selected_rows.length == 0) { table.changeRow(1); table.select(); }
+            table.element.focus();
+        }
+    };
+
+    ScrolltableDrilldown.prototype.nextTable = function()
+    {
+        var index = this._focus_index + 1;
+        return (index > this._max_index) ? false : this._tables[index];
+    };
+
     ScrolltableDrilldown.prototype.enableKeyboardNavigation = function()
     {
         var obj = this;
-        var n_tables = this._tables.length;
         for (var i = 0; i < this._max_index; i++)
         {
             (function()
@@ -36,28 +63,13 @@ define([], function()
         }
         this._tables.forEach(function(table)
         {
-            table.element.addEventListener("focus", function(event)
+            //table.element.addEventListener("focus", function(event)
+            table.element.addEventListener("click", function(event)
             {
-                // The table is empty, remove focus from it immediately
-                if (table.getRows().length == 0)
-                {
-                    table.element.blur();
-                    obj.tableInFocus().element.focus();
-                }
-                else
-                {
-                    // Table has data, so clean up nested tables and repopulate
-                    // the nested with a select call
-                    obj._focus_index = obj._tables.indexOf(table);
-                    for (var i = obj._max_index; i > (obj._focus_index + 1); i--)
-                    {
-                        obj._tables[i].cleanUp();
-                    }
-                    if (table._selected_rows.length == 0) { table.changeRow(1); table.select(); }
-                    //table.select();
-                }
+                obj.selectTable(table);
+                obj.nextTable().deselectAll();
             });
-            table.element.addEventListener("keyup", function(event)
+            table.element.addEventListener("keydown", function(event)
             {
                 var key = event.keyCode;
                 if (key == 37)
@@ -85,8 +97,9 @@ define([], function()
             (this._focus_index != this._max_index))
         {
             this._focus_index++;
-            //this._tables[this._focus_index].changeRow(1);
+            this._tables[this._focus_index].changeRow(1);
             this._tables[this._focus_index].element.focus();
+            this._tables[this._focus_index].select();
         }
     };
 
@@ -94,10 +107,10 @@ define([], function()
     {
         if (this._unlocked && (this._focus_index > 0))
         {
-            //this._tables[this._focus_index].cleanUp();
             this.tableInFocus().deselectAll();
             this._focus_index--;
-            this._tables[this._focus_index].element.focus();
+            this.selectTable(this.tableInFocus());
+            //this._tables[this._focus_index].element.focus();
         }
     };
 

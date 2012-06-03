@@ -1,4 +1,5 @@
-require(['scrolltab/scrolltab', 'scrolltab/mixins/sortable', 'scrolltab/mixins/loadable', 'scrolltab/mixins/selectable', 'scrolltab/mixins/kbsupport', 'scrolltab/manager'], function (Scrolltable, asSortable, asLoadable, asSelectable, withKbSupport, Drilldown) {
+require(['scrolltab/scrolltab', 'scrolltab/mixins/sortable', 'scrolltab/mixins/loadable', 'scrolltab/mixins/selectable', 'scrolltab/mixins/kbsupport', 'scrolltab/manager', 'tablednd'],
+function (Scrolltable, asSortable, asLoadable, asSelectable, withKbSupport, Drilldown, TableDragAndDrop) {
     // mixins for functionality
     asSortable.call(Scrolltable.prototype);
     asLoadable.call(Scrolltable.prototype);
@@ -13,7 +14,9 @@ require(['scrolltab/scrolltab', 'scrolltab/mixins/sortable', 'scrolltab/mixins/l
                 ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
                 ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
                 ]});
-        } else {
+        }
+        else
+        {
             populateNextTableFn(table, []);
         }
     };
@@ -29,5 +32,9 @@ require(['scrolltab/scrolltab', 'scrolltab/mixins/sortable', 'scrolltab/mixins/l
     });
     var blah = new Drilldown(tables, populators);
     blah.enableKeyboardNavigation();
+    tables.forEach(function(table)
+    {
+        TableDragAndDrop.setupDraggable($(table._body.getElementsByTagName("table")[0]));
+    });
     console.log('fuck');
 });

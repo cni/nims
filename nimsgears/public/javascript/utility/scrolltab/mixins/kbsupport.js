@@ -50,7 +50,7 @@ define(['scrolltab/mixins/selectable'], function(asSelectable)
         {
             var obj = this;
             this.element.setAttribute("tabindex", 0);
-            this.element.addEventListener("keyup", function(event)
+            this.element.addEventListener("keydown", function(event)
             {
                 var key = event.keyCode;
                 if (key == 38)
