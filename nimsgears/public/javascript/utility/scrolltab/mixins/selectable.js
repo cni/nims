@@ -32,6 +32,16 @@ define([], function()
             this._onSelect.push(fn);
         };
 
+        this.deselectAll = function()
+        {
+            this.last_clicked_index = this.shift_clicked_index = -1;
+            this._selected_rows = [];
+            this.getRows().forEach(function(row)
+            {
+                row.classList.remove("ui-selected");
+            });
+        };
+
         this.cleanUp = function()
         {
             this.emptyTable();

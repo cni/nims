@@ -4,12 +4,18 @@ require(['scrolltab/scrolltab', 'scrolltab/mixins/sortable', 'scrolltab/mixins/l
     asLoadable.call(Scrolltable.prototype);
     withKbSupport.call(Scrolltable.prototype);
     var rand = function() { return Math.floor((Math.random()*10)+1); };
-    var blah = function(event)
+    var blah = function(table, selected_rows, populateNextTableFn)
     {
-        return {'data':[
-        ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
-        ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
-        ]};
+        console.log('wat' + rand());
+        if (selected_rows.length == 1)
+        {
+            populateNextTableFn(table, {'data':[
+                ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
+                ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
+                ]});
+        } else {
+            populateNextTableFn(table, []);
+        }
     };
     var populators = [blah, blah, blah];
     // table creation and set up

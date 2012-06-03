@@ -12,6 +12,12 @@ define([], function()
         this._max_index = this._tables.length - 1;
     };
 
+    ScrolltableDrilldown.prototype.populateNextTable = function(next_table, table_data)
+    {
+        next_table.populateTable(table_data);
+        next_table.enableMouseSelection();
+    };
+
     ScrolltableDrilldown.prototype.enableKeyboardNavigation = function()
     {
         var obj = this;
@@ -21,11 +27,10 @@ define([], function()
             (function()
             {
                 var next_table = obj._tables[i+1];
+                var populator = obj._populators[i];
                 obj._tables[i].onSelect(function(event)
                 {
-                    var table_data = obj._populators[i](event);
-                    next_table.populateTable(table_data);
-                    next_table.enableMouseSelection();
+                    populator(next_table, event.selected_rows, obj.populateNextTable);
                 });
             })();
         }
@@ -33,18 +38,23 @@ define([], function()
         {
             table.element.addEventListener("focus", function(event)
             {
+                // The table is empty, remove focus from it immediately
                 if (table.getRows().length == 0)
                 {
                     table.element.blur();
+                    obj.tableInFocus().element.focus();
                 }
                 else
                 {
+                    // Table has data, so clean up nested tables and repopulate
+                    // the nested with a select call
                     obj._focus_index = obj._tables.indexOf(table);
-                    for (var i = obj._max_index; i > obj._focus_index; i--)
+                    for (var i = obj._max_index; i > (obj._focus_index + 1); i--)
                     {
                         obj._tables[i].cleanUp();
                     }
-                    table.select();
+                    if (table._selected_rows.length == 0) { table.changeRow(1); table.select(); }
+                    //table.select();
                 }
             });
             table.element.addEventListener("keyup", function(event)
@@ -75,8 +85,8 @@ define([], function()
             (this._focus_index != this._max_index))
         {
             this._focus_index++;
+            //this._tables[this._focus_index].changeRow(1);
             this._tables[this._focus_index].element.focus();
-            this._tables[this._focus_index].changeRow(1);
         }
     };
 
@@ -84,7 +94,8 @@ define([], function()
     {
         if (this._unlocked && (this._focus_index > 0))
         {
-            this._tables[this._focus_index].cleanUp();
+            //this._tables[this._focus_index].cleanUp();
+            this.tableInFocus().deselectAll();
             this._focus_index--;
             this._tables[this._focus_index].element.focus();
         }
