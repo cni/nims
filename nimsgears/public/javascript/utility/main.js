@@ -8,17 +8,20 @@ function (Scrolltable, asSortable, asLoadable, asSelectable, withKbSupport, Dril
     var blah = function(table, selected_rows, populateNextTableFn)
     {
         console.log('wat' + rand());
-        if (selected_rows.length == 1)
-        {
-            populateNextTableFn(table, {'data':[
-                ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
-                ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
-                ]});
-        }
-        else
-        {
-            populateNextTableFn(table, []);
-        }
+        setTimeout(function() {
+            if (selected_rows.length == 1)
+            {
+                populateNextTableFn(table, {'data':[
+                    ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
+                    ['ugh' + rand(), 'what'], ['fuck', 'shit' + rand()], ['omgz', 'absdifjasd'],
+                    ]});
+            }
+            else
+            {
+                populateNextTableFn(table, []);
+            }
+        }, 600);
+
     };
     var populators = [blah, blah, blah];
     // table creation and set up
@@ -36,5 +39,4 @@ function (Scrolltable, asSortable, asLoadable, asSelectable, withKbSupport, Dril
     {
         TableDragAndDrop.setupDraggable($(table._body.getElementsByTagName("table")[0]));
     });
-    console.log('fuck');
 });
