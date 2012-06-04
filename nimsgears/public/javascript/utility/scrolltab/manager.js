@@ -69,6 +69,7 @@ define([], function()
                 var populator = obj._populators[i];
                 obj._tables[i].onSelect(function(event)
                 {
+                    next_table.emptyTable();
                     obj._unlocked = false;
                     if (obj.nav_timeout)
                     {
