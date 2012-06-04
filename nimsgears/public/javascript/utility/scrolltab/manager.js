@@ -5,7 +5,12 @@ define([], function()
         var obj = this;
         this._tables = [];
         this._populators = [];
-        tables.forEach(function(table) { obj._tables.push(table); });
+        tables.forEach(function(table) {
+            var div = document.createElement("div");
+            div.appendChild(document.createTextNode("LOADING"));
+            obj._tables.push(table);
+            table.setLoadingDiv(div);
+            });
         populators.forEach(function(populator) { obj._populators.push(populator); });
         this._unlocked = true;
         this._focus_index = 0;
@@ -18,6 +23,7 @@ define([], function()
         var obj = this;
         return function(next_table, table_data)
         {
+            next_table.stopLoading();
             next_table.populateTable(table_data);
             next_table.enableMouseSelection();
             obj._unlocked = true;
@@ -70,9 +76,10 @@ define([], function()
                     }
                     obj.nav_timeout = setTimeout(function()
                     {
+                        next_table.startLoading();
                         populator(next_table, event.selected_rows, obj.getPopulateNextTable());
                         obj.nav_timeout = null;
-                    }, 150);
+                    }, 250);
                 });
             })();
         }

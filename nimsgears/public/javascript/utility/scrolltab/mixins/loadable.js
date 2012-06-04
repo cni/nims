@@ -7,8 +7,6 @@ define([], function()
         // redisplays table when stopLoading called.
         this.init_loadable = function()
         {
-            this.timeout = 250; // ms
-            this._loading_timeout;
             this._loading_div;
         };
 
@@ -27,23 +25,13 @@ define([], function()
 
         this.startLoading = function()
         {
-            if (this._loading_timeout)
-            {
-                clearTimeout(this._loading_timeout);
-                this._loading_timeout = null;
-            }
-            var obj = this;
-            this._loading_timeout = setTimeout(function()
-            {
-                var body_table = obj._getBodyTable();
-                body_table.hidden = true;
-                obj._loading_div.hidden = false;
-            }, this.timeout);
+            var body_table = this._getBodyTable();
+            body_table.hidden = true;
+            this._loading_div.hidden = false;
         };
 
         this.stopLoading = function()
         {
-            clearTimeout(this._loading_timeout);
             this._getBodyTable().hidden = false;
             this._loading_div.hidden = true;
         };
