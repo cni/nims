@@ -10,12 +10,18 @@ define([], function()
         this._unlocked = true;
         this._focus_index = 0;
         this._max_index = this._tables.length - 1;
+        this.nav_timeout = null;
     };
 
-    ScrolltableDrilldown.prototype.populateNextTable = function(next_table, table_data)
+    ScrolltableDrilldown.prototype.getPopulateNextTable = function()
     {
-        next_table.populateTable(table_data);
-        next_table.enableMouseSelection();
+        var obj = this;
+        return function(next_table, table_data)
+        {
+            next_table.populateTable(table_data);
+            next_table.enableMouseSelection();
+            obj._unlocked = true;
+        };
     };
 
     ScrolltableDrilldown.prototype.selectTable = function(table)
@@ -57,17 +63,28 @@ define([], function()
                 var populator = obj._populators[i];
                 obj._tables[i].onSelect(function(event)
                 {
-                    populator(next_table, event.selected_rows, obj.populateNextTable);
+                    obj._unlocked = false;
+                    if (obj.nav_timeout)
+                    {
+                        clearTimeout(obj.nav_timeout);
+                    }
+                    obj.nav_timeout = setTimeout(function()
+                    {
+                        populator(next_table, event.selected_rows, obj.getPopulateNextTable());
+                        obj.nav_timeout = null;
+                    }, 150);
                 });
             })();
         }
         this._tables.forEach(function(table)
         {
-            //table.element.addEventListener("focus", function(event)
             table.element.addEventListener("click", function(event)
             {
                 obj.selectTable(table);
-                obj.nextTable().deselectAll();
+                if (obj.nextTable())
+                {
+                    obj.nextTable().deselectAll();
+                }
             });
             table.element.addEventListener("keydown", function(event)
             {
@@ -110,7 +127,6 @@ define([], function()
             this.tableInFocus().deselectAll();
             this._focus_index--;
             this.selectTable(this.tableInFocus());
-            //this._tables[this._focus_index].element.focus();
         }
     };
 
