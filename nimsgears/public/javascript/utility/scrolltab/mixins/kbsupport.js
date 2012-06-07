@@ -1,4 +1,4 @@
-define(['scrolltab/mixins/selectable'], function(asSelectable)
+define(['./selectable'], function(asSelectable)
 {
     return function()
     {

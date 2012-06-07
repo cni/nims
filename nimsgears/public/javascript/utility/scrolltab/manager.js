@@ -1,6 +1,6 @@
 define([], function()
 {
-    function ScrolltableDrilldown(tables, populators)
+    function DrilldownManager(tables, populators)
     {
         var obj = this;
         this._tables = [];
@@ -18,7 +18,7 @@ define([], function()
         this.nav_timeout = null;
     };
 
-    ScrolltableDrilldown.prototype.getPopulateNextTable = function()
+    DrilldownManager.prototype.getPopulateNextTable = function()
     {
         var obj = this;
         return function(next_table, table_data)
@@ -30,7 +30,7 @@ define([], function()
         };
     };
 
-    ScrolltableDrilldown.prototype.selectTable = function(table)
+    DrilldownManager.prototype.selectTable = function(table)
     {
         // The table is empty, remove focus from it immediately
         if (table.getRows().length == 0)
@@ -52,13 +52,13 @@ define([], function()
         }
     };
 
-    ScrolltableDrilldown.prototype.nextTable = function()
+    DrilldownManager.prototype.nextTable = function()
     {
         var index = this._focus_index + 1;
         return (index > this._max_index) ? false : this._tables[index];
     };
 
-    ScrolltableDrilldown.prototype.enableKeyboardNavigation = function()
+    DrilldownManager.prototype.enableKeyboardNavigation = function()
     {
         var obj = this;
         for (var i = 0; i < this._max_index; i++)
@@ -110,12 +110,12 @@ define([], function()
         });
     };
 
-    ScrolltableDrilldown.prototype.tableInFocus = function()
+    DrilldownManager.prototype.tableInFocus = function()
     {
         return this._tables[this._focus_index];
     };
 
-    ScrolltableDrilldown.prototype.focusNext = function()
+    DrilldownManager.prototype.focusNext = function()
     {
         if (this._unlocked &&
             this.tableInFocus().onlyOneSelected() &&
@@ -128,7 +128,7 @@ define([], function()
         }
     };
 
-    ScrolltableDrilldown.prototype.focusPrev = function()
+    DrilldownManager.prototype.focusPrev = function()
     {
         if (this._unlocked && (this._focus_index > 0))
         {
@@ -138,7 +138,7 @@ define([], function()
         }
     };
 
-    return ScrolltableDrilldown;
+    return DrilldownManager;
 });
 
 

@@ -5,10 +5,13 @@ define([], function()
         this._header;
         this._body;
         this._title;
-        this._original = document.getElementById(table_id);
-        this._original.hidden = true;
-        this.title = (title !== undefined) ? document.createTextNode(title) : undefined;
-        this.render();
+        if (table_id !== undefined)
+        {
+            this._original = document.getElementById(table_id);
+            this._original.hidden = true;
+            this.title = (title !== undefined) ? document.createTextNode(title) : undefined;
+            this.render();
+        }
     }
 
     Scrolltable.prototype._flattenElement = function(el) {

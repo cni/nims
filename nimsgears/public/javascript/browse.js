@@ -1,4 +1,4 @@
-require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAndDrop, ScrolltableManager) {
+require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, ScrolltableManager, Drilldown, Manager) {
     var experiments;
     var sessions;
     var epochs;
@@ -461,44 +461,48 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
 // confusing
     var init = function()
     {
-        wireUpDrillDown();
-        ScrolltableManager.init();
-        ScrolltableManager.setTableHeights();
-        ScrolltableManager.autoSetTableHeights();
+        new Drilldown("experiments", "Experiments");
+        new Drilldown("sessions", "Experiments");
+        new Drilldown("epochs", "Experiments");
+        new Drilldown("datasets", "Experiments");
+        //wireUpDrillDown();
+        //ScrolltableManager.init();
+        //ScrolltableManager.setTableHeights();
+        //ScrolltableManager.autoSetTableHeights();
 
-        experiments = ScrolltableManager.getById("experiments");
-        sessions = ScrolltableManager.getById("sessions");
-        epochs = ScrolltableManager.getById("epochs");
-        datasets = ScrolltableManager.getById("datasets");
+        //experiments = ScrolltableManager.getById("experiments");
+        //sessions = ScrolltableManager.getById("sessions");
+        //epochs = ScrolltableManager.getById("epochs");
+        //datasets = ScrolltableManager.getById("datasets");
 
-        experiments.onSelect(refreshSessions);
-        sessions.onSelect(refreshEpochs);
-        epochs.onSelect(refreshDatasets);
+        //experiments.onSelect(refreshSessions);
+        //sessions.onSelect(refreshEpochs);
+        //epochs.onSelect(refreshDatasets);
 
-        refreshExperiments();
+        //refreshExperiments();
 
-        var sessions_table = $("#sessions .scrolltable_body table");
-        var experiments_table = $("#experiments .scrolltable_body table");
-        var epochs_table = $("#epochs .scrolltable_body table");
-        var datasets_table = $("#datasets .scrolltable_body table");
+        //var sessions_table = $("#sessions .scrolltable_body table");
+        //var experiments_table = $("#experiments .scrolltable_body table");
+        //var epochs_table = $("#epochs .scrolltable_body table");
+        //var datasets_table = $("#datasets .scrolltable_body table");
 
-        TableDragAndDrop.setupDraggable(sessions_table);
-        TableDragAndDrop.setupDraggable(experiments_table);
-        TableDragAndDrop.setupDraggable(epochs_table);
-        TableDragAndDrop.setupDraggable(datasets_table);
-        TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table", sessions_table, $("#download_drop"), dropDownloads);
-        TableDragAndDrop.setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
+        //TableDragAndDrop.setupDraggable(sessions_table);
+        //TableDragAndDrop.setupDraggable(experiments_table);
+        //TableDragAndDrop.setupDraggable(epochs_table);
+        //TableDragAndDrop.setupDraggable(datasets_table);
+        //TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table", sessions_table, $("#download_drop"), dropDownloads);
+        //TableDragAndDrop.setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
 
-        $("#radio_trash input").change(changeTrashFlag);
-        $($("#radio_trash input")[getTrashFlag()]).click();
+        //$("#radio_trash input").change(changeTrashFlag);
+        //$($("#radio_trash input")[getTrashFlag()]).click();
 
-        $(".pop").dialog();
-        $(".pop").dialog("destroy");
+        //$(".pop").dialog();
+        //$(".pop").dialog("destroy");
 
-        experiments_popup = $("#experiments_pop");
-        sessions_popup = $("#sessions_pop");
-        epochs_popup = $("#epochs_pop");
-        datasets_popup = $("#datasets_pop");
+        //experiments_popup = $("#experiments_pop");
+        //sessions_popup = $("#sessions_pop");
+        //epochs_popup = $("#epochs_pop");
+        //datasets_popup = $("#datasets_pop");
     };
 
     $(function() {

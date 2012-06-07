@@ -1,9 +1,6 @@
-require(['scrolltab/scrolltab', 'scrolltab/mixins/sortable', 'scrolltab/mixins/loadable', 'scrolltab/mixins/selectable', 'scrolltab/mixins/kbsupport', 'scrolltab/manager', 'tablednd'],
-function (Scrolltable, asSortable, asLoadable, asSelectable, withKbSupport, Drilldown, TableDragAndDrop) {
+require(['scrolltab/drilldown', 'scrolltab/manager', 'tablednd'],
+function (DrilldownTab, Drilldown, TableDragAndDrop) {
     // mixins for functionality
-    asSortable.call(Scrolltable.prototype);
-    asLoadable.call(Scrolltable.prototype);
-    withKbSupport.call(Scrolltable.prototype);
     var rand = function() { return Math.floor((Math.random()*10)+1); };
     var blah = function(table, selected_rows, populateNextTableFn)
     {
@@ -25,12 +22,9 @@ function (Scrolltable, asSortable, asLoadable, asSelectable, withKbSupport, Dril
     };
     var populators = [blah, blah, blah];
     // table creation and set up
-    var tables = [new Scrolltable("test", "HI1"), new Scrolltable("test1", "HI2"), new Scrolltable("test2", "HI3")];
+    var tables = [new DrilldownTab("test", "HI1"), new DrilldownTab("test1", "HI2"), new DrilldownTab("test2", "HI3")];
     tables.forEach(function (table)
     {
-        table.init_sortable();
-        table.init_loadable();
-        table.init_kbsupport();
         table._body.style.height = "120px";
     });
     var blah = new Drilldown(tables, populators);
