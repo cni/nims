@@ -16,6 +16,7 @@ define([], function()
         this._focus_index = 0;
         this._max_index = this._tables.length - 1;
         this.nav_timeout = null;
+        this.enableKeyboardNavigation();
     };
 
     DrilldownManager.prototype.getPopulateNextTable = function()
@@ -29,6 +30,25 @@ define([], function()
             obj._unlocked = true;
         };
     };
+
+    DrilldownManager.prototype.refresh = function(index, selected_rows)
+    {
+        var obj = this;
+        var table = this._tables[index];
+        var populator = this._populators[index];
+        table.emptyTable();
+        this._unlocked = false;
+        if (this.nav_timeout)
+        {
+            clearTimeout(this.nav_timeout);
+        }
+        this.nav_timeout = setTimeout(function()
+        {
+            table.startLoading();
+            populator(table, selected_rows, obj.getPopulateNextTable());
+            obj.nav_timeout = null;
+        }, 150);
+    }
 
     DrilldownManager.prototype.selectTable = function(table)
     {
@@ -67,20 +87,10 @@ define([], function()
             {
                 var next_table = obj._tables[i+1];
                 var populator = obj._populators[i];
-                obj._tables[i].onSelect(function(event)
+                var i_ref = i;
+                obj._tables[i_ref].onSelect(function(event)
                 {
-                    next_table.emptyTable();
-                    obj._unlocked = false;
-                    if (obj.nav_timeout)
-                    {
-                        clearTimeout(obj.nav_timeout);
-                    }
-                    obj.nav_timeout = setTimeout(function()
-                    {
-                        next_table.startLoading();
-                        populator(next_table, event.selected_rows, obj.getPopulateNextTable());
-                        obj.nav_timeout = null;
-                    }, 250);
+                    obj.refresh(i_ref+1, event.selected_rows);
                 });
             })();
         }

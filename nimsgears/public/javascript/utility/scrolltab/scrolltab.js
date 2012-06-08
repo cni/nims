@@ -99,6 +99,8 @@ define([], function()
         this.element.appendChild(this.createSpacer());
 
         var table = this._original.cloneNode(true);
+        table.setAttribute("cellpadding",0);
+        table.setAttribute("cellspacing",0);
         table.hidden = false;
         table.id = null;
         table.className = "scrolltable";

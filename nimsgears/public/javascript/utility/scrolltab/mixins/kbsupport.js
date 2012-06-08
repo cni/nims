@@ -6,6 +6,7 @@ define(['./selectable'], function(asSelectable)
 
         this.init_kbsupport = function()
         {
+            this.auto_scroll_enabled = document.createElement("div").scrollIntoViewIfNeeded !== undefined;
             this.init_selectable();
             this.enableKeyboardSelection();
         };
@@ -24,7 +25,10 @@ define(['./selectable'], function(asSelectable)
                 });
                 this._toggleSelect(rows[change_to_index], true);
                 this.last_clicked_index = this.shift_clicked_index = change_to_index;
-                rows[change_to_index].scrollIntoViewIfNeeded(direction <= 0);
+                if (this.auto_scroll_enabled)
+                {
+                    rows[change_to_index].scrollIntoViewIfNeeded(direction <= 0);
+                }
                 success = true;
             }
             return success;
@@ -40,7 +44,10 @@ define(['./selectable'], function(asSelectable)
                 this._batchSelect(rows, this.last_clicked_index, this.shift_clicked_index, false);
                 this._batchSelect(rows, this.last_clicked_index, change_to_index, true);
                 this.shift_clicked_index = change_to_index;
-                rows[change_to_index].scrollIntoViewIfNeeded(direction <= 0);
+                if (this.auto_scroll_enabled)
+                {
+                    rows[change_to_index].scrollIntoViewIfNeeded(direction <= 0);
+                }
                 success = true;
             }
             return success;
@@ -55,11 +62,13 @@ define(['./selectable'], function(asSelectable)
                 var key = event.keyCode;
                 if (key == 38)
                 {
+                    event.returnValue = false;
                     var success = event.shiftKey ? obj.shiftRow(-1) : obj.changeRow(-1);
                     if (success) obj.select();
                 }
                 else if (key == 40)
                 {
+                    event.returnValue = false;
                     var success = event.shiftKey ? obj.shiftRow(1) : obj.changeRow(1);
                     if (success) obj.select();
                 }

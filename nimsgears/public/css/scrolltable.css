@@ -1,3 +1,14 @@
+.scrolltable_wrapper:focus {
+    outline-color:#ddcf99;
+    outline-style:solid;
+    outline-width:2px;
+}
+
+.scrolltable_body
+{
+    height:200px;
+}
+
 .scrolltable_loading
 {
     text-align:center;
@@ -6,18 +17,20 @@
 
 .scrolltable_title
 {
-    font-weight:400;
     color:#820000;
     text-align:center;
     font-family: Georgia, "Times New Roman", Times, serif;
     font-size: 1.3em;
-    line-height: 1.2em; letter-spacing: 0.03em;
+    line-height: 1.2em;
+    letter-spacing: 0.03em;
     padding: 4px;
     margin: 1px;
 }
 
 .scrolltable
 {
+    table-layout:fixed;
+    width:100%;
     margin:0px;
     border-spacing:0px;
 }
@@ -31,40 +44,25 @@
 
 .scrolltable_wrapper
 {
+    display:inline-block;
+    position:relative;
+
     cursor:default;
     float:left;
+    margin-right:10px;
 }
 
 .scrolltable_body
 {
-    width:100%;
-    overflow:auto;
+    overflow-y:scroll;
     color:black;
 }
 
-.scrolltable_wrapper table
-{
-    table-layout:fixed;
-}
-
-.scrolltable_flat
-{
-    padding:0px;
-    height:0px;
-}
-
-.scrolltable_header th, .scrolltable_body td, #floating td
+.scrolltable th, .scrolltable td, #floating td
 {
     border:1px solid white;
     overflow:hidden;
     white-space:nowrap;
-}
-
-.scrolltable_title.ui-selected
-{
-    background-color: #ddcf99;
-    border: 1px solid #820000;
-    padding: 3px;
 }
 
 tr.stripe.ui-selected, tr.ui-selected
@@ -87,3 +85,4 @@ tr.trash, tr.trash.ui-selected
 {
     color:#8a887d;
 }
+

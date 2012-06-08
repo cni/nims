@@ -1,8 +1,10 @@
-require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, ScrolltableManager, Drilldown, Manager) {
+require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, ScrolltableManager, Drilldown, DrilldownManager) {
     var experiments;
     var sessions;
     var epochs;
     var datasets;
+
+    var manager;
 
     var experiments_popup;
     var sessions_popup;
@@ -87,7 +89,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
             {
                 if (data.success)
                 {
-                    refreshExperiments();
+                    manager.refresh(0);
                 }
                 else
                 {
@@ -125,7 +127,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
                         $("#sessions .scrolltable_body tbody tr:odd").addClass('stripe');
                         if (selected_rows.length == 1 && selected_rows.first().hasClass("ui-selected"))
                         {
-                            refreshEpochs(null);
+                            manager.refresh(3);
                         }
                         if (data.untrashed)
                         {
@@ -167,13 +169,13 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
             dataType: "json",
             data:
             {
-                trash_flag: trash_flag
+               trash_flag: trash_flag
             },
             success: function(data)
             {
                 if (data.success)
                 {
-                    refreshExperiments();
+                    manager.refresh(0);
                 }
                 else
                 {
@@ -183,10 +185,9 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
         });
     };
 
-    var refreshExperiments = function()
+    var refreshExperiments = function(table, selected_rows, populateNextTableFn)
     {
-        experiments.startLoading();
-        var table_body = experiments.getBody();
+        //var table_body = experiments.getBody();
         $.ajax(
         {
             type: 'POST',
@@ -198,16 +199,17 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
                 var row;
                 if (data.success)
                 {
-                    experiments.populateTable(data);
-                    experiments.synchronizeSelections();
-                    experiments.setClickEvents();
-                    experiments.onDoubleClick(function() { showDialog(experiments_popup, { exp_id: getId(this.id) }); });
-                    TableDragAndDrop.setupDroppable(sessions.getBody().closest('table'), experiments.getRows(), dropSessionsOnExperiment);
-                    refreshSessions(
-                    {
-                        selected_rows: experiments.getSelectedRows()
-                    });
-                    experiments.stopLoading();
+                    populateNextTableFn(table, data);
+                    //experiments.populateTable(data);
+                    //experiments.synchronizeSelections();
+                    //experiments.setClickEvents();
+                    //experiments.onDoubleClick(function() { showDialog(experiments_popup, { exp_id: getId(this.id) }); });
+                    TableDragAndDrop.setupDroppable(sessions._getBodyTable(), $(experiments.getRows()), dropSessionsOnExperiment);
+                    //refreshSessions(
+                    //{
+                    //    selected_rows: experiments.getSelectedRows()
+                    //});
+                    //experiments.stopLoading();
                 }
                 else
                 {
@@ -215,16 +217,13 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
                 }
             },
         }); // ajax call
+        table.select();
     };
-
-    var refreshSessions = function(event)
+    var refreshSessions = function(table, selected_rows, populateNextTableFn)
     {
-        sessions.startLoading();
-        var experiment_row = event ? event.selected_rows : null;
-        var table_body = sessions.getBody();
-        if (experiment_row && experiment_row.length == 1) // make sure we didn't just get passed an empty list
+        if (selected_rows && selected_rows.length == 1) // make sure we didn't just get passed an empty list
         {
-            var exp_id = getId(experiment_row.attr('id'));
+            var exp_id = getId(selected_rows[0].id);
             $.ajax(
             {
                 type: 'POST',
@@ -235,31 +234,23 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
                 {
                     if (data.success)
                     {
-                        sessions.populateTable(data);
-                        sessions.synchronizeSelections();
-                        sessions.setClickEvents();
-                        sessions.onDoubleClick(function() { showDialog(sessions_popup, { sess_id: getId(this.id) }); });
+                        populateNextTableFn(table, data);
+                        //sessions.onDoubleClick(function() { showDialog(sessions_popup, { sess_id: getId(this.id) }); });
 
-                        // Disable rows that you don't have manage access to
-                        var experiment_rows = experiments.getRows();
-                        if (experiment_row.hasClass('access_mg'))
-                        {
-                            experiment_rows.each(function()
-                            {
-                                var disable_drop = !$(this).hasClass('access_mg') || $(this).is(experiment_row);
-                                $(this).droppable("option", "disabled", disable_drop);
-                            });
-                        }
-                        else
-                        {
-                            experiment_rows.droppable("option", "disabled", true);
-                        }
-                        toggleObject(table_body.closest('table'), true);
-                        refreshEpochs(
-                        {
-                            selected_rows: sessions.getSelectedRows()
-                        });
-                        sessions.stopLoading();
+                        //// Disable rows that you don't have manage access to
+                        //var experiment_rows = experiments.getRows();
+                        //if (experiment_row.hasClass('access_mg'))
+                        //{
+                        //    experiment_rows.each(function()
+                        //    {
+                        //        var disable_drop = !$(this).hasClass('access_mg') || $(this).is(experiment_row);
+                        //        $(this).droppable("option", "disabled", disable_drop);
+                        //    });
+                        //}
+                        //else
+                        //{
+                        //    experiment_rows.droppable("option", "disabled", true);
+                        //}
                     }
                     else
                     {
@@ -271,22 +262,16 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
         }
         else
         {
-            sessions.updateSelectedRows();
-            toggleObject(datasets.getBody().closest('table'), false);
-            toggleObject(epochs.getBody().closest('table'), false);
-            toggleObject(table_body.closest('table'), false);
-            sessions.stopLoading();
+            populateNextTableFn(table, []);
         }
+        table.select();
     };
 
-    var refreshEpochs = function(event)
+    var refreshEpochs = function(table, selected_rows, populateNextTableFn)
     {
-        epochs.startLoading();
-        var session_row = event ? event.selected_rows : null;
-        var table_body = epochs.getBody();
-        if (session_row && session_row.length == 1) // make sure we didn't get passed an empty list
+        if (selected_rows && selected_rows.length == 1) // make sure we didn't get passed an empty list
         {
-            var sess_id = getId(session_row.attr('id'));
+            var sess_id = getId(selected_rows[0].id);
             $.ajax(
             {
                 type: 'POST',
@@ -297,17 +282,8 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
                 {
                     if (data.success)
                     {
-                        epochs.populateTable(data);
-                        epochs.synchronizeSelections();
-                        epochs.setClickEvents();
-                        epochs.onDoubleClick(function() { showDialog(epochs_popup, { epoch_id: getId(this.id) }); });
-
-                        refreshDatasets(
-                        {
-                            selected_rows: epochs.getSelectedRows()
-                        });
-                        toggleObject(table_body.closest('table'), true, null);
-                        epochs.stopLoading();
+                        populateNextTableFn(table, data);
+                        //epochs.onDoubleClick(function() { showDialog(epochs_popup, { epoch_id: getId(this.id) }); });
                     }
                     else
                     {
@@ -318,20 +294,16 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
         }
         else
         {
-            toggleObject(datasets.getBody().closest('table'), false);
-            toggleObject(table_body.closest('table'), false);
-            epochs.stopLoading();
+            populateNextTableFn(table, []);
         }
+        table.select();
     };
 
-    var refreshDatasets = function(event)
+    var refreshDatasets = function(table, selected_rows, populateNextTableFn)
     {
-        datasets.startLoading();
-        var epoch_row = event ? event.selected_rows : null;
-        var table_body = datasets.getBody();
-        if (epoch_row && epoch_row.length == 1) // make sure we didn't get passed an empty list
+        if (selected_rows && selected_rows.length == 1) // make sure we didn't get passed an empty list
         {
-            var epoch_id = getId(epoch_row.attr('id'))
+            var epoch_id = getId(selected_rows[0].id);
             $.ajax(
             {
                 type: 'POST',
@@ -342,12 +314,8 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
                 {
                     if (data.success)
                     {
-                        datasets.populateTable(data);
-                        datasets.synchronizeSelections();
-                        datasets.setClickEvents();
-                        datasets.onDoubleClick(function() { showDialog(datasets_popup, { dataset_id: getId(this.id) }); });
-                        toggleObject(table_body.closest('table'), true);
-                        datasets.stopLoading();
+                        populateNextTableFn(table, data);
+                        //datasets.onDoubleClick(function() { showDialog(datasets_popup, { dataset_id: getId(this.id) }); });
                     }
                     else
                     {
@@ -358,53 +326,9 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
         }
         else
         {
-            toggleObject(table_body.closest('table'), false);
-            datasets.stopLoading();
+            populateNextTableFn(table, []);
         }
-    };
-
-    var wireUpDrillDown = function()
-    {
-        document.onkeydown = function(e)
-        {
-            var k = e.keyCode;
-            if (k >= 37 && k <= 40)
-            {
-                if (k == 38)
-                {
-                    ScrolltableManager.getFocus().changeRow(-1);
-                }
-                else if (k == 40)
-                {
-                    ScrolltableManager.getFocus().changeRow(1);
-                }
-                else if (k == 37 || k == 39)
-                {
-                    var current_focus = ScrolltableManager.getFocus().getElement().attr('id');
-                    if ((current_focus == "experiments" && k == 39) || (current_focus == "epochs" && k == 37))
-                    {
-                        ScrolltableManager.setFocus("sessions");
-                        sessions.changeRow(0);
-                    }
-                    else if ((current_focus == "sessions" && k == 39) || (current_focus == "datasets" && k == 37))
-                    {
-                        ScrolltableManager.setFocus("epochs");
-                        epochs.changeRow(0);
-                    }
-                    else if (current_focus == "epochs" && k == 39)
-                    {
-                        ScrolltableManager.setFocus("datasets");
-                        datasets.changeRow(0);
-                    }
-                    else if (current_focus == "sessions" && k == 37)
-                    {
-                        ScrolltableManager.setFocus("experiments");
-                        experiments.changeRow(0);
-                    }
-                }
-                return false;
-            }
-        }
+        table.select();
     };
 
     var showDialog = function(popup, ajax_data)
@@ -461,48 +385,30 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
 // confusing
     var init = function()
     {
-        new Drilldown("experiments", "Experiments");
-        new Drilldown("sessions", "Experiments");
-        new Drilldown("epochs", "Experiments");
-        new Drilldown("datasets", "Experiments");
-        //wireUpDrillDown();
-        //ScrolltableManager.init();
-        //ScrolltableManager.setTableHeights();
-        //ScrolltableManager.autoSetTableHeights();
+        experiments = new Drilldown("experiments", "Experiments");
+        sessions = new Drilldown("sessions", "Sessions");
+        epochs = new Drilldown("epochs", "Epochs");
+        datasets = new Drilldown("datasets", "Datasets");
+        manager = new DrilldownManager([experiments, sessions, epochs, datasets], [refreshExperiments, refreshSessions, refreshEpochs, refreshDatasets]);
+        manager.refresh(0);
 
-        //experiments = ScrolltableManager.getById("experiments");
-        //sessions = ScrolltableManager.getById("sessions");
-        //epochs = ScrolltableManager.getById("epochs");
-        //datasets = ScrolltableManager.getById("datasets");
+        TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));
+        TableDragAndDrop.setupDraggable($(sessions._getBodyTable()));
+        TableDragAndDrop.setupDraggable($(epochs._getBodyTable()));
+        TableDragAndDrop.setupDraggable($(datasets._getBodyTable()));
+        TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table", $("#download_drop"), dropDownloads);
+        TableDragAndDrop.setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
 
-        //experiments.onSelect(refreshSessions);
-        //sessions.onSelect(refreshEpochs);
-        //epochs.onSelect(refreshDatasets);
+        $("#radio_trash input").change(changeTrashFlag);
+        $($("#radio_trash input")[getTrashFlag()]).click();
 
-        //refreshExperiments();
+        $(".pop").dialog();
+        $(".pop").dialog("destroy");
 
-        //var sessions_table = $("#sessions .scrolltable_body table");
-        //var experiments_table = $("#experiments .scrolltable_body table");
-        //var epochs_table = $("#epochs .scrolltable_body table");
-        //var datasets_table = $("#datasets .scrolltable_body table");
-
-        //TableDragAndDrop.setupDraggable(sessions_table);
-        //TableDragAndDrop.setupDraggable(experiments_table);
-        //TableDragAndDrop.setupDraggable(epochs_table);
-        //TableDragAndDrop.setupDraggable(datasets_table);
-        //TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table", sessions_table, $("#download_drop"), dropDownloads);
-        //TableDragAndDrop.setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
-
-        //$("#radio_trash input").change(changeTrashFlag);
-        //$($("#radio_trash input")[getTrashFlag()]).click();
-
-        //$(".pop").dialog();
-        //$(".pop").dialog("destroy");
-
-        //experiments_popup = $("#experiments_pop");
-        //sessions_popup = $("#sessions_pop");
-        //epochs_popup = $("#epochs_pop");
-        //datasets_popup = $("#datasets_pop");
+        experiments_popup = $("#experiments_pop");
+        sessions_popup = $("#sessions_pop");
+        epochs_popup = $("#epochs_pop");
+        datasets_popup = $("#datasets_pop");
     };
 
     $(function() {
