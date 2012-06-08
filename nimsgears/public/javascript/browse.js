@@ -203,7 +203,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
                     //experiments.populateTable(data);
                     //experiments.synchronizeSelections();
                     //experiments.setClickEvents();
-                    //experiments.onDoubleClick(function() { showDialog(experiments_popup, { exp_id: getId(this.id) }); });
+                    experiments.onDoubleClick(function() { showDialog(experiments_popup, { exp_id: getId(this.id) }); });
                     TableDragAndDrop.setupDroppable(sessions._getBodyTable(), $(experiments.getRows()), dropSessionsOnExperiment);
                     //refreshSessions(
                     //{
@@ -235,7 +235,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
                     if (data.success)
                     {
                         populateNextTableFn(table, data);
-                        //sessions.onDoubleClick(function() { showDialog(sessions_popup, { sess_id: getId(this.id) }); });
+                        sessions.onDoubleClick(function() { showDialog(sessions_popup, { sess_id: getId(this.id) }); });
 
                         //// Disable rows that you don't have manage access to
                         //var experiment_rows = experiments.getRows();
@@ -283,7 +283,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
                     if (data.success)
                     {
                         populateNextTableFn(table, data);
-                        //epochs.onDoubleClick(function() { showDialog(epochs_popup, { epoch_id: getId(this.id) }); });
+                        epochs.onDoubleClick(function() { showDialog(epochs_popup, { epoch_id: getId(this.id) }); });
                     }
                     else
                     {
@@ -315,7 +315,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr', 'utility/scrolltab/dri
                     if (data.success)
                     {
                         populateNextTableFn(table, data);
-                        //datasets.onDoubleClick(function() { showDialog(datasets_popup, { dataset_id: getId(this.id) }); });
+                        datasets.onDoubleClick(function() { showDialog(datasets_popup, { dataset_id: getId(this.id) }); });
                     }
                     else
                     {

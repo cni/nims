@@ -181,5 +181,14 @@ define([], function()
         }
     };
 
+    Scrolltable.prototype.onDoubleClick = function(callback)
+    {
+        var rows = this.getRows();
+        rows.forEach(function(row)
+        {
+            row.ondblclick = callback;
+        });
+    };
+
     return Scrolltable;
 });
