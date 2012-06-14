@@ -33,7 +33,7 @@ class ImagePyramid(object):
         montage_array = None
         self.log = log
 
-    def generate(self, infile, outdir):
+    def generate(self, infile, outdir, panojs_url = 'http://cni.stanford.edu/js/panojs/'):
         """
         Generate a multi-resolution image pyramid (using the generate_pyramid method) and
         the corresponding viewer HTML file (using the generate_viewer method) on the data
@@ -43,7 +43,7 @@ class ImagePyramid(object):
         self.load_data(infile)
         self.generate_montage()
         self.generate_pyramid(outdir)
-        self.generate_viewer(os.path.join(outdir,'index.html'))
+        self.generate_viewer(os.path.join(outdir,'index.html'), panojs_url)
 
     def load_data(self, infile):
         try:
@@ -87,7 +87,7 @@ class ImagePyramid(object):
                     tile = im.copy().crop((x*self.tile_size, y*self.tile_size, min((x+1)*self.tile_size,xsize), min((y+1)*self.tile_size,ysize)))
                     tile.save(os.path.join(outdir, ('%03d_%03d_%03d.jpg' % (iz,x,y))), "JPEG", quality=85)
 
-    def generate_viewer(self, outfile, panojs_url = 'http://cni.stanford.edu/bobd/immap/'):
+    def generate_viewer(self, outfile, panojs_url):
         """
         Creates a baisc html file for viewing the image pyramid with panojs.
         """
@@ -168,6 +168,7 @@ class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):
         super(ArgumentParser, self).__init__()
         self.description = """Takes a NIFTI file as input and creates a panojs-style image pyramid from it."""
+        self.add_argument('-p', '--panojs_url', help='URL for the panojs javascript.')
         self.add_argument('infile', help='path to NIFTI file')
         self.add_argument('outbase', nargs='?', help='basename for output files (default: pyramid)')
 
@@ -177,4 +178,7 @@ if __name__ == '__main__':
     if args.outbase == None:
         args.outbase = os.path.basename(os.path.splitext(os.path.splitext(args.infile)[0])[0])
     pyr = ImagePyramid()
-    pyr.generate(args.infile, args.outbase+'.pyr')
+    if args.panojs_url == None:
+        pyr.generate(args.infile, args.outbase+'.pyr')
+    else:
+        pyr.generate(args.infile, args.outbase+'.pyr', args.panojs_url)
