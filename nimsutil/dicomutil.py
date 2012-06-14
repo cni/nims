@@ -3,6 +3,8 @@
 # @author:  Reno Bowen
 #           Gunnar Schaefer
 
+from __future__ import print_function
+
 import os
 import signal
 import argparse
@@ -84,7 +86,8 @@ class DicomSeries(object):
         try:
             image_type = self.first_dcm.ImageType
         except:
-            self.log and self.log.warning('dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase))
+            msg = 'dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase)
+            self.log and self.log.warning(msg) or print(msg)
         else:
             if image_type == TYPE_SCREEN:
                 self.to_img(outbase)
@@ -142,12 +145,12 @@ class DicomSeries(object):
         if np.prod(dims) == np.size(image_data):
             image_data = image_data.reshape(dims, order='F')
         else:
-            self.log and self.log.warning("dimensions inconsistent with size, attempting to construct volume")
+            self.log and self.log.debug("dimensions inconsistent with size, attempting to construct volume")
             # round up slices to nearest multiple of slices_per_volume
             slices_total_rounded_up = ((slices_total + slices_per_volume - 1) / slices_per_volume) * slices_per_volume
             slices_padding = slices_total_rounded_up - slices_total
             if slices_padding: #LOOK AT THIS MORE CLOSELY TODO
-                self.log and self.log.warning("dimensions indicate missing slices from volume - zero padding the gap")
+                self.log and self.log.debug("dimensions indicate missing slices from volume - zero padding the gap")
                 padding = np.zeros((self.first_dcm.Rows, self.first_dcm.Columns, slices_padding))
                 image_data = np.dstack([image_data, padding])
             volume_start_indices = range(0, slices_total_rounded_up, slices_per_volume)
@@ -173,7 +176,7 @@ class DicomSeries(object):
         qto_xyz[2,2] = slice_norm[2]
 
         if np.dot(slice_norm, image_position[0]) > np.dot(slice_norm, image_position[-1]):
-            self.log and self.log.info('flipping image order')
+            self.log and self.log.debug('flipping image order')
             flipped = True
             slice_num = slice_num[::-1]
             slice_loc = slice_loc[::-1]
@@ -196,11 +199,14 @@ class DicomSeries(object):
             first_volume = self.dcm_list[0:slices_per_volume]
             trigger_times = np.array([dcm_i.TriggerTime for dcm_i in first_volume])
             trigger_times_from_first_slice = trigger_times[0] - trigger_times
-            nii_header['slice_duration'] = float(min(abs(trigger_times_from_first_slice[1:]))) / 1000.  # msec to sec
-            if trigger_times_from_first_slice[1] < 0:
-                slice_order = SLICE_ORDER_SEQ_INC if trigger_times[2] > trigger_times[1] else SLICE_ORDER_ALT_INC
+            if slices_per_volume > 1:
+                nii_header['slice_duration'] = float(min(abs(trigger_times_from_first_slice[1:]))) / 1000.  # msec to sec
+                if trigger_times_from_first_slice[1] < 0:
+                    slice_order = SLICE_ORDER_SEQ_INC if trigger_times[2] > trigger_times[1] else SLICE_ORDER_ALT_INC
+                else:
+                    slice_order = SLICE_ORDER_ALT_DEC if trigger_times[2] > trigger_times[1] else SLICE_ORDER_SEQ_DEC
             else:
-                slice_order = SLICE_ORDER_ALT_DEC if trigger_times[2] > trigger_times[1] else SLICE_ORDER_SEQ_DEC
+                nii_header['slice_duration'] = trigger_times[0]
         nii_header['slice_code'] = slice_order
 
         if TAG_PHASE_ENCODE_DIR in self.first_dcm and self.first_dcm[TAG_PHASE_ENCODE_DIR].value == 'ROWS':

@@ -44,7 +44,7 @@ def get_logger(name, filename=None, level='debug'):
     else:
         handler = logging.StreamHandler()
 
-    formatter = logging.Formatter('%(asctime)s [%(name)12.12s:%(levelname)s] %(message)s')
+    formatter = logging.Formatter('%(asctime)s %(name)12.12s:%(levelname)s %(message)s')
 
     handler.setFormatter(formatter)
     logger.addHandler(handler)
