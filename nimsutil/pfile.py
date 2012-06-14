@@ -56,8 +56,9 @@ class PFile(object):
         self.num_slices = self.header.rec.nslices
         self.num_receivers = self.header.rec.dab[0].stop_rcv - self.header.rec.dab[0].start_rcv + 1
         self.num_echoes = self.header.rec.nechoes
-        self.size_x = self.header.image.imatrix_X
-        self.size_y = self.header.image.imatrix_Y
+        self.size_x = self.header.image.dim_X  # imatrix_X
+        self.size_y = self.header.image.dim_Y  # imatrix_Y
+        self.fov = [self.header.image.dfov, self.header.image.dfov_rect]
         self.psd_name = os.path.basename(self.header.image.psdname)
         self.scan_type = self.header.image.psd_iname
         self.physio_flag = bool(self.header.rec.user2) and u'sprt' in self.psd_name.lower()
@@ -70,6 +71,10 @@ class PFile(object):
         self.exam_uid = unpack_dicom_uid(self.header.exam.study_uid)
         self.series_uid = unpack_dicom_uid(self.header.series.series_uid)
         self.series_desc = self.header.series.se_desc
+        # Compute the voxel size rather than use image.pixsize_X/Y
+        self.mm_per_vox = np.array([float(self.fov[0] / self.size_x),
+                                    float(self.fov[1] / self.size_y),
+                                    self.header.image.slthick + self.header.image.scanspacing])
 
         if self.psd_name == 'sprt':
             self.num_timepoints = int(self.header.rec.user0)    # not in self.header.rec.nframes for sprt
@@ -105,10 +110,6 @@ class PFile(object):
         """Create NIfTI file from pfile."""
         if self.image_data is None:
             self.recon(spirec)
-
-        mm_per_vox = np.array([self.header.image.pixsize_X,
-                               self.header.image.pixsize_Y,
-                               self.header.image.slthick+self.header.image.scanspacing])
 
         image_tlhc = np.array([self.header.image.tlhc_R, self.header.image.tlhc_A, self.header.image.tlhc_S])
         image_trhc = np.array([self.header.image.trhc_R, self.header.image.trhc_A, self.header.image.trhc_S])
@@ -161,7 +162,7 @@ class PFile(object):
         qto_xyz[2,2] = slice_norm[2]
 
         qto_xyz[:,3] = np.append(pos, 1).T
-        qto_xyz[0:3,0:3] = np.dot(qto_xyz[0:3,0:3], np.diag(mm_per_vox))
+        qto_xyz[0:3,0:3] = np.dot(qto_xyz[0:3,0:3], np.diag(self.mm_per_vox))
 
         self.image_data = np.atleast_3d(self.image_data)
 
@@ -261,5 +262,5 @@ if __name__ == '__main__':
     if args.matfile:
         import h5py
         datafile = h5py.File(args.matfile, 'r')
-        pf.image_data = datafile.get('data_block').value.transpose((2,3,1,0))
+        pf.image_data = datafile.get('d').value.transpose((2,3,1,0))
     pf.to_nii(args.outbase or os.path.basename(args.pfile))
