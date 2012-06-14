@@ -2,16 +2,13 @@
 #           Gunnar Schaefer
 
 """
-SCU is a module that wraps the findscu and movescu commands that are part of
-the DCMTK package.
+SCU is a module that wraps the findscu and movescu commands, which are part of DCMTK.
 
-Usage involves the instantiation of an SCU object which maintains knowledge of
-the caller and callee (data requester and data source, respectively).
+Usage involves the instantiation of an SCU object, which maintains knowledge of the caller and callee (data requester
+and data source, respectively).
 
-Specific Query objects are constructed (e.g.  SeriesQuery, if you intend to
-search for or move a series) and passed to the .find or .move methods of an scu
-object.
-
+Specific Query objects are constructed (e.g., SeriesQuery, if you intend to search for or move a series) and passed to
+the find() or move() methods of an SCU object.
 """
 
 import re
@@ -20,8 +17,8 @@ import logging
 import subprocess
 
 RESPONSE_RE = re.compile("""
-.*# Dicom-Data-Set
-.*# Used TransferSyntax: (?P<transfer_syntax>.+)
+W: # Dicom-Data-Set
+W: # Used TransferSyntax: (?P<transfer_syntax>.+)
 (?P<dicom_cvs>(.*\(.+\n)+)""")
 DICOM_CV_RE = re.compile(""".*\((?P<idx_0>[0-9a-f]{4}),(?P<idx_1>[0-9a-f]{4})\) (?P<type>\w{2}) (?P<value>.+)#[ ]*(?P<length>\d+),[ ]*(?P<n_elems>\d+) (?P<label>\w+)\n""")
 MOVE_OUTPUT_RE = re.compile('.*Completed Suboperations +: ([a-zA-Z0-9]+)', re.DOTALL)
@@ -30,12 +27,10 @@ MOVE_OUTPUT_RE = re.compile('.*Completed Suboperations +: ([a-zA-Z0-9]+)', re.DO
 class SCU(object):
 
     """
-    Primary workhorse for scu module.  Stores information required to
-    communicate with the scanner during calls to .find(...) and .move(...).
+    SCU stores information required to communicate with the scanner during calls to find() and move().
 
-    Instantiated with the host, port, and aet of the scanner, as well as the
-    aec of the calling machine.  Incoming port is optional (default=port).
-
+    Instantiated with the host, port, and aet of the scanner, as well as the aec of the calling machine. Incoming port
+    is optional (default=port).
     """
 
     def __init__(self, host, port, aet, aec, incoming_port=None, log=None):
@@ -47,33 +42,30 @@ class SCU(object):
         self.log = log if log else logging.getLogger('scu')
 
     def find(self, query):
-        """
-        Constructs a findscu query given the Query object.  Returns a list of
-        Response objects.
-
-        """
-        cmd = 'findscu %s' % self.query_string(query)
+        """ Construct a findscu query. Return a list of Response objects. """
+        cmd = 'findscu --verbose %s' % self.query_string(query)
         self.log.debug(cmd)
+        output = ''
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
         except Exception as ex:
-            self.log.warning(ex)
-        return get_response_list(output)
+            self.log.debug(ex)
+            output and self.log.debug(output)
+        if output and re.search('DIMSE Status .* Success', output):
+            return [Response(match_obj.groupdict(), self.log) for match_obj in RESPONSE_RE.finditer(output)]
+        else:
+            return []
 
     def move(self, query, dest_path='.'):
-        """
-        Constructs a movescu query given the Query object to the specified path
-        (default=cwd).  Returns the count of images successfully transferred.
-
-        """
+        """Construct a movescu query. Return the count of images successfully transferred."""
         cmd = 'movescu --verbose -od %s +P %s %s' % (dest_path, self.incoming_port, self.query_string(query))
         self.log.debug(cmd)
         output = ''
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
         except Exception as ex:
-            self.log.warning(ex)
-            if output: self.log.warning(output)
+            self.log.debug(ex)
+            output and self.log.debug(output)
         try:
             img_cnt = int(MOVE_OUTPUT_RE.match(output).group(1))
         except (ValueError, AttributeError):
@@ -81,21 +73,15 @@ class SCU(object):
         return img_cnt
 
     def query_string(self, query):
-        """
-        Converts a query into the relevant string to be appended to a findscu
-        or movescu call.
-
-        """
+        """Convert a query into a string to be appended to a findscu or movescu call."""
         return '-S -aet %s -aec %s %s %s %s' % (self.aet, self.aec, query, self.host, str(self.port))
 
 
 class Query(object):
 
     """
-    Generic query class - all others inherit from this.  Accepts retrieve level
-    (e.g. 'Study'), and a series of keyword arguments to narrow down your query
-    (e.g. StudyNumber: "500").
-
+    Query superclass, which accepts a retrieve level (e.g., 'Study') and a series of keyword arguments (e.g.,
+    StudyNumber="500").
     """
 
     def __init__(self, retrieve_level, **kwargs):
@@ -103,7 +89,7 @@ class Query(object):
         self.kwargs = kwargs
 
     def __str__(self):
-        string = '-k QueryRetrieveLevel="%s"' % self.retrieve_level
+        string = '-k QueryRetrieveLevel=%s' % self.retrieve_level
         for key, value in self.kwargs.items():
             string += ' -k %s="%s"' % (str(key), str(value))
         return string
@@ -129,14 +115,7 @@ class ImageQuery(Query):
 
 class DicomCV(object):
 
-    """
-    Detailed DicomCV object.  Most fields are rarely (if ever used) aside from
-    label and value.
-
-    Since many of the fields aren't accessed, these sit in a dicom_cv_list
-    within each Response object so they're available if necessary.
-
-    """
+    """Detailed DicomCV object."""
 
     def __init__(self, dicom_cv_dict):
         self.idx = (dicom_cv_dict['idx_0'], dicom_cv_dict['idx_1'])
@@ -150,42 +129,26 @@ class DicomCV(object):
 class Response(dict):
 
     """
-    Dictionary of CVs corresponding to one (of potentially many) responses
-    generated by a findscu call.  Supports tab completion of dictionary
-    elements as members.
-
+    Dictionary of CVs corresponding to one (of potentially many) responses generated by a findscu call. Supports tab
+    completion of dictionary elements as members.
     """
 
-    def __init__(self, response_dict):
+    def __init__(self, response_dict, log):
         dict.__init__(self)
+        self.log = log
         self.transfer_syntax = response_dict['transfer_syntax']
         self.dicom_cv_list = [DicomCV(match_obj.groupdict()) for match_obj in DICOM_CV_RE.finditer(response_dict['dicom_cvs'])]
         for cv in self.dicom_cv_list:
             self[cv.label] = cv.value
 
     def __dir__(self):
-        """
-        Returns list of dictionary elements for tab completion in utilities
-        like iPython.
-
-        """
+        """Return list of dictionary elements for tab completion in utilities like iPython."""
         return [k for (k, v) in self.items()]
 
     def __getattr__(self, name):
-        """
-        Allows access of dictionary elements as members.
-
-        """
+        """Allow access of dictionary elements as members."""
         if name in self:
             return self[name]
         else:
+            self.log.debug('Response: %s' % self)
             raise AttributeError, name
-
-
-def get_response_list(string):
-    """
-    Accepts output string from findscu command, parsing it into a returned list of
-    Response objects.
-
-    """
-    return [Response(match_obj.groupdict()) for match_obj in RESPONSE_RE.finditer(string)]
