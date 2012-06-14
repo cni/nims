@@ -34,6 +34,7 @@ groups = [
         dict(gid=u'llc',        pis=[u'llc'],       managers=[u'notthoff']),
         dict(gid=u'menon',      pis=[u'menon'],     managers=[u'sangs']),
         dict(gid=u'nass',       pis=[u'nass'],      managers=[u'lharbott']),
+        dict(gid=u'ngolden',    pis=[u'ngolden'],   managers=[u'jenguyen']),
         dict(gid=u'pauly',      pis=[u'pauly'],     managers=[u'cvbowen', u'tjou']),
         dict(gid=u'smcclure',   pis=[u'smcclure'],  managers=[u'gstang', u'hennigan', u'mayas']),
         dict(gid=u'wandell',    pis=[u'wandell'],   managers=[u'lmperry']),
