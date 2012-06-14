@@ -68,6 +68,8 @@ class Sorter(object):
             shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filepath) + ext))
             dataset.updatetime = datetime.datetime.now()
             transaction.commit()
+        else:
+            os.remove(filepath)
 
     def sort_directory(self, dirpath, filenames):
         self.log.debug('Sorting %s in directory mode' % os.path.basename(dirpath))
