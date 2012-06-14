@@ -12,7 +12,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
             {
                 traditional: true,
                 type: 'POST',
-                url: "users_with_access",
+                url: "access/users_with_access",
                 data: { exp_id: exp_id },
                 dataType: "json",
                 async: false,
@@ -34,7 +34,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         {
             traditional: true,
             type: 'POST',
-            url: "get_access_privileges",
+            url: "access/get_access_privileges",
             dataType: "json",
             async: false,
             success: function(data)
@@ -51,7 +51,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         {
             traditional: true,
             type: 'POST',
-            url: "modify_access",
+            url: "access/modify_access",
             dataType: "json",
             data:
             {

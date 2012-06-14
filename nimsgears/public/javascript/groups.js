@@ -30,7 +30,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         {
             traditional: true,
             type: 'POST',
-            url: "modify_groups",
+            url: "groups/modify_groups",
             dataType: "json",
             data:
             {
@@ -82,7 +82,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
             $.ajax(
             {
                 type: 'POST',
-                url: "groups_query",
+                url: "groups/groups_query",
                 dataType: "json",
                 data:
                 {

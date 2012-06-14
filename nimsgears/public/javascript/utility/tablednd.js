@@ -93,6 +93,7 @@ define([], function ()
 
     var init = function()
     {
+        document.getElementsByTagName("body")[0].style.overflow = "hidden";
 
     };
 
