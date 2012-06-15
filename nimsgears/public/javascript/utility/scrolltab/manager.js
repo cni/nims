@@ -31,23 +31,34 @@ define([], function()
         };
     };
 
-    DrilldownManager.prototype.refresh = function(index, selected_rows)
+    DrilldownManager.prototype.refresh = function(index, selected_rows, is_instant)
     {
         var obj = this;
         var table = this._tables[index];
         var populator = this._populators[index];
         table.emptyTable();
         this._unlocked = false;
-        if (this.nav_timeout)
+        if (is_instant === undefined) is_instant = false;
+        if (is_instant)
         {
             clearTimeout(this.nav_timeout);
-        }
-        this.nav_timeout = setTimeout(function()
-        {
             table.startLoading();
-            populator(table, selected_rows, obj.getPopulateNextTable());
-            obj.nav_timeout = null;
-        }, 150);
+            populator(table, selected_rows, is_instant, this.getPopulateNextTable());
+            this.nav_timeout = null;
+        }
+        else
+        {
+            if (this.nav_timeout)
+            {
+                clearTimeout(this.nav_timeout);
+            }
+            this.nav_timeout = setTimeout(function()
+            {
+                table.startLoading();
+                populator(table, selected_rows, is_instant, obj.getPopulateNextTable());
+                obj.nav_timeout = null;
+            }, 150);
+        }
     }
 
     DrilldownManager.prototype.selectTable = function(table)
@@ -90,7 +101,7 @@ define([], function()
                 var i_ref = i;
                 obj._tables[i_ref].onSelect(function(event)
                 {
-                    obj.refresh(i_ref+1, event.selected_rows);
+                    obj.refresh(i_ref+1, event.selected_rows, event.is_instant);
                 });
             })();
         }
