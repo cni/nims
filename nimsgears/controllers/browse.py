@@ -236,7 +236,7 @@ class BrowseController(NimsController):
             'type': 'dataset',
             'subtype': 'pyramid',
             'name': db_result.__class__.__name__,
-            'url': 'http://cni.stanford.edu/nimsgears/data' + db_result.relpath,
+            'url': 'http://cni.stanford.edu/nimsgears/data/' + db_result.relpath,
             } if db_result else None
 
     @expose()
