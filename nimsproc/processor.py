@@ -76,7 +76,7 @@ class Processor(object):
             query = query.filter(Job.task==self.task)
         jobs = query.all()
         for job in jobs:
-            self.log.info(u'Resetting  %s' % job)
+            self.log.info(u'%d: Resetting %s' % (job.id, job))
             job.status = u'new'
         transaction.commit()
 
@@ -94,17 +94,17 @@ class Pipeline(threading.Thread):
 
     def run(self):
         DBSession.add(self.job)
-        self.log.info(u'Processing %s' % self.job)
+        self.log.info(u'%d: Running   %s' % (self.job.id, self.job))
         if self.job.task == u'find':
             success = self.find()
         else:   # self.job.task == u'proc'
             success = self.process()
         if success:
             self.job.status = u'done'
-            self.log.info(u'Processed  %s' % self.job)
+            self.log.info(u'%d: Finished  %s' % (self.job.id, self.job))
         else:
             self.job.status = u'failed'
-            self.log.info(u'Failed     %s' % self.job)
+            self.log.info(u'%d: Failed    %s' % (self.job.id, self.job))
         transaction.commit()
 
     @abc.abstractmethod
@@ -115,7 +115,7 @@ class Pipeline(threading.Thread):
         if ds.physio_flag:
             success, physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.duration, ds.psd.encode('utf-8'))
             if physio_files:
-                self.log.info('Found physio files: %s' % ', '.join([os.path.basename(pf) for pf in physio_files]))
+                self.log.info('%d: physio files %s' % (self.job.id, ', '.join([os.path.basename(pf) for pf in physio_files])))
                 dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'Physio Data')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
@@ -146,24 +146,34 @@ class DicomPipeline(Pipeline):
     def process(self):
         success = True
         ds = self.job.data_container.primary_dataset
+
         with nimsutil.TempDirectory() as outputdir:
             outbase = os.path.join(outputdir, ds.container.name)
             dcm_series = nimsutil.dicomutil.DicomSeries(os.path.join(self.nims_path, ds.relpath), self.log)
-            dcm_series.convert(outbase)
+            nifti_file = dcm_series.convert(outbase)
 
-            outputdir_list = os.listdir(outputdir)
-            if outputdir_list:
-                self.log.info('Dicom files converted to %s' % outputdir_list)
-                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'NIfTI (raw)')
+            if nifti_file:
+                outputdir_list = os.listdir(outputdir)
+                self.log.info('%d: %s generated' % (self.job.id, outputdir_list))
+                nifti_ds = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'NIfTI (raw)')
+                pyramid_ds = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'Image Pyramid')
+
+                DBSession.add(nifti_ds)
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                dataset.file_cnt_act = 0
-                dataset.file_cnt_tgt = len(outputdir_list)
-                dataset.kind = u'derived'
-                dataset.container = self.job.data_container
+
+                nifti_ds.file_cnt_act = 0
+                nifti_ds.file_cnt_tgt = len(outputdir_list)
+                nifti_ds.kind = u'derived'
+                nifti_ds.container = self.job.data_container
                 for f in outputdir_list:
-                    shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, dataset.relpath))
-                    dataset.file_cnt_act += 1
+                    shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, nifti_ds.relpath))
+                    nifti_ds.file_cnt_act += 1
+
+                nimsutil.pyramid.ImagePyramid(nifti_file, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
+                self.log.info('%d: Image pyramid generated' % self.job.id)
+                pyramid_ds.kind = u'derived'
+                pyramid_ds.container = self.job.data_container
 
         transaction.commit()
         DBSession.add(self.job)
@@ -185,7 +195,7 @@ class PFilePipeline(Pipeline):
 
             outputdir_list = os.listdir(outputdir)
             if outputdir_list:
-                self.log.info('PFile converted to %s' % outputdir_list)
+                self.log.info('%d: PFile converted to %s' % (self.job.id, outputdir_list))
                 dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'NIfTI (raw)')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)

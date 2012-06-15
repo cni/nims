@@ -461,6 +461,7 @@ class Job(Entity):
     data_container = ManyToOne('DataContainer', inverse='jobs')
 
     def __unicode__(self):
+        return u'%s on %s' % (self.task, self.data_container)
         return u'Job %d (%s): %s' % (self.id if self.id else -1, self.task, self.data_container)
 
 
@@ -927,7 +928,7 @@ class GEPFile(PrimaryMRData):
             md = None
         else:
             md = Metadata()
-            md.datatype = u'PFile'
+            md.datatype = u'GE PFile'
             md.exam_no = pf.exam_no
             md.series_no = pf.series_no
             md.acq_no = pf.acq_no

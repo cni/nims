@@ -89,12 +89,14 @@ class DicomSeries(object):
             msg = 'dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase)
             self.log and self.log.warning(msg) or print(msg)
         else:
+            nifti_file = None
             if image_type == TYPE_SCREEN:
                 self.to_img(outbase)
             if image_type == TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in self.first_dcm and self.first_dcm[TAG_DIFFUSION_DIRS].value > 0:
                 self.to_dti(outbase)
             if image_type == TYPE_ORIGINAL or self.first_dcm.ImageType == TYPE_EPI:
-                self.to_nii(outbase)
+                nifti_file = self.to_nii(outbase)
+        return nifti_file
 
     def to_img(self, outbase):
         """Create bitmap files for each image in a list of dicoms."""
@@ -224,6 +226,7 @@ class DicomSeries(object):
         filename = outbase + '.nii.gz'
         nibabel.save(nifti, filename)
         self.log and self.log.debug('generated %s' % os.path.basename(filename))
+        return filename
 
 
 class ArgumentParser(argparse.ArgumentParser):

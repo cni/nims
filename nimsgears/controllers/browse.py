@@ -1,12 +1,17 @@
-from tg import config, expose, flash, redirect, request, response, require, session
-from nimsgears.model import *
-from nimsgears.controllers.nims import NimsController
-from repoze.what import predicates
+# @author:  Reno Bowen
 
-import json # return raw json to browser in cases of database queries
+from tg import expose, request, session
+from repoze.what import predicates
 import transaction
 
+from nimsgears.model import *
+from nimsgears.controllers.nims import NimsController
+
+import json
+
+
 class BrowseController(NimsController):
+
     @expose('nimsgears.templates.browse')
     def index(self):
         user = request.identity['user']
@@ -236,7 +241,7 @@ class BrowseController(NimsController):
             'type': 'dataset',
             'subtype': 'pyramid',
             'name': db_result.__class__.__name__,
-            'url': 'http://cni.stanford.edu/nimsgears/data/' + db_result.relpath,
+            'url': 'https://cni.stanford.edu/nimsgears/data/' + db_result.relpath,
             } if db_result else None
 
     @expose()

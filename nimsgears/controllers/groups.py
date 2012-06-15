@@ -1,12 +1,17 @@
-from tg import config, expose, flash, redirect, request, response, require, session
-from nimsgears.model import *
-from nimsgears.controllers.nims import NimsController
-from repoze.what import predicates
+# @author:  Reno Bowen
 
-import json # return raw json to browser in cases of database queries
+from tg import expose, request
+from repoze.what import predicates
 import transaction
 
+from nimsgears.model import *
+from nimsgears.controllers.nims import NimsController
+
+import json
+
+
 class GroupsController(NimsController):
+
     @expose('nimsgears.templates.groups')
     def index(self):
         user = request.identity['user']
@@ -24,6 +29,7 @@ class GroupsController(NimsController):
                     user_columns = user_columns,
                     research_groups = research_groups,
                     )
+
     @expose()
     def groups_query(self, **kwargs):
         user = request.identity['user']

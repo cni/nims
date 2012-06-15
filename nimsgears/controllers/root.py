@@ -1,16 +1,12 @@
-# -*- coding: utf-8 -*-
-"""Main Controller"""
+# @author:  Gunnar Schaefer
+#           Reno Bowen
 
-import json
-from tg import expose, flash, require, lurl, request, redirect
+from tg import expose, flash, lurl, request, redirect
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 
 from nimsgears.lib.base import BaseController
+from nimsgears.controllers.auth import AuthController
 from nimsgears.controllers.error import ErrorController
-from nimsgears.controllers.data import DataController, AuthDataController
-from nimsgears.controllers.access import AccessController
-from nimsgears.controllers.browse import BrowseController
-from nimsgears.controllers.groups import GroupsController
 
 __all__ = ['RootController']
 
@@ -19,30 +15,8 @@ class RootController(BaseController):
 
     """Root controller for the nimsgears application."""
 
-    groups = GroupsController()
-    browse = BrowseController()
-    access = AccessController()
-    pub = DataController()
-    auth = AuthDataController()
+    auth = AuthController()
     error = ErrorController()
-
-    @expose()
-    def download(self, **kwargs):
-        user = request.identity['user']
-        id_dict = None
-        result = {}
-        if 'id_dict' in kwargs:
-            id_dict = json.loads(kwargs['id_dict'])
-            if 'sess' in id_dict:
-                try:
-                    sess_id = int(id_dict['sess'])
-                    result['success'] = True
-                except:
-                    result['success'] = False
-                else:
-                    pass
-                    #TODO Download stuff goes here
-        return result
 
     @expose('nimsgears.templates.index')
     def index(self):

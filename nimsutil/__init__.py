@@ -3,6 +3,11 @@
 from nimsutil import *
 
 try:
+    import pyramid
+except:
+    print 'Warning: could not import pyramid module'
+
+try:
     import dicomutil
 except:
     print 'Warning: could not import dicomutil module'

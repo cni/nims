@@ -1,16 +1,23 @@
 #!/usr/bin/env python
+#
+# @author:  Bob Dougherty
+#           Gunnar Schaefer
 
 """
-The CNI Image Mapper (ImMap) uses PanoJS for the front-end.
+The CNI pyramid viewer uses PanoJS for the front-end.
 See: http://www.dimin.net/software/panojs/
 """
 
-import nibabel
-import numpy
-import math
+from __future__ import print_function
+
 import os
 import argparse
+
+import math
 import Image
+import numpy
+import nibabel
+
 
 class ImagePyramidError(Exception):
     pass
@@ -19,51 +26,35 @@ class ImagePyramidError(Exception):
 class ImagePyramid(object):
 
     """
-    Generate a panojs-style image pyramid of a 2D montage of slices from a >=3D dataset (usually a NIFTI file).
+    Generate a panojs-style image pyramid of a 2D montage of slices from a >=3D dataset (usually a NIfTI file).
 
     Example:
         import pyramid
-        pyr = pyramid.ImagePyramid()
-        pyr.generate(infile='t1.nii.gz', outdir='t1')
+        pyr = pyramid.ImagePyramid('t1.nii.gz')
+        pyr.generate()
     """
 
-    def __init__(self, tile_size=256, log=None):
+    def __init__(self, filename, tile_size=256, log=None):
+        self.data = nibabel.load(filename).get_data()
         self.tile_size = tile_size
-        self.data = None
-        montage_array = None
         self.log = log
 
-    def generate(self, infile, outdir, panojs_url = 'http://cni.stanford.edu/js/panojs/'):
+    def generate(self, outdir, panojs_url='https://cni.stanford.edu/js/panojs/'):
         """
-        Generate a multi-resolution image pyramid (using the generate_pyramid method) and
-        the corresponding viewer HTML file (using the generate_viewer method) on the data
-        file. The pyramid will be in a directory called [outbase].pyr and the viewer in an
-        HTML file called [outbase].html.
+        Generate a multi-resolution image pyramid, using generate_pyramid(), and the corresponding
+        viewer HTML file, using generate_viewer().
         """
-        self.load_data(infile)
         self.generate_montage()
         self.generate_pyramid(outdir)
-        self.generate_viewer(os.path.join(outdir,'index.html'), panojs_url)
-
-    def load_data(self, infile):
-        try:
-            nim = nibabel.load(infile)
-        except:
-            # If there are problems loading the image, just log it, and continue by returning an empty buffer
-            # TODO: proper error-handling here.
-            return;
-        # TODO: crop to remove any zero-padding.
-        self.data = nim.get_data()
+        self.generate_viewer(os.path.join(outdir, 'index.html'), panojs_url)
 
     def generate_pyramid(self, outdir):
         """
-        Slice up a NIFTI file into a multi-res pyramid of tiles.
+        Slice up a NIfTI file into a multi-res pyramid of tiles.
         We use the file name convention suitable for PanoJS (http://www.dimin.net/software/panojs/):
         The zoom level (z) is an integer between 0 and n, where 0 is fully zoomed in and n is zoomed out.
         E.g., z=n is for 1 tile covering the whole world, z=n-1 is for 2x2=4 tiles, ... z=0 is the original resolution.
         """
-        if(self.montage==None):
-            self.generate_montage()
         sx,sy = self.montage.size
         divs = int(numpy.ceil(numpy.log2(max(sx,sy)/self.tile_size)))
         if not os.path.exists(outdir): os.makedirs(outdir)
@@ -73,7 +64,7 @@ class ImagePyramid(object):
             xsize = int(round(float(ysize)/sy*sx))
             xpieces = int(math.ceil(float(xsize)/self.tile_size))
             ypieces = int(math.ceil(float(ysize)/self.tile_size))
-            print 'level', z, 'size =',xsize,ysize, 'splits =', xpieces, ypieces
+            self.log or print('level %s, size %dx%d, splits %d,%d' % (z, xsize, ysize, xpieces, ypieces))
             # TODO: we don't need to use 'thumbnail' here. This function always returns a square
             # image of the requested size, padding and scaling as needed. Instead, we should resize
             # and chop the image up, with no padding, ever. panojs can handle non-square images
@@ -113,7 +104,7 @@ class ImagePyramid(object):
     def generate_montage(self):
         """Full-sized montage of the entire numpy data array."""
         # Figure out the image dimensions and make an appropriate montage.
-        # NIFTI images can have up to 7 dimensions. The fourth dimension is
+        # NIfTI images can have up to 7 dimensions. The fourth dimension is
         # by convention always supposed to be time, so some images (RGB, vector, tensor)
         # will have 5 dimensions with a single 4th dimension. For our purposes, we
         # can usually just collapse all dimensions above the 3rd.
@@ -128,7 +119,7 @@ class ImagePyramid(object):
         self.data = self.data.squeeze()
 
         if self.data.ndim < 2:
-            raise exc.BadNiftiFile()
+            raise Exception('NIfTI file must have at least 2 dimensions')
         elif self.data.ndim == 2:
             # a single slice: no need to do anything
             num_cols = 1;
@@ -167,18 +158,15 @@ class ImagePyramid(object):
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.description = """Takes a NIFTI file as input and creates a panojs-style image pyramid from it."""
-        self.add_argument('-p', '--panojs_url', help='URL for the panojs javascript.')
-        self.add_argument('infile', help='path to NIFTI file')
-        self.add_argument('outbase', nargs='?', help='basename for output files (default: pyramid)')
+        self.description = """Create a panojs-style image pyramid from a NIfTI file."""
+        self.add_argument('-p', '--panojs_url', metavar='URL', help='URL for the panojs javascript.')
+        self.add_argument('filename', help='path to NIfTI file')
+        self.add_argument('outdir', nargs='?', help='output directory')
+
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    #log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
-    if args.outbase == None:
-        args.outbase = os.path.basename(os.path.splitext(os.path.splitext(args.infile)[0])[0])
-    pyr = ImagePyramid()
-    if args.panojs_url == None:
-        pyr.generate(args.infile, args.outbase+'.pyr')
-    else:
-        pyr.generate(args.infile, args.outbase+'.pyr', args.panojs_url)
+    outdir = args.outdir or os.path.basename(os.path.splitext(os.path.splitext(args.filename)[0])[0]) + '.pyr'
+
+    pyr = ImagePyramid(args.filename)
+    pyr.generate(outdir, args.panojs_url) if args.panojs_url else pyr.generate(outdir)

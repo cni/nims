@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
-"""Sample controller with all its actions protected."""
-from tg import config, expose, flash, redirect, request, response, require, session
+# @author:  Gunnar Schaefer
+
+from tg import config, expose, flash, redirect, request, response
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 from repoze.what import predicates
-from tgext.admin.controller import AdminController
-from tgext.admin.tgadminconfig import TGAdminConfig
 
 import os
 import shlex
@@ -15,36 +13,23 @@ from nimsgears import model
 from nimsgears.model import *
 
 from nimsgears.lib.base import BaseController
-from nimsgears.controllers.nims import NimsController
+from nimsgears.controllers.access import AccessController
+from nimsgears.controllers.browse import BrowseController
+from nimsgears.controllers.groups import GroupsController
 
 import nimsutil
 
 import json # return raw json to browser in cases of database queries
 import transaction
 
-__all__ = ['DataController', 'PublicDataController']
+__all__ = ['AuthController']
 
 
-class NimsAdminConfig(TGAdminConfig):
-    default_index_template = 'genshi:nimsgears.templates.tg_admin'
+class AuthController(BaseController):
 
-
-class NimsAdminController(AdminController):
-    allow_only = predicates.in_group('superusers')
-
-
-class DataController(NimsController):
-
-    def index(self):
-        redirect('/pub/browse')
-
-    @expose()
-    def browse(self, **kwargs):
-        return dict(page='browse')
-
-class AuthDataController(DataController):
-
-    tg_admin = NimsAdminController(model, DBSession, NimsAdminConfig)
+    access = AccessController()
+    browse = BrowseController()
+    groups = GroupsController()
 
     allow_only = predicates.not_anonymous(msg=l_('You must be logged in to view this page.'))
 
@@ -112,19 +97,43 @@ class AuthDataController(DataController):
     def image(self, *args):
         return open('/tmp/image.png', 'r')
 
-    @expose(content_type='application/x-tar')
-    def download(self, *args, **kwargs):
-        import tempfile
-        tempdir = tempfile.mkdtemp()
-        store_path = config.get('store_path')
+    #@expose(content_type='application/x-tar')
+    #def download(self, *args, **kwargs):
+    #    import tempfile
+    #    tempdir = tempfile.mkdtemp()
+    #    store_path = config.get('store_path')
 
-        session_id = kwargs['session_id']
-        session = Session.query.filter(Session.id == session_id).first()
-        datasets = Dataset.query.join(Epoch, Dataset.container).filter(Epoch.session == session).all()
-        tardir = nimsutil.make_joined_path(tempdir, session.name)
-        for dataset in datasets:
-            os.symlink(os.path.join(store_path, dataset.relpath), os.path.join(tardir, dataset.name))
-        tar_proc = sp.Popen(shlex.split('tar -cLf - %s' % session.name), stdout=sp.PIPE, cwd=tempdir)
-        response.headerlist.append(('Content-Disposition', 'attachment; filename=%s' % session.name))
+    #    session_id = kwargs['session_id']
+    #    session = Session.query.filter(Session.id == session_id).first()
+    #    datasets = Dataset.query.join(Epoch, Dataset.container).filter(Epoch.session == session).all()
+    #    tardir = nimsutil.make_joined_path(tempdir, session.name)
+    #    for dataset in datasets:
+    #        os.symlink(os.path.join(store_path, dataset.relpath), os.path.join(tardir, dataset.name))
+    #    tar_proc = sp.Popen(shlex.split('tar -cLf - %s' % session.name), stdout=sp.PIPE, cwd=tempdir)
+    #    response.headerlist.append(('Content-Disposition', 'attachment; filename=%s' % session.name))
+    #    return tar_proc.stdout
+
+    @expose(content_type='application/octet-stream')
+    def speed(self, *args):
+        #tar_proc = sp.Popen(shlex.split('tar -cLf - %s' % '/usr/local/www/apache22/data/testing/P86016_.7'), stdout=sp.PIPE, cwd='/tmp')
+        tar_proc = sp.Popen(shlex.split('cat %s' % '/usr/local/www/apache22/data/testing/P86016_.7'), stdout=sp.PIPE, cwd='/tmp')
         return tar_proc.stdout
+        #return open('/usr/local/www/apache22/data/testing/P86016_.7', 'r')
 
+    @expose()
+    def download(self, **kwargs):
+        user = request.identity['user']
+        id_dict = None
+        result = {}
+        if 'id_dict' in kwargs:
+            id_dict = json.loads(kwargs['id_dict'])
+            if 'sess' in id_dict:
+                try:
+                    sess_id = int(id_dict['sess'])
+                    result['success'] = True
+                except:
+                    result['success'] = False
+                else:
+                    pass
+                    #TODO Download stuff goes here
+        return result

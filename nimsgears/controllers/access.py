@@ -1,12 +1,17 @@
-from tg import expose, flash, require, lurl, request, redirect
-from nimsgears.model import *
-from nimsgears.controllers.nims import NimsController
-from repoze.what import predicates
+# @author:  Reno Bowen
 
-import json # return raw json to browser in cases of database queries
+from tg import expose, request
+from repoze.what import predicates
 import transaction
 
+from nimsgears.model import *
+from nimsgears.controllers.nims import NimsController
+
+import json
+
+
 class AccessController(NimsController):
+
     @expose('nimsgears.templates.access')
     def index(self):
         user = request.identity['user']

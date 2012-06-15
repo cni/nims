@@ -1,10 +1,17 @@
-from tg import expose, flash, require, lurl, request, redirect
+# @author:  Reno Bowen
+
+from tg import expose, request
+from tg.i18n import ugettext as _, lazy_ugettext as l_
+from repoze.what import predicates
+
 from nimsgears.model import *
 from nimsgears.lib.base import BaseController
-from repoze.what import predicates
+
 import json
 
+
 class NimsController(BaseController):
+
     @expose()
     def get_trash_flag(self, **kwargs):
         user = request.identity['user']
@@ -74,7 +81,7 @@ class NimsController(BaseController):
         dataset_dict = user.get_datasets(by_epoch_id=epoch_id)
         for key, value in dataset_dict.iteritems():
             dataset = value.Dataset
-            dataset_data_list.append((dataset.__class__.__name__,))
+            dataset_data_list.append((dataset.datatype,))
             dataset_attr_list.append({'id':'dataset_%d' % key, 'class':'%s' % ('trash' if dataset.trashtime else '')})
         return (dataset_data_list, dataset_attr_list)
 

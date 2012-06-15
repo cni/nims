@@ -83,7 +83,7 @@ define([], function()
                 table.startLoading();
                 populator(table, selected_rows, is_instant, obj.getPopulateNextTable());
                 obj.nav_timeout = null;
-            }, 150);
+            }, 250);
         }
     }
 
