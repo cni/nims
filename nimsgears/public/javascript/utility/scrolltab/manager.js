@@ -52,6 +52,7 @@ define([], function()
         {
             next_table.stopLoading();
             next_table.populateTable(table_data);
+            next_table.resort();
             next_table.enableMouseSelection();
             obj._unlocked = true;
         };

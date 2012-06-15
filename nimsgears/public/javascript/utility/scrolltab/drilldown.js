@@ -15,7 +15,7 @@ function (Scrolltable, asSortable, asLoadable, asSelectable, withKbSupport) {
 
     Drilldown.prototype.init_drilldown = function()
     {
-        this.init_sortable();
+        this.init_sortable(function(obj) { obj.synchronizeSelections(); });
         this.init_loadable();
         this.init_kbsupport();
     };
