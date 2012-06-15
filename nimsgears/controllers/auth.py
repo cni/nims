@@ -125,15 +125,29 @@ class AuthController(BaseController):
         user = request.identity['user']
         id_dict = None
         result = {}
+        query_type = None
         if 'id_dict' in kwargs:
             id_dict = json.loads(kwargs['id_dict'])
             if 'sess' in id_dict:
+                query_type = Session
                 try:
-                    sess_id = int(id_dict['sess'])
+                    id_list = id_dict['sess']
                     result['success'] = True
                 except:
                     result['success'] = False
                 else:
                     pass
-                    #TODO Download stuff goes here
+            elif 'dataset' in id_dict:
+                query_type = Dataset
+                try:
+                    id_list = id_dict['dataset']
+                    result['success'] = True
+                except:
+                    result['success'] = False
+                else:
+                    pass
+        if not isinstance(id_list, list):
+            id_list = [id_list]
+        print query_type
+        print id_list
         return result

@@ -120,9 +120,7 @@ class BrowseController(NimsController):
 
         result = {'success': False}
         if id_list and query_type and db_query:
-            if isinstance(id_list, list):
-                id_list = [int(item) for item in id_list]
-            else:
+            if not isinstance(id_list, list):
                 id_list = [id_list]
 
             db_query = db_query.filter(query_type.id.in_(id_list))

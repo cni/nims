@@ -417,7 +417,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         TableDragAndDrop.setupDraggable($(sessions._getBodyTable()));
         TableDragAndDrop.setupDraggable($(epochs._getBodyTable()));
         TableDragAndDrop.setupDraggable($(datasets._getBodyTable()));
-        TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table", $("#download_drop"), dropDownloads);
+        TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table, #datasets .scrolltable_body table", $("#download_drop"), dropDownloads);
         TableDragAndDrop.setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
 
         $("#radio_trash input").change(changeTrashFlag);
