@@ -70,7 +70,7 @@ class NimsController(BaseController):
         session_dict = user.get_sessions(by_experiment_id=exp_id)
         for key, value in session_dict.iteritems():
             sess = value.Session
-            sess_data_list.append((sess.subject.code, sess.timestamp.strftime('%Y-%m-%d %H:%M')))
+            sess_data_list.append((sess.timestamp.strftime('%Y-%m-%d %H:%M'), sess.subject.code))
             sess_attr_list.append({'id':'sess_%d' % key, 'class':'%s' % ('trash' if sess.trashtime else '')})
         return (sess_data_list, sess_attr_list)
 
