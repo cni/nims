@@ -159,8 +159,8 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         users = new Drilldown("users", "Users");
         experiments = new Drilldown("experiments", "Experiments");
         current_access = new Drilldown("current_access", "Current Access");
-        new DrilldownManager([users], []);
-        new DrilldownManager([experiments, current_access], [refreshExperiments, refreshCurrentAccess]);
+        new DrilldownManager([users], [], true);
+        new DrilldownManager([experiments, current_access], [refreshExperiments, refreshCurrentAccess], true);
 
         TableDragAndDrop.setupDraggable($(users._getBodyTable()));
         TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));

@@ -1,5 +1,4 @@
 require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, Drilldown, DrilldownManager) {
-//TODO SYNCHRONIZE SELECTIONS
     var experiments;
     var sessions;
     var epochs;
@@ -64,9 +63,6 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         selected_rows = ui.helper.data('moving_rows');
 
         var id_dict = getIdDictionary(selected_rows);
-        console.log(id_dict);
-        alert(id_dict);
-        /*
         $.ajax({
             traditional: true,
             type: 'POST',
@@ -74,10 +70,9 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             dataType: "json",
             data:
             {
-                id_dict: id_dict
+                id_dict: JSON.stringify(id_dict)
             },
         });
-        */
     };
 
     var dropTrash = function (event, ui)
@@ -102,7 +97,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             {
                 if (data.success)
                 {
-                    manager.refresh(0);
+                    manager.refresh(0, [], true);
                 }
                 else
                 {
@@ -415,7 +410,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         sessions = new Drilldown("sessions", "Sessions");
         epochs = new Drilldown("epochs", "Epochs");
         datasets = new Drilldown("datasets", "Datasets");
-        manager = new DrilldownManager([experiments, sessions, epochs, datasets], [refreshExperiments, refreshSessions, refreshEpochs, refreshDatasets]);
+        manager = new DrilldownManager([experiments, sessions, epochs, datasets], [refreshExperiments, refreshSessions, refreshEpochs, refreshDatasets], true);
         manager.refresh(0, [], true);
 
         TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));

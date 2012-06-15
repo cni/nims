@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Main Controller"""
 
+import json
 from tg import expose, flash, require, lurl, request, redirect
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 
@@ -24,6 +25,24 @@ class RootController(BaseController):
     pub = DataController()
     auth = AuthDataController()
     error = ErrorController()
+
+    @expose()
+    def download(self, **kwargs):
+        user = request.identity['user']
+        id_dict = None
+        result = {}
+        if 'id_dict' in kwargs:
+            id_dict = json.loads(kwargs['id_dict'])
+            if 'sess' in id_dict:
+                try:
+                    sess_id = int(id_dict['sess'])
+                    result['success'] = True
+                except:
+                    result['success'] = False
+                else:
+                    pass
+                    #TODO Download stuff goes here
+        return result
 
     @expose('nimsgears.templates.index')
     def index(self):
