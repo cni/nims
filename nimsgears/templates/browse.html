@@ -21,32 +21,45 @@
     .dropbox.hover {background-color:#ddcf99}
     .subheader { float:left; }
 
-    #experiments { clear:left; width:25%; }
-    #sessions { width:20%; }
-    #epochs { width:30%; }
-    #datasets { width:25%; }
+    #experiments.scrolltable_wrapper {clear:left;}
 
-    .col_sunet { width:30%; }
-    .col_exam { width:43%; }
-    .col_sa { width:20%; }
-    .col_access { width:20%; }
+    #experiments, #sessions, #epochs, #datasets
+    {
+        width:230px;
+    }
+
+    .col_sunet { width:25%; }
+    .col_exp { width:75%; }
+
+    .col_subj { width:40%; }
+    .col_datetime { width:60%; }
+
+    .col_time { width:25%; }
+    .col_desc { width:75%; }
+
+    .col_type { width:100%; }
 
     .access_mg { font-weight:bold; }
+    #image_viewer { width:100%; height:100%;}
+
 </style>
+<script>
+</script>
 </head>
 
 <body>
     <!-- Pop Overs -->
-    <div id="experiments_pop" class="pop">
+    <div id="experiments_pop" class="pop" style="display:none">
         <p></p>
     </div>
-    <div id="sessions_pop" class="pop">
+    <div id="sessions_pop" class="pop" style="display:none">
         <p></p>
     </div>
-    <div id="epochs_pop" class="pop">
+    <div id="epochs_pop" class="pop" style="display:none">
         <p></p>
     </div>
-    <div id="datasets_pop" class="pop">
+    <div id="datasets_pop" class="pop" style="display:none">
+        <iframe id="image_viewer" src="" />
         <p></p>
     </div>
 

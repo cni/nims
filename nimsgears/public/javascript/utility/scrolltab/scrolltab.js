@@ -5,10 +5,13 @@ define([], function()
         this._header;
         this._body;
         this._title;
-        this._original = document.getElementById(table_id);
-        this._original.hidden = true;
-        this.title = (title !== undefined) ? document.createTextNode(title) : undefined;
-        this.render();
+        if (table_id !== undefined)
+        {
+            this._original = document.getElementById(table_id);
+            this._original.hidden = true;
+            this.title = (title !== undefined) ? document.createTextNode(title) : undefined;
+            this.render();
+        }
     }
 
     Scrolltable.prototype._flattenElement = function(el) {
@@ -96,6 +99,8 @@ define([], function()
         this.element.appendChild(this.createSpacer());
 
         var table = this._original.cloneNode(true);
+        table.setAttribute("cellpadding",0);
+        table.setAttribute("cellspacing",0);
         table.hidden = false;
         table.id = null;
         table.className = "scrolltable";
@@ -174,6 +179,15 @@ define([], function()
             }
             this._stripe();
         }
+    };
+
+    Scrolltable.prototype.onDoubleClick = function(callback)
+    {
+        var rows = this.getRows();
+        rows.forEach(function(row)
+        {
+            row.ondblclick = callback;
+        });
     };
 
     return Scrolltable;

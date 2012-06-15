@@ -1,8 +1,13 @@
-require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAndDrop, ScrolltableManager) {
+require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, Drilldown, DrilldownManager) {
     var pis;
     var admins;
     var members;
     var others;
+
+    var pis_mgr;
+    var admins_mgr;
+    var members_mgr;
+    var others_mgr;
 
     var showRetroDialog = function(user_ids, group_id, membership_src, membership_dst)
     {
@@ -77,6 +82,10 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
 
     var refreshGroups = function(research_group)
     {
+        pis.startLoading();
+        admins.startLoading();
+        members.startLoading();
+        others.startLoading();
         if (research_group)
         {
             $.ajax(
@@ -90,11 +99,10 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                 },
                 success: function(data)
                 {
-                    pis.populateTable(data["pis"]);
-                    admins.populateTable(data["admins"]);
-                    members.populateTable(data["members"]);
-                    others.populateTable(data["others"]);
-                    ScrolltableManager.setClickEventsAll();
+                    pis_mgr.getPopulateNextTable()(pis, data.pis);
+                    admins_mgr.getPopulateNextTable()(admins, data.admins);
+                    members_mgr.getPopulateNextTable()(members, data.members);
+                    others_mgr.getPopulateNextTable()(others, data.others);
                 },
             }); // ajax call
         }
@@ -102,17 +110,15 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
 
     var init = function()
     {
-        ScrolltableManager.init();
-        ScrolltableManager.setTableHeights();
-        ScrolltableManager.autoSetTableHeights();
+        pis = new Drilldown("pis", "Primary Investigators");
+        admins = new Drilldown("admins", "Admins");
+        members = new Drilldown("members", "Members");
+        others = new Drilldown("others", "Others");
 
-        ScrolltableManager.resortAll();
-        ScrolltableManager.setClickEventsAll();
-
-        pis = ScrolltableManager.getById("pis");
-        admins = ScrolltableManager.getById("admins");
-        members = ScrolltableManager.getById("members");
-        others = ScrolltableManager.getById("others");
+        pis_mgr = new DrilldownManager([pis], []);
+        admins_mgr = new DrilldownManager([admins], []);
+        members_mgr = new DrilldownManager([members], []);
+        others_mgr = new DrilldownManager([others], []);
 
         var first_group;
         if (first_group = $("#group_select").children().first())

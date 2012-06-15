@@ -1,13 +1,28 @@
-require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAndDrop, ScrolltableManager) {
+require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, Drilldown, DrilldownManager) {
+//TODO SYNCHRONIZE SELECTIONS
     var experiments;
     var sessions;
     var epochs;
     var datasets;
 
+    var manager;
+
     var experiments_popup;
     var sessions_popup;
     var epochs_popup;
     var datasets_popup;
+
+    var viewport = function ()
+    {
+        var e = window;
+        a = 'inner';
+        if ( !( 'innerWidth' in window ) )
+        {
+            a = 'client';
+            e = document.documentElement || document.body;
+        }
+        return { width : e[ a+'Width' ] , height : e[ a+'Height' ] }
+    }
 
     var getId = function(string)
     {
@@ -87,7 +102,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
             {
                 if (data.success)
                 {
-                    refreshExperiments();
+                    manager.refresh(0);
                 }
                 else
                 {
@@ -125,7 +140,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                         $("#sessions .scrolltable_body tbody tr:odd").addClass('stripe');
                         if (selected_rows.length == 1 && selected_rows.first().hasClass("ui-selected"))
                         {
-                            refreshEpochs(null);
+                            manager.refresh(3);
                         }
                         if (data.untrashed)
                         {
@@ -167,13 +182,13 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
             dataType: "json",
             data:
             {
-                trash_flag: trash_flag
+               trash_flag: trash_flag
             },
             success: function(data)
             {
                 if (data.success)
                 {
-                    refreshExperiments();
+                    manager.refresh(0, [], true);
                 }
                 else
                 {
@@ -183,10 +198,8 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         });
     };
 
-    var refreshExperiments = function()
+    var refreshExperiments = function(table, selected_rows, is_instant, populateNextTableFn)
     {
-        experiments.startLoading();
-        var table_body = experiments.getBody();
         $.ajax(
         {
             type: 'POST',
@@ -198,33 +211,24 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                 var row;
                 if (data.success)
                 {
-                    experiments.populateTable(data);
-                    experiments.synchronizeSelections();
-                    experiments.setClickEvents();
+                    populateNextTableFn(table, data);
+                    table.synchronizeSelections();
                     experiments.onDoubleClick(function() { showDialog(experiments_popup, { exp_id: getId(this.id) }); });
-                    TableDragAndDrop.setupDroppable(sessions.getBody().closest('table'), experiments.getRows(), dropSessionsOnExperiment);
-                    refreshSessions(
-                    {
-                        selected_rows: experiments.getSelectedRows()
-                    });
-                    experiments.stopLoading();
+                    TableDragAndDrop.setupDroppable(sessions._getBodyTable(), $(experiments.getRows()), dropSessionsOnExperiment);
                 }
                 else
                 {
                     alert('Failed'); // implement better alert
                 }
+                table.select(is_instant);
             },
         }); // ajax call
     };
-
-    var refreshSessions = function(event)
+    var refreshSessions = function(table, selected_rows, is_instant, populateNextTableFn)
     {
-        sessions.startLoading();
-        var experiment_row = event ? event.selected_rows : null;
-        var table_body = sessions.getBody();
-        if (experiment_row && experiment_row.length == 1) // make sure we didn't just get passed an empty list
+        if (selected_rows && selected_rows.length == 1) // make sure we didn't just get passed an empty list
         {
-            var exp_id = getId(experiment_row.attr('id'));
+            var exp_id = getId(selected_rows[0].id);
             $.ajax(
             {
                 type: 'POST',
@@ -235,13 +239,13 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                 {
                     if (data.success)
                     {
-                        sessions.populateTable(data);
-                        sessions.synchronizeSelections();
-                        sessions.setClickEvents();
+                        populateNextTableFn(table, data);
+                        table.synchronizeSelections();
                         sessions.onDoubleClick(function() { showDialog(sessions_popup, { sess_id: getId(this.id) }); });
 
-                        // Disable rows that you don't have manage access to
-                        var experiment_rows = experiments.getRows();
+                        //// Disable rows that you don't have manage access to
+                        var experiment_rows = $(experiments.getRows());
+                        experiment_row = $(selected_rows[0]);
                         if (experiment_row.hasClass('access_mg'))
                         {
                             experiment_rows.each(function()
@@ -254,39 +258,27 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                         {
                             experiment_rows.droppable("option", "disabled", true);
                         }
-                        toggleObject(table_body.closest('table'), true);
-                        refreshEpochs(
-                        {
-                            selected_rows: sessions.getSelectedRows()
-                        });
-                        sessions.stopLoading();
                     }
                     else
                     {
                         alert('Failed');
                     } // implement better alert TODO
-
+                    table.select(is_instant);
                 },
             });
         }
         else
         {
-            sessions.updateSelectedRows();
-            toggleObject(datasets.getBody().closest('table'), false);
-            toggleObject(epochs.getBody().closest('table'), false);
-            toggleObject(table_body.closest('table'), false);
-            sessions.stopLoading();
+            populateNextTableFn(table, []);
+            table.select(is_instant);
         }
     };
 
-    var refreshEpochs = function(event)
+    var refreshEpochs = function(table, selected_rows, is_instant, populateNextTableFn)
     {
-        epochs.startLoading();
-        var session_row = event ? event.selected_rows : null;
-        var table_body = epochs.getBody();
-        if (session_row && session_row.length == 1) // make sure we didn't get passed an empty list
+        if (selected_rows && selected_rows.length == 1) // make sure we didn't get passed an empty list
         {
-            var sess_id = getId(session_row.attr('id'));
+            var sess_id = getId(selected_rows[0].id);
             $.ajax(
             {
                 type: 'POST',
@@ -297,41 +289,30 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                 {
                     if (data.success)
                     {
-                        epochs.populateTable(data);
-                        epochs.synchronizeSelections();
-                        epochs.setClickEvents();
+                        populateNextTableFn(table, data);
+                        table.synchronizeSelections();
                         epochs.onDoubleClick(function() { showDialog(epochs_popup, { epoch_id: getId(this.id) }); });
-
-                        refreshDatasets(
-                        {
-                            selected_rows: epochs.getSelectedRows()
-                        });
-                        toggleObject(table_body.closest('table'), true, null);
-                        epochs.stopLoading();
                     }
                     else
                     {
                         alert('Failed'); // implement better alert
                     }
+                    table.select(is_instant);
                 },
             }); // ajax call
         }
         else
         {
-            toggleObject(datasets.getBody().closest('table'), false);
-            toggleObject(table_body.closest('table'), false);
-            epochs.stopLoading();
+            populateNextTableFn(table, []);
+            table.select(is_instant);
         }
     };
 
-    var refreshDatasets = function(event)
+    var refreshDatasets = function(table, selected_rows, is_instant, populateNextTableFn)
     {
-        datasets.startLoading();
-        var epoch_row = event ? event.selected_rows : null;
-        var table_body = datasets.getBody();
-        if (epoch_row && epoch_row.length == 1) // make sure we didn't get passed an empty list
+        if (selected_rows && selected_rows.length == 1) // make sure we didn't get passed an empty list
         {
-            var epoch_id = getId(epoch_row.attr('id'))
+            var epoch_id = getId(selected_rows[0].id);
             $.ajax(
             {
                 type: 'POST',
@@ -342,68 +323,22 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                 {
                     if (data.success)
                     {
-                        datasets.populateTable(data);
-                        datasets.synchronizeSelections();
-                        datasets.setClickEvents();
+                        populateNextTableFn(table, data);
+                        table.synchronizeSelections();
                         datasets.onDoubleClick(function() { showDialog(datasets_popup, { dataset_id: getId(this.id) }); });
-                        toggleObject(table_body.closest('table'), true);
-                        datasets.stopLoading();
                     }
                     else
                     {
                         alert('Failed'); // implement better alert
                     }
+                    table.select(is_instant);
                 },
             }); // ajax call
         }
         else
         {
-            toggleObject(table_body.closest('table'), false);
-            datasets.stopLoading();
-        }
-    };
-
-    var wireUpDrillDown = function()
-    {
-        document.onkeydown = function(e)
-        {
-            var k = e.keyCode;
-            if (k >= 37 && k <= 40)
-            {
-                if (k == 38)
-                {
-                    ScrolltableManager.getFocus().changeRow(-1);
-                }
-                else if (k == 40)
-                {
-                    ScrolltableManager.getFocus().changeRow(1);
-                }
-                else if (k == 37 || k == 39)
-                {
-                    var current_focus = ScrolltableManager.getFocus().getElement().attr('id');
-                    if ((current_focus == "experiments" && k == 39) || (current_focus == "epochs" && k == 37))
-                    {
-                        ScrolltableManager.setFocus("sessions");
-                        sessions.changeRow(0);
-                    }
-                    else if ((current_focus == "sessions" && k == 39) || (current_focus == "datasets" && k == 37))
-                    {
-                        ScrolltableManager.setFocus("epochs");
-                        epochs.changeRow(0);
-                    }
-                    else if (current_focus == "epochs" && k == 39)
-                    {
-                        ScrolltableManager.setFocus("datasets");
-                        datasets.changeRow(0);
-                    }
-                    else if (current_focus == "sessions" && k == 37)
-                    {
-                        ScrolltableManager.setFocus("experiments");
-                        experiments.changeRow(0);
-                    }
-                }
-                return false;
-            }
+            populateNextTableFn(table, []);
+            table.select(is_instant);
         }
     };
 
@@ -420,6 +355,9 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
             {
                 if (data.success)
                 {
+                    var width = 'auto';
+                    var height = 'auto';
+
                     // Do to all boxes
                     popup.find('p').text(data.name);
                     // Box specific modifications
@@ -435,12 +373,24 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                             popup.attr('title', data.type + " " + ajax_data.epoch_id);
                             break;
                         case "dataset":
+                            if (data.subtype == "pyramid")
+                            {
+                                var viewport_size = viewport();
+                                width = viewport_size.width * .8;
+                                height = viewport_size.height * .8;
+                            }
+                            popup.find('iframe').attr('src', data.url);
+                            console.log(data.url);
+                            $("#image_viewer").height(height);
+                            $("#image_viewer").width(width);
                             popup.attr('title', data.type + " " + ajax_data.dataset_id);
                             break;
                     }
                     popup.dialog({
                         resizable:false,
                         modal:true,
+                        width:width,
+                        minHeight:height,
                         buttons: {
                             Okay: function() {
                                 $(this).dialog("close");
@@ -461,32 +411,18 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
 // confusing
     var init = function()
     {
-        wireUpDrillDown();
-        ScrolltableManager.init();
-        ScrolltableManager.setTableHeights();
-        ScrolltableManager.autoSetTableHeights();
+        experiments = new Drilldown("experiments", "Experiments");
+        sessions = new Drilldown("sessions", "Sessions");
+        epochs = new Drilldown("epochs", "Epochs");
+        datasets = new Drilldown("datasets", "Datasets");
+        manager = new DrilldownManager([experiments, sessions, epochs, datasets], [refreshExperiments, refreshSessions, refreshEpochs, refreshDatasets]);
+        manager.refresh(0, [], true);
 
-        experiments = ScrolltableManager.getById("experiments");
-        sessions = ScrolltableManager.getById("sessions");
-        epochs = ScrolltableManager.getById("epochs");
-        datasets = ScrolltableManager.getById("datasets");
-
-        experiments.onSelect(refreshSessions);
-        sessions.onSelect(refreshEpochs);
-        epochs.onSelect(refreshDatasets);
-
-        refreshExperiments();
-
-        var sessions_table = $("#sessions .scrolltable_body table");
-        var experiments_table = $("#experiments .scrolltable_body table");
-        var epochs_table = $("#epochs .scrolltable_body table");
-        var datasets_table = $("#datasets .scrolltable_body table");
-
-        TableDragAndDrop.setupDraggable(sessions_table);
-        TableDragAndDrop.setupDraggable(experiments_table);
-        TableDragAndDrop.setupDraggable(epochs_table);
-        TableDragAndDrop.setupDraggable(datasets_table);
-        TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table", sessions_table, $("#download_drop"), dropDownloads);
+        TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));
+        TableDragAndDrop.setupDraggable($(sessions._getBodyTable()));
+        TableDragAndDrop.setupDraggable($(epochs._getBodyTable()));
+        TableDragAndDrop.setupDraggable($(datasets._getBodyTable()));
+        TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table", $("#download_drop"), dropDownloads);
         TableDragAndDrop.setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
 
         $("#radio_trash input").change(changeTrashFlag);

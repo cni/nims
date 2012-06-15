@@ -12,9 +12,9 @@ class BrowseController(NimsController):
         user = request.identity['user']
 
         # Table columns and their relevant classes
-        exp_columns = [('Group', 'col_sunet'), ('Experiment', 'col_name')]
-        session_columns = [('Subj. Code', 'col_exam'), ('Date & Time', 'col_sname')]
-        epoch_columns = [('Time', 'col_sa'), ('Description', 'col_desc')]
+        exp_columns = [('Group', 'col_sunet'), ('Experiment', 'col_exp')]
+        session_columns = [('Subj. Code', 'col_subj'), ('Date & Time', 'col_datetime')]
+        epoch_columns = [('Time', 'col_time'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
 
         return dict(page='browse',
@@ -234,7 +234,9 @@ class BrowseController(NimsController):
         db_result = db_query.first()
         return {
             'type': 'dataset',
-            'name': db_result.__class__.__name__
+            'subtype': 'pyramid',
+            'name': db_result.__class__.__name__,
+            'url': 'http://cni.stanford.edu/nimsgears/data/' + db_result.relpath,
             } if db_result else None
 
     @expose()

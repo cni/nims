@@ -13,8 +13,9 @@ define([], function()
             this.enableMouseSelection();
         };
 
-        this.select = function()
+        this.select = function(is_instant)
         {
+            if (is_instant === undefined) is_instant = false;
             var obj = this;
             this._updateSelectedRows();
             this._onSelect.forEach(function(fn)
@@ -22,7 +23,8 @@ define([], function()
                 fn(
                 {
                     selected_rows: obj._selected_rows,
-                    table: obj
+                    table: obj,
+                    is_instant: is_instant,
                 });
             });
         };
