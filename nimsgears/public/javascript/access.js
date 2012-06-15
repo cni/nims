@@ -1,29 +1,60 @@
-require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAndDrop, ScrolltableManager) {
+require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, Drilldown, DrilldownManager) {
     var users;
     var experiments;
     var current_access;
 
-    var refreshCurrentAccess = function(event)
+    var refreshExperiments = function(table, selected_rows, populateNextTableFn)
     {
-        if (event.selected_rows.length == 1)
+        $.ajax(
         {
-            exp_id = event.selected_rows.attr('id').split('_')[1];
+            type: 'POST',
+            url: "browse/list_query",
+            dataType: "json",
+            data: { exp_list: true },
+            success: function(data)
+            {
+                var row;
+                if (data.success)
+                {
+                    populateNextTableFn(table, data);
+                }
+                else
+                {
+                    alert('Failed'); // implement better alert
+                }
+            },
+        }); // ajax call
+        table.select();
+    };
+
+    var refreshCurrentAccess = function(table, selected_rows, populateNextTableFn)
+    {
+        if (selected_rows && selected_rows.length == 1)
+        {
+            exp_id = selected_rows[0].id.split('_')[1];
             $.ajax(
             {
                 traditional: true,
                 type: 'POST',
-                url: "users_with_access",
+                url: "access/users_with_access",
                 data: { exp_id: exp_id },
                 dataType: "json",
-                async: false,
                 success: function(data)
                 {
                     if (data.success)
                     {
-                        current_access.populateTable(data);
+                        populateNextTableFn(table, data);
                     }
+                    else
+                    {
+                        alert('Failed');
+                    } // implement better alert TODO
                 },
             }); // ajax call
+        }
+        else
+        {
+            populateNextTableFn(table, []);
         }
     }
 
@@ -34,7 +65,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         {
             traditional: true,
             type: 'POST',
-            url: "get_access_privileges",
+            url: "access/get_access_privileges",
             dataType: "json",
             async: false,
             success: function(data)
@@ -51,7 +82,7 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
         {
             traditional: true,
             type: 'POST',
-            url: "modify_access",
+            url: "access/modify_access",
             dataType: "json",
             data:
             {
@@ -64,6 +95,9 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
                 if (!data.success)
                 {
                     alert('Failed'); // implement better alert
+                } else {
+                    experiments.select();
+                    experiments.element.focus();
                 }
             },
         }); // ajax call
@@ -122,32 +156,22 @@ require(['./utility/tablednd', './utility/scrolltab_mgr'], function (TableDragAn
 
     var init = function()
     {
-        ScrolltableManager.init();
-        ScrolltableManager.setTableHeights();
-        ScrolltableManager.autoSetTableHeights();
+        users = new Drilldown("users", "Users");
+        experiments = new Drilldown("experiments", "Experiments");
+        current_access = new Drilldown("current_access", "Current Access");
+        new DrilldownManager([users], []);
+        new DrilldownManager([experiments, current_access], [refreshExperiments, refreshCurrentAccess]);
 
-        ScrolltableManager.resortAll();
-
-        users = ScrolltableManager.getById("users");
-        experiments = ScrolltableManager.getById("experiments");
-        current_access = ScrolltableManager.getById("current_access");
-
-        users.setClickEvents();
-        experiments.setClickEvents();
-        experiments.onSelect(refreshCurrentAccess);
-
-        var users_table = $("#users .scrolltable_body table");
-        var experiments_table = $("#experiments .scrolltable_body table");
-
-        TableDragAndDrop.setupDraggable(users_table);
-        TableDragAndDrop.setupDraggable(experiments_table);
-        TableDragAndDrop.setupDroppable("#users .scrolltable_body table", experiments.getRows(), dropAccessModification);
-        TableDragAndDrop.setupDroppable("#experiments .scrolltable_body table", users.getRows(), dropAccessModification);
-        TableDragAndDrop.setupMultiDrop(users_table);
-        TableDragAndDrop.setupMultiDrop(experiments_table);
+        TableDragAndDrop.setupDraggable($(users._getBodyTable()));
+        TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));
+        TableDragAndDrop.setupDroppable($(users._getBodyTable()), $(experiments.getRows()), dropAccessModification);
+        TableDragAndDrop.setupDroppable($(experiments._getBodyTable()), $(users.getRows()), dropAccessModification);
+        TableDragAndDrop.setupMultiDrop($(users._getBodyTable()));
+        TableDragAndDrop.setupMultiDrop($(experiments._getBodyTable()));
 
         $("#access_dialog").dialog();
         $("#access_dialog").dialog("destroy");
+
         var access_privileges = getAccessPrivileges();
         access_privileges.push("Remove Access");
         var option;

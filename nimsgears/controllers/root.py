@@ -7,6 +7,9 @@ from tg.i18n import ugettext as _, lazy_ugettext as l_
 from nimsgears.lib.base import BaseController
 from nimsgears.controllers.error import ErrorController
 from nimsgears.controllers.data import DataController, AuthDataController
+from nimsgears.controllers.access import AccessController
+from nimsgears.controllers.browse import BrowseController
+from nimsgears.controllers.groups import GroupsController
 
 __all__ = ['RootController']
 
@@ -15,6 +18,9 @@ class RootController(BaseController):
 
     """Root controller for the nimsgears application."""
 
+    groups = GroupsController()
+    browse = BrowseController()
+    access = AccessController()
     pub = DataController()
     auth = AuthDataController()
     error = ErrorController()
