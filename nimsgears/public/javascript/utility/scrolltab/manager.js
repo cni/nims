@@ -1,6 +1,6 @@
 define([], function()
 {
-    function DrilldownManager(tables, populators)
+    function DrilldownManager(tables, populators, auto_resize)
     {
         var obj = this;
         this._tables = [];
@@ -17,7 +17,33 @@ define([], function()
         this._max_index = this._tables.length - 1;
         this.nav_timeout = null;
         this.enableKeyboardNavigation();
+        if (auto_resize)
+        {
+            var resize = this.getResize(125);
+            window.addEventListener('resize', resize);
+            resize();
+        }
     };
+
+    DrilldownManager.prototype.getResize = function(space_from_bottom)
+    {
+        var obj = this;
+        return function(event) {
+            var window_height = window.innerHeight;
+            var distance_to_top = 0;
+            for (var el = obj._tables[0].element; el != null; el = el.offsetParent)
+            {
+                distance_to_top += el.offsetTop;
+            }
+
+            var computed_height = window_height - distance_to_top - space_from_bottom;
+            computed_height = (computed_height < 200) ? 200 : computed_height;
+            for (var i = 0; i < obj._tables.length; i++)
+            {
+                obj._tables[i]._body.style.height = computed_height + "px";
+            }
+        }
+    }
 
     DrilldownManager.prototype.getPopulateNextTable = function()
     {

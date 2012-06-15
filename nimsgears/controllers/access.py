@@ -11,7 +11,7 @@ class AccessController(NimsController):
     def index(self):
         user = request.identity['user']
 
-        exp_data_list, exp_attr_list = self.get_experiments(user, True)
+        exp_data_list, exp_attr_list = self.get_experiments(user)
         user_list = [(usr.uid, usr.name if usr.name else 'None') for usr in User.query.all()]
 
         # FIXME i plan to replace these things with just column number

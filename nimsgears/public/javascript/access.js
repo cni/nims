@@ -3,7 +3,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
     var experiments;
     var current_access;
 
-    var refreshExperiments = function(table, selected_rows, populateNextTableFn)
+    var refreshExperiments = function(table, selected_rows, is_instant, populateNextTableFn)
     {
         $.ajax(
         {
@@ -22,12 +22,12 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                 {
                     alert('Failed'); // implement better alert
                 }
+                table.select(is_instant);
             },
         }); // ajax call
-        table.select();
     };
 
-    var refreshCurrentAccess = function(table, selected_rows, populateNextTableFn)
+    var refreshCurrentAccess = function(table, selected_rows, is_instant, populateNextTableFn)
     {
         if (selected_rows && selected_rows.length == 1)
         {
@@ -96,7 +96,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                 {
                     alert('Failed'); // implement better alert
                 } else {
-                    experiments.select();
+                    experiments.select(true);
                     experiments.element.focus();
                 }
             },
@@ -159,8 +159,8 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         users = new Drilldown("users", "Users");
         experiments = new Drilldown("experiments", "Experiments");
         current_access = new Drilldown("current_access", "Current Access");
-        new DrilldownManager([users], []);
-        new DrilldownManager([experiments, current_access], [refreshExperiments, refreshCurrentAccess]);
+        new DrilldownManager([users], [], true);
+        new DrilldownManager([experiments, current_access], [refreshExperiments, refreshCurrentAccess], true);
 
         TableDragAndDrop.setupDraggable($(users._getBodyTable()));
         TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));
