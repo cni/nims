@@ -42,7 +42,7 @@ class NimsController(BaseController):
             db_query = db_query.filter(Access.user == user).filter(AccessPrivilege.value >= mg_privilege.value)
         return db_query
 
-    def get_experiments(self, user, manager_only=False):
+    def get_experiments(self, user):
         exp_data_list = []
         exp_attr_list = []
 

@@ -115,10 +115,10 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         members = new Drilldown("members", "Members");
         others = new Drilldown("others", "Others");
 
-        pis_mgr = new DrilldownManager([pis], []);
-        admins_mgr = new DrilldownManager([admins], []);
-        members_mgr = new DrilldownManager([members], []);
-        others_mgr = new DrilldownManager([others], []);
+        pis_mgr = new DrilldownManager([pis], [], true);
+        admins_mgr = new DrilldownManager([admins], [], true);
+        members_mgr = new DrilldownManager([members], [], true);
+        others_mgr = new DrilldownManager([others], [], true);
 
         var first_group;
         if (first_group = $("#group_select").children().first())
