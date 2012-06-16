@@ -99,12 +99,14 @@ def get_user_tuple(user_object):
 
 def get_groups_dict(group):
     group_dict = {}
-    group_dict['members'], group_dict['admins'], group_dict['pis'], group_dict['others'] = {'data':[]}, {'data':[]}, {'data':[]}, {'data':[]}
+    group_dict['members'], group_dict['admins'], group_dict['pis'], group_dict['others'] = {'data':[], 'attrs':[]}, {'data':[], 'attrs':[]}, {'data':[], 'attrs':[]}, {'data':[], 'attrs':[]}
     if group:
         others = User.query.all()
         for key, users in [('members', group.members), ('admins', group.managers), ('pis', group.pis)]:
             for user in users:
                 group_dict[key]['data'].append(get_user_tuple(user))
+                group_dict[key]['attrs'].append({'id':user.uid})
                 others.remove(user)
         group_dict['others']['data'] = [get_user_tuple(user) for user in others]
+        group_dict['others']['attrs'] = [{'id':user.uid} for user in others]
     return group_dict

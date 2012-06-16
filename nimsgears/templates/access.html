@@ -35,14 +35,14 @@
 </head>
 
 <body>
-    <div id="access_dialog" title="Select access level to assign:">
+    <div id="access_dialog" title="Select access level to assign:" style="display:none">
         <select id="access_select">
         </select>
     </div>
     <h2>Access</h2>
     <p>This page allows you to view and make changes to access privileges.</p>
 
-    <table id="users" class="scrolltable" name="Users">
+    <table id="users" class="scrolltable" name="Users" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -51,14 +51,14 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="user_params in user_list">
-                <tr>
-                    <td py:for="param in user_params">${param}</td>
+            <py:for each="user_data, user_attr in zip(user_data_list, user_attr_list)">
+                <tr py:attrs="user_attr"> <!-- set id for expand queries done on rows later -->
+                    <td py:for="param in user_data">${param}</td>
                 </tr>
             </py:for>
         </tbody>
     </table>
-    <table id="experiments" class="scrolltable" name="Experiments">
+    <table id="experiments" class="scrolltable" name="Experiments" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in exp_columns">
@@ -74,7 +74,7 @@
             </py:for>
         </tbody>
     </table>
-    <table id="current_access" class="scrolltable" name="Current Access">
+    <table id="current_access" class="scrolltable" name="Current Access" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in acc_columns">

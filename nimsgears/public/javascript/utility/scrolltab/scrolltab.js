@@ -125,6 +125,8 @@ define([], function()
         var thead_height = thead.offsetHeight;
         this._header.style.marginBottom = -thead_height + "px";
         this._stripe();
+        table_bodyless.style.visibility = "";
+        table_headerless.style.visibility = "";
     }
 
     Scrolltable.prototype.createSpacer = function()

@@ -179,7 +179,7 @@ define([], function()
             var n_rows = rows.length;
             for (var i = 0; i < n_rows; i++)
             {
-                if (id_to_row_dict.hasOwnProperty(rows[i].id))
+                if (rows[i].id != "" && id_to_row_dict.hasOwnProperty(rows[i].id))
                 {
                     rows[i].classList.add("ui-selected");
                     obj.last_clicked_index = obj.shift_clicked_index = i;
