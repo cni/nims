@@ -7,15 +7,75 @@
   <xi:include href="master.html" />
 
 <head>
-  <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
-  <title>NIMS Search</title>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
+<script data-main="${tg.url('/javascript/search')}" src="${tg.url('/javascript/require.js')}"></script>
+<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
+<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
+<title>NIMS Search</title>
+<style>
+    #epochs { width:73%; }
+    #datasets { width:23%; }
+    #search_table { width:35% }
+</style>
 </head>
 
 <body>
+    <div id="epochs_pop" class="pop" style="display:none">
+        <p></p>
+    </div>
+    <div id="datasets_pop" class="pop" style="display:none">
+        <iframe id="image_viewer" src="" />
+        <p></p>
+    </div>
 
   <h2>Search</h2>
 
   <p>NIMS currently hosts ${dataset_cnt} datasets.</p>
-
+  <form id="search_form" action="${tg.url('/auth/post_search')}" method="post" accept-charset="UTF-8">
+    <table id="search_table" cellpadding="0" cellspacing="0">
+    <tr>
+        <td>
+            <select id="search_param" name="search_param">
+                <option py:for="param in param_list">${param}</option>
+            </select>
+        </td>
+        <td>
+            <input id="search_query" name="search_query" type='text'></input>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <input type="submit" id="submit" value="Search" />
+        </td>
+        <td>
+            <p id="n_results"></p>
+        </td>
+    </tr>
+    </table>
+  </form>
+    <table id="epochs" class="scrolltable">
+        <thead>
+            <tr>
+                <py:for each="col in epoch_columns">
+                    <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+    <table id="datasets" class="scrolltable">
+        <thead>
+            <tr>
+                <py:for each="col in dataset_columns">
+                    <th py:with="name, cls = col" class="${cls}">${name}</th>
+                </py:for>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
 </body>
 </html>
