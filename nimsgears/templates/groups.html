@@ -11,7 +11,6 @@
 
 <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
 <script data-main="${tg.url('/javascript/groups')}" src="${tg.url('/javascript/require.js')}"></script>
-<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
 
 <style>
     .scrolltable_body.hover { border:1px solid #820000}
@@ -25,7 +24,6 @@
     .col_sa { width:25%; }
     .col_access { width:20%; }
 </style>
-
 </head>
 
 <body>
@@ -41,7 +39,7 @@
         </select>
     </div>
 
-    <table id="pis" class="scrolltable" name="Primary Investigators" style="visibility:hidden">
+    <table id="pis" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -52,7 +50,7 @@
         <tbody>
         </tbody>
     </table>
-    <table id="admins" class="scrolltable" name="Managers" style="visibility:hidden">
+    <table id="admins" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -63,7 +61,7 @@
         <tbody>
         </tbody>
     </table>
-    <table id="members" class="scrolltable" name="Members" style="visibility:hidden">
+    <table id="members" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -74,7 +72,7 @@
         <tbody>
         </tbody>
     </table>
-    <table id="others" class="scrolltable" name="Unaffiliated Users" style="visibility:hidden">
+    <table id="others" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in user_columns">

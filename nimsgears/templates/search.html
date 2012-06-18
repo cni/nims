@@ -11,13 +11,19 @@
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
 <script data-main="${tg.url('/javascript/search')}" src="${tg.url('/javascript/require.js')}"></script>
-<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
 <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
 <title>NIMS Search</title>
 <style>
-    #epochs { width:73%; }
-    #datasets { width:23%; }
     #search_table { width:35% }
+    #epochs { width:82%; }
+    #datasets { width:150px; }
+
+    .col_access { width:10%; }
+    .col_sunet { width:12%; }
+    .col_exp { width:17%; }
+    .col_datetime { width:17%; }
+    .col_subj { width:12%; }
+    .col_desc { width:32%; }
 </style>
 </head>
 
@@ -42,7 +48,7 @@
             </select>
         </td>
         <td>
-            <input id="search_query" name="search_query" type='text'></input>
+            <input id="search_query" name="search_query" type="text"></input>
         </td>
     </tr>
     <tr>
@@ -66,7 +72,7 @@
         <tbody>
         </tbody>
     </table>
-    <table id="datasets" class="scrolltable">
+    <table id="datasets" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in dataset_columns">

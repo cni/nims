@@ -7,7 +7,7 @@ define([], function()
         this._populators = [];
         tables.forEach(function(table) {
             var div = document.createElement("div");
-            div.appendChild(document.createTextNode("LOADING"));
+            div.appendChild(document.createTextNode("LOADING..."));
             obj._tables.push(table);
             table.setLoadingDiv(div);
             });

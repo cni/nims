@@ -86,7 +86,7 @@ class AuthController(BaseController):
 
     @expose('nimsgears.templates.search')
     def search(self):
-        dataset_cnt = len(Session.query.all())
+        dataset_cnt = Session.query.count()
         param_list = ['Subject Name', 'PSD Name']
         epoch_columns = [('Access', 'col_access'), ('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Subj. Code', 'col_subj'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
@@ -126,14 +126,14 @@ class AuthController(BaseController):
                     .join(Subject, Session.subject)
                     .join(Experiment, Subject.experiment)
                     .join(Dataset, Epoch.datasets)
-                    .filter(Dataset.psd.like(search_query)))
+                    .filter(Dataset.psd.ilike(search_query)))
             elif kwargs['search_param'] == 'Subject Name':
                 db_query = DBSession.query(Epoch, Session, Subject, Experiment)
                 db_query = (db_query
                     .join(Session, Epoch.session)
                     .join(Subject, Session.subject)
                     .join(Experiment, Subject.experiment)
-                    .filter(Subject.lastname.like(search_query)))
+                    .filter(Subject.lastname.ilike(search_query)))
             if db_query:
                 result['data'], result['attrs'] = self.process_search_result(db_query.all())
                 result['success'] = True
