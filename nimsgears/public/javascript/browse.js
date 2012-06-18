@@ -1,4 +1,4 @@
-require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, Drilldown, DrilldownManager) {
+require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'dialog'], function (TableDragAndDrop, Drilldown, DrilldownManager, Dialog) {
     var experiments;
     var sessions;
     var epochs;
@@ -208,7 +208,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                 {
                     populateNextTableFn(table, data);
                     table.synchronizeSelections();
-                    experiments.onDoubleClick(function() { showDialog(experiments_popup, { exp_id: getId(this.id) }); });
+                    experiments.onDoubleClick(function() { Dialog.showDialog(experiments_popup, { exp_id: getId(this.id) }, "browse/get_popup_data"); });
                     TableDragAndDrop.setupDroppable(sessions._getBodyTable(), $(experiments.getRows()), dropSessionsOnExperiment);
                 }
                 else
@@ -219,6 +219,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             },
         }); // ajax call
     };
+
     var refreshSessions = function(table, selected_rows, is_instant, populateNextTableFn)
     {
         if (selected_rows && selected_rows.length == 1) // make sure we didn't just get passed an empty list
@@ -236,7 +237,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        sessions.onDoubleClick(function() { showDialog(sessions_popup, { sess_id: getId(this.id) }); });
+                        sessions.onDoubleClick(function() { Dialog.showDialog(sessions_popup, { sess_id: getId(this.id) }, "browse/get_popup_data"); });
 
                         //// Disable rows that you don't have manage access to
                         var experiment_rows = $(experiments.getRows());
@@ -286,7 +287,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        epochs.onDoubleClick(function() { showDialog(epochs_popup, { epoch_id: getId(this.id) }); });
+                        epochs.onDoubleClick(function() { Dialog.showDialog(epochs_popup, { epoch_id: getId(this.id) }, "browse/get_popup_data"); });
                     }
                     else
                     {
@@ -320,7 +321,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        datasets.onDoubleClick(function() { showDialog(datasets_popup, { dataset_id: getId(this.id) }); });
+                        datasets.onDoubleClick(function() { Dialog.showDialog(datasets_popup, { dataset_id: getId(this.id) }, "browse/get_popup_data"); });
                     }
                     else
                     {
@@ -337,73 +338,6 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }
     };
 
-    var showDialog = function(popup, ajax_data)
-    {
-        console.log(ajax_data);
-        $.ajax({
-            traditional: true,
-            type: 'POST',
-            url: "browse/get_popup_data",
-            dataType: "json",
-            data: ajax_data,
-            success: function(data)
-            {
-                if (data.success)
-                {
-                    var width = 'auto';
-                    var height = 'auto';
-
-                    // Do to all boxes
-                    popup.find('p').text(data.name);
-                    // Box specific modifications
-                    switch (data.type)
-                    {
-                        case "experiment":
-                            popup.attr('title', data.type + " " + ajax_data.exp_id);
-                            break;
-                        case "session":
-                            popup.attr('title', data.type + " " + ajax_data.sess_id);
-                            break;
-                        case "epoch":
-                            popup.attr('title', data.type + " " + ajax_data.epoch_id);
-                            break;
-                        case "dataset":
-                            if (data.subtype == "pyramid")
-                            {
-                                var viewport_size = viewport();
-                                width = viewport_size.width * .8;
-                                height = viewport_size.height * .8;
-                            }
-                            popup.find('iframe').attr('src', data.url);
-                            console.log(data.url);
-                            $("#image_viewer").height(height);
-                            $("#image_viewer").width(width);
-                            popup.attr('title', data.type + " " + ajax_data.dataset_id);
-                            break;
-                    }
-                    popup.dialog({
-                        resizable:false,
-                        modal:true,
-                        width:width,
-                        minHeight:height,
-                        buttons: {
-                            Okay: function() {
-                                $(this).dialog("close");
-                            },
-                            Cancel: function() {
-                                $(this).dialog("close");
-                            }
-                        },
-                    });
-                }
-            },
-        });
-    };
-
-// TODO - separate functions for each popup - handle custom populating the divs
-// that represent the popups. showdialog will be one core function for popping
-// up the dialog, and perhaps ill rename the other functions so it's not too
-// confusing
     var init = function()
     {
         experiments = new Drilldown("experiments", "Experiments");
@@ -417,7 +351,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         TableDragAndDrop.setupDraggable($(sessions._getBodyTable()));
         TableDragAndDrop.setupDraggable($(epochs._getBodyTable()));
         TableDragAndDrop.setupDraggable($(datasets._getBodyTable()));
-        TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table", $("#download_drop"), dropDownloads);
+        TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table, #datasets .scrolltable_body table", $("#download_drop"), dropDownloads);
         TableDragAndDrop.setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
 
         $("#radio_trash input").change(changeTrashFlag);

@@ -29,7 +29,7 @@
 </head>
 
 <body>
-    <div id="retro_dialog" title="Before you proceed:">
+    <div id="retro_dialog" title="Before you proceed:" style="display:none">
         Apply relevant access privileges retroactively?
     </div>
     <h2>Groups</h2>
@@ -41,7 +41,7 @@
         </select>
     </div>
 
-    <table id="pis" class="scrolltable" name="Primary Investigators">
+    <table id="pis" class="scrolltable" name="Primary Investigators" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -52,7 +52,7 @@
         <tbody>
         </tbody>
     </table>
-    <table id="admins" class="scrolltable" name="Managers">
+    <table id="admins" class="scrolltable" name="Managers" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -63,7 +63,7 @@
         <tbody>
         </tbody>
     </table>
-    <table id="members" class="scrolltable" name="Members">
+    <table id="members" class="scrolltable" name="Members" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -74,7 +74,7 @@
         <tbody>
         </tbody>
     </table>
-    <table id="others" class="scrolltable" name="Unaffiliated Users">
+    <table id="others" class="scrolltable" name="Unaffiliated Users" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in user_columns">

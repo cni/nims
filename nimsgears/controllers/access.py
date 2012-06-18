@@ -17,16 +17,17 @@ class AccessController(NimsController):
         user = request.identity['user']
 
         exp_data_list, exp_attr_list = self.get_experiments(user)
-        user_list = [(usr.uid, usr.name if usr.name else 'None') for usr in User.query.all()]
+        users = User.query.all()
+        user_data_list = [(user.uid, user.name if user.name else 'None') for user in users]
+        user_attr_list = [{'id':user.uid} for user in users]
 
-        # FIXME i plan to replace these things with just column number
-        # indicators computed in the front end code... keep class names out of back end
         exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
         user_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name')]
         acc_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name'), ('Access Level', 'col_access')]
 
         return dict(page='access',
-                    user_list=user_list,
+                    user_data_list=user_data_list,
+                    user_attr_list=user_attr_list,
                     acc_columns=acc_columns,
                     exp_data_list=exp_data_list,
                     exp_attr_list=exp_attr_list,
@@ -46,7 +47,7 @@ class AccessController(NimsController):
         if db_result:
             for access in db_result.accesses:
                 acc_data_list.append((access.user.uid, access.user.name, access.privilege.__unicode__()))
-                acc_attr_list.append({'class': access.privilege.name})
+                acc_attr_list.append({'class': access.privilege.name, 'id': access.user.uid})
         return json.dumps(dict(success=True,
                                data=acc_data_list,
                                attrs=acc_attr_list))
