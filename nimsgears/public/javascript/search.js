@@ -12,7 +12,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'dialog'], 
         $.ajax(
         {
             type: 'POST',
-            url: "post_search",
+            url: "search/query",
             dataType: "json",
             data: $("#search_form").serialize(),
             success: function(data)
