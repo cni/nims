@@ -241,7 +241,7 @@ class PFile(object):
         sp.call(shlex.split(cmd), cwd=tmpdir, stdout=open('/dev/null', 'w'))
 
         self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echoes,self.num_slices],order='F').transpose((0,1,4,2,3))
-        if os.path.exists(basepath+'.B0freq2'):
+        if os.path.exists(basepath+'.B0freq2') and os.path.getsize(basepath+'.B0freq2')>0:
             self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echoes,self.num_slices],order='F').transpose((0,1,3,2))
         shutil.rmtree(tmpdir)
 
