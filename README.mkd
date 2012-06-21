@@ -9,8 +9,8 @@ NIMS Development on Ubuntu
 
 Set up a virtual python environment:
 
-    sudo apt-get install build-essential python-dev python-setuptools python-virtualenv
-    virtualenv --no-site-packages tg2
+    sudo apt-get install build-essential python-dev python-setuptools python-virtualenv libncurses5-dev python-numpy python-imaging
+    virtualenv tg2
     cd tg2
     source bin/activate
 
@@ -23,6 +23,7 @@ Clone NIMS from GitHub and install its dependencies:
 
     git clone git@github.com:cni/nims.git
     cd nims
+    # numpy can't be installed via easyinstall. So, edit tg2/lib/python2.7/site-packages/easy-install.pth and add the system pymodules path (e.g., "") somewhere in the file between .
     python setup.py develop
 
 Optionally, add PostgreSQL and LDAP support:
