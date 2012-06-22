@@ -82,6 +82,8 @@ class PFile(object):
             self.num_bands = 0
             self.band_spacing = 0
             self.scale_data = True
+            # spiral is always a square encode based on the frequency encode direction (size_x)
+            self.size_y = self.size_x
         else:
             self.num_timepoints = self.header.rec.nframes
             self.deltaTE = 0.0
