@@ -158,6 +158,8 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
     {
         users = new Drilldown("users", "Users");
         experiments = new Drilldown("experiments", "Experiments");
+        users.resort();
+        experiments.resort();
         current_access = new Drilldown("current_access", "Current Access");
         new DrilldownManager([users], [], true);
         new DrilldownManager([experiments, current_access], [refreshExperiments, refreshCurrentAccess], true);
