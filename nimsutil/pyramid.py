@@ -45,8 +45,15 @@ class ImagePyramid(object):
         viewer HTML file, using generate_viewer().
         """
         self.generate_montage()
-        self.generate_pyramid(outdir)
-        self.generate_viewer(os.path.join(outdir, 'index.html'), panojs_url)
+        viewer_file = os.path.join(outdir, 'index.html')
+        try:
+            self.generate_pyramid(outdir)
+        except ImagePyramidError as e:
+            self.log and self.log.error(e.message) or print(e.message)
+            with open(viewer_file, 'w') as f:
+                f.write('<body>\n<center>Image viewer could not be generated for this dataset. (' + e.message + ')</center>\n</body>\n')
+        else:
+            self.generate_viewer(viewer_file, panojs_url)
 
     def generate_pyramid(self, outdir):
         """
@@ -55,9 +62,12 @@ class ImagePyramid(object):
         The zoom level (z) is an integer between 0 and n, where 0 is fully zoomed in and n is zoomed out.
         E.g., z=n is for 1 tile covering the whole world, z=n-1 is for 2x2=4 tiles, ... z=0 is the original resolution.
         """
-        sx,sy = self.montage.size
-        divs = int(numpy.ceil(numpy.log2(max(sx,sy)/self.tile_size)))
         if not os.path.exists(outdir): os.makedirs(outdir)
+        sx,sy = self.montage.size
+        if sx*sy<1:
+            raise ImagePyramidError('degenerate image size (%d,%d); no tiles will be created' % (sx, sy))
+
+        divs = int(numpy.ceil(numpy.log2(float(max(sx,sy))/self.tile_size)))
         for iz in range(divs+1):
             z = divs - iz
             ysize = int(round(float(sy)/pow(2,iz)))

@@ -11,16 +11,11 @@
 
 *******************************************************************************/
 
-var scr = document.getElementsByTagName('script');
-var scr_url = scr[scr.length-1].getAttribute("src");
-var base_url = scr_url.substring(0,scr_url.lastIndexOf('/'));
-base_url = base_url.substring(0,base_url.lastIndexOf('/'));
-
 PanoJS.CONTROL_THUMBNAIL_SHOW_MINIMIZE = true;
 PanoJS.CONTROL_THUMBNAIL_STYLE = "position: absolute; z-index: 60; opacity:0.5; filter:alpha(opacity=50); ";
-PanoJS.CONTROL_IMAGE_PLUS      = base_url + "/images/16px_plus.png";
-PanoJS.CONTROL_IMAGE_MINUS     = base_url + "/images/16px_minus.png";
-PanoJS.CONTROL_IMAGE_PROGRESS  = base_url + "/images/progress_128.gif";
+PanoJS.CONTROL_IMAGE_PLUS      = "16px_plus.png";
+PanoJS.CONTROL_IMAGE_MINUS     = "16px_minus.png";
+PanoJS.CONTROL_IMAGE_PROGRESS  = "progress_128.gif";
 
 function trim(v, l, h) {
   if (v<l) return l;

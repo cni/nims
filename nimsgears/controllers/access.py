@@ -22,8 +22,8 @@ class AccessController(NimsController):
         user_attr_list = [{'id':user.uid} for user in users]
 
         exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
-        user_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name')]
-        acc_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name'), ('Access Level', 'col_access')]
+        user_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name')]
+        acc_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name'), ('Access Level', 'col_access')]
 
         return dict(page='access',
                     user_data_list=user_data_list,

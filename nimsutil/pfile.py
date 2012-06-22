@@ -82,6 +82,8 @@ class PFile(object):
             self.num_bands = 0
             self.band_spacing = 0
             self.scale_data = True
+            # spiral is always a square encode based on the frequency encode direction (size_x)
+            self.size_y = self.size_x
         else:
             self.num_timepoints = self.header.rec.nframes
             self.deltaTE = 0.0
@@ -241,7 +243,7 @@ class PFile(object):
         sp.call(shlex.split(cmd), cwd=tmpdir, stdout=open('/dev/null', 'w'))
 
         self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echoes,self.num_slices],order='F').transpose((0,1,4,2,3))
-        if os.path.exists(basepath+'.B0freq2'):
+        if os.path.exists(basepath+'.B0freq2') and os.path.getsize(basepath+'.B0freq2')>0:
             self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echoes,self.num_slices],order='F').transpose((0,1,3,2))
         shutil.rmtree(tmpdir)
 

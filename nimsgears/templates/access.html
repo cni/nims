@@ -7,14 +7,10 @@
 <xi:include href="master.html" />
 
 <head>
-<title>NIMS</title>
+<title>NIMS Access</title>
 
 <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
-<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
-<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
 <script data-main="${tg.url('/javascript/access')}" src="${tg.url('/javascript/require.js')}"></script>
-<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
-<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
 
 <style>
     #users { clear:left; width:20%; }
@@ -25,13 +21,8 @@
     .col_exam { width:25%; }
     .col_sa { width:25%; }
     #current_access .col_sunet { width:25%; }
-    #current_access .col_name { width:25%; }
-
+    #current_access .col_name { width:45%; }
 </style>
-
-<script type="text/javascript">
-</script>
-
 </head>
 
 <body>
@@ -42,7 +33,7 @@
     <h2>Access</h2>
     <p>This page allows you to view and make changes to access privileges.</p>
 
-    <table id="users" class="scrolltable" name="Users" style="visibility:hidden">
+    <table id="users" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in user_columns">
@@ -58,7 +49,7 @@
             </py:for>
         </tbody>
     </table>
-    <table id="experiments" class="scrolltable" name="Experiments" style="visibility:hidden">
+    <table id="experiments" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in exp_columns">
@@ -74,7 +65,7 @@
             </py:for>
         </tbody>
     </table>
-    <table id="current_access" class="scrolltable" name="Current Access" style="visibility:hidden">
+    <table id="current_access" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in acc_columns">

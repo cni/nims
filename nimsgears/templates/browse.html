@@ -7,14 +7,10 @@
 <xi:include href="master.html" />
 
 <head>
-<title>NIMS Data Browser</title>
+<title>NIMS Browser</title>
 
 <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
-<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
-<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
 <script data-main="${tg.url('/javascript/browse')}" src="${tg.url('/javascript/require.js')}"></script>
-<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
-<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
 
 <style>
     .dropbox { text-align:center; float:right; height:15px; width:70px; border:2px solid #820000; padding:10px; margin:5px; }
@@ -23,28 +19,23 @@
 
     #experiments.scrolltable_wrapper {clear:left;}
 
-    #experiments, #sessions, #epochs, #datasets
-    {
-        width:230px;
-    }
+    #experiments { width:200px; }
+    #sessions { width:220px; }
+    #epochs { width:350px; }
+    #datasets { width:150px; }
 
-    .col_sunet { width:30%; }
-    .col_exp { width:70%; }
+    .col_sunet { width:35%; }
+    .col_exp { width:65%; }
 
-    .col_subj { width:40%; }
-    .col_datetime { width:60%; }
+    .col_datetime { width:50%; }
+    .col_subj { width:50%; }
 
-    .col_time { width:25%; }
-    .col_desc { width:75%; }
-
-    .col_type { width:100%; }
+    .col_time { width:18%; }
+    .col_desc { width:82%; }
 
     .access_mg { font-weight:bold; }
     #image_viewer { width:100%; height:100%;}
-
 </style>
-<script>
-</script>
 </head>
 
 <body>
@@ -63,15 +54,14 @@
         <p></p>
     </div>
 
-    <div id="radio_trash">
-        <input type="radio" id="trashflag_0" name="radio">Hide Trash</input>
-        <input type="radio" id="trashflag_1" name="radio">Show Trash</input>
-        <input type="radio" id="trashflag_2" name="radio">Trash Only</input>
-    </div>
-
     <div class="subheader">
         <h2>Browse</h2>
         <p>This page allows you to view and make changes to your data.</p>
+    </div>
+    <div id="radio_trash" style="float:right; margin-left:5px;" >
+        <input type="radio" id="trashflag_0" name="radio">Hide Trash</input><br />
+        <input type="radio" id="trashflag_1" name="radio">Show Trash</input><br />
+        <input type="radio" id="trashflag_2" name="radio">Trash Only</input>
     </div>
     <div class="dropbox" id="trash_drop">
         Trash
@@ -80,7 +70,7 @@
         Download
     </div>
 
-    <table id="experiments" class="scrolltable" name="Experiments" style="visibility:hidden">
+    <table id="experiments" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in exp_columns">
@@ -91,7 +81,7 @@
         <tbody>
         </tbody>
     </table>
-    <table id="sessions" class="scrolltable" name="Sessions" style="visibility:hidden">
+    <table id="sessions" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in session_columns">
@@ -102,7 +92,7 @@
         <tbody>
         </tbody>
     </table>
-    <table id="epochs" class="scrolltable" name="Epochs" style="visibility:hidden">
+    <table id="epochs" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in epoch_columns">
@@ -113,7 +103,7 @@
         <tbody>
         </tbody>
     </table>
-    <table id="datasets" class="scrolltable" name="Datasets" style="visibility:hidden">
+    <table id="datasets" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in dataset_columns">

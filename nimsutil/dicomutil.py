@@ -201,7 +201,7 @@ class DicomSeries(object):
             first_volume = self.dcm_list[0:slices_per_volume]
             trigger_times = np.array([dcm_i.TriggerTime for dcm_i in first_volume])
             trigger_times_from_first_slice = trigger_times[0] - trigger_times
-            if slices_per_volume > 1:
+            if slices_per_volume > 2:
                 nii_header['slice_duration'] = float(min(abs(trigger_times_from_first_slice[1:]))) / 1000.  # msec to sec
                 if trigger_times_from_first_slice[1] < 0:
                     slice_order = SLICE_ORDER_SEQ_INC if trigger_times[2] > trigger_times[1] else SLICE_ORDER_ALT_INC
@@ -209,6 +209,7 @@ class DicomSeries(object):
                     slice_order = SLICE_ORDER_ALT_DEC if trigger_times[2] > trigger_times[1] else SLICE_ORDER_SEQ_DEC
             else:
                 nii_header['slice_duration'] = trigger_times[0]
+                slice_order = SLICE_ORDER_SEQ_INC
         nii_header['slice_code'] = slice_order
 
         if TAG_PHASE_ENCODE_DIR in self.first_dcm and self.first_dcm[TAG_PHASE_ENCODE_DIR].value == 'ROWS':

@@ -11,13 +11,19 @@
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
 <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
 <script data-main="${tg.url('/javascript/search')}" src="${tg.url('/javascript/require.js')}"></script>
-<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/scrolltable.css')}"/>
 <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
 <title>NIMS Search</title>
 <style>
-    #epochs { width:73%; }
-    #datasets { width:23%; }
     #search_table { width:35% }
+    #epochs { width:82%; }
+    #datasets { width:150px; }
+
+    .col_access { width:10%; }
+    .col_sunet { width:12%; }
+    .col_exp { width:17%; }
+    .col_datetime { width:17%; }
+    .col_subj { width:12%; }
+    .col_desc { width:32%; }
 </style>
 </head>
 
@@ -33,16 +39,44 @@
   <h2>Search</h2>
 
   <p>NIMS currently hosts ${dataset_cnt} datasets.</p>
-  <form id="search_form" action="${tg.url('/auth/post_search')}" method="post" accept-charset="UTF-8">
+  <form id="search_form" accept-charset="UTF-8">
     <table id="search_table" cellpadding="0" cellspacing="0">
     <tr>
-        <td>
+        <td align="right">
             <select id="search_param" name="search_param">
                 <option py:for="param in param_list">${param}</option>
             </select>
         </td>
         <td>
-            <input id="search_query" name="search_query" type='text'></input>
+            <input id="search_query" name="search_query" type="text"></input>
+        </td>
+    </tr>
+    <tr>
+    <script>
+        $(function() {
+           $("#date_from").datepicker({
+                       defaultDate: "-1m",
+                       changeMonth: true,
+                       changeYear: true,
+                       numberOfMonths: 2,
+                       maxDate: "+1d",
+                       onSelect: function( selectedDate ) {$( "#date_to" ).datepicker("option", "minDate", selectedDate );}});
+           $("#date_to").datepicker({
+                       defaultDate: "+0d",
+                       changeMonth: true,
+                       changeYear: true,
+                       numberOfMonths: 2,
+                       maxDate: "+1d",
+                       onSelect: function( selectedDate ) {$( "#date_from" ).datepicker( "option", "maxDate", selectedDate );}});
+               });
+    </script>
+        <td>
+        <label for="date_from">From</label>
+        <input type="text" size="9" id="date_from" name="date_from"/>
+        </td>
+        <td>
+        <label for="date_to">to</label>
+        <input type="text" size="9" id="date_to" name="date_to"/>
         </td>
     </tr>
     <tr>
@@ -55,6 +89,7 @@
     </tr>
     </table>
   </form>
+
     <table id="epochs" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
@@ -66,7 +101,7 @@
         <tbody>
         </tbody>
     </table>
-    <table id="datasets" class="scrolltable">
+    <table id="datasets" class="scrolltable" style="visibility:hidden">
         <thead>
             <tr>
                 <py:for each="col in dataset_columns">

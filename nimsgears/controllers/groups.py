@@ -24,7 +24,7 @@ class GroupsController(NimsController):
         # all assigned to same list, but we reassign after anyway
         group = research_groups[0] if research_groups else None
 
-        user_columns = [('SUNetID', 'col_sunet'), ('Name', 'col_name')]
+        user_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name')]
         return dict(page='groups',
                     user_columns = user_columns,
                     research_groups = research_groups,
