@@ -16,7 +16,7 @@ class AccessController(NimsController):
     def index(self):
         user = request.identity['user']
 
-        exp_data_list, exp_attr_list = self.get_experiments(user)
+        exp_data_list, exp_attr_list = self.get_experiments(user, True)
         users = User.query.all()
         user_data_list = [(user.uid, user.name if user.name else 'None') for user in users]
         user_attr_list = [{'id':user.uid} for user in users]
