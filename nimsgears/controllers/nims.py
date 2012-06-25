@@ -48,12 +48,12 @@ class NimsController(BaseController):
             db_query = db_query.filter(Access.user == user).filter(Access.privilege >= AccessPrivilege.value(u'Manage'))
         return db_query
 
-    def get_experiments(self, user):
+    def get_experiments(self, user, manage_only=False):
         exp_data_list = []
         exp_attr_list = []
 
         # If a superuser, ignore access items and set all to manage
-        experiment_dict = user.get_experiments()
+        experiment_dict = user.get_experiments(with_privilege=('mg' if manage_only else None))
 
         for key, value in experiment_dict.iteritems():
             exp = value.Experiment
