@@ -50,7 +50,8 @@ class User(Entity):
     """User definition for :mod:`repoze.who`; `user_name` required."""
 
     uid = Field(Unicode(32), unique=True)           # translation for user_name set in app_cfg.py
-    name = Field(Unicode(255))
+    firstname = Field(Unicode(255))
+    lastname = Field(Unicode(255))
     email = Field(Unicode(255), info={'rum': {'field':'Email'}})
     _password = Field(Unicode(128), colname='password', info={'rum': {'field':'Password'}}, synonym='password')
     created = Field(DateTime, default=datetime.datetime.now)
@@ -66,20 +67,29 @@ class User(Entity):
 
     def __init__(self, **kwargs):
         if 'uid' in kwargs:
-            ldap_name, ldap_email = nimsutil.ldap_query(kwargs['uid'])
-            kwargs['name'] = ldap_name or kwargs['uid']
+            ldap_firstname, ldap_lastname, ldap_email = nimsutil.ldap_query(kwargs['uid'])
+            kwargs['firstname'] = ldap_firstname
+            kwargs['lastname'] = ldap_lastname or kwargs['uid']
             kwargs['email'] = ldap_email
         super(User, self).__init__(**kwargs)
 
     def __repr__(self):
-        return ('<User: %s, %s, "%s">' % (self.uid, self.email, self.name)).encode('utf-8')
+        return (u'<User: %s, %s, %s>' % (self.uid, self.email, self.name)).encode('utf-8')
 
     def __unicode__(self):
         return self.name or self.uid
 
     @property
-    def in_superuser(self):
-        """ Returns True if user is a super user and has admin mode enabled """
+    def name(self):
+        """Return True if user is a superuser and has admin mode enabled."""
+        if self.lastname and self.firstname:
+            return u'%s, %s' % (self.lastname, self.firstname)
+        else:
+            return self.lastname
+
+    @property
+    def is_superuser(self):
+        """Return True if user is a superuser and has admin mode enabled."""
         return predicates.in_group('superusers') and self.admin_mode
 
     @classmethod
@@ -229,7 +239,7 @@ class User(Entity):
                 .filter(Experiment.trashtime == None))
 
         result_dict = {}
-        if self.in_superuser:
+        if self.is_superuser:
             unfiltered_results = query.all()
             for result in unfiltered_results:
                 result_dict[result.id] = result
@@ -240,7 +250,7 @@ class User(Entity):
 
         # Since these don't hit the filter, and thus don't get access
         # privileges appended to them, we add them
-        if self.in_superuser:
+        if self.is_superuser:
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
                     result_dict[key] = NamedTuple([value, None], ['Experiment', 'Access'])
@@ -282,7 +292,7 @@ class User(Entity):
                 .filter(Session.trashtime == None))
 
         result_dict = {}
-        if self.in_superuser:
+        if self.is_superuser:
             unfiltered_results = query.all()
             for result in unfiltered_results:
                 result_dict[result.id] = result
@@ -293,7 +303,7 @@ class User(Entity):
 
         # Since these don't hit the filter, and thus don't get access
         # privileges appended to them, we add them
-        if self.in_superuser:
+        if self.is_superuser:
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
                     result_dict[key] = NamedTuple([value, None], ['Session', 'Access'])
@@ -340,7 +350,7 @@ class User(Entity):
                 .filter(Epoch.trashtime == None))
 
         result_dict = {}
-        if self.in_superuser:
+        if self.is_superuser:
             unfiltered_results = query.all()
             for result in unfiltered_results:
                 result_dict[result.id] = result
@@ -351,7 +361,7 @@ class User(Entity):
 
         # Since these don't hit the filter, and thus don't get access
         # privileges appended to them, we add them
-        if self.in_superuser:
+        if self.is_superuser:
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
                     result_dict[key] = NamedTuple([value, None], ['Epoch', 'Access'])
@@ -398,7 +408,7 @@ class User(Entity):
                 .filter(Dataset.trashtime == None))
 
         result_dict = {}
-        if self.in_superuser:
+        if self.is_superuser:
             unfiltered_results = query.all()
             for result in unfiltered_results:
                 result_dict[result.id] = result
@@ -409,7 +419,7 @@ class User(Entity):
 
         # Since these don't hit the filter, and thus don't get access
         # privileges appended to them, we add them
-        if self.in_superuser:
+        if self.is_superuser:
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
                     result_dict[key] = NamedTuple([value, None], ['Dataset', 'Access'])
@@ -462,7 +472,6 @@ class Job(Entity):
 
     def __unicode__(self):
         return u'%s on %s' % (self.task, self.data_container)
-        return u'Job %d (%s): %s' % (self.id if self.id else -1, self.task, self.data_container)
 
 
 class Access(Entity):
@@ -496,6 +505,11 @@ class ResearchGroup(Entity):
     managers = ManyToMany('User', inverse='managers')
     members = ManyToMany('User', inverse='research_groups')
 
+    experiments = OneToMany('Experiment')
+
+    def __repr__(self):
+        return (u'<%s: %s>' % (self.__class__.__name__, self.gid)).encode('utf-8')
+
     def __unicode__(self):
         return self.name or self.gid
 
@@ -526,6 +540,9 @@ class DataContainer(Entity):
 
     datasets = OneToMany('Dataset')
     jobs = OneToMany('Job')
+
+    def __repr__(self):
+        return (u'<%s: %s>' % (self.__class__.__name__, self.name)).encode('utf-8')
 
     @property
     def primary_dataset(self):
@@ -630,6 +647,10 @@ class Subject(DataContainer):
         return subject
 
     @property
+    def name(self):
+        return u'%s, %s' % (self.lastname, self.firstname)
+
+    @property
     def is_trash(self):
         return bool(self.trashtime)
 
@@ -681,7 +702,7 @@ class Session(DataContainer):
 
     @property
     def name(self):
-        return self.timestamp.strftime('%Y-%m-%d_%H%M')
+        return u'%s_%d' % (self.timestamp.strftime(u'%Y%m%d_%H%M'), self.exam)
 
     @property
     def is_trash(self):
@@ -729,7 +750,7 @@ class Epoch(DataContainer):
 
     @property
     def name(self):
-        return ('%s_%d_%s' % (self.timestamp.strftime('%Y%m%d_%H%M%S'), self.acq, self.description)).encode('utf-8')
+        return ('%s_%d_%d_%s' % (self.timestamp.strftime('%H%M%S'), self.series, self.acq, self.description)).encode('utf-8')
 
     @property
     def description(self):
@@ -768,6 +789,7 @@ class Epoch(DataContainer):
             for dataset in self.datasets:
                 dataset.untrash()
 
+
 class Dataset(Entity):
 
     offset = Field(Interval, default=datetime.timedelta())
@@ -783,6 +805,9 @@ class Dataset(Entity):
     container = ManyToOne('DataContainer')
     parents = ManyToMany('Dataset')
 
+    def __repr__(self):
+        return (u'<%s: %s>' % (self.__class__.__name__, self.datatype)).encode('utf-8')
+
     def __unicode__(self):
         return u'<%s %s>' % (self.__class__.__name__, self.container)
 
@@ -796,8 +821,7 @@ class Dataset(Entity):
 
     @property
     def name(self):
-        return '%s_%s'% (self.container.name, self.datatype)
-        return '%s_%s'% (self.container.timestamp.strftime('%H%M%S'), self.datatype)
+        return nimsutil.clean_string(self.datatype)
 
     @property
     def relpath(self):

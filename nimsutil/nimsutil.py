@@ -93,15 +93,16 @@ def parse_patient_id(patient_id, known_ids):
 
 def clean_string(string):
     """
-    Nims standard string cleaning utility function.  Keeps numbers and letters,
-    strips excess characters, replaces consecutive spaces, dashes, and
-    underscores with single underscores.
+    Nims standard string cleaning utility function.
+
+    Strip unwanted characters, and replace consecutive spaces, dashes, and
+    underscores with a single underscore.
 
     For example:
-        '-__-&&&HELLO GOOD    SIR   (()))___----' returns 'HELLO_GOOD_SIR'
+        '-__-&&&HELLO GOOD ((    SIR  )))___----   ' returns 'HELLO_GOOD_SIR'
     """
-    string = re.sub('[^A-Za-z0-9 _\-]', '', string)
-    string = re.sub('[ _\-]+', '_', string.strip(' _-'))
+    string = re.sub(r'[^A-Za-z0-9 _-]', '', string)
+    string = re.sub(r'[ _-]+', '_', string).strip('_')
     return unicode(string)
 
 
@@ -147,8 +148,8 @@ def update_reference_datetime(datetime_file, new_datetime):
 
 def ldap_query(uid):
     ldap_uri = 'ldap://ldap.stanford.edu'
-    ldap_base = 'dc=stanford,dc=edu'        # subtrees 'cn=people' and 'cn=accounts' exist, but we search all trees
-    ldap_attrs = ['displayName', 'mail']
+    ldap_base = 'cn=people,dc=stanford,dc=edu'        # subtrees 'cn=people' and 'cn=accounts' exist (remove for searching all subtrees)
+    ldap_attrs = ['suDisplayNameFirst', 'suDisplayNameLast', 'mail']
     try:
         import ldap
         srv = ldap.initialize(ldap_uri)
@@ -156,14 +157,16 @@ def ldap_query(uid):
     except:
         pass
     try:
-        name = res[0][1]['displayName'][0]
+        firstname = res[0][1]['suDisplayNameFirst'][0]
+        lastname = res[0][1]['suDisplayNameLast'][0]
     except:
-        name = ''
+        firstname = ''
+        lastname = ''
     try:
         email = res[0][1]['mail'][0]
     except:
-        email = '%s@stanford.edu' % uid if name else ''
-    return unicode(name), unicode(email)
+        email = '%s@stanford.edu' % uid if lastname else ''
+    return unicode(firstname), unicode(lastname), unicode(email)
 
 
 def find_ge_physio(data_path, timestamp, psd_name):
