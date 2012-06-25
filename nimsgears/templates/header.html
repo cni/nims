@@ -52,7 +52,7 @@
         <li><a href="${tg.url('/auth/search')}" class="${('', 'current')[defined('page') and page=='search']}">Search</a></li>
         <li class="right">
             <a href="${tg.url('/logout_handler')}">Logout</a></li>
-        <li class="right" py:if="tg.predicates.in_group('superusers') and tg.identity.user.admin_mode">
+        <li class="right" py:if="tg.identity.user.is_superuser">
             <a href="${tg.url('/auth/admin')}" class="${('', 'current')[defined('page') and page=='admin']}">Admin</a></li>
         <li class="right">
             <a href="${tg.url('/auth/access')}" class="${('', 'current')[defined('page') and page=='access']}">Manage Access</a></li>

@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-"""Set up the nimsgears application"""
+# @author:  Gunnar Schaefer
 
 from datetime import datetime
 
@@ -11,7 +10,12 @@ import transaction
 import nimsutil
 
 
-superusers = [u'gsfr', u'bobd', u'rfbowen', u'laimab', u'nich0lsn', u'ltdet', u'kanile']
+superusers = [
+        u'gsfr',
+        u'bobd',
+        u'rfbowen',
+        u'laimab',
+        ]
 
 groups = [
         dict(gid=u'aetkin',     pis=[u'aetkin'],    managers=[u'kkpeng']),
@@ -39,13 +43,6 @@ groups = [
         dict(gid=u'smcclure',   pis=[u'smcclure'],  managers=[u'gstang', u'hennigan', u'mayas']),
         dict(gid=u'wandell',    pis=[u'wandell'],   managers=[u'lmperry']),
         dict(gid=u'unknown',    pis=[u'laimab'],    managers=[u'gsfr', u'rfbowen', u'bobd']),
-        ]
-
-access_privileges = [
-        (0, u'ar', u'Anonymized Read'),
-        (1, u'ro', u'Read-Only'),
-        (2, u'rw', u'Read-Write'),
-        (3, u'mg', u'Manage'),
         ]
 
 
@@ -84,13 +81,9 @@ def bootstrap(command, conf, vars):
                 a.users.append(u)
                 g.managers.append(u)
 
-        print 'Bootstrapping access privileges'
-        for ap in access_privileges:
-            model.AccessPrivilege(value=ap[0], name=ap[1], description=ap[2])
-
         print 'Bootstrapping @public user'
         u = model.User.by_uid(uid=u'@public', create=True, password=u'@public')
-        u.name = u'Public Access'
+        u.lastname = u'Public Access'
         a.users.append(u)
 
         transaction.commit()

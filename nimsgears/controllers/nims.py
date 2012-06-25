@@ -23,7 +23,7 @@ class NimsController(BaseController):
 
         for exp in exp_list:
             for user_ in user_list:
-                if (user_ not in exp.owner.pis) or (predicates.in_group('superusers') and user.admin_mode):
+                if (user_ not in exp.owner.pis) or user.is_superuser:
                     acc = Access.query.filter(Access.experiment == exp).filter(Access.user == user_).first()
                     if acc:
                         if set_to_privilege:
@@ -43,10 +43,9 @@ class NimsController(BaseController):
         return success
 
     def filter_access(self, db_query, user):
-        db_query = db_query.join(Access).join(AccessPrivilege)
-        if not (predicates.in_group('superusers') and user.admin_mode):
-            mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
-            db_query = db_query.filter(Access.user == user).filter(AccessPrivilege.value >= mg_privilege.value)
+        db_query = db_query.join(Access)
+        if not user.is_superuser:
+            db_query = db_query.filter(Access.user == user).filter(Access.privilege >= AccessPrivilege.value(u'Manage'))
         return db_query
 
     def get_experiments(self, user):
@@ -58,9 +57,9 @@ class NimsController(BaseController):
 
         for key, value in experiment_dict.iteritems():
             exp = value.Experiment
-            acc = 'mg' if user.in_superuser else value.Access.privilege.name
+            acc_priv = u'Manage' if user.is_superuser else AccessPrivilege.name(value.Access.privilege)
             exp_data_list.append((exp.owner.gid, exp.name))
-            exp_attr_list.append({'id':'exp_%d' % key, 'class':'access_%s %s' % (acc, 'trash' if exp.trashtime else '')})
+            exp_attr_list.append({'id':'exp_%d' % key, 'class':'access_%s %s' % (acc_priv.lower(), 'trash' if exp.trashtime else '')})
         return (exp_data_list, exp_attr_list)
 
     def get_sessions(self, user, exp_id):

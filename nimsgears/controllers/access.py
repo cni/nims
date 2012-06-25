@@ -18,7 +18,7 @@ class AccessController(NimsController):
 
         exp_data_list, exp_attr_list = self.get_experiments(user)
         users = User.query.all()
-        user_data_list = [(user.uid, user.name if user.name else 'None') for user in users]
+        user_data_list = [(user.uid, user.name) for user in users]
         user_attr_list = [{'id':user.uid} for user in users]
 
         exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
@@ -46,51 +46,46 @@ class AccessController(NimsController):
         acc_attr_list = []
         if db_result:
             for access in db_result.accesses:
-                acc_data_list.append((access.user.uid, access.user.name, access.privilege.__unicode__()))
-                acc_attr_list.append({'class': access.privilege.name, 'id': access.user.uid})
+                acc_data_list.append((access.user.uid, access.user.name, AccessPrivilege.name(access.privilege)))
+                acc_attr_list.append({'class': AccessPrivilege.name(access.privilege), 'id': access.user.uid})
         return json.dumps(dict(success=True,
                                data=acc_data_list,
                                attrs=acc_attr_list))
 
     @expose()
     def get_access_privileges(self, **kwargs):
-        db_result_accpriv = AccessPrivilege.query.all()
-        accpriv_list = [accpriv.description for accpriv in db_result_accpriv]
-        return json.dumps(accpriv_list)
+        return json.dumps(AccessPrivilege.names())
 
     @expose()
     def modify_access(self, **kwargs):
         user = request.identity['user']
         exp_id_list = user_id_list = access_level = None
         if "exp_ids" in kwargs:
-            exp_id_list = kwargs["exp_ids"]
+            exp_id_list = kwargs['exp_ids']
             if isinstance(exp_id_list, list):
                 exp_id_list = [int(item) for item in exp_id_list]
             else:
                 exp_id_list = [exp_id_list]
         if "user_ids" in kwargs:
-            user_id_list = kwargs["user_ids"]
+            user_id_list = kwargs['user_ids']
             if not isinstance(user_id_list, list):
                 user_id_list = [user_id_list]
         if "access_level" in kwargs:
-            access_level = kwargs["access_level"]
+            access_level = kwargs['access_level']
 
         result = {}
         result['success'] = False
         if exp_id_list and user_id_list and access_level:
             db_query = Experiment.query
 
-            if not (predicates.in_group('superusers') and user.admin_mode):
-                mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
-                db_query = db_query.join(Access).filter(Access.user == user)
-                db_query = db_query.filter(Access.privilege == mg_privilege)
+            if not user.is_superuser:
+                db_query = db_query.join(Access).filter(Access.user == user).filter(Access.privilege == AccessPrivilege.value(u'Manage'))
 
             db_result_exps = db_query.filter(Experiment.id.in_(exp_id_list)).all()
 
             if len(db_result_exps) == len(exp_id_list):
-                set_to_privilege = AccessPrivilege.query.filter_by(description=access_level).first()
                 db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
-                result['success'] = self._modify_access(user, db_result_exps, db_result_users, set_to_privilege)
+                result['success'] = self._modify_access(user, db_result_exps, db_result_users, AccessPrivilege.value(access_level))
         if result['success']:
             transaction.commit()
         else:

@@ -16,7 +16,7 @@ class GroupsController(NimsController):
     def index(self):
         user = request.identity['user']
 
-        if predicates.in_group('superusers') and user.admin_mode:
+        if user.is_superuser:
             research_groups = ResearchGroup.query.all()
         else:
             research_groups = user.pi_groups + user.manager_groups
@@ -38,7 +38,7 @@ class GroupsController(NimsController):
             group = kwargs['research_group']
             group = ResearchGroup.query.filter(ResearchGroup.gid == group).first()
             # Set group to None if the POSTed group is not actually on that users list of groups
-            group = group if (group in user.pi_groups + user.manager_groups or predicates.in_group('superusers') and user.admin_mode) else None
+            group = group if (group in user.pi_groups + user.manager_groups or user.is_superuser) else None
         groups_dict = get_groups_dict(group)
         return json.dumps(groups_dict)
 
@@ -65,9 +65,9 @@ class GroupsController(NimsController):
             db_result_group = ResearchGroup.query.filter_by(gid=group_id).first()
             if db_result_group:
                 membership_dict = ({
-                        'pis': (db_result_group.pis, 'mg'),
-                        'admins': (db_result_group.managers, 'mg'),
-                        'members': (db_result_group.members, 'ro'),
+                        'pis': (db_result_group.pis, u'Manage'),
+                        'admins': (db_result_group.managers, u'Manage'),
+                        'members': (db_result_group.members, u'Read-Only'),
                         'others': ([], None)
                     })
 
@@ -75,7 +75,7 @@ class GroupsController(NimsController):
                 unsafe_transaction = ((user not in db_result_group.pis and user not in db_result_group.managers) or
                                      ((membership_src == 'pis' or membership_dst == 'pis') and user not in db_result_group.pis) or
                                      (membership_src == 'pis' and len(db_result_group.pis) == len(db_result_users)))
-                if not unsafe_transaction or (predicates.in_group('superusers') and user.admin_mode):
+                if not unsafe_transaction or user.is_superuser:
                     result['success'] = True
                     if membership_src != 'others' and membership_src in membership_dict:
                         for item in db_result_users:
@@ -83,9 +83,8 @@ class GroupsController(NimsController):
                                 membership_dict[membership_src][0].remove(item)
                     if membership_dst in membership_dict:
                         if is_retroactive:
-                            set_to_privilege = AccessPrivilege.query.filter_by(name=membership_dict[membership_dst][1]).first()
                             exp_list = Experiment.query.filter_by(owner=db_result_group).all()
-                            result['success'] = self._modify_access(user, exp_list, db_result_users, set_to_privilege)
+                            result['success'] = self._modify_access(user, exp_list, db_result_users, AccessPrivilege.value(membership_dict[membership_dst][1]))
                         [membership_dict[membership_dst][0].append(item) for item in db_result_users]
         if result['success']:
             transaction.commit()

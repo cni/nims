@@ -67,13 +67,15 @@ class AuthController(BaseController):
                 setattr(user, key, value)
             flash(l_('Your settings have been updated.'))
 
-        if not user.name or not user.email:
-            ldap_name, ldap_email = nimsutil.ldap_query(user.uid)
-        name = user.name or ldap_name
+        if not user.firstname or not user.lastname or not user.email:
+            ldap_fistname, ldap_lastname, ldap_email = nimsutil.ldap_query(user.uid)
+        firstname = user.firstname or ldap_firstname
+        lastname = user.lastname or ldap_lastname
         email = user.email or ldap_email
 
         prefs = OrderedDict(
-                name = ('Display Name', name),
+                firstname = ('First Name', firstname),
+                lastname = ('Last Name', lastname),
                 email = ('Email Address', email)
                 )
 

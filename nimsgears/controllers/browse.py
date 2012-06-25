@@ -116,7 +116,7 @@ class BrowseController(NimsController):
                 .join(Session, Epoch.session)
                 .join(Subject, Session.subject)
                 .join(Experiment, Subject.experiment))
-        db_query = db_query.join(Access).join(AccessPrivilege)
+        db_query = db_query.join(Access)
 
         result = {'success': False}
         if id_list and query_type and db_query:
@@ -125,9 +125,8 @@ class BrowseController(NimsController):
 
             db_query = db_query.filter(query_type.id.in_(id_list))
 
-            if not (predicates.in_group('superusers') and user.admin_mode):
-                mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
-                db_query = db_query.filter(Access.user == user).filter(AccessPrivilege.value >= mg_privilege.value)
+            if not user.is_superuser:
+                db_query = db_query.filter(Access.user == user).filter(Access.privilege >= AccessPrivilege.value(u'Manage'))
 
             db_result = db_query.all()
 
@@ -170,11 +169,10 @@ class BrowseController(NimsController):
         result = {'success': False}
 
         if sess_id_list and exp_id:
-            mg_privilege = AccessPrivilege.query.filter_by(name=u'mg').first()
             exp = DBSession.query(Experiment).filter_by(id = exp_id).one()
-            db_query = DBSession.query(Session).join(Subject, Session.subject).join(Experiment, Subject.experiment).join(Access).join(AccessPrivilege).filter(Session.id.in_(sess_id_list))
-            if not (predicates.in_group('superusers') and user.admin_mode):
-                db_query = db_query.filter(Access.user == user).filter(AccessPrivilege.value >= mg_privilege.value)
+            db_query = Session.query.join(Subject, Session.subject).join(Experiment, Subject.experiment).join(Access).filter(Session.id.in_(sess_id_list))
+            if not user.is_superuser:
+                db_query = db_query.filter(Access.user == user).filter(Access.privilege >= AccessPrivilege.value(u'Manage'))
             db_result_sess = db_query.all()
 
             # Verify that we still have all of the requested sessions after access filtering
@@ -228,18 +226,26 @@ class BrowseController(NimsController):
             } if db_result else None
 
     def get_popup_data_dataset(self, user, id_):
-        db_query = (Dataset.query.filter_by(id=id_)
-            .join(Epoch)
-            .join(Session, Epoch.session)
-            .join(Subject, Session.subject)
-            .join(Experiment, Subject.experiment))
-        db_query = self.filter_access(db_query, user)
-        db_result = db_query.first()
+        db_query = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
+                .join(Epoch, Dataset.container)
+                .join(Session, Epoch.session)
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment)
+                .join(ResearchGroup, Experiment.owner)
+                .filter(Dataset.id == id_))
+        db_result = self.filter_access(db_query, user).first()
+        ds_path = '%s/%s/%s/%s/%s/%s' % (
+                u'superuser' if user.is_superuser else user.uid,
+                db_result.ResearchGroup.gid,
+                db_result.Experiment.name,
+                db_result.Session.name,
+                db_result.Epoch.name,
+                db_result.Dataset.name)
         return {
             'type': 'dataset',
             'subtype': 'pyramid',
             'name': db_result.__class__.__name__,
-            'url': 'https://cni.stanford.edu/nimsgears/data/' + db_result.relpath,
+            'url': '../data/' + ds_path,
             } if db_result else None
 
     @expose()

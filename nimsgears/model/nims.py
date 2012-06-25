@@ -69,7 +69,7 @@ class User(Entity):
         if 'uid' in kwargs:
             ldap_firstname, ldap_lastname, ldap_email = nimsutil.ldap_query(kwargs['uid'])
             kwargs['firstname'] = ldap_firstname
-            kwargs['lastname'] = ldap_lastname or kwargs['uid']
+            kwargs['lastname'] = ldap_lastname
             kwargs['email'] = ldap_email
         super(User, self).__init__(**kwargs)
 
@@ -150,9 +150,8 @@ class User(Entity):
     @property
     def dataset_cnt(self):
         query = DBSession.query(Session)
-        if not self in Group.by_gid(u'superusers').users or not self.admin_mode:
-            query = query.join(Subject, Session.subject).join(Experiment, Subject.experiment).join(Access)
-            query = query.filter(Access.user==self)
+        if not self.is_superuser:
+            query = query.join(Subject, Session.subject).join(Experiment, Subject.experiment).join(Access).filter(Access.user==self)
         return query.count()
 
     @property
@@ -164,16 +163,9 @@ class User(Entity):
         return trash_flag
 
     def _filter_query(self, query, with_privilege=None):
-        query = (query
-            .add_entity(Access)
-            .join(Access)
-            .filter(Access.user == self)
-            .join(AccessPrivilege, Access.privilege))
+        query = query.add_entity(Access).join(Access).filter(Access.user == self)
         if with_privilege:
-            acc_privilege = AccessPrivilege.query.filter_by(name=unicode(with_privilege)).one()
-            query = (query
-                .filter(AccessPrivilege.value >= acc_privilege.value))
-
+            query = query.filter(Access.privilege >= AccessPrivilege.value(with_privilege))
         return query
 
     def has_access_to(self, element, with_privilege=None):
@@ -195,15 +187,7 @@ class User(Entity):
                 .join(Session, Epoch.session)
                 .join(Subject, Session.subject)
                 .join(Experiment, Subject.experiment))
-        query = (query
-            .join(Access)
-            .filter(Access.user == self)
-            .join(AccessPrivilege, Access.privilege))
-        if with_privilege:
-            acc_privilege = AccessPrivilege.query.filter_by(name=unicode(with_privilege)).one()
-            query = (query
-                .filter(AccessPrivilege.value >= acc_privilege.value))
-        result = query.first()
+        result = query._filter_query(query, with_privilege).first()
         return result != None
 
 
@@ -248,8 +232,7 @@ class User(Entity):
         for result in filtered_results:
             result_dict[result.Experiment.id] = result
 
-        # Since these don't hit the filter, and thus don't get access
-        # privileges appended to them, we add them
+        # Since these don't hit the filter, and thus don't get access privileges appended to them, we add them here
         if self.is_superuser:
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
@@ -474,26 +457,47 @@ class Job(Entity):
         return u'%s on %s' % (self.task, self.data_container)
 
 
+class AccessPrivilege(object):
+
+    privilege_names = {
+        1: (u'Anon-Read'),
+        2: (u'Read-Only'),
+        3: (u'Read-Write'),
+        4: (u'Manage'),
+        }
+
+    privilege_values = dict((i[1],i[0]) for i in privilege_names.iteritems())
+
+    @classmethod
+    def name(cls, priv):
+        return cls.privilege_names[priv]
+
+    @classmethod
+    def names(cls):
+        return cls.privilege_names.values()
+
+    @classmethod
+    def value(cls, priv):
+        return cls.privilege_values[priv]
+
+    @classmethod
+    def values(cls):
+        return cls.privilege_values.values()
+
+
 class Access(Entity):
 
     user = ManyToOne('User')
     experiment = ManyToOne('Experiment')
-    privilege = ManyToOne('AccessPrivilege')
+    privilege = Field(Integer)
+
+    def __init__(self, **kwargs):
+        if 'privilege_name' in kwargs:
+            kwargs['privilege'] = AccessPrivilege.value(kwargs['privilege_name'])
+        super(Access, self).__init__(**kwargs)
 
     def __unicode__(self):
-        return u'%s: (%s, %s)' % (self.privilege, self.user, self.experiment)
-
-
-class AccessPrivilege(Entity):
-
-    value = Field(Integer, required=True)
-    name = Field(Unicode(32), required=True)
-    description = Field(Unicode(255))
-
-    access = OneToMany('Access')
-
-    def __unicode__(self):
-        return self.description or self.name
+        return u'%s: (%s, %s)' % (AccessPrivilege.name(self.privilege), self.user, self.experiment)
 
 
 class ResearchGroup(Entity):
@@ -568,12 +572,10 @@ class Experiment(DataContainer):
         experiment = cls.query.filter_by(owner=owner).filter_by(name=name).first()
         if not experiment:
             experiment = cls(owner=owner, name=name)
-            mng_priv = AccessPrivilege.query.filter_by(name=u'mg').one()
-            mem_priv = AccessPrivilege.query.filter_by(name=u'ro').one()
             for manager in set(owner.managers + owner.pis):                         # managers & PIs
-                Access(experiment=experiment, user=manager, privilege=mng_priv)
+                Access(experiment=experiment, user=manager, privilege_name=u'Manage')
             for member in set(owner.members) - set(owner.managers + owner.pis):     # other members
-                Access(experiment=experiment, user=member, privilege=mem_priv)
+                Access(experiment=experiment, user=member, privilege_name=u'Read-Only')
         return experiment
 
     @property
