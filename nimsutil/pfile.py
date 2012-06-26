@@ -83,6 +83,13 @@ class PFile(object):
             self.band_spacing = 0
             self.scale_data = True
             # spiral is always a square encode based on the frequency encode direction (size_x)
+            # Atsushi also likes to round up to the next higher power of 2.
+            # self.size_x = int(pow(2,ceil(log2(pf.size_x))))
+            # The rec.im_size field seems to have the correct reconned image size, but
+            # this isn't guaranteed to be correct, as Atsushi's recon does whatever it
+            # damn well pleases. Maybe we could add a check to infer the image size,
+            # assuming it's square?
+            self.size_x = self.header.rec.im_size
             self.size_y = self.size_x
         else:
             self.num_timepoints = self.header.rec.nframes
