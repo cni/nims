@@ -470,7 +470,7 @@ class AccessPrivilege(object):
 
     @classmethod
     def name(cls, priv):
-        return cls.privilege_names[priv]
+        return cls.privilege_names[priv] if priv in cls.privilege_names else None
 
     @classmethod
     def names(cls):
@@ -478,7 +478,7 @@ class AccessPrivilege(object):
 
     @classmethod
     def value(cls, priv):
-        return cls.privilege_values[priv]
+        return cls.privilege_values[priv] if priv in cls.privilege_values else None
 
     @classmethod
     def values(cls):

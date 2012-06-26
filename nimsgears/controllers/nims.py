@@ -52,9 +52,9 @@ class NimsController(BaseController):
         exp_data_list = []
         exp_attr_list = []
 
-        # If a superuser, ignore access items and set all to manage
-        experiment_dict = user.get_experiments(with_privilege=('mg' if manage_only else None))
+        experiment_dict = user.get_experiments(with_privilege=(u'Manage' if manage_only else None))
 
+        # if superuser, ignore access items and set all to manage
         for key, value in experiment_dict.iteritems():
             exp = value.Experiment
             acc_priv = u'Manage' if user.is_superuser else AccessPrivilege.name(value.Access.privilege)
