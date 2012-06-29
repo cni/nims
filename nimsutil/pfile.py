@@ -89,8 +89,7 @@ class PFile(object):
             # this isn't guaranteed to be correct, as Atsushi's recon does whatever it
             # damn well pleases. Maybe we could add a check to infer the image size,
             # assuming it's square?
-            self.size_x = self.header.rec.im_size
-            self.size_y = self.size_x
+            self.size_x = self.size_y = self.header.rec.im_size
         else:
             self.num_timepoints = self.header.rec.nframes
             self.deltaTE = 0.0
