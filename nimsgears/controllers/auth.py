@@ -9,6 +9,7 @@ import shlex
 import subprocess as sp
 from collections import OrderedDict
 
+import nimsutil
 from nimsgears import model
 from nimsgears.model import *
 
@@ -18,10 +19,7 @@ from nimsgears.controllers.browse import BrowseController
 from nimsgears.controllers.search import SearchController
 from nimsgears.controllers.groups import GroupsController
 
-import nimsutil
-
-import json # return raw json to browser in cases of database queries
-import transaction
+import json
 
 __all__ = ['AuthController']
 
@@ -73,11 +71,10 @@ class AuthController(BaseController):
         lastname = user.lastname or ldap_lastname
         email = user.email or ldap_email
 
-        prefs = OrderedDict(
-                firstname = ('First Name', firstname),
-                lastname = ('Last Name', lastname),
-                email = ('Email Address', email)
-                )
+        prefs = OrderedDict()
+        prefs['firstname'] = ('First Name', firstname)
+        prefs['lastname'] = ('Last Name', lastname)
+        prefs['email'] = ('Email Address', email)
 
         return dict(page='prefs', prefs=prefs)
 

@@ -81,11 +81,17 @@ class User(Entity):
 
     @property
     def name(self):
-        """Return True if user is a superuser and has admin mode enabled."""
-        if self.lastname and self.firstname:
+        if self.firstname and self.lastname:
             return u'%s, %s' % (self.lastname, self.firstname)
         else:
             return self.lastname
+
+    @property
+    def displayname(self):
+        if self.firstname and self.lastname:
+            return u'%s %s' % (self.firstname, self.lastname)
+        else:
+            return self.uid
 
     @property
     def is_superuser(self):

@@ -24,7 +24,7 @@
   <!-- re.sub(r'(\w)(\w+)', lambda x: x.group(1).upper()+x.group(2), re.sub(r'_', r' ', 'the_label')) -->
 
   <form class="prefsform" action="${tg.url('/auth/prefs')}" method="post" accept-charset="UTF-8" name="prefsform">
-    <p py:for="p, v in prefs.iteritems()"><label>${v[0]}</label><input type="text" name="${p}" value="${v[1]}" /></p>
+    <p py:for="k, v in prefs.iteritems()"><label>${v[0]}</label><input type="text" name="${k}" value="${v[1]}" /></p>
     <p><input type="submit" id="submit" value="Update" /></p>
   </form>
 

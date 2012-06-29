@@ -25,7 +25,10 @@
         <py:if test="tg.predicates.in_group('superusers') and not tg.identity.user.admin_mode">
           <a href="${tg.url('/auth/toggle_admin')}?came_from=${request.url}">User: </a>
         </py:if>
-        <a href="${tg.url('/auth/prefs')}">${tg.identity.user} (${tg.identity['repoze.who.userid']})</a>
+        <py:if test="not tg.predicates.in_group('superusers')">
+          Welcome,
+        </py:if>
+        <a href="${tg.url('/auth/prefs')}">${tg.identity.user.displayname}</a>
       </div>
       <div id="status">
           <a href="${tg.url('/auth/status')}">Status: ${tg.identity.user.dataset_cnt}/${tg.identity.user.unread_msg_cnt}/${tg.identity.user.job_cnt}</a>
