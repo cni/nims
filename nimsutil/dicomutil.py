@@ -90,12 +90,19 @@ class DicomSeries(object):
             self.log and self.log.warning(msg) or print(msg)
         else:
             nifti_file = None
+            data_converted = False
             if image_type == TYPE_SCREEN:
                 self.to_img(outbase)
+                data_converted = True
             if image_type == TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in self.first_dcm and self.first_dcm[TAG_DIFFUSION_DIRS].value > 0:
                 self.to_dti(outbase)
-            if image_type == TYPE_ORIGINAL or self.first_dcm.ImageType == TYPE_EPI:
+                data_converted = True
+            if 'PRIMARY' in image_type:
                 nifti_file = self.to_nii(outbase)
+                data_converted = True
+            if not data_converted:
+                msg = 'dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase)
+                self.log and self.log.warning(msg) or print(msg)
         return nifti_file
 
     def to_img(self, outbase):
@@ -197,7 +204,7 @@ class DicomSeries(object):
         nii_header['slice_start'] = 0
         nii_header['slice_end'] = slices_per_volume - 1
         slice_order = SLICE_ORDER_UNKNOWN
-        if slices_total >= slices_per_volume and "TriggerTime" in self.first_dcm:
+        if slices_total >= slices_per_volume and 'TriggerTime' in self.first_dcm and self.first_dcm.TriggerTime != '':
             first_volume = self.dcm_list[0:slices_per_volume]
             trigger_times = np.array([dcm_i.TriggerTime for dcm_i in first_volume])
             trigger_times_from_first_slice = trigger_times[0] - trigger_times
