@@ -5,15 +5,12 @@
 
 import os
 import abc
-import sys
 import time
 import shutil
 import signal
 import argparse
-import tempfile
 import threading
 
-import dicom
 import sqlalchemy
 import transaction
 
@@ -216,9 +213,9 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.add_argument('db_uri', help='database URI')
-        self.add_argument('nims_path', help='data location')
-        self.add_argument('physio_path', help='path to physio data')
+        self.add_argument('db_uri', metavar='URI', help='database URI')
+        self.add_argument('nims_path', metavar='DATA_PATH', help='data location')
+        self.add_argument('physio_path', metavar='PHYSIO_PATH', help='path to physio data')
         self.add_argument('-t', '--task', help='find|proc  (default is all)')
         self.add_argument('-j', '--jobs', type=int, default=1, help='maximum number of concurrent threads')
         self.add_argument('-s', '--sleeptime', type=int, default=10, help='time to sleep between db queries')
@@ -231,6 +228,10 @@ if __name__ == '__main__':
     args = ArgumentParser().parse_args()
 
     log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
+
+    # workaround for http://bugs.python.org/issue7980
+    import datetime # used in nimsutil
+    datetime.datetime.strptime('0', '%S')
 
     processor = Processor(args.db_uri, args.nims_path, args.physio_path, args.task, log, args.jobs, args.sleeptime)
 
