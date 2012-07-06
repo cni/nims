@@ -460,7 +460,7 @@ class Job(Entity):
     data_container = ManyToOne('DataContainer', inverse='jobs')
 
     def __unicode__(self):
-        return u'%s on %s' % (self.task, self.data_container)
+        return u'%s#%s' % (self.data_container, self.task)
 
 
 class AccessPrivilege(object):
@@ -571,7 +571,7 @@ class Experiment(DataContainer):
     subjects = OneToMany('Subject')
 
     def __unicode__(self):
-        return u'%s:%s' % (self.owner, self.name)
+        return u'%s/%s' % (self.owner, self.name)
 
     @classmethod
     def from_owner_name(cls, owner, name):
@@ -758,7 +758,7 @@ class Epoch(DataContainer):
 
     @property
     def name(self):
-        return ('%s_%d_%d_%s' % (self.timestamp.strftime('%H%M%S'), self.series, self.acq, self.description)).encode('utf-8')
+        return '%s_%d_%d_%s' % (self.timestamp.strftime('%H%M%S'), self.series, self.acq, self.description)
 
     @property
     def description(self):
@@ -806,7 +806,8 @@ class Dataset(Entity):
     datatype = Field(Unicode(63))
     _updatetime = Field(DateTime, default=datetime.datetime.now, colname='updatetime', synonym='updatetime')
     digest = Field(Binary(20))
-
+    compressed = Field(Boolean, default=False, index=True)
+    archived = Field(Boolean, default=False, index=True)
     file_cnt_act = Field(Integer)
     file_cnt_tgt = Field(Integer)
 
@@ -820,8 +821,8 @@ class Dataset(Entity):
         return u'<%s %s>' % (self.__class__.__name__, self.container)
 
     @classmethod
-    def at_path_for_file_and_datatype(cls, nims_path, filename=None, datatype=None):
-        dataset = cls(datatype=datatype)
+    def at_path(cls, nims_path, filename=None, datatype=None, archived=False):
+        dataset = cls(datatype=datatype, archived=archived)
         transaction.commit()
         DBSession.add(dataset)
         nimsutil.make_joined_path(nims_path, dataset.relpath)
@@ -833,7 +834,7 @@ class Dataset(Entity):
 
     @property
     def relpath(self):
-        return ('%03d/%08d' % (self.id % 1000, self.id)).encode('utf-8')
+        return '%s/%03d/%08d' % ('archive' if self.archived else 'data', self.id % 1000, self.id)
 
     def _get_updatetime(self):
         return self._updatetime
@@ -870,6 +871,7 @@ class Dataset(Entity):
         self.file_cnt_act = len(filelist)
         return self.digest != old_digest
 
+
 class PrimaryMRData(Dataset):
 
     """Abstract superclass to all MRI data types."""
@@ -888,11 +890,11 @@ class PrimaryMRData(Dataset):
     te = Field(Float)
 
     @classmethod
-    def at_path_for_file_and_datatype(cls, nims_path, filename, datatype=None):
+    def at_path(cls, nims_path, filename, datatype=None, archived=False):
         metadata = cls.get_metadata(filename)
         if metadata:
             dataset = cls.from_metadata(metadata)
-            dataset.container.untrash()
+            #dataset.container.untrash()
             transaction.commit()
             DBSession.add(dataset)
             nimsutil.make_joined_path(nims_path, dataset.relpath)
@@ -914,6 +916,7 @@ class PrimaryMRData(Dataset):
                     psd=md.psd_name,
                     datatype=md.datatype,
                     kind=u'primary',
+                    archived=True,
                     physio_flag = md.physio_flag and u'epi' in md.psd_name.lower(),
                     )
         return dataset

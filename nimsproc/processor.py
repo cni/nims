@@ -73,7 +73,7 @@ class Processor(object):
             query = query.filter(Job.task==self.task)
         jobs = query.all()
         for job in jobs:
-            self.log.info(u'%d: Resetting %s' % (job.id, job))
+            self.log.info(u'%d: %s reset' % (job.id, job))
             job.status = u'new'
         transaction.commit()
 
@@ -91,17 +91,17 @@ class Pipeline(threading.Thread):
 
     def run(self):
         DBSession.add(self.job)
-        self.log.info(u'%d: Running   %s' % (self.job.id, self.job))
+        self.log.info(u'%d %s started' % (self.job.id, self.job))
         if self.job.task == u'find':
             success = self.find()
         else:   # self.job.task == u'proc'
             success = self.process()
         if success:
             self.job.status = u'done'
-            self.log.info(u'%d: Finished  %s' % (self.job.id, self.job))
+            self.log.info(u'%d %s finished' % (self.job.id, self.job))
         else:
             self.job.status = u'failed'
-            self.log.info(u'%d: Failed    %s' % (self.job.id, self.job))
+            self.log.info(u'%d %s failed' % (self.job.id, self.job))
         transaction.commit()
 
     @abc.abstractmethod
@@ -112,8 +112,8 @@ class Pipeline(threading.Thread):
         if ds.physio_flag:
             success, physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.duration, ds.psd.encode('utf-8'))
             if physio_files:
-                self.log.info('%d: physio files %s' % (self.job.id, ', '.join([os.path.basename(pf) for pf in physio_files])))
-                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'Physio Data')
+                self.log.info(u'%d %s: physio found %s' % (self.job.id, self.job, ', '.join([os.path.basename(pf) for pf in physio_files])))
+                dataset = Dataset.at_path(self.nims_path, None, u'Physio Data')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
                 dataset.file_cnt_act = 0
@@ -131,7 +131,9 @@ class Pipeline(threading.Thread):
 
     @abc.abstractmethod
     def process(self):
-        # FIXME: wipe out all derived datasets on the job's data_container
+        for ds in Dataset.query.filter(Dataset.container == self.job.data_container).filter(Dataset.kind == u'derived'):
+            shutil.rmtree(os.path.join(self.nims_path, ds.relpath))
+            ds.delete()
         return True
 
 
@@ -141,9 +143,9 @@ class DicomPipeline(Pipeline):
         return super(DicomPipeline, self).find()
 
     def process(self):
-        success = True
-        ds = self.job.data_container.primary_dataset
+        success = super(DicomPipeline, self).process()
 
+        ds = self.job.data_container.primary_dataset
         with nimsutil.TempDirectory() as outputdir:
             outbase = os.path.join(outputdir, ds.container.name)
             dcm_series = nimsutil.dicomutil.DicomSeries(os.path.join(self.nims_path, ds.relpath), self.log)
@@ -151,11 +153,8 @@ class DicomPipeline(Pipeline):
 
             if nifti_file:
                 outputdir_list = os.listdir(outputdir)
-                self.log.info('%d: %s generated' % (self.job.id, outputdir_list))
-                nifti_ds = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'NIfTI (raw)')
-                pyramid_ds = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'Image Pyramid')
-
-                DBSession.add(nifti_ds)
+                self.log.info(u'%d %s generated %s' % (self.job.id, self.job, outputdir_list))
+                nifti_ds = Dataset.at_path(self.nims_path, None, u'NIfTI (raw)')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
 
@@ -166,11 +165,16 @@ class DicomPipeline(Pipeline):
                 for f in outputdir_list:
                     shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, nifti_ds.relpath))
                     nifti_ds.file_cnt_act += 1
+                transaction.commit()
 
+                pyramid_ds = Dataset.at_path(self.nims_path, None, u'Image Pyramid')
+                DBSession.add(self.job)
+                DBSession.add(self.job.data_container)
                 nimsutil.pyramid.ImagePyramid(nifti_file, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
-                self.log.info('%d: Image pyramid generated' % self.job.id)
+                self.log.info(u'%d %s image pyramid generated' % (self.job.id, self.job))
                 pyramid_ds.kind = u'derived'
                 pyramid_ds.container = self.job.data_container
+                transaction.commit()
 
         transaction.commit()
         DBSession.add(self.job)
@@ -183,7 +187,8 @@ class PFilePipeline(Pipeline):
         return super(PFilePipeline, self).find()
 
     def process(self):
-        success = True
+        success = super(PFilePipeline, self).process()
+
         ds = self.job.data_container.primary_dataset
         with nimsutil.TempDirectory() as outputdir:
             if u'sprt' in ds.psd:
@@ -192,8 +197,8 @@ class PFilePipeline(Pipeline):
 
             outputdir_list = os.listdir(outputdir)
             if outputdir_list:
-                self.log.info('%d: PFile converted to %s' % (self.job.id, outputdir_list))
-                dataset = Dataset.at_path_for_file_and_datatype(self.nims_path, None, u'NIfTI (raw)')
+                self.log.info(u'%d %s generated %s' % (self.job.id, self.job, outputdir_list))
+                dataset = Dataset.at_path(self.nims_path, None, u'NIfTI (raw)')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
                 dataset.file_cnt_act = 0
