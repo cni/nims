@@ -20,7 +20,7 @@ class SymLinker(object):
     def __init__(self, db_uri, nims_path):
         super(SymLinker, self).__init__()
         self.nims_path = nims_path
-        init_model(sqlalchemy.create_engine(db_uri))
+        init_model(sqlalchemy.create_engine(db_uri, echo=False))
 
     def make_links(self, links_path):
         db_results = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup, User)
@@ -55,8 +55,9 @@ class SymLinker(object):
         symlinks = []
         for r in db_results:
             user_path = os.path.join(links_path, r.User.uid)
-            ep = '%s/%s/%s/%s/%s' % (user_path, r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name)
-            su_ep = '%s/%s/%s/%s/%s' % (superuser_path, r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name)
+            epoch_path = '%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name)
+            ep = '%s/%s' % (user_path, epoch_path)
+            su_ep = '%s/%s' % (superuser_path, epoch_path)
             sl = (os.path.join(self.nims_path, r.Dataset.relpath), os.path.join(ep, r.Dataset.name))
             su_sl = (os.path.join(self.nims_path, r.Dataset.relpath), os.path.join(su_ep, r.Dataset.name))
             epoch_paths.extend([ep, su_ep])
@@ -84,7 +85,7 @@ if __name__ == '__main__':
     args.tempdir = args.forever or args.tempdir
 
     if not os.path.isdir(args.links_path) or (not args.tempdir and os.listdir(args.links_path)):
-        print '`links_path` must exist and be an empty directory'
+        print '%s must exist and be an empty directory' % args.links_path
         sys.exit(1)
 
     linker = SymLinker(args.db_uri, args.nims_path)
@@ -104,7 +105,7 @@ if __name__ == '__main__':
             sys.exit(0)
         finally:
             shutil.rmtree(tmp_links_path)
-        if not args.forever:
-            break
 
         print datetime.datetime.now() - start_time
+        if not args.forever:
+            break
