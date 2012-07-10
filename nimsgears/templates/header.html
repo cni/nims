@@ -58,9 +58,9 @@
         <li class="right" py:if="tg.identity.user.is_superuser">
             <a href="${tg.url('/auth/admin')}" class="${('', 'current')[defined('page') and page=='admin']}">Admin</a></li>
         <li class="right">
-            <a href="${tg.url('/auth/access')}" class="${('', 'current')[defined('page') and page=='access']}">Manage Access</a></li>
-        <li class="right">
             <a href="${tg.url('/auth/groups')}" class="${('', 'current')[defined('page') and page=='groups']}">Manage Groups</a></li>
+        <li class="right">
+            <a href="${tg.url('/auth/access')}" class="${('', 'current')[defined('page') and page=='access']}">Manage Experiments</a></li>
       </py:if>
     </ul>
   </div>
