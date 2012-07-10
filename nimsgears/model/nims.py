@@ -741,6 +741,16 @@ class Epoch(DataContainer):
 
     using_options(inheritance='multi')
 
+    uid = Field(Binary(32), index=True)
+    series = Field(Integer)
+    acq = Field(Integer, index=True)
+    description = Field(Unicode(255))
+    psd = Field(Unicode(255))
+    physio_flag = Field(Boolean, default=False)
+
+    tr = Field(Float)
+    te = Field(Float)
+
     session = ManyToOne('Session')
 
     def __unicode__(self):
@@ -748,29 +758,27 @@ class Epoch(DataContainer):
 
     @classmethod
     def from_metadata(cls, md):
-        epoch = cls.query.join(Dataset).filter(Dataset.uid==md.series_uid).filter(Dataset.acq==md.acq_no).first()
+        epoch = cls.query.filter_by(uid=md.series_uid).filter_by(acq=md.acq_no).first()
         if not epoch:
             session = Session.from_metadata(md)
             if session.timestamp is None or session.timestamp > md.timestamp:
                 session.timestamp = md.timestamp
-            epoch = cls(session=session, timestamp=md.timestamp, duration=md.duration)
+            epoch = cls(
+                    session=session,
+                    timestamp=md.timestamp,
+                    duration=md.duration,
+                    uid=md.series_uid,
+                    series=md.series_no,
+                    acq=md.acq_no,
+                    description=md.series_desc,
+                    psd=md.psd_name,
+                    physio_flag = md.physio_flag and u'epi' in md.psd_name.lower(),
+                    )
         return epoch
 
     @property
     def name(self):
         return '%s_%d_%d_%s' % (self.timestamp.strftime('%H%M%S'), self.series, self.acq, self.description)
-
-    @property
-    def description(self):
-        return self.primary_dataset.desc
-
-    @property
-    def series(self):
-        return self.primary_dataset.series
-
-    @property
-    def acq(self):
-        return self.primary_dataset.acq
 
     @property
     def is_trash(self):
@@ -879,16 +887,6 @@ class PrimaryMRData(Dataset):
     priority = 0
     filename_ext = ''
 
-    uid = Field(Binary(32), index=True)
-    series = Field(Integer)
-    acq = Field(Integer, index=True)
-    desc = Field(Unicode(255))
-    psd = Field(Unicode(255))
-    physio_flag = Field(Boolean, default=False)
-
-    tr = Field(Float)
-    te = Field(Float)
-
     @classmethod
     def at_path(cls, nims_path, filename, datatype=None, archived=False):
         metadata = cls.get_metadata(filename)
@@ -904,20 +902,14 @@ class PrimaryMRData(Dataset):
 
     @classmethod
     def from_metadata(cls, md):
-        dataset = cls.query.filter_by(uid=md.series_uid).filter_by(acq=md.acq_no).first()
+        dataset = cls.query.join(Epoch).filter(Epoch.uid == md.series_uid).filter(Epoch.acq == md.acq_no).first()
         if not dataset:
             epoch = Epoch.from_metadata(md)
             dataset = cls(
                     container=epoch,
-                    uid=md.series_uid,
-                    series=md.series_no,
-                    acq=md.acq_no,
-                    desc=md.series_desc,
-                    psd=md.psd_name,
                     datatype=md.datatype,
                     kind=u'primary',
                     archived=True,
-                    physio_flag = md.physio_flag and u'epi' in md.psd_name.lower(),
                     )
         return dataset
 
