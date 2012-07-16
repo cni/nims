@@ -94,7 +94,7 @@ class GroupsController(NimsController):
         return json.dumps(result)
 
 def get_user_tuple(user_object):
-    return (user_object.uid, user_object.name if user_object.name else 'None')
+    return (user_object.uid, user_object.name)
 
 def get_groups_dict(group):
     group_dict = {}
