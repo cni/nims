@@ -172,7 +172,7 @@ def ldap_query(uid):
 def find_ge_physio(data_path, timestamp, psd_name):
     physio_files = os.listdir(data_path)
     if not physio_files:
-        return False, []
+        raise Exception(msg='physio files unavailable')
 
     physio_dict = {}
     leadtime = datetime.timedelta(days=1)
@@ -182,7 +182,7 @@ def find_ge_physio(data_path, timestamp, psd_name):
     for pdt, pfn in [re.match(regexp, pf).group(1,0) for pf in physio_files]:
         physio_dict.setdefault(datetime.datetime.strptime(pdt, '%m%d%Y%H_%M_%S_%f'), []).append(pfn)
     valid_keys = filter(lambda pdt: pdt >= timestamp, physio_dict)
-    return True, [os.path.join(data_path, pf) for pf in physio_dict[min(valid_keys)]] if valid_keys else []
+    return [os.path.join(data_path, pf) for pf in physio_dict[min(valid_keys)]] if valid_keys else []
 
 
 def pack_dicom_uid(uid):

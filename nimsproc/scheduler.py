@@ -5,6 +5,7 @@
 import os
 import sys
 import time
+import shutil
 import signal
 import argparse
 import datetime
@@ -37,19 +38,19 @@ class Scheduler(object):
             query = query.filter(~DataContainer.datasets.any(Dataset.updatetime > (datetime.datetime.now() - self.cooltime)))
             dc = query.with_lockmode('update').first()
             if dc:
-                self.log.info(u'Inspecting %s' % dc)
+                self.log.info(u'Inspecting  %s' % dc)
                 if dc.updated and dc.primary_dataset.update_file_cnt_and_digest(self.nims_path):
                     dc.needs_finding = True
                     dc.needs_processing = True
                 if dc.needs_finding:    # seems redundant, but needed for externally-triggered re-finding
                     if not Job.query.filter_by(data_container=dc).filter_by(task=u'find').filter_by(status=u'new').first():
-                        job = Job(data_container=dc, task=u'find')
-                        self.log.info(u'Creating   %s' % job)
+                        job = Job(data_container=dc, task=u'find', nims_path=self.nims_path)
+                        self.log.info(u'Created job %s' % job)
                     dc.needs_finding = False
                 if dc.needs_processing: # seems redundant, but needed for externally-triggered re-processing
                     if not Job.query.filter_by(data_container=dc).filter_by(task=u'proc').filter_by(status=u'new').first():
-                        job = Job(data_container=dc, task=u'proc')
-                        self.log.info(u'Creating   %s' % job)
+                        job = Job(data_container=dc, task=u'proc', nims_path=self.nims_path)
+                        self.log.info(u'Created job %s' % job)
                     dc.needs_processing = False
                 dc.updated = False
                 transaction.commit()

@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import hashlib
 import datetime
 
@@ -11,8 +12,7 @@ import nimsutil
 from nimsgears.model import metadata, DBSession
 from repoze.what import predicates
 
-from tg import config, expose, flash, redirect, request, response, require, session
-import collections
+from tg import session
 from sqlalchemy.util._collections import NamedTuple
 
 __session__ = DBSession
@@ -106,7 +106,7 @@ class User(Entity):
     def by_uid(cls, uid, create=False, password=None):
         user = cls.query.filter_by(uid=uid).first()
         if not user and create:
-            user = cls(uid=uid, password=password)
+            user = cls(uid=uid, password=(password or uid))
         return user
 
     @staticmethod
@@ -455,12 +455,28 @@ class Job(Entity):
     task = Field(Enum(u'find', u'proc', name=u'task'))
     redo_all = Field(Boolean, default=False)
     progress = Field(Integer)
-    action = Field(Unicode(255))
+    activity = Field(Unicode(255))
 
     data_container = ManyToOne('DataContainer', inverse='jobs')
 
+    def __init__(self, **kwargs):
+        super(Job, self).__init__(**kwargs)
+        if 'nims_path' in kwargs:
+            self.restart(kwargs['nims_path'])
+
     def __unicode__(self):
         return u'%s#%s' % (self.data_container, self.task)
+
+    def restart(self, nims_path):
+        self.status = u'new'
+        query = Dataset.query.filter(Dataset.container == self.data_container)
+        if self.task == u'find':
+            query = query.filter_by(kind=u'secondary')
+        elif self.task == u'proc':
+            query = query.filter_by(kind=u'derived')
+        for ds in query.all():
+            shutil.rmtree(os.path.join(nims_path, ds.relpath))
+            ds.delete()
 
 
 class AccessPrivilege(object):
@@ -892,9 +908,6 @@ class PrimaryMRData(Dataset):
         metadata = cls.get_metadata(filename)
         if metadata:
             dataset = cls.from_metadata(metadata)
-            #dataset.container.untrash()
-            transaction.commit()
-            DBSession.add(dataset)
             nimsutil.make_joined_path(nims_path, dataset.relpath)
         else:
             dataset = None
@@ -902,7 +915,7 @@ class PrimaryMRData(Dataset):
 
     @classmethod
     def from_metadata(cls, md):
-        dataset = cls.query.join(Epoch).filter(Epoch.uid == md.series_uid).filter(Epoch.acq == md.acq_no).first()
+        dataset = cls.query.join(Epoch).filter(Epoch.uid == md.series_uid).filter(Epoch.acq == md.acq_no).with_lockmode('update').first()
         if not dataset:
             epoch = Epoch.from_metadata(md)
             dataset = cls(
@@ -911,6 +924,8 @@ class PrimaryMRData(Dataset):
                     kind=u'primary',
                     archived=True,
                     )
+            transaction.commit()
+            DBSession.add(dataset)
         return dataset
 
 
