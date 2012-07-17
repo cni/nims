@@ -15,19 +15,7 @@
 
   <h2>Status</h2>
 
-  <p>The data provided in the template call is:
-  <table>
-      <py:for each="key, value in params.iteritems()">
-      <tr>
-          <td>${key}</td>
-          <td>${value}</td>
-      </tr>
-      </py:for>
-  </table>
-  </p>
-
   <h2>Messages</h2>
-
   <table>
     <py:for each="msg in sorted(tg.identity.user.messages, key=lambda msg: msg.created)">
     <tr class="${'bold' if not msg.read else None}">
@@ -35,6 +23,30 @@
         <td>${msg.subject}</td>
     </tr>
     </py:for>
+  </table>
+
+  <h2>Failed Jobs (${len(failed_jobs)})</h2>
+  <table>
+      <py:for each="job in failed_jobs">
+      <tr>
+        <td>${job.id}</td>
+        <td>${job.data_container}</td>
+        <td>${job.task}</td>
+        <td>${job.activity}</td>
+      </tr>
+      </py:for>
+  </table>
+
+  <h2>Active Jobs (${len(active_jobs)})</h2>
+  <table>
+      <py:for each="job in active_jobs">
+      <tr>
+        <td>${job.id}</td>
+        <td>${job.data_container}</td>
+        <td>${job.task}</td>
+        <td>${job.activity}</td>
+      </tr>
+      </py:for>
   </table>
 
 </body>

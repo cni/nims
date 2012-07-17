@@ -4,6 +4,7 @@
 
 import os
 import sys
+import time
 import shlex
 import shutil
 import argparse
@@ -12,6 +13,7 @@ import subprocess
 
 import sqlalchemy
 
+import nimsutil
 from nimsgears.model import *
 
 
@@ -55,26 +57,35 @@ class SymLinker(object):
         symlinks = []
         for r in db_results:
             user_path = os.path.join(links_path, r.User.uid)
-            epoch_path = '%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name)
-            ep = '%s/%s' % (user_path, epoch_path)
-            su_ep = '%s/%s' % (superuser_path, epoch_path)
+            ep = '%s/%s/%s/%s/%s' % (user_path, r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name)
+            su_ep = '%s/%s/%s/%s/%s' % (superuser_path, r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name)
             sl = (os.path.join(self.nims_path, r.Dataset.relpath), os.path.join(ep, r.Dataset.name))
             su_sl = (os.path.join(self.nims_path, r.Dataset.relpath), os.path.join(su_ep, r.Dataset.name))
             epoch_paths.extend([ep, su_ep])
             symlinks.extend([sl, su_sl])
 
         for ep in set(epoch_paths):
+          try:
             os.makedirs(ep)
+          except:
+              print ep
         for sl in set(symlinks):
+          try:
             os.symlink(*sl)
+          except:
+              print sl
 
 
 class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.add_argument('-f', '--forever', action='store_true', help='run forever, implies -t')
+        self.add_argument('-c', '--continuously', action='store_true', help='run continuously, implies -t')
         self.add_argument('-t', '--tempdir', action='store_true', help='create links in temp dir and rsync to links_path')
+        self.add_argument('-r', '--runtime', type=int, default=300, help='total runtime per iteration (default: 300s)')
+        self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
+        self.add_argument('-f', '--logfile', help='path to log file')
+        self.add_argument('-l', '--loglevel', default='info', help='path to log file')
         self.add_argument('db_uri', help='database URI')
         self.add_argument('nims_path', help='absolute path to data')
         self.add_argument('links_path', help='absolute path to links')
@@ -82,21 +93,21 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    args.tempdir = args.forever or args.tempdir
+    args.tempdir = args.continuously or args.tempdir
 
     if not os.path.isdir(args.links_path) or (not args.tempdir and os.listdir(args.links_path)):
         print '%s must exist and be an empty directory' % args.links_path
         sys.exit(1)
 
+    log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
     linker = SymLinker(args.db_uri, args.nims_path)
     while True:
-        import datetime
-        start_time = datetime.datetime.now()
-
-        tmp_links_path = tempfile.mkdtemp()
+        start_time = time.time()
+        tmp_links_path = tempfile.mkdtemp(dir='/ramdisk')
         try:
             linker.make_links(tmp_links_path)
             if args.tempdir:
+                os.chmod(tmp_links_path, 0o755)
                 subprocess.call(shlex.split('rsync -a --del %s/ %s' % (tmp_links_path, args.links_path)))
             else:
                 for dir_item in os.listdir(tmp_links_path):
@@ -106,6 +117,8 @@ if __name__ == '__main__':
         finally:
             shutil.rmtree(tmp_links_path)
 
-        print datetime.datetime.now() - start_time
-        if not args.forever:
+        log.info('runtime: %.1fs' % (time.time() - start_time))
+        if not args.continuously:
             break
+
+        time.sleep(args.runtime - time.time() + start_time)

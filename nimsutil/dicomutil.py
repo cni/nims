@@ -83,27 +83,27 @@ class DicomSeries(object):
         self.log = log
 
     def convert(self, outbase):
+        result = None
+        main_file = None
         try:
             image_type = self.first_dcm.ImageType
         except:
             msg = 'dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase)
             self.log and self.log.warning(msg) or print(msg)
         else:
-            nifti_file = None
-            data_converted = False
             if image_type == TYPE_SCREEN:
                 self.to_img(outbase)
-                data_converted = True
+                result = 'bitmap'
             if image_type == TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in self.first_dcm and self.first_dcm[TAG_DIFFUSION_DIRS].value > 0:
                 self.to_dti(outbase)
-                data_converted = True
+                result = 'dti'
             if 'PRIMARY' in image_type:
-                nifti_file = self.to_nii(outbase)
-                data_converted = True
-            if not data_converted:
+                main_file = self.to_nii(outbase)
+                result = 'nifti'
+            if not result:
                 msg = 'dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase)
                 self.log and self.log.warning(msg) or print(msg)
-        return nifti_file
+        return result, main_file
 
     def to_img(self, outbase):
         """Create bitmap files for each image in a list of dicoms."""

@@ -83,7 +83,16 @@ class AuthController(BaseController):
         #if not predicates.in_group('active_users').is_met(request.environ):
         #    flash(l_('Your account is not yet active.'))
         #    redirect('/auth/prefs')
-        return dict(page='status', params={})
+
+        failed_jobs = Job.query.filter(Job.status == u'failed').all()
+        active_jobs = Job.query.filter(Job.status == u'active').all()
+        new_jobs = Job.query.filter(Job.status == u'new').all()
+        return dict(
+                page='status',
+                failed_jobs=failed_jobs,
+                active_jobs=active_jobs,
+                new_jobs=new_jobs,
+                )
 
     @expose('nimsgears.templates.admin')
     def admin(self):
