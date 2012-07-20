@@ -65,60 +65,56 @@ class SymLinker(object):
             symlinks.extend([sl, su_sl])
 
         for ep in set(epoch_paths):
-          try:
             os.makedirs(ep)
-          except:
-              print ep
         for sl in set(symlinks):
-          try:
             os.symlink(*sl)
-          except:
-              print sl
 
 
 class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.add_argument('-c', '--continuously', action='store_true', help='run continuously, implies -t')
-        self.add_argument('-t', '--tempdir', action='store_true', help='create links in temp dir and rsync to links_path')
-        self.add_argument('-r', '--runtime', type=int, default=300, help='total runtime per iteration (default: 300s)')
+        self.add_argument('-c', '--continuous', action='store_true', help='run continuously, implies -i')
+        self.add_argument('-i', '--inplace', action='store_true', help='update existing links_path with rsync')
+        self.add_argument('-t', '--interval', type=int, default=300, help='total interval per iteration (default: 300s)')
         self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
         self.add_argument('-l', '--loglevel', default='info', help='path to log file')
         self.add_argument('db_uri', help='database URI')
         self.add_argument('nims_path', help='absolute path to data')
-        self.add_argument('links_path', help='absolute path to links')
+        self.add_argument('links_path', help='links will be in links_path/nimslinks')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    args.tempdir = args.continuously or args.tempdir
+    args.inplace = args.continuous or args.inplace
 
-    if not os.path.isdir(args.links_path) or (not args.tempdir and os.listdir(args.links_path)):
-        print '%s must exist and be an empty directory' % args.links_path
+    if not os.path.isdir(args.links_path) or not os.access(args.links_path, os.W_OK):
+        print 'ERROR: %s must exist and be a writable directory' % args.links_path
         sys.exit(1)
+
+    nims_links_path = os.path.join(args.links_path, 'nimslinks')
 
     log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
     linker = SymLinker(args.db_uri, args.nims_path)
     while True:
         start_time = time.time()
-        tmp_links_path = tempfile.mkdtemp(dir='/ramdisk')
+        tmp_links_path = tempfile.mkdtemp(dir=args.links_path)
         try:
             linker.make_links(tmp_links_path)
-            if args.tempdir:
-                os.chmod(tmp_links_path, 0o755)
-                subprocess.call(shlex.split('rsync -a --del %s/ %s' % (tmp_links_path, args.links_path)))
+            os.chmod(tmp_links_path, 0o755)
+            if args.inplace:
+                subprocess.call(shlex.split('rsync -a --del %s/ %s' % (tmp_links_path, nims_links_path)))
             else:
-                for dir_item in os.listdir(tmp_links_path):
-                    shutil.move(os.path.join(tmp_links_path, dir_item), args.links_path)
+                shutil.rmtree(nims_links_path, ignore_errors=True)
+                shutil.move(tmp_links_path, nims_links_path)
         except KeyboardInterrupt:
             sys.exit(0)
         finally:
-            shutil.rmtree(tmp_links_path)
+            shutil.rmtree(tmp_links_path, ignore_errors=True)
 
         log.info('runtime: %.1fs' % (time.time() - start_time))
-        if not args.continuously:
+        if not args.continuous:
             break
 
-        time.sleep(args.runtime - time.time() + start_time)
+        time.sleep(args.interval - time.time() + start_time)
