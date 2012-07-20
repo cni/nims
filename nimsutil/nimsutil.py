@@ -192,7 +192,7 @@ def pack_dicom_uid(uid):
 
 def unpack_dicom_uid(uid):
     """Convert packed DICOM UID to standard DICOM UID."""
-    return ''.join([str(i-1) if i < 11 else '.' for pair in [(c >> 4, c & 15) for c in uid] for i in pair if i > 0])
+    return ''.join([str(i-1) if i < 11 else '.' for pair in [(c >> 4, c & 15) for c in bytearray(uid)] for i in pair if i > 0])
 
 
 def montage(x):
