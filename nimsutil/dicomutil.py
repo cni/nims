@@ -150,6 +150,7 @@ class DicomSeries(object):
         dims = np.array((self.first_dcm.Rows, self.first_dcm.Columns, slices_per_volume, num_volumes))
 
         slices_total = len(self.dcm_list)
+
         # If we can figure the dimensions out, reshape the matrix
         if np.prod(dims) == np.size(image_data):
             image_data = image_data.reshape(dims, order='F')
@@ -164,6 +165,13 @@ class DicomSeries(object):
                 image_data = np.dstack([image_data, padding])
             volume_start_indices = range(0, slices_total_rounded_up, slices_per_volume)
             image_data = np.concatenate([image_data[:,:,index:(index + slices_per_volume),np.newaxis] for index in volume_start_indices], axis=3)
+
+        # Check for multi-echo data where duplicate slices might be interleaved
+        # TODO: we only handle the 4d case here, but this could in theory happen with others.
+        if num_volumes>1 and slice_loc[0::num_volumes]==slice_loc[1::num_volumes] and image_data.ndim==4:
+            tmp = image_data.copy()
+            for vol_num in range(num_volumes):
+                image_data[:,:,:,vol_num] = tmp[:,:,vol_num::num_volumes,:].reshape(image_data.shape[0:3], order='F')
 
         mm_per_vox = np.hstack((self.first_dcm.PixelSpacing, self.first_dcm.SpacingBetweenSlices)).astype(float)
 

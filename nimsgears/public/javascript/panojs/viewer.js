@@ -21,10 +21,12 @@ function createViewer( viewer, dom_id, url, prefix, tile_size, w, h ) {
         maxZoom         : myPyramid.getMaxLevel(),
         imageWidth      : myPyramid.width,
         imageHeight     : myPyramid.height,
-        staticBaseURL   : base_url
+        staticBaseURL   : base_url,
+        maximizeControl : false
     });
 
     Ext.EventManager.addListener( window, 'resize', callback(viewer, viewer.resize) );
     viewer.init();
+    //viewer.maximizeView();
 }
 

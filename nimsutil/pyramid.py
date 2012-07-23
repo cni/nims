@@ -121,45 +121,39 @@ class ImagePyramid(object):
         # TODO: we should handle data_type = RGB as a special case.
         # TODO: should we use the scaled data (getScaledData())? (We do some auto-windowing below)
 
+        data = self.data.squeeze()
+        # TODO: "percentile" is very slow for large arrays. Is there a short cut that we can use?
+        # Maybe try taking a smaller subset of the array?
+        if data.dtype != 'uint8':
+            # Auto-window the data by clipping values above and below the following thresholds, then scale to unit8.
+            clip_vals = numpy.percentile(data, (20.0, 99.0))
+            data = data.clip(clip_vals[0], clip_vals[1]) - clip_vals[0]
+            data = numpy.cast['uint8'](numpy.round(data/(clip_vals[1]-clip_vals[0])*255.0))
         # This transpose (usually) makes the resulting images come out in a more standard orientation.
         # TODO: we could look at the qto_xyz to infer the optimal transpose for any dataset.
-        self.data = self.data.transpose(numpy.concatenate(([1,0],range(2,self.data.ndim))))
-        num_images = numpy.prod(self.data.shape[2:])
+        data = data.transpose(numpy.concatenate(([1,0],range(2,data.ndim))))
+        num_images = numpy.prod(data.shape[2:])
 
-        self.data = self.data.squeeze()
-
-        if self.data.ndim < 2:
+        if data.ndim < 2:
             raise Exception('NIfTI file must have at least 2 dimensions')
-        elif self.data.ndim == 2:
+        elif data.ndim == 2:
             # a single slice: no need to do anything
             num_cols = 1;
-            self.data = numpy.atleast_3d(self.data)
-        elif self.data.ndim == 3:
+            data = numpy.atleast_3d(data)
+        elif data.ndim == 3:
             # a simple (x, y, z) volume- set num_cols to produce a square(ish) montage.
-            rows_to_cols_ratio = float(self.data.shape[0])/float(self.data.shape[1])
-            self.num_cols = int(math.ceil(math.sqrt(float(num_images)) * math.sqrt(rows_to_cols_ratio)))
-        elif self.data.ndim >= 4:
+            rows_to_cols_ratio = float(data.shape[0])/float(data.shape[1])
+            num_cols = int(math.ceil(math.sqrt(float(num_images)) * math.sqrt(rows_to_cols_ratio)))
+        elif data.ndim >= 4:
             # timeseries (x, y, z, t) or more
-            self.num_cols = self.data.shape[2]
-            self.data = self.data.transpose(numpy.concatenate(([0,1,3,2],range(4,self.data.ndim)))).reshape(self.data.shape[0], self.data.shape[1], num_images)
+            num_cols = data.shape[2]
+            data = data.transpose(numpy.concatenate(([0,1,3,2],range(4,data.ndim)))).reshape(data.shape[0], data.shape[1], num_images)
 
-        r, c, count = numpy.shape(self.data)
-        self.num_rows = int(numpy.ceil(float(count)/float(self.num_cols)))
-        montage_array = numpy.zeros((r * self.num_rows, c * self.num_cols))
-        image_id = 0
-        for k in range(self.num_rows):
-            for j in range(self.num_cols):
-                if image_id >= count:
-                    break
-                slice_c, slice_r = j * c, k * r
-                montage_array[slice_r:slice_r + r, slice_c:slice_c + c] = self.data[:, :, image_id]
-                image_id += 1
-
-        # Auto-window the data by clipping values above and below the following thresholds, then scale to unit8.
-        clip_vals = numpy.percentile(montage_array, (20.0, 99.0))
-        montage_array = montage_array.clip(clip_vals[0], clip_vals[1])
-        montage_array = montage_array-clip_vals[0]
-        montage_array = numpy.cast['uint8'](numpy.round(montage_array/(clip_vals[1]-clip_vals[0])*255.0))
+        num_rows = int(numpy.ceil(float(data.shape[2])/float(num_cols)))
+        montage_array = numpy.zeros((data.shape[0] * num_rows, data.shape[1] * num_cols))
+        for im_num in range(data.shape[2]):
+            slice_r, slice_c = im_num/num_cols * data.shape[0], im_num%num_cols * data.shape[1]
+            montage_array[slice_r:slice_r + data.shape[0], slice_c:slice_c + data.shape[1]] = data[:, :, im_num]
         self.montage = Image.fromarray(montage_array)
         # NOTE: the following will crop away edges that contain only zeros. Not sure if we want this.
         self.montage = self.montage.crop(self.montage.getbbox())

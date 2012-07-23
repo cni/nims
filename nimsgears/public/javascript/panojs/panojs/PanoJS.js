@@ -81,6 +81,8 @@ function PanoJS(viewer, options) {
 
   if (options.staticBaseURL) PanoJS.STATIC_BASE_URL = options.staticBaseURL;
 
+  if (typeof options.maximizeControl != 'undefined') PanoJS.CREATE_MAXIMIZE_TOGGLE_CONTROL = options.maximizeControl;
+
   // assign and do some validation on the zoom levels to ensure sanity
   this.zoomLevel = (typeof options.initialZoom == 'undefined' ? -1 : parseInt(options.initialZoom));
   this.maxZoomLevel = (typeof options.maxZoom == 'undefined' ? 0 : Math.abs(parseInt(options.maxZoom)));
@@ -148,6 +150,9 @@ PanoJS.CREATE_CONTROLS = true;
 PanoJS.CREATE_INFO_CONTROLS = true;
 PanoJS.CREATE_OSD_CONTROLS = true;
 PanoJS.CREATE_THUMBNAIL_CONTROLS = (isClientPhone() ? false : true);
+
+// bobd@stanford.edu
+PanoJS.CREATE_MAXIMIZE_TOGGLE_CONTROL = true;
 
 PanoJS.MAX_OVER_ZOOM = 2;
 PanoJS.PRE_CACHE_AMOUNT = 3; // 1 - only visible, 2 - more, 3 - even more
@@ -838,45 +843,49 @@ PanoJS.prototype.resize = function() {
   this.notifyViewerResized();
 };
 
-PanoJS.prototype.toggleMaximize = function() {
-  if (!this.maximized) this.maximized = false;
-  this.maximized = !this.maximized;
-
+PanoJS.prototype.maximizeView = function() {
+  this.maximized = true;
   var vd = this.viewer;
-  if (this.maximized) {
-      this.viewer_style = { 'width': vd.style.width, 'height': vd.style.height,
-          'position': vd.style.position, 'zIndex': vd.style.zIndex,
-          'left': vd.style.left, 'top': vd.style.top };
-      this.document_style = { 'padding': document.body.style.padding, 'overflow': document.body.style.overflow };
+  this.viewer_style = { 'width': vd.style.width, 'height': vd.style.height,
+      'position': vd.style.position, 'zIndex': vd.style.zIndex,
+      'left': vd.style.left, 'top': vd.style.top };
+  this.document_style = { 'padding': document.body.style.padding, 'overflow': document.body.style.overflow };
 
-      vd.style.position = 'fixed';
-      //vd.style.position = 'absolute';
-      vd.style.zIndex   = '14999';
-      //vd.style.left     = window.scrollX + 'px';
-      //vd.style.top      = window.scrollY + 'px';
-      vd.style.left     = '0px';
-      vd.style.top      = '0px';
-      vd.style.width    = '100%';
-      vd.style.height   = '100%';
-      document.body.style.overflow = 'hidden';
-      document.body.style.padding = '0';
-      if (isMobileSafari()) {
-        vd.style.left = window.scrollX + 'px';
-        vd.style.top  = window.scrollY + 'px';
-        vd.style.width    = window.innerWidth + 'px';
-        vd.style.height   = window.innerHeight + 'px';
-      }
-  } else {
-      document.body.style.padding = this.document_style.padding;
-      document.body.style.overflow = this.document_style.overflow;
-      vd.style.width    = this.viewer_style.width;
-      vd.style.height   = this.viewer_style.height;
-      vd.style.position = this.viewer_style.position;
-      vd.style.zIndex   = this.viewer_style.zIndex;
-      vd.style.left     = this.viewer_style.left;
-      vd.style.top      = this.viewer_style.top;
+  vd.style.position = 'fixed';
+  //vd.style.position = 'absolute';
+  vd.style.zIndex   = '14999';
+  //vd.style.left     = window.scrollX + 'px';
+  //vd.style.top      = window.scrollY + 'px';
+  vd.style.left     = '0px';
+  vd.style.top      = '0px';
+  vd.style.width    = '100%';
+  vd.style.height   = '100%';
+  document.body.style.overflow = 'hidden';
+  document.body.style.padding = '0';
+  if (isMobileSafari()) {
+    vd.style.left = window.scrollX + 'px';
+    vd.style.top  = window.scrollY + 'px';
+    vd.style.width    = window.innerWidth + 'px';
+    vd.style.height   = window.innerHeight + 'px';
   }
+};
 
+PanoJS.prototype.minimizeView = function() {
+  this.maximized = false;
+  var vd = this.viewer;
+  document.body.style.padding = this.document_style.padding;
+  document.body.style.overflow = this.document_style.overflow;
+  vd.style.width    = this.viewer_style.width;
+  vd.style.height   = this.viewer_style.height;
+  vd.style.position = this.viewer_style.position;
+  vd.style.zIndex   = this.viewer_style.zIndex;
+  vd.style.left     = this.viewer_style.left;
+  vd.style.top      = this.viewer_style.top;
+};
+
+PanoJS.prototype.toggleMaximize = function() {
+  if (this.maximized) this.minimizeView();
+  else this.maximizeView();
   this.resize();
 };
 

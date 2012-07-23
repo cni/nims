@@ -87,7 +87,7 @@ PanoControls.prototype.createDOMElements = function() {
     this.createButton (PanoJS.CONTROL_ZOOMIN);
     this.createButton (PanoJS.CONTROL_ZOOM11);
     this.createButton (PanoJS.CONTROL_ZOOMOUT);
-    this.createButton (PanoJS.CONTROL_MAXIMIZE);
+    if (PanoJS.CREATE_MAXIMIZE_TOGGLE_CONTROL) this.createButton (PanoJS.CONTROL_MAXIMIZE);
 }
 
 PanoControls.prototype.createButton = function(control) {

@@ -59,16 +59,11 @@ define([], function ()
                     popup.dialog({
                         resizable:false,
                         modal:true,
+                        focus:function(event, ui) { },
+                        closeOnEscape:true,
                         width:width,
                         minHeight:height,
-                        buttons: {
-                            Okay: function() {
-                                $(this).dialog("close");
-                            },
-                            Cancel: function() {
-                                $(this).dialog("close");
-                            }
-                        },
+                        buttons: { },
                     });
                 }
             },
