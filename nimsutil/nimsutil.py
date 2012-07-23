@@ -11,7 +11,7 @@ import difflib
 import datetime
 import tempfile
 import logging, logging.handlers
-
+import numpy
 
 class TempDirectory:
 
@@ -204,10 +204,10 @@ def montage(x):
         pylab.axis('off')
         pylab.show()
     """
-    m, n, count = np.shape(x)
-    mm = int(np.ceil(np.sqrt(count)))
+    m, n, count = numpy.shape(x)
+    mm = int(numpy.ceil(numpy.sqrt(count)))
     nn = mm
-    montage = np.zeros((mm * m, nn * n))
+    montage = numpy.zeros((mm * m, nn * n))
     image_id = 0
     for j in range(mm):
         for k in range(nn):
