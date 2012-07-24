@@ -60,6 +60,7 @@ class DicomFile(object):
         except (IOError, dicom.filereader.InvalidDicomError):
             raise DicomError
         else:
+            self.dicom = dcm
             self.exam_no = int(dcm.StudyID)
             self.series_no = int(dcm.SeriesNumber)
             self.acq_no = int(dcm.AcquisitionNumber) if 'AcquisitionNumber' in dcm else 0
