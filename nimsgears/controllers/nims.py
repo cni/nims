@@ -92,6 +92,6 @@ class NimsController(BaseController):
 
         for key, value in epoch_dict.iteritems():
             epoch = value.Epoch
-            epoch_data_list.append((epoch.timestamp.strftime('%H:%M'), '%s' % epoch.description))
+            epoch_data_list.append((epoch.timestamp.strftime('%H:%M:%S'), '%s' % epoch.description))
             epoch_attr_list.append({'id':'epoch_%d' % key, 'class':'%s' % ('trash' if epoch.trashtime else '')})
         return (epoch_data_list, epoch_attr_list)
