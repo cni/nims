@@ -74,6 +74,8 @@ class Sorter(object):
         elif self.preserve_mode:
             unsort_path = nimsutil.make_joined_path(self.unsort_path, os.path.dirname(os.path.relpath(filepath, self.stage_path)))
             shutil.move(filepath, unsort_path)
+        else:
+            os.remove(filepath)
 
     def sort_directory(self, dirpath, filenames):
         self.log.debug('Sorting %s in directory mode' % os.path.basename(dirpath))
