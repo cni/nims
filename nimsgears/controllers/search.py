@@ -42,8 +42,7 @@ class SearchController(NimsController):
                     .join(Session, Epoch.session)
                     .join(Subject, Session.subject)
                     .join(Experiment, Subject.experiment)
-                    .join(Dataset, Epoch.datasets)
-                    .filter(Dataset.psd.ilike(search_query)))
+                    .filter(Epoch.psd.ilike(search_query)))
             elif kwargs['search_param'] == 'Subject Name':
                 db_query = (db_query
                     .join(Session, Epoch.session)
