@@ -42,12 +42,14 @@ class SymLinker(object):
         for uid in set(r.User.uid for r in db_results):
             user_path = os.path.join(links_path, uid)
             os.mkdir(user_path)
+            shutil.copy(os.path.join(os.path.dirname(__file__), 'download.php'), user_path)
             with open(os.path.join(user_path, '.htaccess'), 'w') as htaccess:
                 htaccess.write('AuthType WebAuth\n')
                 htaccess.write('Require user %s\n' % uid)
 
         superuser_path = os.path.join(links_path, 'superuser')
         os.mkdir(superuser_path)
+        shutil.copy(os.path.join(os.path.dirname(__file__), 'download.php'), superuser_path)
         with open(os.path.join(superuser_path, '.htaccess'), 'w') as htaccess:
             htaccess.write('AuthType WebAuth\n')
             for superuser in User.query.join(Group, User.groups).filter(Group.gid == u'superusers').all():

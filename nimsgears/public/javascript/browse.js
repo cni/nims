@@ -59,20 +59,17 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
 
     var dropDownloads = function (event, ui)
     {
-        var selected_rows;
-        selected_rows = ui.helper.data('moving_rows');
+        var id_dict = getIdDictionary(ui.helper.data('moving_rows'));
+        var iframe = document.getElementById("hidden_downloader");
 
-        var id_dict = getIdDictionary(selected_rows);
-        $.ajax({
-            traditional: true,
-            type: 'POST',
-            url: "download",
-            dataType: "json",
-            data:
-            {
-                id_dict: JSON.stringify(id_dict)
-            },
-        });
+        if (iframe === null)
+        {
+            iframe = document.createElement('iframe');
+            iframe.id = "hidden_downloader";
+            iframe.style.visibility = 'hidden';
+            document.body.appendChild(iframe);
+        }
+        iframe.src = 'download?id_dict=' + JSON.stringify(id_dict)
     };
 
     var dropTrash = function (event, ui)

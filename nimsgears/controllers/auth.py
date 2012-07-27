@@ -5,8 +5,9 @@ from tg.i18n import ugettext as _, lazy_ugettext as l_
 from repoze.what import predicates
 
 import os
+import time
 import shlex
-import subprocess as sp
+import subprocess
 from collections import OrderedDict
 
 import nimsutil
@@ -102,57 +103,43 @@ class AuthController(BaseController):
     def image(self, *args):
         return open('/tmp/image.png', 'r')
 
-    #@expose(content_type='application/x-tar')
-    #def download(self, *args, **kwargs):
-    #    import tempfile
-    #    tempdir = tempfile.mkdtemp()
-    #    store_path = config.get('store_path')
-
-    #    session_id = kwargs['session_id']
-    #    session = Session.query.filter(Session.id == session_id).first()
-    #    datasets = Dataset.query.join(Epoch, Dataset.container).filter(Epoch.session == session).all()
-    #    tardir = nimsutil.make_joined_path(tempdir, session.name)
-    #    for dataset in datasets:
-    #        os.symlink(os.path.join(store_path, dataset.relpath), os.path.join(tardir, dataset.name))
-    #    tar_proc = sp.Popen(shlex.split('tar -cLf - %s' % session.name), stdout=sp.PIPE, cwd=tempdir)
-    #    response.headerlist.append(('Content-Disposition', 'attachment; filename=%s' % session.name))
-    #    return tar_proc.stdout
-
     @expose(content_type='application/octet-stream')
     def speed(self, *args):
-        #tar_proc = sp.Popen(shlex.split('tar -cLf - %s' % '/usr/local/www/apache22/data/testing/P86016_.7'), stdout=sp.PIPE, cwd='/tmp')
-        tar_proc = sp.Popen(shlex.split('cat %s' % '/usr/local/www/apache22/data/testing/P86016_.7'), stdout=sp.PIPE, cwd='/tmp')
-        return tar_proc.stdout
-        #return open('/usr/local/www/apache22/data/testing/P86016_.7', 'r')
+        #return open('/boot/kernel/kernel.symbols', 'r')
+        return subprocess.Popen(shlex.split('tar -cLf - %s' % '/boot/kernel/kernel.symbols'), stdout=subprocess.PIPE, cwd='/tmp').stdout
 
-    @expose()
+    @expose(content_type='application/x-tar')
     def download(self, **kwargs):
         user = request.identity['user']
-        id_dict = None
-        result = {}
-        query_type = None
-        if 'id_dict' in kwargs:
-            id_dict = json.loads(kwargs['id_dict'])
-            if 'sess' in id_dict:
-                query_type = Session
-                try:
-                    id_list = id_dict['sess']
-                    result['success'] = True
-                except:
-                    result['success'] = False
-                else:
-                    pass
-            elif 'dataset' in id_dict:
-                query_type = Dataset
-                try:
-                    id_list = id_dict['dataset']
-                    result['success'] = True
-                except:
-                    result['success'] = False
-                else:
-                    pass
-        if not isinstance(id_list, list):
-            id_list = [id_list]
-        print query_type
-        print id_list
-        return result
+        user_path = '%s/%s' % (config.get('links_path'), 'superuser' if user.is_superuser else user.uid)
+        tar_dirs = None
+        if 'id_dict' in kwargs and 'sess' in kwargs['id_dict']:
+            query_type = Session
+            id_list = [int(id) for id in json.loads(kwargs['id_dict'])['sess']]
+            db_res = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
+                    .join(Subject, Session.subject)
+                    .join(Experiment, Subject.experiment)
+                    .join(ResearchGroup, Experiment.owner)
+                    .join(Epoch, Session.epochs)
+                    .join(Dataset, Epoch.datasets)
+                    .filter((Dataset.kind == u'secondary') | (Dataset.kind == u'derived'))
+                    .filter(Session.id.in_(id_list))
+                    .all())
+            tar_dirs = ['%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name, r.Dataset.name) for r in db_res]
+        elif 'id_dict' in kwargs and 'dataset' in kwargs['id_dict']:
+            query_type = Dataset
+            id_list = [int(id) for id in json.loads(kwargs['id_dict'])['dataset']]
+            db_res = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
+                    .join(Epoch, Dataset.container)
+                    .join(Session, Epoch.session)
+                    .join(Subject, Session.subject)
+                    .join(Experiment, Subject.experiment)
+                    .join(ResearchGroup, Experiment.owner)
+                    .filter(Dataset.id.in_(id_list))
+                    .all())
+            tar_dirs = ['%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name, r.Dataset.name) for r in db_res]
+        if tar_dirs:
+            #redirect('/%s/download.php?%s' % (user_path, '&'.join('dirs[%d]=%s' %(i, p) for i, p in enumerate(tar_dirs))))
+            tar_proc = subprocess.Popen(shlex.split('tar -cLf - -C %s %s' % (user_path, ' '.join(tar_dirs))), stdout=subprocess.PIPE)
+            response.headerlist.append(('Content-Disposition', 'attachment; filename=%s_%d' % ('nims', time.time())))
+            return tar_proc.stdout

@@ -11,7 +11,7 @@ import difflib
 import datetime
 import tempfile
 import logging, logging.handlers
-import numpy
+
 
 class TempDirectory:
 
@@ -193,27 +193,3 @@ def pack_dicom_uid(uid):
 def unpack_dicom_uid(uid):
     """Convert packed DICOM UID to standard DICOM UID."""
     return ''.join([str(i-1) if i < 11 else '.' for pair in [(c >> 4, c & 15) for c in bytearray(uid)] for i in pair if i > 0])
-
-
-def montage(x):
-    """
-    Convenience function for looking at image arrays.
-
-    For example:
-        pylab.imshow(np.flipud(np.rot90(montage(im))))
-        pylab.axis('off')
-        pylab.show()
-    """
-    m, n, count = numpy.shape(x)
-    mm = int(numpy.ceil(numpy.sqrt(count)))
-    nn = mm
-    montage = numpy.zeros((mm * m, nn * n))
-    image_id = 0
-    for j in range(mm):
-        for k in range(nn):
-            if image_id >= count:
-                break
-            slice_m, slice_n = j * m, k * n
-            montage[slice_n:slice_n + n, slice_m:slice_m + m] = x[:, :, image_id]
-            image_id += 1
-    return montage
