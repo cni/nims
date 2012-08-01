@@ -150,7 +150,7 @@ class ImagePyramid(object):
             data = data.transpose(numpy.concatenate(([0,1,3,2],range(4,data.ndim)))).reshape(data.shape[0], data.shape[1], num_images)
 
         num_rows = int(numpy.ceil(float(data.shape[2])/float(num_cols)))
-        montage_array = numpy.zeros((data.shape[0] * num_rows, data.shape[1] * num_cols))
+        montage_array = numpy.zeros((data.shape[0] * num_rows, data.shape[1] * num_cols), dtype=numpy.uint8)
         for im_num in range(data.shape[2]):
             slice_r, slice_c = im_num/num_cols * data.shape[0], im_num%num_cols * data.shape[1]
             montage_array[slice_r:slice_r + data.shape[0], slice_c:slice_c + data.shape[1]] = data[:, :, im_num]
