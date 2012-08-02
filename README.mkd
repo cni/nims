@@ -10,20 +10,17 @@ NIMS Development on Ubuntu
 Set up a virtual python environment:
 
     sudo apt-get install build-essential python-dev python-setuptools python-virtualenv libncurses5-dev python-numpy python-imaging
-    virtualenv tg2
-    cd tg2
-    source bin/activate
+    virtualenv --system-site-packages tg2
+    source tg2/bin/activate
 
-Install iPython and the TurboGears development tools:
+Install the TurboGears development tools:
 
-    easy_install ipython readline
     easy_install -i http://tg.gy/current tg.devtools
 
 Clone NIMS from GitHub and install its dependencies:
 
     git clone git@github.com:cni/nims.git
     cd nims
-    # numpy can't be installed via easyinstall. So, edit tg2/lib/python2.7/site-packages/easy-install.pth and add the system pymodules path (e.g., "") somewhere in the file between .
     python setup.py develop
 
 Optionally, add PostgreSQL and LDAP support:
@@ -36,7 +33,7 @@ Optionally, add PostgreSQL and LDAP support:
 
 Generate a development database and start the paste web server:
 
-    paster setup-app development.ini
+    paster setup-app development.ini --name=nimsgears
     paster serve --reload development.ini
 
 
