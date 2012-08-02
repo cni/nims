@@ -766,6 +766,7 @@ class Epoch(DataContainer):
 
     tr = Field(Float)
     te = Field(Float)
+    # TODO: Add more metadata fields here...
 
     session = ManyToOne('Session')
 
@@ -827,7 +828,8 @@ class Dataset(Entity):
     offset = Field(Interval, default=datetime.timedelta())
     trashtime = Field(DateTime)
     kind = Field(Enum(u'primary', u'secondary', u'derived', name=u'kind'), default=u'derived')
-    datatype = Field(Unicode(63))
+    label = Field(Unicode(63))
+    datatype = Field(Enum(u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap', u'mr_spectro', name=u'datatype'), default=u'unknown')
     _updatetime = Field(DateTime, default=datetime.datetime.now, colname='updatetime', synonym='updatetime')
     digest = Field(Binary(20))
     compressed = Field(Boolean, default=False, index=True)
@@ -839,14 +841,14 @@ class Dataset(Entity):
     parents = ManyToMany('Dataset')
 
     def __repr__(self):
-        return (u'<%s: %s>' % (self.__class__.__name__, self.datatype)).encode('utf-8')
+        return (u'<%s: %s>' % (self.__class__.__name__, self.label)).encode('utf-8')
 
     def __unicode__(self):
         return u'<%s %s>' % (self.__class__.__name__, self.container)
 
     @classmethod
-    def at_path(cls, nims_path, filename=None, datatype=None, archived=False):
-        dataset = cls(datatype=datatype, archived=archived)
+    def at_path(cls, nims_path, filename=None, label=None, archived=False):
+        dataset = cls(label=label, archived=archived)
         transaction.commit()
         DBSession.add(dataset)
         nimsutil.make_joined_path(nims_path, dataset.relpath)
@@ -854,7 +856,7 @@ class Dataset(Entity):
 
     @property
     def name(self):
-        return nimsutil.clean_string(self.datatype)
+        return nimsutil.clean_string(self.label)
 
     @property
     def relpath(self):
@@ -895,6 +897,10 @@ class Dataset(Entity):
         self.file_cnt_act = len(filelist)
         return self.digest != old_digest
 
+    def datatype_from_metadata(self, metadata):
+        # subclasses should do something more useful
+        return u'unknown'
+
 
 class PrimaryMRData(Dataset):
 
@@ -904,7 +910,7 @@ class PrimaryMRData(Dataset):
     filename_ext = ''
 
     @classmethod
-    def at_path(cls, nims_path, filename, datatype=None, archived=False):
+    def at_path(cls, nims_path, filename, label=None, archived=False):
         metadata = cls.get_metadata(filename)
         if metadata:
             dataset = cls.from_metadata(metadata)
@@ -920,13 +926,18 @@ class PrimaryMRData(Dataset):
             epoch = Epoch.from_metadata(md)
             dataset = cls(
                     container=epoch,
-                    datatype=md.datatype,
+                    label=md.label,
                     kind=u'primary',
                     archived=True,
                     )
             transaction.commit()
             DBSession.add(dataset)
         return dataset
+
+    def datatype_from_metadata(self, md):
+        # u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap'
+        datatype = u'unknown'
+        return datatype
 
 
 class DicomData(PrimaryMRData):
@@ -942,7 +953,7 @@ class DicomData(PrimaryMRData):
             md = None
         else:
             md = Metadata()
-            md.datatype = u'Dicom Files'
+            md.label = u'Dicom Files'
             md.exam_no = dcm.exam_no
             md.series_no = dcm.series_no
             md.acq_no = dcm.acq_no
@@ -955,6 +966,7 @@ class DicomData(PrimaryMRData):
             md.duration = dcm.duration
             md.subj_code, md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(dcm.patient_name, dcm.patient_dob)
             md.group_name, md.exp_name = nimsutil.parse_patient_id(dcm.patient_id, ResearchGroup.get_all_ids())
+            # TODO: work here
         return md
 
 
@@ -965,25 +977,9 @@ class GEPFile(PrimaryMRData):
     @staticmethod
     def get_metadata(filename):
         try:
-            pf = nimsutil.pfile.PFile(filename)
+            md = nimsutil.pfile.PFile(filename)
         except nimsutil.pfile.PFileError:
             md = None
-        else:
-            md = Metadata()
-            md.datatype = u'GE PFile'
-            md.exam_no = pf.exam_no
-            md.series_no = pf.series_no
-            md.acq_no = pf.acq_no
-            md.exam_uid = nimsutil.pack_dicom_uid(pf.exam_uid)
-            md.series_uid = nimsutil.pack_dicom_uid(pf.series_uid)
-            md.psd_name = unicode(pf.psd_name)
-            md.physio_flag = pf.physio_flag
-            md.series_desc = nimsutil.clean_string(pf.series_desc)
-            md.timestamp = pf.timestamp
-            md.duration = pf.duration
-            all_groups = [rg.id for rg in ResearchGroup.query.all()]
-            md.subj_code, md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(pf.patient_name, pf.patient_dob)
-            md.group_name, md.exp_name = nimsutil.parse_patient_id(pf.patient_id, ResearchGroup.get_all_ids())
         return md
 
 
@@ -992,6 +988,3 @@ class NiftiData(Dataset):
     pass
 
 
-class Metadata(object):
-
-        pass

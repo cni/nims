@@ -42,6 +42,10 @@ class DicomError(Exception):
 class DicomFile(object):
 
     def __init__(self, filename):
+        self.filename = filename
+        self.get_metadata()
+
+    def get_metadata(self)
 
         def acq_date(dcm):
             if 'AcquisitionDate' in dcm:    return dcm.AcquisitionDate
@@ -54,26 +58,57 @@ class DicomFile(object):
             else:                           return '000000'
 
         try:
-            dcm = dicom.read_file(filename, stop_before_pixels=True)
+            dcm = dicom.read_file(self.filename, stop_before_pixels=True)
             if dcm.Manufacturer != 'GE MEDICAL SYSTEMS':    # TODO: make code more general
                 raise DicomError
         except (IOError, dicom.filereader.InvalidDicomError):
             raise DicomError
         else:
-            self.dicom = dcm
+            self.label = u'Dicom Files'
             self.exam_no = int(dcm.StudyID)
             self.series_no = int(dcm.SeriesNumber)
             self.acq_no = int(dcm.AcquisitionNumber) if 'AcquisitionNumber' in dcm else 0
             self.exam_uid = dcm.StudyInstanceUID
             self.series_uid = dcm.SeriesInstanceUID
-            self.psd_name = os.path.basename(dcm[TAG_PSD_NAME].value) if TAG_PSD_NAME in dcm else ''
-            self.physio_flag = bool(dcm[TAG_PHYSIO_FLAG].value) if TAG_PHYSIO_FLAG in dcm else False
             self.series_desc = dcm.SeriesDescription
-            self.timestamp = datetime.datetime.strptime(acq_date(dcm) + acq_time(dcm), '%Y%m%d%H%M%S')
-            self.duration = datetime.timedelta() # FIXME
             self.patient_id = dcm.PatientID
             self.patient_name = dcm.PatientsName
             self.patient_dob = dcm.PatientsBirthDate
+            self.psd_name = os.path.basename(dcm[TAG_PSD_NAME].value) if TAG_PSD_NAME in dcm else 'unknown'
+            self.physio_flag = bool(dcm[TAG_PHYSIO_FLAG].value) if TAG_PHYSIO_FLAG in dcm else False
+            self.timestamp = datetime.datetime.strptime(acq_date(dcm) + acq_time(dcm), '%Y%m%d%H%M%S')
+
+            self.ti = float(dcm.InversionTime) / 1000.0
+            self.te = float(dcm.EchoTime) / 1000.0
+            self.tr = float(dcm.RepetitionTime) / 1000.0
+            self.flip_angle = float(dcm.FlipAngle)
+            self.pixel_bandwidth = float(dcm.PixelBandwidth)
+            self.phase_encode = 1 if 'InplanePhaseEncodingDirection' in dcm and dcm.InplanePhaseEncodingDirection == 'COL' else 0
+
+            self.total_num_slices = int(dcm.ImagesInAcquisition)
+            self.num_slices = int(dcm[TAG_SLICES_PER_VOLUME].value)
+            self.num_timepoints = int(dcm.NumberOfTemporalPositions) if 'NumberOfTemporalPositions' in dcm else self.total_num_slices / self.num_slices
+            self.num_averages = int(dcm.NumberOfAverages) if 'NumberOfAverages' in dcm else 1
+            self.num_echos = int(dcm.EchoNumbers)
+            self.receive_coil_name = dcm.ReceiveCoilName if 'ReceiveCoilName' in dcm else 'unknown'
+            self.num_receivers = 0 # FIXME: where is this stored?
+            self.prescribed_duration = datetime.timedelta(0, self.tr * self.num_timepoints * self.num_averages) # FIXME: probably need more hacks in here to compute the correct duration.
+            self.operator = dcm.OperatorsName if 'OperatorsName' in dcm else 'unknown'
+            self.protocol_name = dcm.ProtocolName if 'ProtocolName' in dcm else 'unknown'
+            self.scanner_name = dcm.InstitutionName + ' ' + dcm.StationName
+            self.scanner_type = dcm.Manufacturer + ' ' + dcm.ManufacturersModelName
+            self.acquisition_type = dcm.MRAcquisitionType if 'MRAcquisitionType' in dcm else 'unknown'
+            self.mm_per_vox = [float(i) for i in dcm.PixelSpacing + [dcm.SpacingBetweenSlices]]
+            self.fov = [float(dcm.ReconstructionDiameter), float(dcm.ReconstructionDiameter) / float(dcm.PercentPhaseFieldOfView)]
+            if self.phase_encode == 1:
+                self.fov = self.fov[::-1]
+            self.acquisition_matrix = dcm.AcquisitionMatrix[1:3] if 'AcquisitionMatrix' in dcm else None
+            if 'ImageType' in dcm and dcm.ImageType==TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in dcm and dcm[TAG_DIFFUSION_DIRS].value > 0:
+                self.diffusion_flag = True
+            else:
+                self.diffusion_flag = False
+
+        super(PFile, self).get_metadata()
 
 
 class DicomSeries(object):
@@ -142,14 +177,19 @@ class DicomSeries(object):
         flipped = False
         slice_loc = [dcm_i.SliceLocation for dcm_i in self.dcm_list]
         slice_num = [dcm_i.InstanceNumber for dcm_i in self.dcm_list]
-        image_position = [dcm_i.ImagePositionPatient for dcm_i in self.dcm_list]
+        image_position = [tuple(dcm_i.ImagePositionPatient) for dcm_i in self.dcm_list]
         image_data = np.dstack([np.swapaxes(dcm_i.pixel_array, 0, 1) for dcm_i in self.dcm_list])
 
-        unique_slice_loc = np.unique(slice_loc)
-        slices_per_volume = len(unique_slice_loc) # also: image[TAG_SLICES_PER_VOLUME].value
+        unique_slice_pos = np.unique(image_position).astype(np.float)
+        slices_per_volume = len(unique_slice_pos) # also: image[TAG_SLICES_PER_VOLUME].value
         num_volumes = self.first_dcm.ImagesinAcquisition / slices_per_volume
+        if num_volumes == 1:
+            # crude check for a 3-plane localizer. When we get one of these, we actually
+            # want each plane to be a different time point.
+            d = np.sqrt((np.diff(unique_slice_pos,axis=0)**2).sum(1))
+            num_volumes = np.sum((d - np.median(d)) > 10) + 1
+            slices_per_volume = self.first_dcm.ImagesinAcquisition / num_volumes
         dims = np.array((self.first_dcm.Rows, self.first_dcm.Columns, slices_per_volume, num_volumes))
-
         slices_total = len(self.dcm_list)
 
         # If we can figure the dimensions out, reshape the matrix
@@ -169,10 +209,14 @@ class DicomSeries(object):
 
         # Check for multi-echo data where duplicate slices might be interleaved
         # TODO: we only handle the 4d case here, but this could in theory happen with others.
+        # TODO: it's inefficient to reshape the array above and *then* check to see if
+        #       that shape is wrong. The reshape op is expensive, and to fix the shape requires
+        #       an expensive loop and a copy of the data, which doubles memory usage. Instead, try
+        #       to do the de-interleaving up front in the beginning.
         if num_volumes>1 and slice_loc[0::num_volumes]==slice_loc[1::num_volumes] and image_data.ndim==4:
-            tmp = image_data.copy()
+            tmp = image_data.copy().reshape([image_data.shape[0],image_data.shape[1],np.prod(image_data.shape[2:4])], order='F')
             for vol_num in range(num_volumes):
-                image_data[:,:,:,vol_num] = tmp[:,:,vol_num::num_volumes,:].reshape(image_data.shape[0:3], order='F')
+                image_data[:,:,:,vol_num] = tmp[:,:,vol_num::num_volumes]
 
         mm_per_vox = np.hstack((self.first_dcm.PixelSpacing, self.first_dcm.SpacingBetweenSlices)).astype(float)
 

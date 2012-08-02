@@ -30,51 +30,67 @@ class PFile(object):
 
     Example:
         import pfile
-        pf = pfile.PFile(pfilename='P56832.7')
+        pf = pfile.PFile(filename='P56832.7')
         pf.to_nii(outbase='P56832.7')
     """
 
-    def __init__(self, pfilename, log=None):
-        self.pfilename = pfilename
+    def __init__(self, filename, log=None):
+        self.filename = filename
         self.log = log
-        self.load_header()
+        self.get_metadata()
         self.image_data = None
         self.fm_data = None
 
-    def load_header(self):
+    def get_metadata(self):
 
         def unpack_dicom_uid(uid):
             """Convert packed DICOM UID to standard DICOM UID."""
             return ''.join([str(i-1) if i < 11 else '.' for pair in [(ord(c) >> 4, ord(c) & 15) for c in uid] for i in pair if i > 0])
 
         try:
-            self.header = pfheader.get_header(self.pfilename)
+            self.header = pfheader.get_header(self.filename)
         except (IOError, pfheader.PfheaderError):
             raise PFileError
-
-        self.tr = self.header.image.tr / 1e6  # tr in seconds
-        self.num_slices = self.header.rec.nslices
-        self.num_receivers = self.header.rec.dab[0].stop_rcv - self.header.rec.dab[0].start_rcv + 1
-        self.num_echoes = self.header.rec.nechoes
-        self.size_x = self.header.image.dim_X  # imatrix_X
-        self.size_y = self.header.image.dim_Y  # imatrix_Y
-        self.fov = [self.header.image.dfov, self.header.image.dfov_rect]
-        self.psd_name = os.path.basename(self.header.image.psdname)
-        self.scan_type = self.header.image.psd_iname
-        self.physio_flag = bool(self.header.rec.user2) and u'sprt' in self.psd_name.lower()
-        self.patient_id = self.header.exam.patidff
-        self.patient_name = self.header.exam.patnameff
-        self.patient_dob = self.header.exam.dateofbirth
-        self.exam_no= self.header.exam.ex_no
+        self.label = u'GE PFile'
+        self.exam_no = self.header.exam.ex_no
         self.series_no = self.header.series.se_no
         self.acq_no = self.header.image.scanactno
         self.exam_uid = unpack_dicom_uid(self.header.exam.study_uid)
         self.series_uid = unpack_dicom_uid(self.header.series.series_uid)
         self.series_desc = self.header.series.se_desc
-        # Compute the voxel size rather than use image.pixsize_X/Y
-        self.mm_per_vox = np.array([float(self.fov[0] / self.size_x),
-                                    float(self.fov[1] / self.size_y),
-                                    self.header.image.slthick + self.header.image.scanspacing])
+        self.patient_id = self.header.exam.patidff
+        self.patient_name = self.header.exam.patnameff
+        self.patient_dob = self.header.exam.dateofbirth
+        self.psd_name = os.path.basename(self.header.image.psdname)
+        self.physio_flag = bool(self.header.rec.user2) and u'sprt' in self.psd_name.lower()
+        if self.header.image.im_datetime > 0:
+            self.timestamp = datetime.datetime.utcfromtimestamp(self.header.image.im_datetime)
+        else:   # HOShims don't have self.header.image.im_datetime
+            month, day, year = map(int, self.header.rec.scan_date.split('/'))
+            hour, minute = map(int, self.header.rec.scan_time.split(':'))
+            self.timestamp = datetime.datetime(year + 1900, month, day, hour, minute) # GE's epoch begins in 1900
+
+        self.ti = self.header.image.ti / 1e6
+        self.te = self.header.image.te / 1e6
+        self.tr = self.header.image.tr / 1e6  # tr in seconds
+        self.flip_angle = float(self.header.image.mr_flip)
+        self.pixel_bandwidth = self.header.rec.bw
+        self.phase_encode = 1 if self.header.image.freq_dir == 0 else 0
+
+        self.num_slices = self.header.rec.nslices
+        self.num_averages = self.header.image.averages
+        self.num_echos = self.header.rec.nechoes
+        self.receive_coil_name = self.header.image.cname
+        self.num_receivers = self.header.rec.dab[0].stop_rcv - self.header.rec.dab[0].start_rcv + 1
+        self.operator = self.header.exam.patidff
+        self.protocol_name = self.header.exam.patnameff
+        self.scanner_name = self.header.exam.hospname + ' ' + self.header.exam.ex_sysid
+        self.scanner_type = 'GE' # FIXME
+
+        self.size_x = self.header.image.dim_X  # imatrix_X
+        self.size_y = self.header.image.dim_Y  # imatrix_Y
+        self.fov = [self.header.image.dfov, self.header.image.dfov_rect]
+        self.scan_type = self.header.image.psd_iname
 
         if self.psd_name == 'sprt':
             self.num_timepoints = int(self.header.rec.user0)    # not in self.header.rec.nframes for sprt
@@ -101,18 +117,20 @@ class PFile(object):
             self.num_slices = self.header.image.slquant * self.num_bands
             # TODO: adjust the image.tlhc... fields to match the correct geometry.
 
-        if self.header.image.im_datetime > 0:
-            self.timestamp = datetime.datetime.utcfromtimestamp(self.header.image.im_datetime)
-        else:   # HOShims don't have self.header.image.im_datetime
-            month, day, year = map(int, self.header.rec.scan_date.split('/'))
-            hour, minute = map(int, self.header.rec.scan_time.split(':'))
-            self.timestamp = datetime.datetime(year + 1900, month, day, hour, minute) # GE's epoch begins in 1900
-
+        self.total_num_slices = self.num_slices * self.num_timepoints
         # Note: the following is true for single-shot planar acquisitions (EPI and 1-shot spiral).
         # For multishot sequences, we need to multiply by the # of shots. And for non-planar aquisitions,
         # we'd need to multiply by the # of phase encodes (accounting for any acceleration factors).
         # Even for planar sequences, this will be wrong (under-estimate) in case of cardiac-gating.
-        self.duration = datetime.timedelta(seconds=(self.num_timepoints * self.tr))
+        self.prescribed_duration = datetime.timedelta(seconds=(self.num_timepoints * self.tr))
+        # Is this all we need to flag a diffusion scan?
+        self.diffusion_flag = True if self.header.image.b_value>0 else False
+        # Compute the voxel size rather than use image.pixsize_X/Y
+        self.mm_per_vox = np.array([self.fov[0] / self.size_x,
+                                    self.fov[1] / self.size_y,
+                                    self.header.image.slthick + self.header.image.scanspacing])
+
+        super(PFile, self).get_metadata()
 
     def to_nii(self, outbase, spirec='spirec', saveInOut=False):
         """Create NIfTI file from pfile."""
@@ -203,10 +221,10 @@ class PFile(object):
         nii_header.structarr['cal_max'] = self.image_data.max()
         nii_header.structarr['cal_min'] = self.image_data.min()
 
-        if self.num_echoes == 1:
+        if self.num_echos == 1:
             nifti = nibabel.Nifti1Image(self.image_data, None, nii_header)
             nibabel.save(nifti, outbase + '.nii.gz')
-        elif self.num_echoes == 2:
+        elif self.num_echos == 2:
             if saveInOut:
                 nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,0], None, nii_header)
                 nibabel.save(nifti, outbase + '_in.nii.gz')
@@ -226,7 +244,7 @@ class PFile(object):
             nifti = nibabel.Nifti1Image(avg, None, nii_header)
             nibabel.save(nifti, outbase + '.nii.gz')
         else:
-            for echo in range(self.num_echoes):
+            for echo in range(self.num_echos):
                 nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,echo], None, nii_header)
                 nibabel.save(nifti, outbase + '_echo%02d.nii.gz' % echo)
 
@@ -241,16 +259,15 @@ class PFile(object):
         tmpdir = tempfile.mkdtemp()
         basename = 'recon'
         basepath = os.path.join(tmpdir, basename)
-        pfilename = os.path.abspath(self.pfilename)
 
         # run spirec to get the mag file and the fieldmap file
-        cmd = spirec + ' -l --rotate -90 --magfile --savefmap2 --b0navigator -r ' + pfilename + ' -t ' + basename
+        cmd = spirec + ' -l --rotate -90 --magfile --savefmap2 --b0navigator -r ' + os.path.abspath(self.filename) + ' -t ' + basename
         self.log and self.log.debug(cmd)
         sp.call(shlex.split(cmd), cwd=tmpdir, stdout=open('/dev/null', 'w'))
 
-        self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echoes,self.num_slices],order='F').transpose((0,1,4,2,3))
+        self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echos,self.num_slices],order='F').transpose((0,1,4,2,3))
         if os.path.exists(basepath+'.B0freq2') and os.path.getsize(basepath+'.B0freq2')>0:
-            self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echoes,self.num_slices],order='F').transpose((0,1,3,2))
+            self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echos,self.num_slices],order='F').transpose((0,1,3,2))
         shutil.rmtree(tmpdir)
 
 
