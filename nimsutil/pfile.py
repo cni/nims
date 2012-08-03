@@ -269,6 +269,6 @@ if __name__ == '__main__':
     pf = PFile(args.pfile)
     if args.matfile:
         import h5py
-        datafile = h5py.File(args.matfile, 'r')
-        pf.image_data = datafile.get('d').value.transpose((2,3,1,0))
+        import scipy.io
+        pf.image_data = scipy.io.loadmat(args.matfile).values()[0].transpose((1,0,2,3))[:,:,::-1,:]
     pf.to_nii(args.outbase or os.path.basename(args.pfile))
