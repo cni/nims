@@ -3,6 +3,8 @@
 # @author:  Bob Dougherty
 #           Gunnar Schaefer
 
+from __future__ import print_function
+
 import os
 import shlex
 import shutil
@@ -43,8 +45,8 @@ class PFile(object):
 
     def get_metadata(self):
 
-        def unpack_dicom_uid(uid):
-            """Convert packed DICOM UID to standard DICOM UID."""
+        def unpack_uid(uid):
+            """Convert packed PFile UID to standard DICOM UID."""
             return ''.join([str(i-1) if i < 11 else '.' for pair in [(ord(c) >> 4, ord(c) & 15) for c in uid] for i in pair if i > 0])
 
         try:
@@ -95,7 +97,7 @@ class PFile(object):
         if self.psd_name == 'sprt':
             self.num_timepoints = int(self.header.rec.user0)    # not in self.header.rec.nframes for sprt
             self.deltaTE = self.header.rec.user15
-            self.num_bands = 0
+            self.num_bands = 1
             self.band_spacing = 0
             self.scale_data = True
             # spiral is always a square encode based on the frequency encode direction (size_x)
@@ -107,7 +109,7 @@ class PFile(object):
             # assuming it's square?
             self.size_x = self.size_y = self.header.rec.im_size
         else:
-            self.num_timepoints = self.header.rec.nframes
+            self.num_timepoints = self.header.rec.npasses
             self.deltaTE = 0.0
             self.scale_data = False
 
@@ -132,8 +134,40 @@ class PFile(object):
 
         super(PFile, self).get_metadata()
 
+        # Compute the voxel size rather than use image.pixsize_X/Y
+        self.mm_per_vox = np.array([float(self.fov[0] / self.size_x),
+                                    float(self.fov[1] / self.size_y),
+                                    self.header.image.slthick + self.header.image.scanspacing])
+
+    def set_image_data(self, data_file):
+        """ Load raw image data from a file and do some sanity checking on num slices, matrix size, etc. """
+        # TODO: support other file formats, like hd5 and maybe raw binary?
+        import scipy.io
+        self.image_data = np.atleast_3d(scipy.io.loadmat(data_file).values()[0])
+        if self.image_data.ndim == 3:
+            self.image_data = self.image_data.reshape(self.image_data.shape + (1,))
+        # TODO: confirm that this voxel reordering is necessary. Maybe lean on the recon
+        # folks to standardize thier voxle order? Might also look at
+        self.image_data = self.image_data.transpose((1,0,2,3))[::-1,:,::-1,:]
+
+        if self.image_data.shape[0] != self.size_x or self.image_data.shape[1] != self.size_y:
+            msg = 'Image matrix discrepancy. Fixing the header, assuming image_data is correct...'
+            self.log and self.log.warning(msg) or print(msg)
+            self.size_x = self.image_data.shape[0]
+            self.size_y = self.image_data.shape[1]
+            self.mm_per_vox[0] = float(self.fov[0] / self.size_x)
+            self.mm_per_vox[1] = float(self.fov[1] / self.size_y)
+        if self.image_data.shape[2] != self.num_slices:
+            msg = 'Image slice count discrepancy. Fixing the header, assuming image_data is correct...'
+            self.log and self.log.warning(msg) or print(msg)
+            self.num_slices = self.image_data.shape[2]
+        if self.image_data.shape[3] != self.num_timepoints:
+            msg = 'Image time frame discrepancy (header=%d, array=%d). Fixing the header, assuming image_data is correct...' % (self.num_timepoints, self.image_data.shape[3])
+            self.log and self.log.warning(msg) or print(msg)
+            self.num_timepoints = self.image_data.shape[3]
+
     def to_nii(self, outbase, spirec='spirec', saveInOut=False):
-        """Create NIfTI file from pfile."""
+        """Create NIFTI file from pfile."""
         if self.image_data is None:
             self.recon(spirec)
 
@@ -164,7 +198,7 @@ class PFile(object):
         # Everything seems reasonable, except the test for axial orientation (start_ras==S|I).
         # I have no idea why I need that! But the flipping only seems necessary for axials, not
         # coronals or the few obliques I've tested.
-        # FIXME: haven't tested sagittals!
+        # FIXME: haven't tested sagittals! (to test for spiral: 'sprt' in self.psd_name.lower())
         if (self.header.series.start_ras=='S' or self.header.series.start_ras=='I') and self.header.series.start_loc > self.header.series.end_loc:
             pos = image_tlhc - slice_norm*slice_fov
             # FIXME: since we are reversing the slice order here, should we change the slice_order field below?
@@ -173,6 +207,9 @@ class PFile(object):
                 self.fm_data = self.fm_data[:,:,-1:0:-1,]
         else:
             pos = image_tlhc
+
+        if self.num_bands > 1:
+            pos = pos - slice_norm * self.band_spacing_mm * (self.num_bands - 1.0) / 2.0
 
         qto_xyz = np.zeros((4,4))
         qto_xyz[0,0] = row_vec[0]
@@ -275,9 +312,11 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.description = """Recons a GE pfile to produce a NIfTI file and a B0 fieldmap."""
+        self.description = """Recons a GE p-file to produce a NIfTI file and (if appropriate) a B0 fieldmap.
+                              Can also take the image data in a mat file, in which case no recon will be attempted
+                              and the p-file is just used to get the necessary header information."""
         self.add_argument('pfile', help='path to pfile')
-        self.add_argument('outbase', nargs='?', help='basename for output files (default: pfile name in cwd)')
+        self.add_argument('outbase', nargs='?', help='basename for output files (default: [pfile_name].nii.gz in cwd)')
         self.add_argument('-m', '--matfile', help='path to reconstructed data in .mat format')
 
 
@@ -285,7 +324,5 @@ if __name__ == '__main__':
     args = ArgumentParser().parse_args()
     pf = PFile(args.pfile)
     if args.matfile:
-        import h5py
-        datafile = h5py.File(args.matfile, 'r')
-        pf.image_data = datafile.get('d').value.transpose((2,3,1,0))
+        pf.set_image_data(args.matfile)
     pf.to_nii(args.outbase or os.path.basename(args.pfile))
