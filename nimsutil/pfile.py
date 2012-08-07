@@ -180,9 +180,9 @@ class PFile(object):
         if (self.header.series.start_ras=='S' or self.header.series.start_ras=='I') and self.header.series.start_loc > self.header.series.end_loc:
             pos = image_tlhc - slice_norm*slice_fov
             # FIXME: since we are reversing the slice order here, should we change the slice_order field below?
-            self.image_data = self.image_data[:,:,-1:0:-1,]
+            self.image_data = self.image_data[:,:,::-1,]
             if self.fm_data is not None:
-                self.fm_data = self.fm_data[:,:,-1:0:-1,]
+                self.fm_data = self.fm_data[:,:,::-1,]
         else:
             pos = image_tlhc
 
@@ -204,8 +204,6 @@ class PFile(object):
 
         qto_xyz[:,3] = np.append(pos, 1).T
         qto_xyz[0:3,0:3] = np.dot(qto_xyz[0:3,0:3], np.diag(self.mm_per_vox))
-
-        self.image_data = np.atleast_3d(self.image_data)
 
         nii_header = nibabel.Nifti1Header()
         nii_header.set_xyzt_units('mm', 'sec')
