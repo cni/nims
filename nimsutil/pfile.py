@@ -93,11 +93,11 @@ class PFile(object):
         self.size_y = self.header.image.dim_Y  # imatrix_Y
         self.fov = [self.header.image.dfov, self.header.image.dfov_rect]
         self.scan_type = self.header.image.psd_iname
+        self.num_bands = 1
 
         if self.psd_name == 'sprt':
             self.num_timepoints = int(self.header.rec.user0)    # not in self.header.rec.nframes for sprt
             self.deltaTE = self.header.rec.user15
-            self.num_bands = 1
             self.band_spacing = 0
             self.scale_data = True
             # spiral is always a square encode based on the frequency encode direction (size_x)
@@ -108,6 +108,11 @@ class PFile(object):
             # damn well pleases. Maybe we could add a check to infer the image size,
             # assuming it's square?
             self.size_x = self.size_y = self.header.rec.im_size
+        elif self.psd_name == 'basic':
+            # first 6 are ref scans, so ignore those. Also, two acquired timepoints are used
+            # to generate each reconned time point.
+            self.num_timepoints = (self.header.rec.npasses * self.header.rec.nechoes - 6) / 2
+            self.num_echoes = 1
         else:
             self.num_timepoints = self.header.rec.npasses
             self.deltaTE = 0.0
@@ -143,12 +148,19 @@ class PFile(object):
         """ Load raw image data from a file and do some sanity checking on num slices, matrix size, etc. """
         # TODO: support other file formats, like hd5 and maybe raw binary?
         import scipy.io
-        self.image_data = np.atleast_3d(scipy.io.loadmat(data_file).values()[0])
-        if self.image_data.ndim == 3:
-            self.image_data = self.image_data.reshape(self.image_data.shape + (1,))
-        # TODO: confirm that this voxel reordering is necessary. Maybe lean on the recon
-        # folks to standardize thier voxle order? Might also look at
-        self.image_data = self.image_data.transpose((1,0,2,3))[::-1,:,::-1,:]
+        mat = scipy.io.loadmat(data_file)
+        if 'd' in mat:
+            self.image_data = np.atleast_3d(mat['d'])
+            if self.image_data.ndim == 3:
+                self.image_data = self.image_data.reshape(self.image_data.shape + (1,))
+            # TODO: confirm that this voxel reordering is necessary. Maybe lean on the recon
+            # folks to standardize thier voxle order? Might also look at
+            self.image_data = self.image_data.transpose((1,0,2,3))[::-1,:,::-1,:]
+        elif 'MIP_res' in mat:
+            self.image_data = np.atleast_3d(mat['MIP_res'])
+            if self.image_data.ndim == 3:
+                self.image_data = self.image_data.reshape(self.image_data.shape + (1,))
+            self.image_data = self.image_data.transpose((1,0,2,3))[:,::-1,:,:]
 
         if self.image_data.shape[0] != self.size_x or self.image_data.shape[1] != self.size_y:
             msg = 'Image matrix discrepancy. Fixing the header, assuming image_data is correct...'
