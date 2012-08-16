@@ -18,9 +18,10 @@ import nimsutil
 
 class DicomReaper(object):
 
-    def __init__(self, id_, scu, reap_stage, sort_stage, datetime_file, sleep_time, log):
+    def __init__(self, id_, scu, pat_id, reap_stage, sort_stage, datetime_file, sleep_time, log):
         self.id_ = id_
         self.scu = scu
+        self.pat_id = pat_id
         self.reap_stage = reap_stage
         self.sort_stage = sort_stage
         self.datetime_file = datetime_file
@@ -77,28 +78,29 @@ class DicomReaper(object):
             time.sleep(self.sleep_time)
 
     def get_outstanding_exams(self):
-        date = self.current_exam_datetime.strftime('%Y%m%d-')
-        response_list = self.scu.find(scu.StudyQuery(StudyDate=date))
+        query_params = {'StudyDate': self.current_exam_datetime.strftime('%Y%m%d-')}
+        if self.pat_id:
+            query_params['PatientID'] = self.pat_id
+        response_list = self.scu.find(scu.StudyQuery(**query_params))
         exam_list = []
         for resp in response_list:
-            exam_id = resp.StudyID
-            datetime_str = resp.StudyDate + resp.StudyTime
-            datetime_obj = datetime.datetime.strptime(datetime_str, '%Y%m%d%H%M%S')
-            exam_list.append(Exam(exam_id, datetime_obj, self))
+            datetime_obj = datetime.datetime.strptime(resp.StudyDate + resp.StudyTime, '%Y%m%d%H%M%S')
+            exam_list.append(Exam(resp.StudyID, resp.PatientID, datetime_obj, self))
         exam_list = [exam for exam in exam_list if exam.datetime >= self.current_exam_datetime]
         return sorted(exam_list, key=lambda exam: exam.datetime)
 
 
 class Exam(object):
 
-    def __init__(self, id_, datetime_, reaper):
+    def __init__(self, id_, pat_id, datetime_, reaper):
         self.id_ = id_
+        self.pat_id = pat_id
         self.datetime = datetime_
         self.reaper = reaper
         self.series_dict = {}
 
     def __str__(self):
-        return 'Exam %s %s' % (self.id_, self.datetime)
+        return 'Exam %s %s (%s)' % (self.id_, self.datetime, self.pat_id)
 
     def reap(self):
         """An exam must be reaped at least twice, since newly encountered series are not immediately reaped."""
@@ -159,6 +161,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('dicomserver', help='dicom server and port (hostname:port)')
         self.add_argument('aet', help='caller AE title')
         self.add_argument('aec', help='callee AE title')
+        self.add_argument('-p', '--patid', help='glob for patient IDs to reap (default: "*")')
         self.add_argument('-s', '--sleeptime', type=int, default=30, help='time to sleep before checking for new data')
         self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
@@ -175,7 +178,7 @@ if __name__ == '__main__':
     sort_stage = nimsutil.make_joined_path(args.stage_path, 'sort')
     datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % host)
 
-    reaper = DicomReaper(host, scu_, reap_stage, sort_stage, datetime_file, args.sleeptime, log)
+    reaper = DicomReaper(host, scu_, args.patid, reap_stage, sort_stage, datetime_file, args.sleeptime, log)
 
     def term_handler(signum, stack):
         reaper.halt()
