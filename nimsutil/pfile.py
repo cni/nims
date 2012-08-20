@@ -138,7 +138,7 @@ class PFile(object):
             self.image_data = np.atleast_3d(mat['MIP_res'])
             if self.image_data.ndim == 3:
                 self.image_data = self.image_data.reshape(self.image_data.shape + (1,))
-            self.image_data = self.image_data.transpose((1,0,2,3))[:,::-1,:,:]
+            self.image_data = self.image_data.transpose((1,0,2,3))[::-1,::-1,:,:]
 
         if self.image_data.shape[0] != self.size_x or self.image_data.shape[1] != self.size_y:
             msg = 'Image matrix discrepancy. Fixing the header, assuming image_data is correct...'
