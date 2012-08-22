@@ -28,16 +28,24 @@ class ImagePyramid(object):
     """
     Generate a panojs-style image pyramid of a 2D montage of slices from a >=3D dataset (usually a NIfTI file).
 
+    You can pass in a filename (any type of file that nibabel can make sense of) or a numpy.ndarray of raw image data.
+
     Example:
         import pyramid
         pyr = pyramid.ImagePyramid('t1.nii.gz')
         pyr.generate()
+
     """
 
-    def __init__(self, filename, tile_size=256, log=None):
-        self.data = nibabel.load(filename).get_data()
+    def __init__(self, image, tile_size=256, log=None):
         self.tile_size = tile_size
         self.log = log
+        if isinstance(image, basestring):
+            self.data = nibabel.load(image).get_data()
+        elif isinstance(image, numpy.ndarray):
+            self.data = image
+        else:
+            raise ImagePyramidError('argument must be a filename or a numpy ndarray.')
 
     def generate(self, outdir, panojs_url='https://cni.stanford.edu/js/panojs/'):
         """
@@ -158,6 +166,15 @@ class ImagePyramid(object):
         # NOTE: the following will crop away edges that contain only zeros. Not sure if we want this.
         self.montage = self.montage.crop(self.montage.getbbox())
 
+    def get_montage(self):
+        """
+        Sometimes we just want to use this class as a convenient way to get a montage.
+        E.g.,
+        from nimsutil import pyramid
+        pylab.imshow(pyramid.ImagePyramid('foo.nii.gz').get_montage(), figure=pylab.figure(figsize=(24,24)))
+        """
+        self.generate_montage()
+        return self.montage
 
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):

@@ -193,3 +193,15 @@ def pack_dicom_uid(uid):
 def unpack_dicom_uid(uid):
     """Convert packed DICOM UID to standard DICOM UID."""
     return ''.join([str(i-1) if i < 11 else '.' for pair in [(c >> 4, c & 15) for c in bytearray(uid)] for i in pair if i > 0])
+
+
+def hrsize(size):
+    if size < 1000:
+        return '%3d%s' % (size, 'B')
+    for suffix in 'KMGTPEZY':
+        size /= 1024.
+        if size < 10.:
+            return '%3.1f%s' % (size, suffix)
+        if size < 1000.:
+            return '%3.0f%s' % (size, suffix)
+    return '%.0f%s' % (size, 'Y')

@@ -30,7 +30,6 @@ class Sorter(object):
         self.sleep_time = sleep_time
         self.log = log
         self.alive = True
-        self.dataset_classes = sorted(model.PrimaryMRData.__subclasses__(), key=lambda cls: cls.priority)
         model.init_model(sqlalchemy.create_engine(db_uri))
 
     def halt(self):
@@ -64,7 +63,7 @@ class Sorter(object):
 
     def sort_file(self, filepath):
         self.log.debug('Sorting %s' % os.path.basename(filepath))
-        dataset = self.dataset_at_path(self.nims_path, filepath)
+        dataset = model.PrimaryMRData.at_path(self.nims_path, filepath)
         if dataset:
             ext = dataset.filename_ext if os.path.splitext(filepath)[1] != dataset.filename_ext else ''
             shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filepath) + ext))
@@ -79,7 +78,7 @@ class Sorter(object):
 
     def sort_directory(self, dirpath, filenames):
         self.log.debug('Sorting %s in directory mode' % os.path.basename(dirpath))
-        dataset = self.dataset_at_path(self.nims_path, os.path.join(dirpath, filenames[0]))
+        dataset = model.PrimaryMRData.at_path(self.nims_path, os.path.join(dirpath, filenames[0]))
         if dataset:
             for filepath in [os.path.join(dirpath, filename) for filename in filenames]:
                 ext = dataset.filename_ext if os.path.splitext(filepath)[1] != dataset.filename_ext else ''
@@ -90,13 +89,6 @@ class Sorter(object):
         elif self.preserve_mode:
             unsort_path = nimsutil.make_joined_path(self.unsort_path, os.path.dirname(os.path.relpath(dirpath, self.stage_path)))
             shutil.move(dirpath, unsort_path)
-
-    def dataset_at_path(self, nims_path, filepath):
-        """Return instance of appropriate MRIDataset subclass for provided file."""
-        for dataset_class in self.dataset_classes:
-            dataset = dataset_class.at_path(nims_path, filepath)
-            if dataset: break
-        return dataset
 
 
 class ArgumentParser(argparse.ArgumentParser):

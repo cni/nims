@@ -56,9 +56,9 @@ class Processor(object):
                 if job:
                     if isinstance(job.data_container, Epoch):
                         ds = job.data_container.primary_dataset
-                        if isinstance(ds, DicomData):
+                        if ds.label == u'Dicom Files':
                             pipeline_class = DicomPipeline
-                        elif isinstance(ds, GEPFile):
+                        elif ds.label == u'GE PFile':
                             pipeline_class = PFilePipeline
 
                     pipeline = pipeline_class(job, self.nims_path, self.physio_path, self.log)
@@ -210,9 +210,9 @@ class PFilePipeline(Pipeline):
 
         ds = self.job.data_container.primary_dataset
         with nimsutil.TempDirectory() as outputdir:
-            if u'sprt' in ds.psd:
-                pfilepath = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
-                pf = nimsutil.pfile.PFile(pfilepath, self.log).to_nii(os.path.join(outputdir, ds.container.name))
+            pfilepath = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
+            pf = nimsutil.pfile.PFile(pfilepath, self.log)
+            pf.to_nii(os.path.join(outputdir, ds.container.name))
 
             outputdir_list = os.listdir(outputdir)
             if outputdir_list:

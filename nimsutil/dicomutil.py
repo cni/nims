@@ -14,6 +14,7 @@ import dicom
 import numpy as np
 import nibabel
 
+import nimsutil
 import png
 
 TYPE_ORIGINAL = ['ORIGINAL', 'PRIMARY', 'OTHER']
@@ -23,6 +24,7 @@ TYPE_SCREEN =   ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
 TAG_PSD_NAME =          (0x0019, 0x109c)
 TAG_PHYSIO_FLAG =       (0x0019, 0x10ac)
 TAG_PHASE_ENCODE_DIR =  (0x0018, 0x1312)
+TAG_PHASE_ENCODE_TIME = (0x0043, 0x102c)
 TAG_SLICES_PER_VOLUME = (0x0021, 0x104f)
 TAG_DIFFUSION_DIRS =    (0x0019, 0x10e0)
 TAG_BVALUE =            (0x0043, 0x1039)
@@ -41,11 +43,14 @@ class DicomError(Exception):
 
 class DicomFile(object):
 
+    filename_ext = '.dcm'
+    label = u'Dicom Files'
+
     def __init__(self, filename):
         self.filename = filename
         self.get_metadata()
 
-    def get_metadata(self)
+    def get_metadata(self):
 
         def acq_date(dcm):
             if 'AcquisitionDate' in dcm:    return dcm.AcquisitionDate
@@ -64,7 +69,6 @@ class DicomFile(object):
         except (IOError, dicom.filereader.InvalidDicomError):
             raise DicomError
         else:
-            self.label = u'Dicom Files'
             self.exam_no = int(dcm.StudyID)
             self.series_no = int(dcm.SeriesNumber)
             self.acq_no = int(dcm.AcquisitionNumber) if 'AcquisitionNumber' in dcm else 0
@@ -72,8 +76,7 @@ class DicomFile(object):
             self.series_uid = dcm.SeriesInstanceUID
             self.series_desc = dcm.SeriesDescription
             self.patient_id = dcm.PatientID
-            self.patient_name = dcm.PatientsName
-            self.patient_dob = dcm.PatientsBirthDate
+            self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(dcm.PatientsName, dcm.PatientsBirthDate)
             self.psd_name = os.path.basename(dcm[TAG_PSD_NAME].value) if TAG_PSD_NAME in dcm else 'unknown'
             self.physio_flag = bool(dcm[TAG_PHYSIO_FLAG].value) if TAG_PHYSIO_FLAG in dcm else False
             self.timestamp = datetime.datetime.strptime(acq_date(dcm) + acq_time(dcm), '%Y%m%d%H%M%S')
@@ -93,6 +96,7 @@ class DicomFile(object):
             self.receive_coil_name = dcm.ReceiveCoilName if 'ReceiveCoilName' in dcm else 'unknown'
             self.num_receivers = 0 # FIXME: where is this stored?
             self.prescribed_duration = datetime.timedelta(0, self.tr * self.num_timepoints * self.num_averages) # FIXME: probably need more hacks in here to compute the correct duration.
+            self.duration = self.prescribed_duration # The actual duration can only be computed after the data are loaded. Settled for rx duration for now.
             self.operator = dcm.OperatorsName if 'OperatorsName' in dcm else 'unknown'
             self.protocol_name = dcm.ProtocolName if 'ProtocolName' in dcm else 'unknown'
             self.scanner_name = dcm.InstitutionName + ' ' + dcm.StationName
@@ -107,9 +111,9 @@ class DicomFile(object):
                 self.diffusion_flag = True
             else:
                 self.diffusion_flag = False
-
-        super(PFile, self).get_metadata()
-
+            self.phase_encode_time = float(dcm[TAG_PHASE_ENCODE_TIME].value)/1.0e6 if TAG_PHASE_ENCODE_TIME in dcm else 0.0
+            # TODO: find the ASSET/ARC acceleration factor and store it here
+            self.phase_encode_acceleration = 0.0
 
 class DicomSeries(object):
 
@@ -174,6 +178,7 @@ class DicomSeries(object):
 
     def to_nii(self, outbase):
         """Create a single nifti file from an ordered list of dicoms."""
+        # TODO: get phase_encode_time and acquisition_matrix into the header somehow.
         flipped = False
         slice_loc = [dcm_i.SliceLocation for dcm_i in self.dcm_list]
         slice_num = [dcm_i.InstanceNumber for dcm_i in self.dcm_list]

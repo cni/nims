@@ -16,6 +16,7 @@ import subprocess as sp
 import numpy as np
 import nibabel
 
+import nimsutil
 import pfheader
 
 
@@ -36,6 +37,9 @@ class PFile(object):
         pf.to_nii(outbase='P56832.7')
     """
 
+    filename_ext = '.7'
+    label = u'GE PFile'
+
     def __init__(self, filename, log=None):
         self.filename = filename
         self.log = log
@@ -53,16 +57,14 @@ class PFile(object):
             self.header = pfheader.get_header(self.filename)
         except (IOError, pfheader.PfheaderError):
             raise PFileError
-        self.label = u'GE PFile'
         self.exam_no = self.header.exam.ex_no
         self.series_no = self.header.series.se_no
         self.acq_no = self.header.image.scanactno
-        self.exam_uid = unpack_dicom_uid(self.header.exam.study_uid)
-        self.series_uid = unpack_dicom_uid(self.header.series.series_uid)
+        self.exam_uid = unpack_uid(self.header.exam.study_uid)
+        self.series_uid = unpack_uid(self.header.series.series_uid)
         self.series_desc = self.header.series.se_desc
         self.patient_id = self.header.exam.patidff
-        self.patient_name = self.header.exam.patnameff
-        self.patient_dob = self.header.exam.dateofbirth
+        self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(self.header.exam.patnameff, self.header.exam.dateofbirth)
         self.psd_name = os.path.basename(self.header.image.psdname)
         self.physio_flag = bool(self.header.rec.user2) and u'sprt' in self.psd_name.lower()
         if self.header.image.im_datetime > 0:
@@ -130,6 +132,7 @@ class PFile(object):
         # we'd need to multiply by the # of phase encodes (accounting for any acceleration factors).
         # Even for planar sequences, this will be wrong (under-estimate) in case of cardiac-gating.
         self.prescribed_duration = datetime.timedelta(seconds=(self.num_timepoints * self.tr))
+        self.duration = self.prescribed_duration # The actual duration can only be computed after the data are loaded. Settled for rx duration for now.
         # Is this all we need to flag a diffusion scan?
         self.diffusion_flag = True if self.header.image.b_value>0 else False
         # Compute the voxel size rather than use image.pixsize_X/Y
@@ -137,12 +140,16 @@ class PFile(object):
                                     self.fov[1] / self.size_y,
                                     self.header.image.slthick + self.header.image.scanspacing])
 
-        super(PFile, self).get_metadata()
-
         # Compute the voxel size rather than use image.pixsize_X/Y
         self.mm_per_vox = np.array([float(self.fov[0] / self.size_x),
                                     float(self.fov[1] / self.size_y),
                                     self.header.image.slthick + self.header.image.scanspacing])
+        # TODO: Set this correctly (in seconds!)! (it's in the dicom at (0x0043, 0x102c))
+        self.phase_encode_time = 0.0
+        # TODO: find the ASSET/ARC acceleration factor and store it here
+        self.phase_encode_acceleration = 0.0
+        self.acquisition_matrix = [0,0,0] #dcm.AcquisitionMatrix[1:3] if 'AcquisitionMatrix' in dcm else None
+
 
     def set_image_data(self, data_file):
         """ Load raw image data from a file and do some sanity checking on num slices, matrix size, etc. """
@@ -160,7 +167,7 @@ class PFile(object):
             self.image_data = np.atleast_3d(mat['MIP_res'])
             if self.image_data.ndim == 3:
                 self.image_data = self.image_data.reshape(self.image_data.shape + (1,))
-            self.image_data = self.image_data.transpose((1,0,2,3))[:,::-1,:,:]
+            self.image_data = self.image_data.transpose((1,0,2,3))[::-1,::-1,:,:]
 
         if self.image_data.shape[0] != self.size_x or self.image_data.shape[1] != self.size_y:
             msg = 'Image matrix discrepancy. Fixing the header, assuming image_data is correct...'
@@ -177,9 +184,12 @@ class PFile(object):
             msg = 'Image time frame discrepancy (header=%d, array=%d). Fixing the header, assuming image_data is correct...' % (self.num_timepoints, self.image_data.shape[3])
             self.log and self.log.warning(msg) or print(msg)
             self.num_timepoints = self.image_data.shape[3]
+        self.duration = self.num_timepoints * self.tr # FIXME: maybe need self.num_echoes?
 
     def to_nii(self, outbase, spirec='spirec', saveInOut=False):
         """Create NIFTI file from pfile."""
+        if self.psd_name != 'sprt':
+            return
         if self.image_data is None:
             self.recon(spirec)
 
@@ -214,9 +224,9 @@ class PFile(object):
         if (self.header.series.start_ras=='S' or self.header.series.start_ras=='I') and self.header.series.start_loc > self.header.series.end_loc:
             pos = image_tlhc - slice_norm*slice_fov
             # FIXME: since we are reversing the slice order here, should we change the slice_order field below?
-            self.image_data = self.image_data[:,:,-1:0:-1,]
+            self.image_data = self.image_data[:,:,::-1,]
             if self.fm_data is not None:
-                self.fm_data = self.fm_data[:,:,-1:0:-1,]
+                self.fm_data = self.fm_data[:,:,::-1,]
         else:
             pos = image_tlhc
 
@@ -238,8 +248,6 @@ class PFile(object):
 
         qto_xyz[:,3] = np.append(pos, 1).T
         qto_xyz[0:3,0:3] = np.dot(qto_xyz[0:3,0:3], np.diag(self.mm_per_vox))
-
-        self.image_data = np.atleast_3d(self.image_data)
 
         nii_header = nibabel.Nifti1Header()
         nii_header.set_xyzt_units('mm', 'sec')

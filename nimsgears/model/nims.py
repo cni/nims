@@ -20,7 +20,7 @@ __metadata__ = metadata
 
 __all__  = ['Group', 'User', 'Permission', 'Message', 'Job', 'Access', 'AccessPrivilege']
 __all__ += ['ResearchGroup', 'Person', 'Subject', 'DataContainer', 'Experiment', 'Session', 'Epoch']
-__all__ += ['Dataset', 'PrimaryMRData', 'DicomData' , 'GEPFile', 'NiftiData']
+__all__ += ['Dataset', 'PrimaryMRData', 'NiftiData']
 
 
 class Group(Entity):
@@ -646,27 +646,28 @@ class Subject(DataContainer):
         return u'%s, %s' % (self.lastname, self.firstname)
 
     @classmethod
-    def from_metadata(cls, md):
-        query = cls.query.join(Experiment, cls.experiment).filter(Experiment.name==md.exp_name)
-        if md.subj_code:
-            subject = query.filter(cls.code==md.subj_code).first()
-        elif md.subj_fn and md.subj_ln:
-            subject = query.filter(cls.firstname==md.subj_fn).filter(cls.lastname==md.subj_ln).filter(cls.dob==md.subj_dob).first()
+    def from_mrfile(cls, mrfile):
+        group_name, exp_name = nimsutil.parse_patient_id(mrfile.patient_id, ResearchGroup.get_all_ids())
+        query = cls.query.join(Experiment, cls.experiment).filter(Experiment.name==exp_name)
+        if mrfile.subj_code:
+            subject = query.filter(cls.code==mrfile.subj_code).first()
+        elif mrfile.subj_fn and mrfile.subj_ln:
+            subject = query.filter(cls.firstname==mrfile.subj_fn).filter(cls.lastname==mrfile.subj_ln).filter(cls.dob==mrfile.subj_dob).first()
         else:
             subject = None
         if not subject:
-            owner = ResearchGroup.query.filter_by(gid=md.group_name).one()
-            experiment = Experiment.from_owner_name(owner, md.exp_name)
-            if not md.subj_code:
+            owner = ResearchGroup.query.filter_by(gid=group_name).one()
+            experiment = Experiment.from_owner_name(owner, exp_name)
+            if not mrfile.subj_code:
                 code_num = max([int('0%s' % re.sub(r'[^0-9]+', '', s.code)) for s in experiment.subjects]) + 1 if experiment.subjects else 1
-                md.subj_code = u's%03d' % code_num
+                mrfile.subj_code = u's%03d' % code_num
             subject = cls(
                     experiment=experiment,
                     person=Person(),
-                    code=md.subj_code,
-                    firstname=md.subj_fn,
-                    lastname=md.subj_ln,
-                    dob=md.subj_dob,
+                    code=mrfile.subj_code,
+                    firstname=mrfile.subj_fn,
+                    lastname=mrfile.subj_ln,
+                    dob=mrfile.subj_dob,
                     )
         return subject
 
@@ -716,12 +717,18 @@ class Session(DataContainer):
         return u'Session'
 
     @classmethod
-    def from_metadata(cls, md):
-        session = cls.query.filter_by(uid=md.exam_uid).first()
+    def from_mrfile(cls, mrfile):
+        uid = nimsutil.pack_dicom_uid(mrfile.exam_uid)
+        session = cls.query.filter_by(uid=uid).first()
         if not session:
-            subject = Subject.from_metadata(md)
-            operator = None # FIXME: set operator to an actual user, creating user if necessary
-            session = Session(uid=md.exam_uid, exam=md.exam_no, subject=subject, operator=operator)
+            subject = Subject.from_mrfile(mrfile)
+            # If we trusted the scan operator to carefully enter their uid in the
+            # 'operator' field, then we could make create=True. Or we could add some
+            # fancy code to fuzzily infer their intent, perhaps even ldap-ing the uid
+            # central authority and/or querying the schedule database. But for now,
+            # just let the operator be None if the user isn't already in the system.
+            operator = User.by_uid(unicode(mrfile.operator), create=False)
+            session = Session(uid=uid, exam=mrfile.exam_no, subject=subject, operator=operator)
         return session
 
     @property
@@ -774,22 +781,23 @@ class Epoch(DataContainer):
         return u'Epoch %s %s' % (self.session.subject.experiment, self.timestamp.strftime('%Y-%m-%d %H:%M:%S'))
 
     @classmethod
-    def from_metadata(cls, md):
-        epoch = cls.query.filter_by(uid=md.series_uid).filter_by(acq=md.acq_no).first()
+    def from_mrfile(cls, mrfile):
+        uid = nimsutil.pack_dicom_uid(mrfile.series_uid)
+        epoch = cls.query.filter_by(uid=uid).filter_by(acq=mrfile.acq_no).first()
         if not epoch:
-            session = Session.from_metadata(md)
-            if session.timestamp is None or session.timestamp > md.timestamp:
-                session.timestamp = md.timestamp
+            session = Session.from_mrfile(mrfile)
+            if session.timestamp is None or session.timestamp > mrfile.timestamp:
+                session.timestamp = mrfile.timestamp
             epoch = cls(
                     session=session,
-                    timestamp=md.timestamp,
-                    duration=md.duration,
-                    uid=md.series_uid,
-                    series=md.series_no,
-                    acq=md.acq_no,
-                    description=md.series_desc,
-                    psd=md.psd_name,
-                    physio_flag = md.physio_flag and u'epi' in md.psd_name.lower(),
+                    timestamp=mrfile.timestamp,
+                    duration=mrfile.duration,
+                    uid=uid,
+                    series=mrfile.series_no,
+                    acq=mrfile.acq_no,
+                    description=nimsutil.clean_string(mrfile.series_desc),
+                    psd=unicode(mrfile.psd_name),
+                    physio_flag = mrfile.physio_flag and 'epi' in mrfile.psd_name.lower(),
                     )
         return epoch
 
@@ -897,7 +905,7 @@ class Dataset(Entity):
         self.file_cnt_act = len(filelist)
         return self.digest != old_digest
 
-    def datatype_from_metadata(self, metadata):
+    def datatype_from_mrfile(self, mrfile):
         # subclasses should do something more useful
         return u'unknown'
 
@@ -911,76 +919,35 @@ class PrimaryMRData(Dataset):
 
     @classmethod
     def at_path(cls, nims_path, filename, label=None, archived=False):
-        metadata = cls.get_metadata(filename)
-        if metadata:
-            dataset = cls.from_metadata(metadata)
-            nimsutil.make_joined_path(nims_path, dataset.relpath)
+        try:
+            mrfile = nimsutil.dicomutil.DicomFile(filename)
+        except nimsutil.dicomutil.DicomError:
+            try:
+                mrfile = nimsutil.pfile.PFile(filename)
+            except nimsutil.pfile.PFileError:
+                mrfile = None
+
+        if mrfile:
+            dataset = cls.query.join(Epoch).filter(Epoch.uid == nimsutil.pack_dicom_uid(mrfile.series_uid)).filter(Epoch.acq == mrfile.acq_no).with_lockmode('update').first()
+            if not dataset:
+                epoch = Epoch.from_mrfile(mrfile)
+                dataset = cls(
+                        container=epoch,
+                        label=mrfile.label,
+                        kind=u'primary',
+                        archived=True,
+                        )
+                transaction.commit()
+                DBSession.add(dataset)
+                nimsutil.make_joined_path(nims_path, dataset.relpath)
         else:
             dataset = None
         return dataset
 
-    @classmethod
-    def from_metadata(cls, md):
-        dataset = cls.query.join(Epoch).filter(Epoch.uid == md.series_uid).filter(Epoch.acq == md.acq_no).with_lockmode('update').first()
-        if not dataset:
-            epoch = Epoch.from_metadata(md)
-            dataset = cls(
-                    container=epoch,
-                    label=md.label,
-                    kind=u'primary',
-                    archived=True,
-                    )
-            transaction.commit()
-            DBSession.add(dataset)
-        return dataset
-
-    def datatype_from_metadata(self, md):
+    def datatype_from_mrfile(self, mrfile):
         # u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap'
         datatype = u'unknown'
         return datatype
-
-
-class DicomData(PrimaryMRData):
-
-    priority = 0
-    filename_ext = '.dcm'
-
-    @staticmethod
-    def get_metadata(filename):
-        try:
-            dcm = nimsutil.dicomutil.DicomFile(filename)
-        except nimsutil.dicomutil.DicomError:
-            md = None
-        else:
-            md = Metadata()
-            md.label = u'Dicom Files'
-            md.exam_no = dcm.exam_no
-            md.series_no = dcm.series_no
-            md.acq_no = dcm.acq_no
-            md.exam_uid = nimsutil.pack_dicom_uid(dcm.exam_uid)
-            md.series_uid = nimsutil.pack_dicom_uid(dcm.series_uid)
-            md.psd_name = unicode(dcm.psd_name)
-            md.physio_flag = dcm.physio_flag
-            md.series_desc = nimsutil.clean_string(dcm.series_desc)
-            md.timestamp = dcm.timestamp
-            md.duration = dcm.duration
-            md.subj_code, md.subj_fn, md.subj_ln, md.subj_dob = nimsutil.parse_subject(dcm.patient_name, dcm.patient_dob)
-            md.group_name, md.exp_name = nimsutil.parse_patient_id(dcm.patient_id, ResearchGroup.get_all_ids())
-            # TODO: work here
-        return md
-
-
-class GEPFile(PrimaryMRData):
-
-    priority = 1
-
-    @staticmethod
-    def get_metadata(filename):
-        try:
-            md = nimsutil.pfile.PFile(filename)
-        except nimsutil.pfile.PFileError:
-            md = None
-        return md
 
 
 class NiftiData(Dataset):
