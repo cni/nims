@@ -17,6 +17,8 @@ import nibabel
 import nimsutil
 import png
 
+dicom.config.enforce_valid_values = False
+
 TYPE_ORIGINAL = ['ORIGINAL', 'PRIMARY', 'OTHER']
 TYPE_EPI =      ['ORIGINAL', 'PRIMARY', 'EPI', 'NONE']
 TYPE_SCREEN =   ['DERIVED', 'SECONDARY', 'SCREEN SAVE']

@@ -63,9 +63,9 @@ class Sorter(object):
 
     def sort_file(self, filepath):
         self.log.debug('Sorting %s' % os.path.basename(filepath))
-        dataset = model.PrimaryMRData.at_path(self.nims_path, filepath)
+        dataset, filename_ext = self.get_dataset_and_filename_ext(filepath)
         if dataset:
-            ext = dataset.filename_ext if os.path.splitext(filepath)[1] != dataset.filename_ext else ''
+            ext = filename_ext if os.path.splitext(filepath)[1] != filename_ext else ''
             shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filepath) + ext))
             dataset.updatetime = datetime.datetime.now()
             dataset.untrash()
@@ -78,10 +78,10 @@ class Sorter(object):
 
     def sort_directory(self, dirpath, filenames):
         self.log.debug('Sorting %s in directory mode' % os.path.basename(dirpath))
-        dataset = model.PrimaryMRData.at_path(self.nims_path, os.path.join(dirpath, filenames[0]))
+        dataset, filename_ext = self.get_dataset_and_filename_ext(os.path.join(dirpath, filenames[0]))
         if dataset:
             for filepath in [os.path.join(dirpath, filename) for filename in filenames]:
-                ext = dataset.filename_ext if os.path.splitext(filepath)[1] != dataset.filename_ext else ''
+                ext = filename_ext if os.path.splitext(filepath)[1] != filename_ext else ''
                 shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filepath) + ext))
             dataset.updatetime = datetime.datetime.now()
             dataset.untrash()
@@ -89,6 +89,21 @@ class Sorter(object):
         elif self.preserve_mode:
             unsort_path = nimsutil.make_joined_path(self.unsort_path, os.path.dirname(os.path.relpath(dirpath, self.stage_path)))
             shutil.move(dirpath, unsort_path)
+
+    def get_dataset_and_filename_ext(self, filename):
+        for datatype in (nimsutil.dicomutil.DicomFile, nimsutil.pfile.PFile):
+            try:
+                mrfile = datatype(filename)
+            except:
+                mrfile = None
+            else:
+                break
+        if mrfile:
+            dataset = model.PrimaryMRData.from_mrfile(mrfile, self.nims_path)
+            filename_ext = mrfile.filename_ext
+        else:
+            dataset, filename_ext = (None, None)
+        return dataset, filename_ext
 
 
 class ArgumentParser(argparse.ArgumentParser):

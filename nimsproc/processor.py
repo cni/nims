@@ -112,6 +112,7 @@ class Pipeline(threading.Thread):
             elif self.job.task == u'proc':
                 self.process()
         except Exception as ex:
+            DBSession.add(self.job)
             self.job.status = u'failed'
             self.job.activity = u'failed: %s' % ex
             self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
@@ -130,7 +131,7 @@ class Pipeline(threading.Thread):
             if physio_files:
                 self.job.activity = u'physio found %s' % (', '.join([os.path.basename(pf) for pf in physio_files]))
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                dataset = Dataset.at_path(self.nims_path, None, u'Physio Data')
+                dataset = Dataset.at_path(self.nims_path, u'Physio Data')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
                 dataset.file_cnt_act = 0
@@ -169,7 +170,7 @@ class DicomPipeline(Pipeline):
                 outputdir_list = os.listdir(outputdir)
                 self.job.activity = u'generated %s' % (', '.join([f for f in outputdir_list]))
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                conv_ds = Dataset.at_path(self.nims_path, None, DS_TYPES[conv_res])
+                conv_ds = Dataset.at_path(self.nims_path, DS_TYPES[conv_res])
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
 
@@ -186,7 +187,7 @@ class DicomPipeline(Pipeline):
                 #transaction.commit()
 
             if conv_res == 'nifti':
-                pyramid_ds = Dataset.at_path(self.nims_path, None, u'Image Pyramid')
+                pyramid_ds = Dataset.at_path(self.nims_path, u'Image Pyramid')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
                 nimsutil.pyramid.ImagePyramid(conv_file, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
@@ -218,7 +219,7 @@ class PFilePipeline(Pipeline):
             if outputdir_list:
                 self.job.activity = u'generated %s' % (', '.join([f for f in outputdir_list]))
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                dataset = Dataset.at_path(self.nims_path, None, u'NIfTI (raw)')
+                dataset = Dataset.at_path(self.nims_path, u'NIfTI (raw)')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
                 dataset.file_cnt_act = 0

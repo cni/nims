@@ -855,7 +855,7 @@ class Dataset(Entity):
         return u'<%s %s>' % (self.__class__.__name__, self.container)
 
     @classmethod
-    def at_path(cls, nims_path, filename=None, label=None, archived=False):
+    def at_path(cls, nims_path, label=None, archived=False):
         dataset = cls(label=label, archived=archived)
         transaction.commit()
         DBSession.add(dataset)
@@ -912,36 +912,21 @@ class Dataset(Entity):
 
 class PrimaryMRData(Dataset):
 
-    """Abstract superclass to all MRI data types."""
-
-    priority = 0
-    filename_ext = ''
-
     @classmethod
-    def at_path(cls, nims_path, filename, label=None, archived=False):
-        try:
-            mrfile = nimsutil.dicomutil.DicomFile(filename)
-        except nimsutil.dicomutil.DicomError:
-            try:
-                mrfile = nimsutil.pfile.PFile(filename)
-            except nimsutil.pfile.PFileError:
-                mrfile = None
-
-        if mrfile:
-            dataset = cls.query.join(Epoch).filter(Epoch.uid == nimsutil.pack_dicom_uid(mrfile.series_uid)).filter(Epoch.acq == mrfile.acq_no).with_lockmode('update').first()
-            if not dataset:
-                epoch = Epoch.from_mrfile(mrfile)
-                dataset = cls(
-                        container=epoch,
-                        label=mrfile.label,
-                        kind=u'primary',
-                        archived=True,
-                        )
-                transaction.commit()
-                DBSession.add(dataset)
-                nimsutil.make_joined_path(nims_path, dataset.relpath)
-        else:
-            dataset = None
+    def from_mrfile(cls, mrfile, nims_path, archived=True):
+        series_uid = nimsutil.pack_dicom_uid(mrfile.series_uid)
+        dataset = cls.query.join(Epoch).filter(Epoch.uid == series_uid).filter(Epoch.acq == mrfile.acq_no).with_lockmode('update').first()
+        if not dataset:
+            epoch = Epoch.from_mrfile(mrfile)
+            dataset = cls(
+                    container=epoch,
+                    label=mrfile.label,
+                    kind=u'primary',
+                    archived=archived,
+                    )
+            transaction.commit()
+            DBSession.add(dataset)
+            nimsutil.make_joined_path(nims_path, dataset.relpath)
         return dataset
 
     def datatype_from_mrfile(self, mrfile):
@@ -953,5 +938,3 @@ class PrimaryMRData(Dataset):
 class NiftiData(Dataset):
 
     pass
-
-
