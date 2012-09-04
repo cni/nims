@@ -55,7 +55,7 @@ class PFile(object):
 
         try:
             self.header = pfheader.get_header(self.filename)
-        except (IOError, pfheader.PfheaderError):
+        except (IOError, pfheader.PFHeaderError):
             raise PFileError
         self.exam_no = self.header.exam.ex_no
         self.series_no = self.header.series.se_no
@@ -280,7 +280,8 @@ class PFile(object):
 
         if self.num_echos == 1:
             nifti = nibabel.Nifti1Image(self.image_data, None, nii_header)
-            nibabel.save(nifti, outbase + '.nii.gz')
+            main_file = outbase + '.nii.gz'
+            nibabel.save(nifti, main_file)
         elif self.num_echos == 2:
             if saveInOut:
                 nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,0], None, nii_header)
@@ -299,8 +300,10 @@ class PFile(object):
             for tp in range(self.image_data.shape[3]):
                 avg[:,:,:,tp] = w_in*self.image_data[:,:,:,tp,0] + w_out*self.image_data[:,:,:,tp,1]
             nifti = nibabel.Nifti1Image(avg, None, nii_header)
-            nibabel.save(nifti, outbase + '.nii.gz')
+            main_file = outbase + '.nii.gz'
+            nibabel.save(nifti, main_file)
         else:
+            main_file = None
             for echo in range(self.num_echos):
                 nifti = nibabel.Nifti1Image(self.image_data[:,:,:,:,echo], None, nii_header)
                 nibabel.save(nifti, outbase + '_echo%02d.nii.gz' % echo)
@@ -310,6 +313,8 @@ class PFile(object):
             nii_header.structarr['cal_min'] = self.fm_data.min()
             nifti = nibabel.Nifti1Image(self.fm_data, None, nii_header)
             nibabel.save(nifti, outbase + '_B0.nii.gz')
+
+        return main_file
 
     def recon(self, spirec):
         """Do image reconstruction and populate self.image_data."""

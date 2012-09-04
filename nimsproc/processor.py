@@ -197,7 +197,6 @@ class DicomPipeline(Pipeline):
                 pyramid_ds.container = self.job.data_container
                 transaction.commit()
 
-        #transaction.commit()
         DBSession.add(self.job)
 
 
@@ -211,12 +210,17 @@ class PFilePipeline(Pipeline):
 
         ds = self.job.data_container.primary_dataset
         with nimsutil.TempDirectory() as outputdir:
-            pfilepath = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
-            pf = nimsutil.pfile.PFile(pfilepath, self.log)
-            pf.to_nii(os.path.join(outputdir, ds.container.name))
+            for pfile in os.listdir(os.path.join(self.nims_path, ds.relpath)):
+                try:
+                    pf = nimsutil.pfile.PFile(os.path.join(self.nims_path, ds.relpath, pfile), self.log)
+                except nimsutil.pfile.PFileError:
+                    pf = None
+                else:
+                    break
+            conv_file = pf.to_nii(os.path.join(outputdir, ds.container.name))
 
-            outputdir_list = os.listdir(outputdir)
-            if outputdir_list:
+            if conv_file:
+                outputdir_list = os.listdir(outputdir)
                 self.job.activity = u'generated %s' % (', '.join([f for f in outputdir_list]))
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 dataset = Dataset.at_path(self.nims_path, u'NIfTI (raw)')
@@ -229,8 +233,22 @@ class PFilePipeline(Pipeline):
                 for f in outputdir_list:
                     shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, dataset.relpath))
                     dataset.file_cnt_act += 1
+                transaction.commit()
 
-        transaction.commit()
+                #ds.compressed = True
+                #transaction.commit()
+
+            if conv_file:
+                pyramid_ds = Dataset.at_path(self.nims_path, u'Image Pyramid')
+                DBSession.add(self.job)
+                DBSession.add(self.job.data_container)
+                nimsutil.pyramid.ImagePyramid(conv_file, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
+                self.job.activity = u'image pyramid generated'
+                self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                pyramid_ds.kind = u'derived'
+                pyramid_ds.container = self.job.data_container
+                transaction.commit()
+
         DBSession.add(self.job)
 
 
