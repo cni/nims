@@ -19,7 +19,6 @@ import nibabel
 import nimsutil
 import pfheader
 
-
 class PFileError(Exception):
     pass
 
@@ -62,16 +61,17 @@ class PFile(object):
         self.acq_no = self.header.image.scanactno
         self.exam_uid = unpack_uid(self.header.exam.study_uid)
         self.series_uid = unpack_uid(self.header.series.series_uid)
-        self.series_desc = self.header.series.se_desc
-        self.patient_id = self.header.exam.patidff
-        self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(self.header.exam.patnameff, self.header.exam.dateofbirth)
-        self.psd_name = os.path.basename(self.header.image.psdname)
+        self.series_desc = self.header.series.se_desc.strip('\x00')
+        self.patient_id = self.header.exam.patidff.strip('\x00')
+        self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(
+                self.header.exam.patnameff.strip('\x00'), self.header.exam.dateofbirth.strip('\x00'))
+        self.psd_name = os.path.basename(self.header.image.psdname.partition('\x00')[0])
         self.physio_flag = bool(self.header.rec.user2) and u'sprt' in self.psd_name.lower()
         if self.header.image.im_datetime > 0:
             self.timestamp = datetime.datetime.utcfromtimestamp(self.header.image.im_datetime)
         else:   # HOShims don't have self.header.image.im_datetime
-            month, day, year = map(int, self.header.rec.scan_date.split('/'))
-            hour, minute = map(int, self.header.rec.scan_time.split(':'))
+            month, day, year = map(int, self.header.rec.scan_date.strip('\x00').split('/'))
+            hour, minute = map(int, self.header.rec.scan_time.strip('\x00').split(':'))
             self.timestamp = datetime.datetime(year + 1900, month, day, hour, minute) # GE's epoch begins in 1900
 
         self.ti = self.header.image.ti / 1e6
@@ -84,18 +84,23 @@ class PFile(object):
         self.num_slices = self.header.rec.nslices
         self.num_averages = self.header.image.averages
         self.num_echos = self.header.rec.nechoes
-        self.receive_coil_name = self.header.image.cname
+        self.receive_coil_name = self.header.image.cname.strip('\x00')
         self.num_receivers = self.header.rec.dab[0].stop_rcv - self.header.rec.dab[0].start_rcv + 1
-        self.operator = self.header.exam.patidff
-        self.protocol_name = self.header.exam.patnameff
-        self.scanner_name = self.header.exam.hospname + ' ' + self.header.exam.ex_sysid
+        self.operator = self.header.exam.patidff.strip('\x00')
+        self.protocol_name = self.header.exam.patnameff.strip('\x00')
+        self.scanner_name = self.header.exam.hospname.strip('\x00') + ' ' + self.header.exam.ex_sysid.strip('\x00')
         self.scanner_type = 'GE' # FIXME
 
         self.size_x = self.header.image.dim_X  # imatrix_X
         self.size_y = self.header.image.dim_Y  # imatrix_Y
         self.fov = [self.header.image.dfov, self.header.image.dfov_rect]
-        self.scan_type = self.header.image.psd_iname
+        self.scan_type = self.header.image.psd_iname.strip('\x00')
         self.num_bands = 1
+        self.num_mux_cal_cycle = 0
+
+        self.num_timepoints = self.header.rec.npasses
+        self.deltaTE = 0.0
+        self.scale_data = False
 
         if self.psd_name == 'sprt':
             self.num_timepoints = int(self.header.rec.user0)    # not in self.header.rec.nframes for sprt
@@ -115,15 +120,12 @@ class PFile(object):
             # to generate each reconned time point.
             self.num_timepoints = (self.header.rec.npasses * self.header.rec.nechoes - 6) / 2
             self.num_echoes = 1
-        else:
-            self.num_timepoints = self.header.rec.npasses
-            self.deltaTE = 0.0
-            self.scale_data = False
-
-        if self.psd_name.startswith('mux') and self.psd_name.endswith('epi') and self.header.rec.user6 > 0: # multi-band EPI!
+        elif self.psd_name.startswith('mux'): # multi-band EPI!
             self.num_bands = int(self.header.rec.user6)
+            self.num_mux_cal_cycle = int(self.header.rec.user7)
             self.band_spacing_mm = self.header.rec.user8
             self.num_slices = self.header.image.slquant * self.num_bands
+            self.num_timepoints = self.header.rec.npasses - self.num_bands*self.num_mux_cal_cycle + self.num_mux_cal_cycle
             # TODO: adjust the image.tlhc... fields to match the correct geometry.
 
         self.total_num_slices = self.num_slices * self.num_timepoints
@@ -145,17 +147,22 @@ class PFile(object):
                                     float(self.fov[1] / self.size_y),
                                     self.header.image.slthick + self.header.image.scanspacing])
         # TODO: Set this correctly (in seconds!)! (it's in the dicom at (0x0043, 0x102c))
-        self.phase_encode_time = 0.0
-        # TODO: find the ASSET/ARC acceleration factor and store it here
-        self.phase_encode_acceleration = 0.0
+        self.effective_echo_spacing = 0.0
+        # TODO: Set this correctly! (it's in the dicom at (0x0043, 0x1083))
+        self.phase_encode_undersample = 1.0
+        self.slice_encode_undersample = 1.0
         self.acquisition_matrix = [0,0,0] #dcm.AcquisitionMatrix[1:3] if 'AcquisitionMatrix' in dcm else None
 
 
     def set_image_data(self, data_file):
         """ Load raw image data from a file and do some sanity checking on num slices, matrix size, etc. """
         # TODO: support other file formats, like hd5 and maybe raw binary?
-        import scipy.io
-        mat = scipy.io.loadmat(data_file)
+        try:
+            import scipy.io
+            mat = scipy.io.loadmat(data_file)
+        except:
+            import h5py
+            mat = h5py.File(args.matfile, 'r')
         if 'd' in mat:
             self.image_data = np.atleast_3d(mat['d'])
             if self.image_data.ndim == 3:
@@ -181,17 +188,18 @@ class PFile(object):
             self.log and self.log.warning(msg) or print(msg)
             self.num_slices = self.image_data.shape[2]
         if self.image_data.shape[3] != self.num_timepoints:
-            msg = 'Image time frame discrepancy (header=%d, array=%d). Fixing the header, assuming image_data is correct...' % (self.num_timepoints, self.image_data.shape[3])
+            msg = 'Image time frame discrepancy (header=%d, array=%d). Fixing the header, assuming image_data is correct...' \
+                    % (self.num_timepoints, self.image_data.shape[3])
             self.log and self.log.warning(msg) or print(msg)
             self.num_timepoints = self.image_data.shape[3]
         self.duration = self.num_timepoints * self.tr # FIXME: maybe need self.num_echoes?
 
-    def to_nii(self, outbase, spirec='spirec', saveInOut=False):
+    def to_nii(self, outbase, recon_executable=None, saveInOut=False, num_jobs=1):
         """Create NIFTI file from pfile."""
-        if self.psd_name != 'sprt':
+        if self.image_data is None and self.recon_func is not None:
+            self.recon_func(recon_executable, num_jobs=num_jobs) if recon_executable else self.recon_func(num_jobs=num_jobs)
+        else:
             return
-        if self.image_data is None:
-            self.recon(spirec)
 
         image_tlhc = np.array([self.header.image.tlhc_R, self.header.image.tlhc_A, self.header.image.tlhc_S])
         image_trhc = np.array([self.header.image.trhc_R, self.header.image.trhc_A, self.header.image.trhc_S])
@@ -316,14 +324,14 @@ class PFile(object):
 
         return main_file
 
-    def recon(self, spirec):
-        """Do image reconstruction and populate self.image_data."""
+    def recon_spirec(self, executable='spirec', num_jobs=1):
+        """Do spiral image reconstruction and populate self.image_data."""
         tmpdir = tempfile.mkdtemp()
         basename = 'recon'
         basepath = os.path.join(tmpdir, basename)
 
         # run spirec to get the mag file and the fieldmap file
-        cmd = spirec + ' -l --rotate -90 --magfile --savefmap2 --b0navigator -r ' + os.path.abspath(self.filename) + ' -t ' + basename
+        cmd = executable + ' -l --rotate -90 --magfile --savefmap2 --b0navigator -r ' + os.path.abspath(self.filename) + ' -t ' + basename
         self.log and self.log.debug(cmd)
         sp.call(shlex.split(cmd), cwd=tmpdir, stdout=open('/dev/null', 'w'))
 
@@ -331,6 +339,39 @@ class PFile(object):
         if os.path.exists(basepath+'.B0freq2') and os.path.getsize(basepath+'.B0freq2')>0:
             self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echos,self.num_slices],order='F').transpose((0,1,3,2))
         shutil.rmtree(tmpdir)
+
+    def recon_mux_epi(self, executable='mux_epi_recon', num_jobs=1):
+        """Do mux_epi image reconstruction and populate self.image_data."""
+        import pytave
+
+        #ref_file  = os.path.join(os.path.dirname(self.filename), '_'+os.path.basename(self.filename)+'_ref.dat')
+        #vrgf_file = os.path.join(os.path.dirname(self.filename), '_'+os.path.basename(self.filename)+'_vrgf.dat')
+
+        mux_recon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), executable))
+        # ipython makes this unicode by default, which causes an error in pytave. If using
+        # ipython to execute, be sure to turn off automatic unicode conversion.
+        pytave.addpath(str(mux_recon_path))
+        self.image_data = pytave.feval(1, 'mux_epi_main', self.filename)[0]
+
+        # TODO: fix size_x/y,num_slices,num_timpoints if they conflict with the returned size of d.
+        #self.image_data = np.zeros((self.size_x, self.size_y, self.num_slices, self.num_timepoints))
+        #num_mux_slices = self.num_slices / self.num_bands
+        #for mux_slice in range(num_mux_slices):
+        #    d,slice_loc = pytave.feval(2, 'mux_epi_recon', self.filename, ref_file, vrgf_file, mux_slice+1)
+        #    self.image_data[:,:,slice_loc.astype(int).flatten()-1,:] = d
+
+    @property
+    def recon_func(self):
+        if self.psd_name == 'sprt':
+            return self.recon_spirec
+        elif self.psd_name.startswith('mux'):
+            return self.recon_mux_epi
+        else:
+            return None
+
+    @property
+    def priority(self):
+        return int(bool(self.recon_func)) * 2 - 1
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -343,6 +384,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('pfile', help='path to pfile')
         self.add_argument('outbase', nargs='?', help='basename for output files (default: [pfile_name].nii.gz in cwd)')
         self.add_argument('-m', '--matfile', help='path to reconstructed data in .mat format')
+        self.add_argument('-j', '--jobs', help='number of concurrent threads to run', type=int, default=1)
 
 
 if __name__ == '__main__':
@@ -350,4 +392,4 @@ if __name__ == '__main__':
     pf = PFile(args.pfile)
     if args.matfile:
         pf.set_image_data(args.matfile)
-    pf.to_nii(args.outbase or os.path.basename(args.pfile))
+    pf.to_nii(args.outbase or os.path.basename(args.pfile), num_jobs=args.jobs)
