@@ -26,7 +26,8 @@ TYPE_SCREEN =   ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
 TAG_PSD_NAME =          (0x0019, 0x109c)
 TAG_PHYSIO_FLAG =       (0x0019, 0x10ac)
 TAG_PHASE_ENCODE_DIR =  (0x0018, 0x1312)
-TAG_PHASE_ENCODE_TIME = (0x0043, 0x102c)
+TAG_EPI_EFFECTIVE_ECHO_SPACING = (0x0043, 0x102c)
+TAG_PHASE_ENCODE_UNDERSAMPLE = (0x0043, 0x1083)
 TAG_SLICES_PER_VOLUME = (0x0021, 0x104f)
 TAG_DIFFUSION_DIRS =    (0x0019, 0x10e0)
 TAG_BVALUE =            (0x0043, 0x1039)
@@ -113,9 +114,10 @@ class DicomFile(object):
                 self.diffusion_flag = True
             else:
                 self.diffusion_flag = False
-            self.phase_encode_time = float(dcm[TAG_PHASE_ENCODE_TIME].value)/1.0e6 if TAG_PHASE_ENCODE_TIME in dcm else 0.0
-            # TODO: find the ASSET/ARC acceleration factor and store it here
-            self.phase_encode_acceleration = 0.0
+            self.effective_echo_spacing = float(dcm[TAG_EPI_EFFECTIVE_ECHO_SPACING].value)/1.0e6 if TAG_EPI_EFFECTIVE_ECHO_SPACING in dcm else 0.0
+            # TODO: find the ASSET/ARC undersample factor and store it here
+            self.phase_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[0]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
+            self.slice_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[1]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
 
 class DicomSeries(object):
 
@@ -180,7 +182,7 @@ class DicomSeries(object):
 
     def to_nii(self, outbase):
         """Create a single nifti file from an ordered list of dicoms."""
-        # TODO: get phase_encode_time and acquisition_matrix into the header somehow.
+        # TODO: get effective_echo_spacing and acquisition_matrix into the header somehow.
         flipped = False
         slice_loc = [dcm_i.SliceLocation for dcm_i in self.dcm_list]
         slice_num = [dcm_i.InstanceNumber for dcm_i in self.dcm_list]
