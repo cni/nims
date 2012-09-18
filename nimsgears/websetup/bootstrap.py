@@ -33,6 +33,7 @@ groups = [
         dict(gid=u'hfeldman',   pis=[u'hfeldman'],  managers=[u'vndurand']),
         dict(gid=u'iang',       pis=[u'iang'],      managers=[u'arkadiy']),
         dict(gid=u'jparvizi',   pis=[u'jparvizi'],  managers=[u'vinitha']),
+        dict(gid=u'jzaki',      pis=[u'jzaki'],     managers=[u'enook']),
         dict(gid=u'kalanit',    pis=[u'kalanit'],   managers=[u'kweiner']),
         dict(gid=u'knutson',    pis=[u'knutson'],   managers=[u'kieferk']),
         dict(gid=u'llc',        pis=[u'llc'],       managers=[u'notthoff']),
