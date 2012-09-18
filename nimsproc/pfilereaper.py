@@ -92,12 +92,16 @@ class ReapPFile(object):
         self.series = pfile.series_no
         self.acq = pfile.acq_no
         reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, '%s_%s' % (self.reaper.id_, datetime.datetime.now().strftime('%s.%f')))
+        aux_reap_files = [arf for arf in glob.glob(self.path + '_*') if open(arf).read(32) == pfile.header.series.series_uid]
         if self.reaper.pat_id and not re.match(self.reaper.pat_id.replace('*','.*'), self.pat_id):
             self.reaper.log.info('Skipping   %s due to patient ID mismatch' % self)
             return True
         try:
             self.reaper.log.info('Reaping    %s' % self)
             shutil.copy2(self.path, reap_path)
+            for arf in aux_reap_files:
+                shutil.copy2(arf, os.path.join(reap_path, '_' + os.path.basename(arf)))
+                self.reaper.log.info('Reaping    %s' % '_' + os.path.basename(arf))
         except KeyboardInterrupt:
             shutil.rmtree(reap_path)
             raise
