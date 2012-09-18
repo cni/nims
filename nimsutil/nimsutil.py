@@ -78,9 +78,9 @@ def parse_patient_id(patient_id, known_ids):
     We use fuzzy matching to find the best matching known lab id. If we can't
     do so with high confidence, the lab id is set to 'unknown'.
     """
-    lab_info = patient_id.lower().split('/', 1)
-    lab_id = clean_string(lab_info[0])
-    exp_id = clean_string(lab_info[1]) if len(lab_info) > 1 else 'untitled'
+    lab_info = patient_id.lower().rpartition('@')[2].partition('/')
+    lab_id = clean_string(lab_info[0]) if lab_info[0] else 'nogroup'
+    exp_id = clean_string(lab_info[2]) if lab_info[2] else 'untitled'
 
     lab_id_matches = difflib.get_close_matches(lab_id, known_ids, cutoff=0.8)
     if len(lab_id_matches) == 1:
