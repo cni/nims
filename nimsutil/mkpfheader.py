@@ -92,9 +92,7 @@ class ArrayType(BasicType):
 
     def instantiation_str(self, member_name=None):
         if isinstance(self.elem_type, BasicType) and not isinstance(self.elem_type, (ArrayType, StructType)):
-            string = 'struct.unpack("{1}{0}", fp.read(struct.calcsize("{1}{0}")))'.format(FORMAT_CHARS[self.elem_type.type_name], self.num_elems)
-            if self.elem_type.type_name == 'char':
-                string += "[0].split('\\x00', 1)[0]"
+            string = 'struct.unpack("{1}{0}", fp.read(struct.calcsize("{1}{0}")))[0]'.format(FORMAT_CHARS[self.elem_type.type_name], self.num_elems)
         else:
             string = """[]
         for i in range({0}):
@@ -195,7 +193,7 @@ def print_parser(pool_header, object_dict):
     print '        pool_header = None'
     print '        raise PFHeaderError, "Error reading header field in pfile %s" % file_object.name'
     print '    else:'
-    print '        logo = pool_header.rec.logo'
+    print '        logo = pool_header.rec.logo.strip("\\x00")'
     print '        if logo != "GE_MED_NMR" and logo != "INVALIDNMR":'
     print '            raise PFHeaderError, "%s is not a valid pfile" % file_object.name'
     print '    finally:'
