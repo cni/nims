@@ -471,7 +471,7 @@ class Job(Entity):
         self.status = u'new'
         query = Dataset.query.filter(Dataset.container == self.data_container)
         if self.task == u'find':
-            query = query.filter_by(kind=u'secondary')
+            query = query.filter_by(kind=u'peripheral')
         elif self.task == u'proc':
             query = query.filter_by(kind=u'derived')
         for ds in query.all():
@@ -628,6 +628,13 @@ class Experiment(DataContainer):
             for subject in self.subjects:
                 subject.untrash()
 
+    def renumber_subjects(self):
+        ordered_subjects = sorted(self.subjects, key=lambda subj: (sorted(subj.sessions, key=lambda session: session.timestamp)[0].timestamp))
+        for i, subj in enumerate(ordered_subjects):
+            subj.code = u's%03d' % (i+1)
+        #transaction.commit()
+
+
 class Subject(DataContainer):
 
     using_options(inheritance='multi')
@@ -673,7 +680,7 @@ class Subject(DataContainer):
 
     @property
     def name(self):
-        return u'%s, %s' % (self.lastname, self.firstname)
+        return u'%s %s: %s, %s' % (self.code, self.sessions[0].timestamp, self.lastname, self.firstname)
 
     @property
     def is_trash(self):
@@ -835,7 +842,8 @@ class Dataset(Entity):
 
     offset = Field(Interval, default=datetime.timedelta())
     trashtime = Field(DateTime)
-    kind = Field(Enum(u'primary', u'secondary', u'derived', name=u'kind'), default=u'derived')
+    priority = Field(Integer, default=0)
+    kind = Field(Enum(u'primary', u'secondary', u'peripheral', u'derived', name=u'kind'))
     label = Field(Unicode(63))
     datatype = Field(Enum(u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap', u'mr_spectro', name=u'datatype'), default=u'unknown')
     _updatetime = Field(DateTime, default=datetime.datetime.now, colname='updatetime', synonym='updatetime')
@@ -915,13 +923,30 @@ class PrimaryMRData(Dataset):
     @classmethod
     def from_mrfile(cls, mrfile, nims_path, archived=True):
         series_uid = nimsutil.pack_dicom_uid(mrfile.series_uid)
-        dataset = cls.query.join(Epoch).filter(Epoch.uid == series_uid).filter(Epoch.acq == mrfile.acq_no).with_lockmode('update').first()
+        dataset = (cls.query.join(Epoch)
+                .filter(Epoch.uid == series_uid)
+                .filter(Epoch.acq == mrfile.acq_no)
+                .filter(cls.label == mrfile.label)
+                .with_lockmode('update').first())
         if not dataset:
+            alt_dataset = (cls.query.join(Epoch)
+                    .filter(Epoch.uid == series_uid)
+                    .filter(Epoch.acq == mrfile.acq_no)
+                    .filter(cls.label != mrfile.label)
+                    .first())
+            if not alt_dataset:
+                kind = u'primary'
+            elif alt_dataset.priority < mrfile.priority:
+                kind = u'primary'
+                alt_dataset.kind = u'secondary'
+            else:
+                kind = u'secondary'
             epoch = Epoch.from_mrfile(mrfile)
             dataset = cls(
                     container=epoch,
+                    priority = mrfile.priority,
                     label=mrfile.label,
-                    kind=u'primary',
+                    kind=kind,
                     archived=archived,
                     )
             transaction.commit()

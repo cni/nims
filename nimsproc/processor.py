@@ -25,11 +25,12 @@ DS_TYPES = {
 
 class Processor(object):
 
-    def __init__(self, db_uri, nims_path, physio_path, task, log, max_jobs, reset, sleeptime):
+    def __init__(self, db_uri, nims_path, physio_path, task, filters, log, max_jobs, reset, sleeptime):
         super(Processor, self).__init__()
         self.nims_path = nims_path
         self.physio_path = physio_path
         self.task = unicode(task) if task else None
+        self.filters = filters
         self.log = log
         self.max_jobs = max_jobs
         self.sleeptime = sleeptime
@@ -46,11 +47,12 @@ class Processor(object):
             if threading.active_count()-1 < self.max_jobs:
                 Job_A = sqlalchemy.orm.aliased(Job)
                 subquery = sqlalchemy.exists().where(Job_A.data_container_id == DataContainer.id)
-                #subquery = subquery.where((Job_A.id < Job.id) & ((Job_A.status == u'new') | (Job_A.status == u'active')))
                 subquery = subquery.where((Job_A.id < Job.id) & (Job_A.status != u'done'))
-                query = Job.query.join(DataContainer).filter(Job.status==u'new')
+                query = Job.query.join(DataContainer).join(Epoch).filter(Job.status==u'new')
                 if self.task:
                     query = query.filter(Job.task==self.task)
+                for f in self.filters:
+                    query = query.filter(eval(f))
                 job = query.filter(~subquery).order_by(Job.id).with_lockmode('update').first()
 
                 if job:
@@ -80,7 +82,7 @@ class Processor(object):
         for job in job_query.all():
             ds_query = Dataset.query.filter(Dataset.container == job.data_container)
             if job.task == u'find':
-                ds_query = ds_query.filter(Dataset.kind == u'secondary')
+                ds_query = ds_query.filter(Dataset.kind == u'peripheral')
             elif job.task == u'proc':
                 ds_query = ds_query.filter(Dataset.kind == u'derived')
             job.restart(self.nims_path)
@@ -136,7 +138,7 @@ class Pipeline(threading.Thread):
                 DBSession.add(self.job.data_container)
                 dataset.file_cnt_act = 0
                 dataset.file_cnt_tgt = len(physio_files)
-                dataset.kind = u'secondary'
+                dataset.kind = u'peripheral'
                 dataset.container = self.job.data_container
                 for f in physio_files:
                     shutil.copy2(f, os.path.join(self.nims_path, dataset.relpath))
@@ -260,6 +262,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('nims_path', metavar='DATA_PATH', help='data location')
         self.add_argument('physio_path', metavar='PHYSIO_PATH', help='path to physio data')
         self.add_argument('-t', '--task', help='find|proc  (default is all)')
+        self.add_argument('-e', '--filter', default=[], action='append', help='sqlalchemy filter expression')
         self.add_argument('-j', '--jobs', type=int, default=1, help='maximum number of concurrent threads')
         self.add_argument('-r', '--reset', action='store_true', help='reset currently active (crashed) jobs')
         self.add_argument('-s', '--sleeptime', type=int, default=10, help='time to sleep between db queries')
@@ -277,7 +280,7 @@ if __name__ == '__main__':
     import datetime # used in nimsutil
     datetime.datetime.strptime('0', '%S')
 
-    processor = Processor(args.db_uri, args.nims_path, args.physio_path, args.task, log, args.jobs, args.reset, args.sleeptime)
+    processor = Processor(args.db_uri, args.nims_path, args.physio_path, args.task, args.filter, log, args.jobs, args.reset, args.sleeptime)
 
     def term_handler(signum, stack):
         processor.halt()

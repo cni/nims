@@ -48,6 +48,7 @@ class DicomFile(object):
 
     filename_ext = '.dcm'
     label = u'Dicom Files'
+    priority = 0
 
     def __init__(self, filename):
         self.filename = filename

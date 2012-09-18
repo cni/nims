@@ -122,7 +122,7 @@ class AuthController(BaseController):
                     .join(ResearchGroup, Experiment.owner)
                     .join(Epoch, Session.epochs)
                     .join(Dataset, Epoch.datasets)
-                    .filter((Dataset.kind == u'secondary') | (Dataset.kind == u'derived'))
+                    .filter((Dataset.kind == u'peripheral') | (Dataset.kind == u'derived'))
                     .filter(Session.id.in_(id_list))
                     .all())
             tar_dirs = ['%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name, r.Dataset.name) for r in db_res]
