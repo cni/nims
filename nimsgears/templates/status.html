@@ -49,5 +49,17 @@
       </py:for>
   </table>
 
+  <h2>Queued Jobs (${len(queued_jobs)})</h2>
+  <table>
+      <py:for each="job in queued_jobs">
+      <tr>
+        <td>${job.id}</td>
+        <td>${job.data_container}</td>
+        <td>${job.task}</td>
+        <td>${job.activity}</td>
+      </tr>
+      </py:for>
+  </table>
+
 </body>
 </html>

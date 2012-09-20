@@ -451,11 +451,11 @@ class Message(Entity):
 class Job(Entity):
 
     timestamp = Field(DateTime, default=datetime.datetime.now)
-    status = Field(Enum(u'new', u'active', u'done', u'failed', name=u'status'), default=u'new')
+    status = Field(Enum(u'new', u'active', u'done', u'failed', u'defunct', name=u'status'), default=u'new')
     task = Field(Enum(u'find', u'proc', name=u'task'))
     redo_all = Field(Boolean, default=False)
     progress = Field(Integer)
-    activity = Field(Unicode(255))
+    activity = Field(Unicode(255), default=u'queued')
 
     data_container = ManyToOne('DataContainer', inverse='jobs')
 

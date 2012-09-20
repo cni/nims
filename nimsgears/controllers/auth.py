@@ -87,12 +87,12 @@ class AuthController(BaseController):
 
         failed_jobs = Job.query.filter(Job.status == u'failed').all()
         active_jobs = Job.query.filter(Job.status == u'active').all()
-        new_jobs = Job.query.filter(Job.status == u'new').all()
+        queued_jobs = Job.query.filter(Job.status == u'new').all()
         return dict(
                 page='status',
                 failed_jobs=failed_jobs,
                 active_jobs=active_jobs,
-                new_jobs=new_jobs,
+                queued_jobs=queued_jobs,
                 )
 
     @expose('nimsgears.templates.admin')
