@@ -41,31 +41,31 @@ class PFileReaper(object):
 
     def run(self):
         while self.alive:
-            reap_files = [ReapPFile(p, self) for p in glob.glob(self.data_glob)]
-            reap_files = sorted(filter(lambda f: f.mod_time >= self.current_file_timestamp, reap_files), key=lambda f: f.mod_time)
-
-            if not reap_files:
-                self.log.warning('No matching files found (or error while checking for files)')
+            try:
+                reap_files = [ReapPFile(p, self) for p in glob.glob(self.data_glob)]
+                reap_files = sorted(filter(lambda f: f.mod_time >= self.current_file_timestamp, reap_files), key=lambda f: f.mod_time)
+                if not reap_files:
+                    raise Warning('No matching files found (or error while checking for files)')
+            except (OSError, Warning) as e:
+                self.log.warning(e)
+            else:
+                for rf in reap_files:
+                    if rf.path in self.monitored_files:
+                        mf = self.monitored_files[rf.path]
+                        if rf.size == mf.size and mf.needs_reaping:
+                            success = rf.reap()
+                            if success:
+                                nimsutil.update_reference_datetime(self.datetime_file, rf.mod_time)
+                                self.current_file_timestamp = rf.mod_time
+                        elif mf.needs_reaping:
+                            self.log.info('Monitoring %s' % rf)
+                        elif rf.size == mf.size:
+                            rf.needs_reaping = False
+                    else:
+                        self.log.info('Discovered %s' % rf)
+                self.monitored_files = dict(zip([rf.path for rf in reap_files], reap_files))
+            finally:
                 time.sleep(self.sleep_time)
-                continue
-
-            for rf in reap_files:
-                if rf.path in self.monitored_files:
-                    mf = self.monitored_files[rf.path]
-                    if rf.size == mf.size and mf.needs_reaping:
-                        success = rf.reap()
-                        if success:
-                            nimsutil.update_reference_datetime(self.datetime_file, rf.mod_time)
-                            self.current_file_timestamp = rf.mod_time
-                    elif mf.needs_reaping:
-                        self.log.info('Monitoring %s' % rf)
-                    elif rf.size == mf.size:
-                        rf.needs_reaping = False
-                else:
-                    self.log.info('Discovered %s' % rf)
-
-            self.monitored_files = dict(zip([rf.path for rf in reap_files], reap_files))
-            time.sleep(self.sleep_time)
 
 
 class ReapPFile(object):
