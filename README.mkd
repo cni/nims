@@ -70,6 +70,18 @@ Configure and restart Apache:
     /usr/local/etc/rc.d/apache22 restart
 
 
+Populating the Database
+-----------------------
+
+Once you have the NIMS web gui running, you need a way to get data into NIMS. We use various utilities to pull data from the MR scanner and insert it into NIMS. We use a suite of python scripts (various reapers, sorter.py, scheduler.py and processor.py, all in nimsproc) to do this. The reapers (dicomreaper.py, pfilereaper.py) copy data from the scanner and put it in the NIMS staging area (stage\_path). The sorter moves data from the staging area into the NIMS storage area (store\_path) and creates database entries for the data files. The scheduler finds new datasets in the database and schedules processing jobs for them. The processor executes the scheduled jobs. Some processing steps involve finding peripheral data files associated with the dataset, such as phyio files that are archived on the scanner. This is also where nifti creation happens and image pyramids are generated. All these tools have nice command-line help, so usage should be self-explanatory.
+
+You also need to run a process to maintain the shadow filesystem, which is a view into the data files that provides human-friendly paths to the data files that are based on the database (e.g., all datasets for an experiment "reading" will appear in a folder called "reading"). Each user gets their own shadow filesystem, and it allows them to have read-only access to the data through, e.g., scp. This shadow file system is rebuilt periodically to keep it in sync with the current DB structure. See nimsutil/symlinks.py.
+
+We usually launch all these processes using screen, so we can connect to the screen session from anywhere to check on these daemon processes. We provide an example screenrc file that launches all the processes in separate screens (e.g., "screen -c reaper.screenrc").
+
+Data are automatically organized by the sorter using the PatientID field from DICOM files (or the analogous field in the raw MR data files). The format of the Patient ID string is PI\_uid/experiment\_name.
+
+
 License
 -------
 
