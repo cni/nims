@@ -162,7 +162,7 @@ class User(Entity):
 
     @property
     def job_cnt(self):
-        return Job.query.filter((Job.status == u'new') | (Job.status == u'active')).count()
+        return Job.query.filter((Job.status == u'waiting') | (Job.status == u'pending') | (Job.status == u'running')).count()
 
     def get_trash_flag(self):
         trash_flag = session.get(self.uid, 0)
@@ -435,7 +435,7 @@ class Message(Entity):
 
     subject = Field(Unicode(255), required=True)
     body = Field(Unicode)
-    priority = Field(Enum(u'normal', u'high', name=u'priority'), default=u'normal')
+    priority = Field(Enum(u'normal', u'high', name=u'message_priority'), default=u'normal')
     created = Field(DateTime, default=datetime.datetime.now)
     read = Field(DateTime)
 
@@ -451,32 +451,24 @@ class Message(Entity):
 class Job(Entity):
 
     timestamp = Field(DateTime, default=datetime.datetime.now)
-    status = Field(Enum(u'new', u'active', u'done', u'failed', u'defunct', name=u'status'), default=u'new')
-    task = Field(Enum(u'find', u'proc', name=u'task'))
+    status = Field(Enum(u'waiting', u'pending', u'running', u'done', u'failed', u'abandoned', name=u'job_status'))
+    task = Field(Enum(u'find', u'proc', name=u'job_task'))
     redo_all = Field(Boolean, default=False)
     progress = Field(Integer)
-    activity = Field(Unicode(255), default=u'queued')
+    activity = Field(Unicode(255))
+    next_job_id = Field(Integer)
 
     data_container = ManyToOne('DataContainer', inverse='jobs')
 
-    def __init__(self, **kwargs):
-        super(Job, self).__init__(**kwargs)
-        if 'nims_path' in kwargs:
-            self.restart(kwargs['nims_path'])
+    def __repr__(self):
+        return ('<Job %d: %s, %s>' % (self.id, self.task, self.status)).encode('utf-8')
 
     def __unicode__(self):
         return u'%s#%s' % (self.data_container, self.task)
 
-    def restart(self, nims_path):
-        self.status = u'new'
-        query = Dataset.query.filter(Dataset.container == self.data_container)
-        if self.task == u'find':
-            query = query.filter_by(kind=u'peripheral')
-        elif self.task == u'proc':
-            query = query.filter_by(kind=u'derived')
-        for ds in query.all():
-            shutil.rmtree(os.path.join(nims_path, ds.relpath))
-            ds.delete()
+    def restart(self):
+        self.status = u'pending'
+        self.activity = u'pending'
 
 
 class AccessPrivilege(object):
@@ -560,9 +552,8 @@ class DataContainer(Entity):
     timestamp = Field(DateTime, default=datetime.datetime.now)
     duration = Field(Interval, default=datetime.timedelta())
     trashtime = Field(DateTime)
-    updated = Field(Boolean, default=False, index=True)
-    needs_finding = Field(Boolean, default=False, index=True)
-    needs_processing = Field(Boolean, default=False, index=True)
+    dirty = Field(Boolean, default=False, index=True)
+    scheduling = Field(Boolean, default=False, index=True)
 
     datasets = OneToMany('Dataset')
     jobs = OneToMany('Job')
@@ -843,9 +834,9 @@ class Dataset(Entity):
     offset = Field(Interval, default=datetime.timedelta())
     trashtime = Field(DateTime)
     priority = Field(Integer, default=0)
-    kind = Field(Enum(u'primary', u'secondary', u'peripheral', u'derived', name=u'kind'))
+    kind = Field(Enum(u'primary', u'secondary', u'peripheral', u'derived', name=u'dataset_kind'))
     label = Field(Unicode(63))
-    datatype = Field(Enum(u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap', u'mr_spectro', name=u'datatype'), default=u'unknown')
+    datatype = Field(Enum(u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap', u'mr_spectro', name=u'dataset_type'), default=u'unknown')
     _updatetime = Field(DateTime, default=datetime.datetime.now, colname='updatetime', synonym='updatetime')
     digest = Field(Binary(20))
     compressed = Field(Boolean, default=False, index=True)
@@ -882,7 +873,7 @@ class Dataset(Entity):
         return self._updatetime
     def _set_updatetime(self, updatetime):
         self._updatetime = updatetime
-        self.container.updated = True
+        self.container.dirty = True
     updatetime = property(_get_updatetime, _set_updatetime)
 
     @property
@@ -901,7 +892,7 @@ class Dataset(Entity):
             self.trashtime = None
             self.container.untrash()
 
-    def update_file_cnt_and_digest(self, nims_path):
+    def redigest(self, nims_path):
         old_digest = self.digest
         new_hash = hashlib.sha1()
         filelist = os.listdir(os.path.join(nims_path, self.relpath))
@@ -927,7 +918,7 @@ class PrimaryMRData(Dataset):
                 .filter(Epoch.uid == series_uid)
                 .filter(Epoch.acq == mrfile.acq_no)
                 .filter(cls.label == mrfile.label)
-                .with_lockmode('update').first())
+                .first())
         if not dataset:
             alt_dataset = (cls.query.join(Epoch)
                     .filter(Epoch.uid == series_uid)

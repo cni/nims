@@ -86,8 +86,8 @@ class AuthController(BaseController):
         #    redirect('/auth/prefs')
 
         failed_jobs = Job.query.filter(Job.status == u'failed').all()
-        active_jobs = Job.query.filter(Job.status == u'active').all()
-        queued_jobs = Job.query.filter(Job.status == u'new').all()
+        active_jobs = Job.query.filter(Job.status == u'running').all()
+        queued_jobs = Job.query.filter((Job.status == u'waiting') | (Job.status == u'pending')).limit(200).all()
         return dict(
                 page='status',
                 failed_jobs=failed_jobs,
