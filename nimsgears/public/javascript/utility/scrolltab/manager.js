@@ -1,6 +1,6 @@
 define([], function()
 {
-    function DrilldownManager(tables, populators, auto_resize)
+    function DrilldownManager(tables, populators, auto_resize, drilldown_id)
     {
         var obj = this;
         this._tables = [];
@@ -22,6 +22,27 @@ define([], function()
             var resize = this.getResize(125);
             window.addEventListener('resize', resize);
             resize();
+        }
+        this._drilldown_id = (drilldown_id) ? drilldown_id : undefined;
+        if (this._drilldown_id) { this.processHash(); }
+    };
+
+    DrilldownManager.prototype.processHash = function()
+    {
+        if (this._drilldown_id)
+        {
+            var chunks = window.location.hash.replace("#","").split(",");
+            if (chunks.length && chunks[0] == this._drilldown_id)
+            {
+                chunks = chunks.slice(1);
+                var i_chunk = 0;
+                var i_table = 0;
+                for (var i = 0, j = 0; i < chunks.length && j < this._tables.length; i++, j++)
+                {
+                    this._tables[j]._selected_rows = [{'id': chunks[i]}];
+                }
+            }
+            this.refresh(0);
         }
     };
 
@@ -106,7 +127,22 @@ define([], function()
                 this._tables[i].cleanUp();
             }
             if (table._selected_rows.length == 0) { table.changeRow(1); table.select(); }
+            this.buildHash();
+
             table.element.focus();
+        }
+    };
+
+    DrilldownManager.prototype.buildHash = function()
+    {
+        // Keep track of existing state in drilldown
+        if (this._drilldown_id)
+        {
+            var drilldown_items = this._tables.slice(0, this._focus_index + 1);
+            var row_ids = drilldown_items.map(function(el) { return el._selected_rows[0].id; });
+            var items = [this._drilldown_id].concat(row_ids);
+            var hash = "#" + items.join(",");
+            window.location.hash = hash;
         }
     };
 
@@ -129,6 +165,7 @@ define([], function()
                 obj._tables[i_ref].onSelect(function(event)
                 {
                     obj.refresh(i_ref+1, event.selected_rows, event.is_instant);
+                    obj.buildHash();
                 });
             })();
         }
@@ -188,5 +225,3 @@ define([], function()
 
     return DrilldownManager;
 });
-
-

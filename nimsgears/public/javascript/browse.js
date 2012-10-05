@@ -341,7 +341,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         sessions = new Drilldown("sessions", "Sessions");
         epochs = new Drilldown("epochs", "Epochs");
         datasets = new Drilldown("datasets", "Datasets");
-        manager = new DrilldownManager([experiments, sessions, epochs, datasets], [refreshExperiments, refreshSessions, refreshEpochs, refreshDatasets], true);
+        manager = new DrilldownManager([experiments, sessions, epochs, datasets], [refreshExperiments, refreshSessions, refreshEpochs, refreshDatasets], true, "main");
         manager.refresh(0, [], true);
 
         TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));
