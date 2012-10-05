@@ -45,15 +45,12 @@ class Processor(object):
     def run(self):
         while self.alive:
             if threading.active_count()-1 < self.max_jobs:
-                Job_A = sqlalchemy.orm.aliased(Job)
-                subquery = sqlalchemy.exists().where(Job_A.data_container_id == DataContainer.id)
-                subquery = subquery.where((Job_A.id < Job.id) & (Job_A.status != u'done'))
-                query = Job.query.join(DataContainer).join(Epoch).filter(Job.status==u'new')
+                query = Job.query.join(DataContainer).join(Epoch)
                 if self.task:
                     query = query.filter(Job.task==self.task)
                 for f in self.filters:
                     query = query.filter(eval(f))
-                job = query.filter(~subquery).order_by(Job.id).with_lockmode('update').first()
+                job = query.filter(Job.status==u'pending').order_by(Job.id).with_lockmode('update').first()
 
                 if job:
                     if isinstance(job.data_container, Epoch):
@@ -64,7 +61,7 @@ class Processor(object):
                             pipeline_class = PFilePipeline
 
                     pipeline = pipeline_class(job, self.nims_path, self.physio_path, self.log)
-                    job.status = u'active'      # make sure that this job is not picked up again in the next iteration
+                    job.status = u'running'
                     transaction.commit()
                     pipeline.start()
                 else:
@@ -122,10 +119,21 @@ class Pipeline(threading.Thread):
             self.job.status = u'done'
             self.job.activity = u'done'
             self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+            if self.job.next_job_id:
+                next_job = Job.get(self.job.next_job_id)
+                if next_job.status == u'waiting':
+                    next_job.status = u'pending'
         transaction.commit()
+
+    def clean(self, data_container, kind):
+        for ds in Dataset.query.filter_by(container=data_container).filter_by(kind=kind).all():
+            shutil.rmtree(os.path.join(self.nims_path, ds.relpath))
+            ds.delete()
 
     @abc.abstractmethod
     def find(self):
+        self.clean(self.job.data_container, u'peripheral')
+        DBSession.add(self.job)
         dc = self.job.data_container
         ds = self.job.data_container.primary_dataset
         if dc.physio_flag:
@@ -151,7 +159,8 @@ class Pipeline(threading.Thread):
 
     @abc.abstractmethod
     def process(self):
-        pass
+        self.clean(self.job.data_container, u'derived')
+        DBSession.add(self.job)
 
 
 class DicomPipeline(Pipeline):

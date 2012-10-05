@@ -25,37 +25,51 @@ class Scheduler(object):
         self.log = log
         self.sleeptime = sleeptime
         self.cooltime = datetime.timedelta(seconds=cooltime)
+
         self.alive = True
         init_model(sqlalchemy.create_engine(db_uri))
+        self.reset_all()
 
     def halt(self):
         self.alive = False
 
     def run(self):
         while self.alive:
-            query = DataContainer.query
-            query = query.filter((DataContainer.updated == True) | (DataContainer.needs_finding == True) | (DataContainer.needs_processing == True))
-            query = query.filter(~DataContainer.datasets.any(Dataset.updatetime > (datetime.datetime.now() - self.cooltime)))
-            dc = query.with_lockmode('update').first()
+            dc = (DataContainer.query
+                    .filter(DataContainer.dirty == True)
+                    .filter(~DataContainer.datasets.any(Dataset.updatetime > (datetime.datetime.now() - self.cooltime)))
+                    .first())
             if dc:
+                dc.dirty = False
+                dc.scheduling = True
+                transaction.commit()
+                DBSession.add(dc)
+
                 self.log.info(u'Inspecting  %s' % dc)
-                if dc.updated and dc.primary_dataset.update_file_cnt_and_digest(self.nims_path):
-                    dc.needs_finding = True
-                    dc.needs_processing = True
-                if dc.needs_finding:    # seems redundant, but needed for externally-triggered re-finding
-                    if not Job.query.filter_by(data_container=dc).filter_by(task=u'find').filter_by(status=u'new').first():
-                        job = Job(data_container=dc, task=u'find', nims_path=self.nims_path)
-                        self.log.info(u'Created job %s' % job)
-                    dc.needs_finding = False
-                if dc.needs_processing: # seems redundant, but needed for externally-triggered re-processing
-                    if not Job.query.filter_by(data_container=dc).filter_by(task=u'proc').filter_by(status=u'new').first():
-                        job = Job(data_container=dc, task=u'proc', nims_path=self.nims_path)
-                        self.log.info(u'Created job %s' % job)
-                    dc.needs_processing = False
-                dc.updated = False
+                if dc.primary_dataset.redigest(self.nims_path):
+                    if not Job.query.filter_by(data_container=dc).filter_by(task=u'proc').filter((Job.status == u'waiting') | (Job.status == u'pending')).first():
+                        proc_job = Job(data_container=dc, task=u'proc', status=u'waiting', activity=u'waiting', nims_path=self.nims_path)
+                        self.log.info(u'Created job %s' % proc_job)
+                        transaction.commit()
+                        DBSession.add(dc)
+                    if not Job.query.filter_by(data_container=dc).filter_by(task=u'find').filter((Job.status == u'waiting') | (Job.status == u'pending')).first():
+                        proc_job = Job.query.filter_by(data_container=dc).filter_by(task=u'proc').order_by(-Job.id).first()
+                        find_job = Job(data_container=dc, task=u'find', status=u'pending', activity=u'pending', next_job_id=proc_job.id, nims_path=self.nims_path)
+                        self.log.info(u'Created job %s' % find_job)
+                        transaction.commit()
+                        DBSession.add(dc)
+                dc.scheduling = False
                 transaction.commit()
             else:
                 time.sleep(self.sleeptime)
+
+    def reset_all(self):
+        """Reset all scheduling data containers to dirty."""
+        for dc in DataContainer.query.filter_by(scheduling=True).all():
+            dc.dirty = True
+            dc.scheduling = False
+        transaction.commit()
+        self.log.info('Reset "scheduling" data containers to dirty')
 
 
 class ArgumentParser(argparse.ArgumentParser):
