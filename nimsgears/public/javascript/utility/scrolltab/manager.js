@@ -42,7 +42,6 @@ define([], function()
                     this._tables[j]._selected_rows = [{'id': chunks[i]}];
                 }
             }
-            this.refresh(0);
         }
     };
 
@@ -107,7 +106,7 @@ define([], function()
                 obj.nav_timeout = null;
             }, 250);
         }
-    }
+    };
 
     DrilldownManager.prototype.selectTable = function(table)
     {
@@ -126,9 +125,7 @@ define([], function()
             {
                 this._tables[i].cleanUp();
             }
-            if (table._selected_rows.length == 0) { table.changeRow(1); table.select(); }
             this.buildHash();
-
             table.element.focus();
         }
     };
@@ -139,7 +136,12 @@ define([], function()
         if (this._drilldown_id)
         {
             var drilldown_items = this._tables.slice(0, this._focus_index + 1);
-            var row_ids = drilldown_items.map(function(el) { return el._selected_rows[0].id; });
+            var row_ids = [];
+            for (var i = 0; i < drilldown_items.length; i++)
+            {
+                if (drilldown_items[i]._selected_rows.length != 1) { break; }
+                row_ids.push(drilldown_items[i]._selected_rows[0].id);
+            }
             var items = [this._drilldown_id].concat(row_ids);
             var hash = "#" + items.join(",");
             window.location.hash = hash;

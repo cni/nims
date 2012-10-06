@@ -351,8 +351,8 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table, #datasets .scrolltable_body table", $("#download_drop"), dropDownloads);
         TableDragAndDrop.setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
 
-        $("#radio_trash input").change(changeTrashFlag);
         $($("#radio_trash input")[getTrashFlag()]).click();
+        $("#radio_trash input").change(changeTrashFlag);
 
         $(".pop").dialog();
         $(".pop").dialog("destroy");
