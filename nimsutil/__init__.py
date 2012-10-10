@@ -2,6 +2,8 @@
 
 from nimsutil import *
 
+datatypes = []
+
 try:
     import pyramid
 except:
@@ -11,8 +13,12 @@ try:
     import dicomutil
 except:
     print 'Warning: could not import dicomutil module'
+else:
+    datatypes += [dicomutil.DicomFile]
 
 try:
     import pfile
 except:
     print 'Warning: could not import pfile module'
+else:
+    datatypes += [pfile.PFile]
