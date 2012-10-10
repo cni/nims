@@ -12,6 +12,7 @@ import argparse
 import datetime
 import tempfile
 import subprocess as sp
+import gzip
 
 import numpy as np
 import nibabel
@@ -42,9 +43,12 @@ class PFile(object):
     def __init__(self, filename, log=None):
         self.filename = filename
         self.log = log
-        self.get_metadata()
         self.image_data = None
         self.fm_data = None
+        # Check for the gzip magic bytes (0x1f 0x8b)
+        with open(self.filename,'rb') as fp:
+            self.is_gzipped = (fp.read(2) == '\x1f\x8b')
+        self.get_metadata()
 
     def get_metadata(self):
 
@@ -53,7 +57,12 @@ class PFile(object):
             return ''.join([str(i-1) if i < 11 else '.' for pair in [(ord(c) >> 4, ord(c) & 15) for c in uid] for i in pair if i > 0])
 
         try:
-            self.header = pfheader.get_header(self.filename)
+            if self.is_gzipped:
+                fp = gzip.open(self.filename)
+            else:
+                fp = open(self.filename)
+            self.header = pfheader.get_header(fp)
+            fp.close()
         except (IOError, pfheader.PFHeaderError):
             raise PFileError
         self.exam_no = self.header.exam.ex_no
@@ -157,24 +166,28 @@ class PFile(object):
     def set_image_data(self, data_file):
         """ Load raw image data from a file and do some sanity checking on num slices, matrix size, etc. """
         # TODO: support other file formats, like hd5 and maybe raw binary?
+        # TODO: confirm that the voxel reordering is necessary. Maybe lean on the recon
+        # folks to standardize their voxel order?
         try:
+            import h5py
+            mat = h5py.File(data_file, 'r')
+            if 'd' in mat:
+                self.image_data = np.atleast_3d(mat['d'].items()[1][1].value)
+                self.image_data = self.image_data.transpose((3,2,1,0))[::-1,:,::-1,:]
+            elif 'MIP_res' in mat:
+                self.image_data = np.atleast_3d(mat['MIP_res'].items()[1][1].value)
+                self.image_data = self.image_data.transpose((1,0,2,3))[::-1,::-1,:,:]
+        except:
             import scipy.io
             mat = scipy.io.loadmat(data_file)
-        except:
-            import h5py
-            mat = h5py.File(args.matfile, 'r')
-        if 'd' in mat:
-            self.image_data = np.atleast_3d(mat['d'])
-            if self.image_data.ndim == 3:
-                self.image_data = self.image_data.reshape(self.image_data.shape + (1,))
-            # TODO: confirm that this voxel reordering is necessary. Maybe lean on the recon
-            # folks to standardize thier voxle order? Might also look at
-            self.image_data = self.image_data.transpose((1,0,2,3))[::-1,:,::-1,:]
-        elif 'MIP_res' in mat:
-            self.image_data = np.atleast_3d(mat['MIP_res'])
-            if self.image_data.ndim == 3:
-                self.image_data = self.image_data.reshape(self.image_data.shape + (1,))
-            self.image_data = self.image_data.transpose((1,0,2,3))[::-1,::-1,:,:]
+            if 'd' in mat:
+                self.image_data = np.atleast_3d(mat['d'])
+                self.image_data = self.image_data.transpose((1,0,2,3))[::-1,:,::-1,:]
+            elif 'MIP_res' in mat:
+                self.image_data = np.atleast_3d(mat['MIP_res'])
+                self.image_data = self.image_data.transpose((1,0,2,3))[::-1,::-1,:,:]
+        if self.image_data.ndim == 3:
+            self.image_data = self.image_data.reshape(self.image_data.shape + (1,))
 
         if self.image_data.shape[0] != self.size_x or self.image_data.shape[1] != self.size_y:
             msg = 'Image matrix discrepancy. Fixing the header, assuming image_data is correct...'
@@ -194,10 +207,10 @@ class PFile(object):
             self.num_timepoints = self.image_data.shape[3]
         self.duration = self.num_timepoints * self.tr # FIXME: maybe need self.num_echoes?
 
-    def to_nii(self, outbase, recon_executable=None, saveInOut=False, num_jobs=1):
+    def to_nii(self, outbase, recon_executable=None, saveInOut=False):
         """Create NIFTI file from pfile."""
         if self.image_data is None and self.recon_func is not None:
-            self.recon_func(recon_executable, num_jobs=num_jobs) if recon_executable else self.recon_func(num_jobs=num_jobs)
+            self.recon_func(recon_executable) if recon_executable else self.recon_func()
         else:
             return
 
@@ -324,7 +337,7 @@ class PFile(object):
 
         return main_file
 
-    def recon_spirec(self, executable='spirec', num_jobs=1):
+    def recon_spirec(self, executable='spirec'):
         """Do spiral image reconstruction and populate self.image_data."""
         tmpdir = tempfile.mkdtemp()
         basename = 'recon'
@@ -340,19 +353,16 @@ class PFile(object):
             self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echos,self.num_slices],order='F').transpose((0,1,3,2))
         shutil.rmtree(tmpdir)
 
-    def recon_mux_epi(self, executable='mux_epi_recon', num_jobs=1):
+    def recon_mux_epi(self, executable='octave'):
         """Do mux_epi image reconstruction and populate self.image_data."""
-        import pytave
-
-        #ref_file  = os.path.join(os.path.dirname(self.filename), '_'+os.path.basename(self.filename)+'_ref.dat')
-        #vrgf_file = os.path.join(os.path.dirname(self.filename), '_'+os.path.basename(self.filename)+'_vrgf.dat')
-
-        mux_recon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), executable))
-        # ipython makes this unicode by default, which causes an error in pytave. If using
-        # ipython to execute, be sure to turn off automatic unicode conversion.
-        pytave.addpath(str(mux_recon_path))
-        self.image_data = pytave.feval(1, 'mux_epi_main', self.filename)[0]
-
+        mux_recon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'mux_epi_recon'))
+        tmpdir = tempfile.mkdtemp()
+        outname = os.path.join(tmpdir, 'out.mat')
+        cmd = executable + ' --path ' + mux_recon_path + ' --eval \'mux_epi_main("' + os.path.abspath(self.filename) + '","' + outname + '");\''
+        self.log and self.log.debug(cmd)
+        sp.call(shlex.split(cmd), stdout=open('/dev/null', 'w'))
+        self.set_image_data(outname)
+        shutil.rmtree(tmpdir)
         # TODO: fix size_x/y,num_slices,num_timpoints if they conflict with the returned size of d.
         #self.image_data = np.zeros((self.size_x, self.size_y, self.num_slices, self.num_timepoints))
         #num_mux_slices = self.num_slices / self.num_bands
@@ -384,7 +394,6 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('pfile', help='path to pfile')
         self.add_argument('outbase', nargs='?', help='basename for output files (default: [pfile_name].nii.gz in cwd)')
         self.add_argument('-m', '--matfile', help='path to reconstructed data in .mat format')
-        self.add_argument('-j', '--jobs', help='number of concurrent threads to run', type=int, default=1)
 
 
 if __name__ == '__main__':
@@ -392,4 +401,4 @@ if __name__ == '__main__':
     pf = PFile(args.pfile)
     if args.matfile:
         pf.set_image_data(args.matfile)
-    pf.to_nii(args.outbase or os.path.basename(args.pfile), num_jobs=args.jobs)
+    pf.to_nii(args.outbase or os.path.basename(args.pfile))
