@@ -68,7 +68,7 @@ class SymLinker(object):
 
         for ep in set(epoch_paths):
             os.makedirs(ep)
-        for sl in set(symlinks):
+        for sl in set(symlinks):    # set() removes superuser symlink duplicates
             os.symlink(*sl)
 
 
