@@ -100,7 +100,7 @@ class Sorter(object):
         shutil.rmtree(dirpath)
 
     def get_dataset_and_filename_ext(self, filename):
-        for datatype in (nimsutil.dicomutil.DicomFile, nimsutil.pfile.PFile):
+        for datatype in nimsutil.datatypes:
             try:
                 mrfile = datatype(filename)
             except:
