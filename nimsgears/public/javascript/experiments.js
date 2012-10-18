@@ -122,7 +122,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         {
             traditional: true,
             type: 'POST',
-            url: "access/get_access_privileges",
+            url: "experiments/get_access_privileges",
             dataType: "json",
             async: false,
             success: function(data)
@@ -214,6 +214,23 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         showAccessDialog(user_ids, exp_ids, dragged_from);
     };
 
+    var populateAccessKey = function()
+    {
+        var table = document.getElementById('access_key');
+        for (var className in accessClasses)
+        {
+            if (accessClasses.hasOwnProperty(className))
+            {
+                var row = document.createElement('tr');
+                var td = document.createElement('td');
+                td.className = accessClasses[className];
+                td.textContent = className;
+                row.appendChild(td);
+                table.appendChild(row);
+            }
+        }
+    };
+
     var init = function()
     {
         users = new Drilldown("users", "Users");
@@ -231,11 +248,8 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         $("#access_dialog").dialog();
         $("#access_dialog").dialog("destroy");
 
-        // Clicking out of the table deselects selected elements
         users.onSelect(highlightAccess);
         experiments.onSelect(highlightAccess);
-//        users.element.onblur = function() { users.deselectAll(); removeHighlighting(experiments);};
-//        experiments.element.onblur = function() { experiments.deselectAll(); removeHighlighting(users);};
 
         var access_privileges = getAccessPrivileges();
         access_privileges.push("Remove Access");
@@ -247,6 +261,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             option.textContent = item;
             selector.append(option);
         });
+        populateAccessKey();
     };
 
     $(function() {
