@@ -15,7 +15,7 @@ from nimsgears import model
 from nimsgears.model import *
 
 from nimsgears.lib.base import BaseController
-from nimsgears.controllers.access import AccessController
+from nimsgears.controllers.experiments import ExperimentsController 
 from nimsgears.controllers.browse import BrowseController
 from nimsgears.controllers.search import SearchController
 from nimsgears.controllers.groups import GroupsController
@@ -27,7 +27,7 @@ __all__ = ['AuthController']
 
 class AuthController(BaseController):
 
-    access = AccessController()
+    experiments = ExperimentsController()
     browse = BrowseController()
     search = SearchController()
     groups = GroupsController()
