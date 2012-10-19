@@ -1,19 +1,28 @@
 # @author:  Reno Bowen
 
-from tg import expose, request
+from tg import expose, request, tmpl_context
 from repoze.what import predicates
 import transaction
 
+
 from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
+from sprox.formbase import AddRecordForm
 
 import json
 
+class NewUserForm(AddRecordForm):
+    __model__ = Experiment 
+    __limit_fields__ = ['name', 'owner']
+    __field_order__ = ['name', 'owner']
+    __dropdown_field_names__ = {'owner':'gid'}
+
+new_user_form = NewUserForm(DBSession)
 
 class ExperimentsController(NimsController):
 
     @expose('nimsgears.templates.experiments')
-    def index(self):
+    def index(self, **kw):
         user = request.identity['user']
 
         exp_data_list, exp_attr_list = self.get_experiments(user, True)
@@ -28,7 +37,9 @@ class ExperimentsController(NimsController):
         user_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name')]
         acc_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name'), ('Access Level', 'col_access')]
 
-        return dict(page='access',
+        tmpl_context.widget = new_user_form
+
+        return dict(page='experiments',
                     user_data_list=user_data_list,
                     user_attr_list=user_attr_list,
                     acc_columns=acc_columns,
@@ -36,6 +47,7 @@ class ExperimentsController(NimsController):
                     exp_attr_list=exp_attr_list,
                     user_columns=user_columns,
                     exp_columns=exp_columns,
+                    value=kw,
                     )
 
     @expose()
