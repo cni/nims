@@ -36,32 +36,31 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
     var removeHighlighting = function(table)
     {
         var rows = table.getRows();
-        for (var i = 0; i < rows.length; i++)
-        {
+        rows.map(function(row) {
+            row.getElementsByClassName('access_level')[0].textContent = '';
             for (var className in accessClasses)
             {
                 if (accessClasses.hasOwnProperty(className))
                 {
-                    rows[i].classList.remove(accessClasses[className]);
-                }
+                    row.classList.remove(accessClasses[className]); 
+                } 
             }
-        }
-
+        });
     }
 
     var highlightRows = function(rows, access_levels)
     {
-        for (var i = 0; i < rows.length; i++)
-        {
-            if (access_levels.hasOwnProperty(rows[i].id))
+        rows.map(function(row) {
+            if (access_levels.hasOwnProperty(row.id))
             {
-                rows[i].classList.add(accessClasses[access_levels[rows[i].id]]);
+                row.classList.add(accessClasses[access_levels[row.id]]);
+                row.getElementsByClassName('access_level')[0].textContent = access_levels[row.id];  
             }
             else
             {
-                rows[i].classList.add('access_none');
+                row.classList.add('access_none');
             }
-        }
+        });
     }
 
     var highlightAccess = function(event)
@@ -214,23 +213,6 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         showAccessDialog(user_ids, exp_ids, dragged_from);
     };
 
-    var populateAccessKey = function()
-    {
-        var table = document.getElementById('access_key');
-        for (var className in accessClasses)
-        {
-            if (accessClasses.hasOwnProperty(className))
-            {
-                var row = document.createElement('tr');
-                var td = document.createElement('td');
-                td.className = accessClasses[className];
-                td.textContent = className;
-                row.appendChild(td);
-                table.appendChild(row);
-            }
-        }
-    };
-
     var init = function()
     {
         users = new Drilldown("users", "Users");
@@ -261,7 +243,6 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             option.textContent = item;
             selector.append(option);
         });
-        populateAccessKey();
     };
 
     $(function() {

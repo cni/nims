@@ -19,13 +19,9 @@
     .access_readwrite { color:green; }
     .access_manage { font-weight:bold; color:green; }
 
-    #users { width:25%; margin-left:5%; margin-right:5%; }
+    #users { width:300px; margin-left:5%; margin-right:5%; }
     #experiments { clear:left; width:300px; }
-    #access_key { margin-top:40px; }
 
-    .col_sunet { width:30%; }
-    .col_exam { width:25%; }
-    .col_sa { width:25%; }
 </style>
 </head>
 
@@ -43,12 +39,14 @@
                 <py:for each="col in exp_columns">
                     <th py:with="name, cls = col" class="${cls}">${name}</th>
                 </py:for>
+                <th>Access Level</th>
             </tr>
         </thead>
         <tbody>
             <py:for each="exp_data, exp_attr in zip(exp_data_list, exp_attr_list)">
                 <tr py:attrs="exp_attr"> <!-- set id for expand queries done on rows later -->
                     <td py:for="param in exp_data">${param}</td>
+                    <td class="access_level"></td>
                 </tr>
             </py:for>
         </tbody>
@@ -59,20 +57,17 @@
                 <py:for each="col in user_columns">
                     <th py:with="name, cls = col" class="${cls}">${name}</th>
                 </py:for>
+                <th>Access Level</th>
             </tr>
         </thead>
         <tbody>
             <py:for each="user_data, user_attr in zip(user_data_list, user_attr_list)">
                 <tr py:attrs="user_attr"> <!-- set id for expand queries done on rows later -->
                     <td py:for="param in user_data">${param}</td>
+                    <td class="access_level"></td>
                 </tr>
             </py:for>
         </tbody>
     </table>
-    <div style='float:left'> 
-        <table id='access_key' cellpadding='0' cellspacing='0'>
-        <tr><th>Access Legend:</th></tr>
-        </table>
-    </div>
 </body>
 </html>
