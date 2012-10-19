@@ -1,7 +1,13 @@
 require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, Drilldown, DrilldownManager) {
     var users;
     var experiments;
-    var current_access;
+    var accessClasses = {'Anon-Read':   'access_anonread',
+                         'Read-Only':   'access_readonly',
+                         'Read-Write':  'access_readwrite',
+                         'Manage':      'access_manage',
+                         'None':        'access_none',
+                        };
+
 
     var refreshExperiments = function(table, selected_rows, is_instant, populateNextTableFn)
     {
@@ -27,23 +33,73 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }); // ajax call
     };
 
-    var refreshCurrentAccess = function(table, selected_rows, is_instant, populateNextTableFn)
+    var removeHighlighting = function(table)
     {
-        if (selected_rows && selected_rows.length == 1)
+        var rows = table.getRows();
+        rows.map(function(row) {
+            row.getElementsByClassName('access_level')[0].textContent = '';
+            for (var className in accessClasses)
+            {
+                if (accessClasses.hasOwnProperty(className))
+                {
+                    row.classList.remove(accessClasses[className]); 
+                } 
+            }
+        });
+    }
+
+    var highlightRows = function(rows, access_levels)
+    {
+        rows.map(function(row) {
+            if (access_levels.hasOwnProperty(row.id))
+            {
+                row.classList.add(accessClasses[access_levels[row.id]]);
+                row.getElementsByClassName('access_level')[0].textContent = access_levels[row.id];  
+            }
+            else
+            {
+                row.classList.add('access_none');
+            }
+        });
+    }
+
+    var highlightAccess = function(event)
+    {
+        var id;
+        var table_to_change;
+        var selected_rows = event.selected_rows;
+        if (event.table === users && selected_rows.length == 1)
         {
-            exp_id = selected_rows[0].id.split('_')[1];
+            table_to_change = experiments;
+            id = selected_rows[0].id;
+            url = "experiments/experiments_with_access";
+            experiments.deselectAll();
+        }
+        else if (event.table === experiments && selected_rows.length == 1)
+        {
+            table_to_change = users;
+            id = selected_rows[0].id.split('_')[1];
+            url = "experiments/users_with_access";
+            users.deselectAll();
+        }
+
+        removeHighlighting(users);
+        removeHighlighting(experiments);
+        
+        if (table_to_change !== undefined)
+        {
             $.ajax(
             {
                 traditional: true,
                 type: 'POST',
-                url: "access/users_with_access",
-                data: { exp_id: exp_id },
+                url: url,
+                data: { id: id },
                 dataType: "json",
                 success: function(data)
                 {
                     if (data.success)
                     {
-                        populateNextTableFn(table, data);
+                        highlightRows(table_to_change.getRows(), data.access_levels);
                     }
                     else
                     {
@@ -54,7 +110,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }
         else
         {
-            populateNextTableFn(table, []);
+            // do nothing
         }
     }
 
@@ -65,7 +121,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         {
             traditional: true,
             type: 'POST',
-            url: "access/get_access_privileges",
+            url: "experiments/get_access_privileges",
             dataType: "json",
             async: false,
             success: function(data)
@@ -76,13 +132,13 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         return access_privileges;
     };
 
-    var modifyAccess = function(user_ids, exp_ids, access_level)
+    var modifyAccess = function(user_ids, exp_ids, access_level, dragged_from)
     {
         $.ajax(
         {
             traditional: true,
             type: 'POST',
-            url: "access/modify_access",
+            url: "experiments/modify_access",
             dataType: "json",
             data:
             {
@@ -96,14 +152,14 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                 {
                     alert('Failed'); // implement better alert
                 } else {
-                    experiments.select(true);
-                    experiments.element.focus();
+                    dragged_from.select(true);
+                    dragged_from.element.focus();
                 }
             },
         }); // ajax call
     };
 
-    var showAccessDialog = function(user_ids, exp_ids, access_level)
+    var showAccessDialog = function(user_ids, exp_ids, dragged_from)
     {
         $("#access_dialog").dialog({
             resizable:false,
@@ -112,7 +168,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             buttons: {
                 Okay: function() {
                     var access_level = $("#access_select").val();
-                    modifyAccess(user_ids, exp_ids, access_level);
+                    modifyAccess(user_ids, exp_ids, access_level, dragged_from);
                     $(this).dialog("close");
                 },
                 Cancel: function() {
@@ -131,15 +187,18 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         var dragged_row = $(event.target).closest('tr');
         var modify_experiments;
         var modify_users;
+        var dragged_from;
         if (experiments_table.is(dropped_onto_table))
         {
             modify_users = dragged_row.hasClass('ui-selected') ? users_table.find('.ui-selected') : dragged_row;
             modify_experiments = dropped_onto_row.hasClass('ui-selected') ? experiments_table.find('.ui-selected') : dropped_onto_row;
+            dragged_from = users;
         }
         else
         {
             modify_experiments = dragged_row.hasClass('ui-selected') ? experiments_table.find('.ui-selected') : dragged_row;
             modify_users = dropped_onto_row.hasClass('ui-selected') ? users_table.find('.ui-selected') : dropped_onto_row;
+            dragged_from = experiments;
         }
         var exp_ids = new Array();
         var user_ids = new Array();
@@ -151,7 +210,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         {
             exp_ids.push(this.id.split('_')[1]);
         });
-        showAccessDialog(user_ids, exp_ids);
+        showAccessDialog(user_ids, exp_ids, dragged_from);
     };
 
     var init = function()
@@ -160,19 +219,19 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         experiments = new Drilldown("experiments", "Experiments");
         users.resort();
         experiments.resort();
-        current_access = new Drilldown("current_access", "Current Access");
         new DrilldownManager([users], [], true);
-        new DrilldownManager([experiments, current_access], [refreshExperiments, refreshCurrentAccess], true);
+        new DrilldownManager([experiments], [], true);
 
         TableDragAndDrop.setupDraggable($(users._getBodyTable()));
         TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));
         TableDragAndDrop.setupDroppable($(users._getBodyTable()), $(experiments.getRows()), dropAccessModification);
         TableDragAndDrop.setupDroppable($(experiments._getBodyTable()), $(users.getRows()), dropAccessModification);
-        TableDragAndDrop.setupMultiDrop($(users._getBodyTable()));
-        TableDragAndDrop.setupMultiDrop($(experiments._getBodyTable()));
 
         $("#access_dialog").dialog();
         $("#access_dialog").dialog("destroy");
+
+        users.onSelect(highlightAccess);
+        experiments.onSelect(highlightAccess);
 
         var access_privileges = getAccessPrivileges();
         access_privileges.push("Remove Access");

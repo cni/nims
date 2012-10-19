@@ -58,39 +58,6 @@ define([], function ()
         });
     };
 
-    var setupMultiDrop = function(table)
-    {
-        var table_rows = table.find("tbody tr");
-        table_rows.bind("dropover", function (event, ui)
-        {
-            var hovered_row = $(this);
-            var table = hovered_row.closest("table");
-            var selected_rows = table.find('.ui-selected');
-            clearTimeout(ui.helper.data("timer"));
-            if (hovered_row.hasClass('ui-selected'))
-            {
-                selected_rows.addClass('multihover');
-            } else {
-                selected_rows.removeClass('multihover');
-            }
-        });
-        table_rows.bind("dropout", function (event, ui)
-        {
-            clearTimeout(ui.helper.data("timer"));
-            if ($(this).hasClass('ui-selected'))
-            {
-                ui.helper.data("timer", setTimeout(function()
-                {
-                    $(".multihover").removeClass('multihover');
-                }, 100));
-            }
-        });
-        table_rows.bind("drop", function (event, ui)
-        {
-            $(".multihover").removeClass('multihover');
-        });
-    };
-
     var init = function()
     {
         document.getElementsByTagName("body")[0].style.overflow = "hidden";
@@ -101,6 +68,5 @@ define([], function ()
         init: init,
         setupDraggable: setupDraggable,
         setupDroppable: setupDroppable,
-        setupMultiDrop: setupMultiDrop,
     };
 });
