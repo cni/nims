@@ -139,7 +139,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         {
             traditional: true,
             type: 'POST',
-            url: "access/modify_access",
+            url: "experiments/modify_access",
             dataType: "json",
             data:
             {
