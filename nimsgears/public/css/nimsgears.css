@@ -74,6 +74,9 @@ form.prefsform textarea#comment {
     width: 40em;
 }
 
+.access_manage {
+    font-weight:bold;
+}
 
 .scrolltable_wrapper:focus {
     outline-color:#ddcf99;
