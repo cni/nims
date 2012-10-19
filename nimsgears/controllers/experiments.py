@@ -28,7 +28,7 @@ class ExperimentsController(NimsController):
         user_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name')]
         acc_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name'), ('Access Level', 'col_access')]
 
-        return dict(page='access',
+        return dict(page='experiments',
                     user_data_list=user_data_list,
                     user_attr_list=user_attr_list,
                     acc_columns=acc_columns,
