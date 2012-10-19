@@ -6,19 +6,21 @@
 from __future__ import print_function
 
 import os
+import gzip
 import shlex
 import shutil
 import argparse
 import datetime
 import tempfile
 import subprocess as sp
-import gzip
 
+import h5py
 import numpy as np
 import nibabel
 
 import nimsutil
 import pfheader
+
 
 class PFileError(Exception):
     pass
@@ -37,7 +39,6 @@ class PFile(object):
         pf.to_nii(outbase='P56832.7')
     """
 
-    filename_ext = '.7'
     label = u'GE PFile'
 
     def __init__(self, filename, log=None):
@@ -45,7 +46,6 @@ class PFile(object):
         self.log = log
         self.image_data = None
         self.fm_data = None
-        # Check for the gzip magic bytes (0x1f 0x8b)
         with open(self.filename,'rb') as fp:
             self.is_gzipped = (fp.read(2) == '\x1f\x8b')
         self.get_metadata()
@@ -165,27 +165,15 @@ class PFile(object):
 
     def set_image_data(self, data_file):
         """ Load raw image data from a file and do some sanity checking on num slices, matrix size, etc. """
-        # TODO: support other file formats, like hd5 and maybe raw binary?
-        # TODO: confirm that the voxel reordering is necessary. Maybe lean on the recon
-        # folks to standardize their voxel order?
-        try:
-            import h5py
-            mat = h5py.File(data_file, 'r')
-            if 'd' in mat:
-                self.image_data = np.atleast_3d(mat['d'].items()[1][1].value)
-                self.image_data = self.image_data.transpose((3,2,1,0))[::-1,:,::-1,:]
-            elif 'MIP_res' in mat:
-                self.image_data = np.atleast_3d(mat['MIP_res'].items()[1][1].value)
-                self.image_data = self.image_data.transpose((1,0,2,3))[::-1,::-1,:,:]
-        except:
-            import scipy.io
-            mat = scipy.io.loadmat(data_file)
-            if 'd' in mat:
-                self.image_data = np.atleast_3d(mat['d'])
-                self.image_data = self.image_data.transpose((1,0,2,3))[::-1,:,::-1,:]
-            elif 'MIP_res' in mat:
-                self.image_data = np.atleast_3d(mat['MIP_res'])
-                self.image_data = self.image_data.transpose((1,0,2,3))[::-1,::-1,:,:]
+        # TODO: confirm that the voxel reordering is necessary. Maybe lean on the recon folks to standardize their voxel order?
+        mat = h5py.File(data_file, 'r')
+        if 'd' in mat:
+            self.image_data = np.atleast_3d(mat['d'].items()[1][1].value)
+            self.image_data = self.image_data.transpose((3,2,1,0))[::-1,:,::-1,:]
+        elif 'MIP_res' in mat:
+            self.image_data = np.atleast_3d(mat['MIP_res'].items()[1][1].value)
+            self.image_data = self.image_data.transpose((1,0,2,3))[::-1,::-1,:,:]
+
         if self.image_data.ndim == 3:
             self.image_data = self.image_data.reshape(self.image_data.shape + (1,))
 
@@ -212,6 +200,7 @@ class PFile(object):
         if self.image_data is None and self.recon_func is not None:
             self.recon_func(recon_executable) if recon_executable else self.recon_func()
         else:
+            self.log and self.log.warning('I don\'t know how to recon this type of data')
             return
 
         image_tlhc = np.array([self.header.image.tlhc_R, self.header.image.tlhc_A, self.header.image.tlhc_S])
@@ -339,36 +328,31 @@ class PFile(object):
 
     def recon_spirec(self, executable='spirec'):
         """Do spiral image reconstruction and populate self.image_data."""
-        tmpdir = tempfile.mkdtemp()
-        basename = 'recon'
-        basepath = os.path.join(tmpdir, basename)
+        with nimsutil.TempDirectory() as tmpdir:
+            basepath = os.path.join(tmpdir, 'recon')
+            cmd = '%s -l --rotate -90 --magfile --savefmap2 --b0navigator -r %s -t %s' % (executable, os.path.abspath(self.filename), 'recon')
+            self.log and self.log.debug(cmd)
+            sp.call(shlex.split(cmd), cwd=tmpdir, stdout=open('/dev/null', 'w'))    # run spirec to generate .mag and fieldmap files
 
-        # run spirec to get the mag file and the fieldmap file
-        cmd = executable + ' -l --rotate -90 --magfile --savefmap2 --b0navigator -r ' + os.path.abspath(self.filename) + ' -t ' + basename
-        self.log and self.log.debug(cmd)
-        sp.call(shlex.split(cmd), cwd=tmpdir, stdout=open('/dev/null', 'w'))
-
-        self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echos,self.num_slices],order='F').transpose((0,1,4,2,3))
-        if os.path.exists(basepath+'.B0freq2') and os.path.getsize(basepath+'.B0freq2')>0:
-            self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echos,self.num_slices],order='F').transpose((0,1,3,2))
-        shutil.rmtree(tmpdir)
+            self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echos,self.num_slices],order='F').transpose((0,1,4,2,3))
+            if os.path.exists(basepath+'.B0freq2') and os.path.getsize(basepath+'.B0freq2')>0:
+                self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echos,self.num_slices],order='F').transpose((0,1,3,2))
 
     def recon_mux_epi(self, executable='octave'):
         """Do mux_epi image reconstruction and populate self.image_data."""
-        mux_recon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'mux_epi_recon'))
-        tmpdir = tempfile.mkdtemp()
-        outname = os.path.join(tmpdir, 'out.mat')
-        cmd = executable + ' --path ' + mux_recon_path + ' --eval \'mux_epi_main("' + os.path.abspath(self.filename) + '","' + outname + '");\''
-        self.log and self.log.debug(cmd)
-        sp.call(shlex.split(cmd), stdout=open('/dev/null', 'w'))
-        self.set_image_data(outname)
-        shutil.rmtree(tmpdir)
-        # TODO: fix size_x/y,num_slices,num_timpoints if they conflict with the returned size of d.
-        #self.image_data = np.zeros((self.size_x, self.size_y, self.num_slices, self.num_timepoints))
-        #num_mux_slices = self.num_slices / self.num_bands
-        #for mux_slice in range(num_mux_slices):
-        #    d,slice_loc = pytave.feval(2, 'mux_epi_recon', self.filename, ref_file, vrgf_file, mux_slice+1)
-        #    self.image_data[:,:,slice_loc.astype(int).flatten()-1,:] = d
+        with nimsutil.TempDirectory() as tmpdir:
+            mux_recon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'mux_epi_recon'))
+            outname = os.path.join(tmpdir, 'out.mat')
+            cmd = '%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s");\'' % (executable, mux_recon_path, os.path.abspath(self.filename), outname)
+            self.log and self.log.debug(cmd)
+            sp.call(shlex.split(cmd), stdout=open('/dev/null', 'w'))                # run mux recon
+            self.set_image_data(outname)
+            # TODO: fix size_x/y,num_slices,num_timpoints if they conflict with the returned size of d.
+            #self.image_data = np.zeros((self.size_x, self.size_y, self.num_slices, self.num_timepoints))
+            #num_mux_slices = self.num_slices / self.num_bands
+            #for mux_slice in range(num_mux_slices):
+            #    d,slice_loc = pytave.feval(2, 'mux_epi_recon', self.filename, ref_file, vrgf_file, mux_slice+1)
+            #    self.image_data[:,:,slice_loc.astype(int).flatten()-1,:] = d
 
     @property
     def recon_func(self):
@@ -388,9 +372,9 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.description = """Recons a GE p-file to produce a NIfTI file and (if appropriate) a B0 fieldmap.
-                              Can also take the image data in a mat file, in which case no recon will be attempted
-                              and the p-file is just used to get the necessary header information."""
+        self.description = """Recons a GE PFile to produce a NIfTI file and (if appropriate) a B0 fieldmap.
+                              Can also take the image data in a .mat file, in which case no recon will be attempted
+                              and the PFile is just used to get the necessary header information."""
         self.add_argument('pfile', help='path to pfile')
         self.add_argument('outbase', nargs='?', help='basename for output files (default: [pfile_name].nii.gz in cwd)')
         self.add_argument('-m', '--matfile', help='path to reconstructed data in .mat format')
