@@ -119,7 +119,6 @@ class ExperimentsController(NimsController):
             if len(db_result_exps) == len(exp_id_list):
                 db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
                 result['success'] = self._modify_access(user, db_result_exps, db_result_users, AccessPrivilege.value(access_level))
-                print result
         if result['success']:
             transaction.commit()
         else:
