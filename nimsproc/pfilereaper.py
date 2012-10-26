@@ -16,13 +16,13 @@ import nimsutil
 
 class PFileReaper(object):
 
-    def __init__(self, id_, pat_id, data_path, reap_stage, sort_stage, datetime_file, sleep_time, log):
+    def __init__(self, id_, pat_id, data_path, reap_path, sort_path, datetime_file, sleep_time, log):
         super(PFileReaper, self).__init__()
         self.id_ = id_
         self.pat_id = pat_id
         self.data_glob = os.path.join(data_path, 'P?????.7')
-        self.reap_stage = reap_stage
-        self.sort_stage = sort_stage
+        self.reap_stage = nimsutil.make_joined_path(reap_path)
+        self.sort_stage = nimsutil.make_joined_path(sort_path)
         self.datetime_file = datetime_file
         self.sleep_time = sleep_time
         self.log = log
@@ -31,10 +31,10 @@ class PFileReaper(object):
         self.monitored_files = {}
         self.alive = True
 
-        # stage any files left behind from a previous run
+        # delete any files left behind from a previous run
         for item in os.listdir(self.reap_stage):
             if item.startswith(self.id_):
-                os.rename(os.path.join(self.reap_stage, item), os.path.join(self.sort_stage, item))
+                shutil.rmtree(os.path.join(self.reap_stage, item), os.path.join(self.sort_stage, item))
 
     def halt(self):
         self.alive = False
@@ -72,6 +72,7 @@ class ReapPFile(object):
 
     def __init__(self, path, reaper):
         self.path = path
+        self.basename = os.path.basename(path)
         self.reaper = reaper
         self.pat_id = None
         self.size = os.path.getsize(path)
@@ -79,11 +80,11 @@ class ReapPFile(object):
         self.needs_reaping = True
 
     def __repr__(self):
-        return '<ReapPFile %s, %d, %s, %s>' % (os.path.basename(self.path), self.size, self.mod_time, self.needs_reaping)
+        return '<ReapPFile %s, %d, %s, %s>' % (self.basename, self.size, self.mod_time, self.needs_reaping)
 
     def __str__(self):
         info = ' (%s) %s_%s_%s' % (self.pat_id, self.exam, self.series, self.acq) if self.pat_id else ''
-        return '%s [%s]%s' % (os.path.basename(self.path), nimsutil.hrsize(self.size), info)
+        return '%s [%s]%s' % (self.basename, nimsutil.hrsize(self.size), info)
 
     def reap(self):
         pfile = nimsutil.pfile.PFile(self.path)
@@ -109,6 +110,7 @@ class ReapPFile(object):
             success = False
             self.reaper.log.warning('Error while reaping %s' % self)
         else:
+            #nimsutil.gzip_inplace(os.path.join(reap_path, self.basename), 0o644)
             shutil.move(reap_path, self.reaper.sort_stage)
             self.needs_reaping = False
             success = True
@@ -120,7 +122,8 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.add_argument('stage_path', help='path to staging area')
+        self.add_argument('reap_path', help='path to reaping stage')
+        self.add_argument('sort_path', help='path to sorting stage')
         self.add_argument('data_path', help='path to data source')
         self.add_argument('-p', '--patid', help='glob for patient IDs to reap (default: "*")')
         self.add_argument('-s', '--sleeptime', type=int, default=30, help='time to sleep before checking for new data')
@@ -134,11 +137,9 @@ if __name__ == '__main__':
 
     reaper_id = os.path.basename(args.data_path.rstrip('/'))
     log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
-    reap_stage = nimsutil.make_joined_path(args.stage_path, 'reap')
-    sort_stage = nimsutil.make_joined_path(args.stage_path, 'sort')
     datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % reaper_id)
 
-    reaper = PFileReaper(reaper_id, args.patid, args.data_path, reap_stage, sort_stage, datetime_file, args.sleeptime, log)
+    reaper = PFileReaper(reaper_id, args.patid, args.data_path, args.reap_path, args.sort_path, datetime_file, args.sleeptime, log)
 
     def term_handler(signum, stack):
         reaper.halt()

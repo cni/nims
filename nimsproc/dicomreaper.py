@@ -8,9 +8,12 @@ import sys
 import time
 import shutil
 import signal
+import tarfile
 import argparse
 import datetime
 import collections
+
+import dicom
 
 import scu
 import nimsutil
@@ -18,12 +21,12 @@ import nimsutil
 
 class DicomReaper(object):
 
-    def __init__(self, id_, scu, pat_id, reap_stage, sort_stage, datetime_file, sleep_time, log):
+    def __init__(self, id_, scu, pat_id, reap_path, sort_path, datetime_file, sleep_time, log):
         self.id_ = id_
         self.scu = scu
         self.pat_id = pat_id
-        self.reap_stage = reap_stage
-        self.sort_stage = sort_stage
+        self.reap_stage = nimsutil.make_joined_path(reap_path)
+        self.sort_stage = nimsutil.make_joined_path(sort_path)
         self.datetime_file = datetime_file
         self.sleep_time = sleep_time
         self.log = log
@@ -32,10 +35,10 @@ class DicomReaper(object):
         self.monitored_exams = collections.deque()
         self.alive = True
 
-        # stage any files left behind from a previous run
+        # delete any files left behind from a previous run
         for item in os.listdir(self.reap_stage):
             if item.startswith(self.id_):
-                os.rename(os.path.join(self.reap_stage, item), os.path.join(self.sort_stage, item))
+                shutil.rmtree(os.path.join(self.reap_stage, item), os.path.join(self.sort_stage, item))
 
     def halt(self):
         self.alive = False
@@ -48,12 +51,12 @@ class DicomReaper(object):
 
             if n_monitored_exams > 0 and n_outstanding_exams > 0 and self.monitored_exams[0].id_ != outstanding_exams[0].id_:
                 vanished_exam = self.monitored_exams.popleft()
-                self.log.warning('Dropping   %s (assumed deleted from scanner)' % vanished_exam)
+                self.log.warning('Dropping    %s (assumed deleted from scanner)' % vanished_exam)
                 continue
 
             if n_monitored_exams > 1 and n_outstanding_exams > 1 and self.monitored_exams[1].id_ != outstanding_exams[1].id_:
                 vanished_exam = self.monitored_exams.pop()
-                self.log.warning('Dropping   %s (assumed deleted from scanner)' % vanished_exam)
+                self.log.warning('Dropping    %s (assumed deleted from scanner)' % vanished_exam)
                 continue
 
             next_exam = None
@@ -69,7 +72,7 @@ class DicomReaper(object):
                     nimsutil.update_reference_datetime(self.datetime_file, self.current_exam_datetime)
 
             if next_exam:
-                self.log.info('New        %s' % self.monitored_exams[-1])
+                self.log.info('New         %s' % self.monitored_exams[-1])
 
             for exam in self.monitored_exams:
                 if not self.alive: return
@@ -78,7 +81,7 @@ class DicomReaper(object):
             time.sleep(self.sleep_time)
 
     def get_outstanding_exams(self):
-        query_params = {'StudyDate': self.current_exam_datetime.strftime('%Y%m%d-')}
+        query_params = {'StudyDate': self.current_exam_datetime.strftime('%Y%m%d-')}    # this should really be 'datetime - 1 day'
         if self.pat_id:
             query_params['PatientID'] = self.pat_id
         response_list = self.scu.find(scu.StudyQuery(**query_params))
@@ -111,7 +114,7 @@ class Exam(object):
             if updated_series.id_ in self.series_dict:
                 self.series_dict[updated_series.id_].reap(updated_series.image_count)
             else:
-                reaper.log.info('New        %s' % updated_series)
+                reaper.log.info('New         %s' % updated_series)
                 self.series_dict[updated_series.id_] = updated_series
 
     def get_series_list(self):
@@ -137,27 +140,44 @@ class Series(object):
         if new_image_count > self.image_count:
             self.image_count = new_image_count
             self.needs_reaping = True
-            self.reaper.log.info('Monitoring %s' % self)
+            self.reaper.log.info('Monitoring  %s' % self)
         elif self.needs_reaping: # image count has stopped increasing
-            self.reaper.log.info('Reaping    %s' % self)
+            self.reaper.log.info('Reaping     %s' % self)
             now = datetime.datetime.now().strftime('%s')
-            stage_dir = '%s_%s-%d_%s' % (self.reaper.id_, self.exam.id_, self.id_, now)
+            stage_dir = '%s_%s_%d_%s' % (self.reaper.id_, self.exam.id_, self.id_, now)
             reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
             reap_count = self.reaper.scu.move(scu.SeriesQuery(StudyID=self.exam.id_, SeriesNumber=self.id_), reap_path)
-            if reap_count >= self.image_count:
-                self.needs_reaping = False
+            if reap_count == self.image_count:
+                self.reaper.log.info('Compressing %s' % self)
+                for acq_no, acq_paths in dicom_series_acq_dict(reap_path).iteritems():
+                    arcname = '%s_%d_%d' % (self.exam.id_, self.id_, acq_no)
+                    with tarfile.open('%s.tgz' % os.path.join(reap_path, arcname), 'w:gz') as archive:
+                        for filepath in acq_paths:
+                            archive.add(filepath, arcname='%s/%s.dcm' % (arcname, os.path.basename(filepath)))
+                            os.remove(filepath)
                 shutil.move(reap_path, reaper.sort_stage)
-                self.reaper.log.info('Reaped     %s' % self)
+                self.needs_reaping = False
+                self.reaper.log.info('Reaped      %s' % self)
             else:
                 shutil.rmtree(reap_path)
                 self.reaper.log.warning('Incomplete %s, %d reaped' % (self, reap_count))
+
+
+def dicom_series_acq_dict(dcm_dir):
+    dcm_dict = {}
+    for filepath in [os.path.join(dcm_dir, filename) for filename in os.listdir(dcm_dir)]:
+        dcm = dicom.read_file(filepath)
+        acq_no = int(dcm.AcquisitionNumber) if 'AcquisitionNumber' in dcm else 0
+        dcm_dict.setdefault(acq_no, []).append(filepath)
+    return dcm_dict
 
 
 class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.add_argument('stage_path', help='path to staging area')
+        self.add_argument('reap_path', help='path to reaping stage')
+        self.add_argument('sort_path', help='path to sorting stage')
         self.add_argument('dicomserver', help='dicom server and port (hostname:port)')
         self.add_argument('aet', help='caller AE title')
         self.add_argument('aec', help='callee AE title')
@@ -174,11 +194,9 @@ if __name__ == '__main__':
 
     log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
     scu_ = scu.SCU(host, port, args.aet, args.aec, log=log)
-    reap_stage = nimsutil.make_joined_path(args.stage_path, 'reap')
-    sort_stage = nimsutil.make_joined_path(args.stage_path, 'sort')
     datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % host)
 
-    reaper = DicomReaper(host, scu_, args.patid, reap_stage, sort_stage, datetime_file, args.sleeptime, log)
+    reaper = DicomReaper(host, scu_, args.patid, args.reap_path, args.sort_path, datetime_file, args.sleeptime, log)
 
     def term_handler(signum, stack):
         reaper.halt()
