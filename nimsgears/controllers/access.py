@@ -19,7 +19,7 @@ class AccessController(NimsController):
         exp_data_list, exp_attr_list = self.get_experiments(user, True)
         users = User.query.all()
         user_data_list = [(user.uid, user.name) for user in users]
-        user_attr_list = [{'id':user.uid} for user in users]
+        user_attr_list = [{'id': 'uid=%s' % user.uid} for user in users]
 
         exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
         user_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name')]
@@ -47,7 +47,7 @@ class AccessController(NimsController):
         if db_result:
             for access in db_result.accesses:
                 acc_data_list.append((access.user.uid, access.user.name, AccessPrivilege.name(access.privilege)))
-                acc_attr_list.append({'class': AccessPrivilege.name(access.privilege), 'id': access.user.uid})
+                acc_attr_list.append({'class': AccessPrivilege.name(access.privilege), 'id': 'uid=%s' % access.user.uid})
         return json.dumps(dict(success=True,
                                data=acc_data_list,
                                attrs=acc_attr_list))

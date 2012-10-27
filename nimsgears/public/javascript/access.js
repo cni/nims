@@ -31,7 +31,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
     {
         if (selected_rows && selected_rows.length == 1)
         {
-            exp_id = selected_rows[0].id.split('_')[1];
+            exp_id = selected_rows[0].id.split('=')[1];
             $.ajax(
             {
                 traditional: true,
@@ -149,7 +149,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         });
         modify_experiments.each(function ()
         {
-            exp_ids.push(this.id.split('_')[1]);
+            exp_ids.push(this.id.split('=')[1]);
         });
         showAccessDialog(user_ids, exp_ids);
     };

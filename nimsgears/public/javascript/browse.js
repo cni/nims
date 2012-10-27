@@ -25,7 +25,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
 
     var getId = function(string)
     {
-        return string.split("_")[1];
+        return string.split("=")[1];
     };
 
     var toggleObject = function (object, makeVisible)
@@ -46,7 +46,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         var id_dict = {};
         selected_rows.each(function()
         {
-            var chunks = this.id.split('_');
+            var chunks = this.id.split('=');
             var key = chunks[0];
             if (id_dict[key] == null)
             {

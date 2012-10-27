@@ -157,43 +157,45 @@ define([], function()
     DrilldownManager.prototype.enableKeyboardNavigation = function()
     {
         var obj = this;
+
+        // When a table (excluding the maximum index) is selected, all of its
+        // nested tables should be refreshed based on the selection state
         for (var i = 0; i < this._max_index; i++)
         {
             (function()
             {
-                var next_table = obj._tables[i+1];
-                var populator = obj._populators[i];
                 var i_ref = i;
                 obj._tables[i_ref].onSelect(function(event)
                 {
                     obj.refresh(i_ref+1, event.selected_rows, event.is_instant);
-                    obj.buildHash();
                 });
             })();
         }
         this._tables.forEach(function(table)
         {
+            // Clicking on a table should trigger a selection
             table.element.addEventListener("click", function(event)
             {
                 obj.selectTable(table);
-                if (obj.nextTable())
-                {
-                    obj.nextTable().deselectAll();
-                }
             });
+            // Keydown left or right triggers moving to previous or next
+            // selected table, respectively
             table.element.addEventListener("keydown", function(event)
             {
                 var key = event.keyCode;
-                if (key == 37)
+                if (key == 37) // left arrow
                 {
                     obj.focusPrev();
                 }
-                else if (key == 39)
+                else if (key == 39) // right arrow
                 {
                     obj.focusNext();
                 }
             });
-
+            // When a table is selected, the link hash should be rebuilt
+            table.onSelect(function(event) {
+                obj.buildHash();
+            });
         });
     };
 
