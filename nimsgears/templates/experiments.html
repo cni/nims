@@ -26,7 +26,7 @@
 </head>
 
 <body>
-    ${tmpl_context.widget(value=value)}
+    ${tmpl_context.new_experiment_form(action='experiments/add_experiment')}
     <div id="access_dialog" title="Select access level to assign:" style="display:none">
         <select id="access_select">
         </select>
