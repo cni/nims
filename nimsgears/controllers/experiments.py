@@ -63,11 +63,10 @@ class ExperimentsController(NimsController):
     def add_experiment(self, **kw):
         name = kw['name']
         owner = kw['owner']
-        experiment = Experiment(
+        experiment = Experiment.from_owner_name(
             owner=ResearchGroup.query.filter_by(gid=owner).one(),
             name=name)
         DBSession.add(experiment)
-        flash( '''Added movie: %s'''%( name, ))
         redirect('/auth/experiments')
 
     @expose()
