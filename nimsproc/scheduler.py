@@ -36,17 +36,26 @@ class Scheduler(object):
 
     def run(self):
         while self.alive:
+            # relaunch jobs that need rerun
+            for job in Job.query.filter((Job.status != u'running') & (Job.status != u'abandoned') & (Job.needs_rerun == True)).all():
+                job.status = u'pending'
+                job.activity = u'reset to pending'
+                self.log.info(u'%d %s %s' % (job.id, job, job.activity))
+                job.needs_rerun = False
+            transaction.commit()
+
+            # deal with dirty data containers
             dc = (DataContainer.query
                     .filter(DataContainer.dirty == True)
                     .filter(~DataContainer.datasets.any(Dataset.updatetime > (datetime.datetime.now() - self.cooltime)))
-                    .order_by(DataContainer.timestamp)
-                    .first())
+                    .order_by(DataContainer.timestamp).first())
             if dc:
                 dc.dirty = False
                 dc.scheduling = True
                 transaction.commit()
                 DBSession.add(dc)
 
+                # compress data if needed
                 for ds in [ds for ds in dc.original_datasets if not ds.compressed]:
                     self.log.info(u'Compressing %s %s' % (dc, ds.filetype))
                     dataset_path = os.path.join(self.nims_path, ds.relpath)
@@ -55,7 +64,7 @@ class Scheduler(object):
                         arcpath = '%s.tgz' % os.path.join(self.nims_path, ds.relpath, arcname)
                         if os.path.isfile(arcpath): os.remove(arcpath)
                         filepaths = [os.path.join(dataset_path, f) for f in os.listdir(dataset_path)]
-                        with tarfile.open(arcpath, 'w:gz') as archive:
+                        with tarfile.open(arcpath, 'w:gz', compresslevel=6) as archive:
                             for filepath in filepaths:
                                 archive.add(filepath, arcname=os.path.join(arcname, os.path.basename(filepath)))
                         ds.compressed = True
@@ -70,14 +79,15 @@ class Scheduler(object):
                         #transaction.commit()
                     DBSession.add(dc)
 
+                # schedule job
                 self.log.info(u'Inspecting  %s' % dc)
                 if dc.primary_dataset.redigest(self.nims_path):
                     job = Job.query.filter_by(data_container=dc).filter_by(task=u'find&proc').first()
                     if not job:
                         job = Job(data_container=dc, task=u'find&proc', status=u'pending', activity=u'pending')
                         self.log.info(u'Created job %s' % job)
-                    elif job.status != u'pending' and job.status != u'restarting':
-                        job.status = u'restarting'
+                    elif job.status != u'pending' and not job.needs_rerun:
+                        job.needs_rerun = True
                         self.log.info(u'Marked job  %s for restart' % job)
                 dc.scheduling = False
                 self.log.info(u'Done        %s' % dc)

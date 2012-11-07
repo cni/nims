@@ -34,7 +34,10 @@ class PFileReaper(object):
         # delete any files left behind from a previous run
         for item in os.listdir(self.reap_stage):
             if item.startswith(self.id_):
-                shutil.rmtree(os.path.join(self.reap_stage, item), os.path.join(self.sort_stage, item))
+                shutil.rmtree(os.path.join(self.reap_stage, item))
+        for item in os.listdir(self.sort_stage):
+            if item.startswith('.' + self.id_):
+                shutil.rmtree(os.path.join(self.sort_stage, item))
 
     def halt(self):
         self.alive = False
@@ -92,7 +95,8 @@ class ReapPFile(object):
         self.exam = pfile.exam_no
         self.series = pfile.series_no
         self.acq = pfile.acq_no
-        reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, '%s_%s' % (self.reaper.id_, datetime.datetime.now().strftime('%s.%f')))
+        stage_dir = '%s_%s' % (self.reaper.id_, datetime.datetime.now().strftime('%s.%f'))
+        reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
         aux_reap_files = [arf for arf in glob.glob(self.path + '_*') if open(arf).read(32) == pfile.header.series.series_uid]
         if self.reaper.pat_id and not re.match(self.reaper.pat_id.replace('*','.*'), self.pat_id):
             self.reaper.log.info('Skipping   %s due to patient ID mismatch' % self)
@@ -111,7 +115,8 @@ class ReapPFile(object):
             self.reaper.log.warning('Error while reaping %s' % self)
         else:
             #nimsutil.gzip_inplace(os.path.join(reap_path, self.basename), 0o644)
-            shutil.move(reap_path, self.reaper.sort_stage)
+            shutil.move(reap_path, os.path.join(self.reaper.sort_stage, '.' + stage_dir))
+            os.rename(os.path.join(self.reaper.sort_stage, '.' + stage_dir), os.path.join(self.reaper.sort_stage, stage_dir))
             self.needs_reaping = False
             success = True
             self.reaper.log.info('Reaped     %s' % self)
@@ -135,7 +140,7 @@ class ArgumentParser(argparse.ArgumentParser):
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
 
-    reaper_id = os.path.basename(args.data_path.rstrip('/'))
+    reaper_id = args.data_path.strip('/').replace('/', '_')
     log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
     datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % reaper_id)
 

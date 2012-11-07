@@ -210,7 +210,7 @@ def hrsize(size):
 
 def gzip_inplace(path, mode=None):
     gzpath = path + '.gz'
-    with gzip.open(gzpath, 'wb') as gzfile:
+    with gzip.open(gzpath, 'wb', compresslevel=6) as gzfile:
         with open(path) as pathfile:
             gzfile.writelines(pathfile)
     shutil.copystat(path, gzpath)

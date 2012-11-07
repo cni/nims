@@ -38,8 +38,8 @@ class Sorter(object):
     def run(self):
         """Insert files, if valid, into database and associated filesystem."""
         while self.alive:
-            stage_contents = [os.path.join(self.sort_path, sc) for sc in os.listdir(self.sort_path)]
-            stage_contents = [sc for sc in stage_contents if os.path.isdir(sc)]
+            stage_contents = [os.path.join(self.sort_path, sc) for sc in os.listdir(self.sort_path) if not sc.startswith('.')]
+            stage_contents = [sc for sc in stage_contents if os.path.isdir(sc)] # ignore toplevel files
             if stage_contents:
                 sort_path = min(stage_contents, key=os.path.getmtime)   # oldest first
                 self.log.info('Sorting %s' % os.path.basename(sort_path))

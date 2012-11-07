@@ -38,7 +38,10 @@ class DicomReaper(object):
         # delete any files left behind from a previous run
         for item in os.listdir(self.reap_stage):
             if item.startswith(self.id_):
-                shutil.rmtree(os.path.join(self.reap_stage, item), os.path.join(self.sort_stage, item))
+                shutil.rmtree(os.path.join(self.reap_stage, item))
+        for item in os.listdir(self.sort_stage):
+            if item.startswith('.' + self.id_):
+                shutil.rmtree(os.path.join(self.sort_stage, item))
 
     def halt(self):
         self.alive = False
@@ -107,18 +110,18 @@ class Exam(object):
 
     def reap(self):
         """An exam must be reaped at least twice, since newly encountered series are not immediately reaped."""
-        reaper.log.debug('Monitoring %s' % self)
+        self.reaper.log.debug('Monitoring %s' % self)
         updated_series_list = self.get_series_list()
         for updated_series in updated_series_list:
             if not self.reaper.alive: break
             if updated_series.id_ in self.series_dict:
                 self.series_dict[updated_series.id_].reap(updated_series.image_count)
             else:
-                reaper.log.info('New         %s' % updated_series)
+                self.reaper.log.info('New         %s' % updated_series)
                 self.series_dict[updated_series.id_] = updated_series
 
     def get_series_list(self):
-        responses = reaper.scu.find(scu.SeriesQuery(StudyID=self.id_))
+        responses = self.reaper.scu.find(scu.SeriesQuery(StudyID=self.id_))
         series_numbers = [int(resp.SeriesNumber) for resp in responses]
         image_counts = [int(resp.ImagesInAcquisition) for resp in responses]
         return [Series(self, self.reaper, id_, image_cnt) for (id_, image_cnt) in zip(series_numbers, image_counts)]
@@ -143,19 +146,19 @@ class Series(object):
             self.reaper.log.info('Monitoring  %s' % self)
         elif self.needs_reaping: # image count has stopped increasing
             self.reaper.log.info('Reaping     %s' % self)
-            now = datetime.datetime.now().strftime('%s')
-            stage_dir = '%s_%s_%d_%s' % (self.reaper.id_, self.exam.id_, self.id_, now)
+            stage_dir = '%s_%s_%d_%s' % (self.reaper.id_, self.exam.id_, self.id_, datetime.datetime.now().strftime('%s'))
             reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
             reap_count = self.reaper.scu.move(scu.SeriesQuery(StudyID=self.exam.id_, SeriesNumber=self.id_), reap_path)
             if reap_count == self.image_count:
                 self.reaper.log.info('Compressing %s' % self)
                 for acq_no, acq_paths in dicom_series_acq_dict(reap_path).iteritems():
                     arcname = '%s_%d_%d' % (self.exam.id_, self.id_, acq_no)
-                    with tarfile.open('%s.tgz' % os.path.join(reap_path, arcname), 'w:gz') as archive:
+                    with tarfile.open('%s.tgz' % os.path.join(reap_path, arcname), 'w:gz', compresslevel=6) as archive:
                         for filepath in acq_paths:
                             archive.add(filepath, arcname='%s/%s.dcm' % (arcname, os.path.basename(filepath)))
                             os.remove(filepath)
-                shutil.move(reap_path, reaper.sort_stage)
+                shutil.move(reap_path, os.path.join(self.reaper.sort_stage, '.' + stage_dir))
+                os.rename(os.path.join(self.reaper.sort_stage, '.' + stage_dir), os.path.join(self.reaper.sort_stage, stage_dir))
                 self.needs_reaping = False
                 self.reaper.log.info('Reaped      %s' % self)
             else:

@@ -68,8 +68,8 @@ class Processor(object):
                 time.sleep(self.sleeptime)
 
     def reset_all(self):
-        """Reset all active jobs to new."""
-        job_query = Job.query.filter((Job.status != u'pending') & (Job.status != u'done') & (Job.status != u'abandoned'))
+        """Reset all running of failed jobs to pending."""
+        job_query = Job.query.filter((Job.status == u'running') | (Job.status == u'failed'))
         if self.task:
             job_query = job_query.filter(Job.task==self.task)
         for job in job_query.all():
@@ -97,7 +97,6 @@ class Pipeline(threading.Thread):
         transaction.commit()
         DBSession.add(self.job)
         try:
-            restart_job = False
             if self.job.task == u'find&proc':
                 self.find()
                 self.process()
@@ -106,22 +105,13 @@ class Pipeline(threading.Thread):
             elif self.job.task == u'proc':
                 self.process()
         except Exception as ex:
-            if self.job.status == u'restarting':
-                restart_job = True
             self.job.status = u'failed'
             self.job.activity = u'failed: %s' % ex
             self.log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         else:
-            if self.job.status == u'restarting':
-                restart_job = True
             self.job.status = u'done'
             self.job.activity = u'done'
             self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-        finally:
-            if restart_job:
-                self.job.status = u'pending'
-                self.job.activity = u'restarted'
-                self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
 
     def clean(self, data_container, kind):

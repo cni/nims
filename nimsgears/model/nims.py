@@ -450,9 +450,9 @@ class Message(Entity):
 class Job(Entity):
 
     timestamp = Field(DateTime, default=datetime.datetime.now)
-    status = Field(Enum(u'restarting', u'pending', u'running', u'done', u'failed', u'abandoned', name=u'job_status'))
+    status = Field(Enum(u'pending', u'running', u'done', u'failed', u'abandoned', name=u'job_status'))
     task = Field(Enum(u'find', u'proc', u'find&proc', name=u'job_task'))
-    redo_all = Field(Boolean, default=False)
+    needs_rerun = Field(Boolean, default=False)
     progress = Field(Integer)
     activity = Field(Unicode(255))
 
