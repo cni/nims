@@ -570,7 +570,7 @@ class Experiment(DataContainer):
 
     using_options(inheritance='multi')
 
-    name = Field(Unicode(63))
+    name = Field(Unicode(63), required=True)
     irb = Field(Unicode(16))
 
     owner = ManyToOne('ResearchGroup', required=True)

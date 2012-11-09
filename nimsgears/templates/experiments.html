@@ -26,7 +26,7 @@
 </head>
 
 <body>
-    ${tmpl_context.new_experiment_form(action='experiments/add_experiment')}
+    <iframe id="add_experiment_iframe" src="/auth/experiments/add" />
     <div id="access_dialog" title="Select access level to assign:" style="display:none">
         <select id="access_select">
         </select>
@@ -47,7 +47,7 @@
             <py:for each="exp_data, exp_attr in zip(exp_data_list, exp_attr_list)">
                 <tr py:attrs="exp_attr"> <!-- set id for expand queries done on rows later -->
                     <td py:for="param in exp_data">${param}</td>
-                    <td class="access_level"></td>
+                    <td></td> <!-- access level cell added on to the end -->
                 </tr>
             </py:for>
         </tbody>
@@ -65,7 +65,7 @@
             <py:for each="user_data, user_attr in zip(user_data_list, user_attr_list)">
                 <tr py:attrs="user_attr"> <!-- set id for expand queries done on rows later -->
                     <td py:for="param in user_data">${param}</td>
-                    <td class="access_level"></td>
+                    <td></td> <!-- access level cell added on to the end -->
                 </tr>
             </py:for>
         </tbody>

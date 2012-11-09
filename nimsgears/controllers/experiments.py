@@ -1,33 +1,12 @@
 # @author:  Reno Bowen
 
-from tg import expose, request, tmpl_context, validate, flash, redirect
+from tg import expose, request, tmpl_context, validate, flash, redirect, lurl, render
 from repoze.what import predicates
 import transaction
 import json
 from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
-from sprox.formbase import AddRecordForm
-from sprox.widgets import PropertySingleSelectField
-
-class OwnerField(PropertySingleSelectField):
-    def _my_update_params(self, d, nullable=False):
-        user = request.identity['user']
-        if user.is_superuser:
-            research_groups = ResearchGroup.query.all()
-        else:
-            research_groups = user.pi_groups + user.manager_groups
-        d['options'] = [group.gid for group in research_groups]
-        return d
-
-class NewExperimentForm(AddRecordForm):
-    __model__ = Experiment
-    __limit_fields__ = ['name', 'owner']
-    __field_order__ = ['name', 'owner']
-    __dropdown_field_names__ = {'owner':'gid'}
-    __require_fields__ = ['name', 'owner']
-    owner = OwnerField
-
-new_experiment_form = NewExperimentForm(DBSession)
+from nimsgears.widgets.experiment import NewExperimentForm
 
 class ExperimentsController(NimsController):
 
@@ -45,29 +24,32 @@ class ExperimentsController(NimsController):
 
         exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
         user_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name')]
-        acc_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name'), ('Access Level', 'col_access')]
-
-        tmpl_context.new_experiment_form = new_experiment_form
 
         return dict(page='experiments',
                     user_data_list=user_data_list,
                     user_attr_list=user_attr_list,
-                    acc_columns=acc_columns,
                     exp_data_list=exp_data_list,
                     exp_attr_list=exp_attr_list,
                     user_columns=user_columns,
                     exp_columns=exp_columns,
                     )
+
+    @expose('nimsgears.templates.experiments.add')
+    def add(self, **kw):
+        return dict(page='experiments',
+                    form=NewExperimentForm,
+                    )
+
     @expose()
-    @validate(form=new_experiment_form)#, error_handler=index)
-    def add_experiment(self, **kw):
+    @validate(NewExperimentForm, error_handler=add)
+    def post_add(self, **kw):
         name = kw['name']
         owner = kw['owner']
         experiment = Experiment.from_owner_name(
             owner=ResearchGroup.query.filter_by(gid=owner).one(),
             name=name)
         DBSession.add(experiment)
-        redirect('/auth/experiments')
+        redirect('/auth/experiments/add')
 
     @expose()
     def experiments_with_access(self, **kwargs):
