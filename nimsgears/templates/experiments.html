@@ -18,15 +18,14 @@
     .access_readonly { /* no special styling here yet */ }
     .access_readwrite { color:green; }
     .access_manage { font-weight:bold; color:green; }
-
-    #users { width:300px; margin-left:5%; margin-right:5%; }
+    #add_experiment_iframe { width:300px; height:400px;}
+    #users { width:300px; }
     #experiments { clear:left; width:300px; }
 
 </style>
 </head>
 
 <body>
-    <iframe id="add_experiment_iframe" src="/auth/experiments/add" />
     <div id="access_dialog" title="Select access level to assign:" style="display:none">
         <select id="access_select">
         </select>
@@ -70,5 +69,6 @@
             </py:for>
         </tbody>
     </table>
+    <iframe id="add_experiment_iframe" src="/auth/experiments/add" frameborder="no"/>
 </body>
 </html>
