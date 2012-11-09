@@ -5,6 +5,7 @@
 
 import os
 import abc
+import glob
 import time
 import shutil
 import signal
@@ -16,11 +17,6 @@ import transaction
 
 import nimsutil
 from nimsgears.model import *
-
-DS_TYPES = {
-    'nifti': u'NIfTI (raw)',
-    'bitmap': u'Bitmap'
-}
 
 
 class Processor(object):
@@ -55,9 +51,9 @@ class Processor(object):
                 if job:
                     if isinstance(job.data_container, Epoch):
                         ds = job.data_container.primary_dataset
-                        if ds.label == u'Dicom Files':
+                        if ds.filetype == nimsutil.dicomutil.DicomFile.filetype:
                             pipeline_class = DicomPipeline
-                        elif ds.label == u'GE PFile':
+                        elif ds.filetype == nimsutil.pfile.PFile.filetype:
                             pipeline_class = PFilePipeline
 
                     pipeline = pipeline_class(job, self.nims_path, self.physio_path, self.log)
@@ -72,18 +68,13 @@ class Processor(object):
                 time.sleep(self.sleeptime)
 
     def reset_all(self):
-        """Reset all active jobs to new."""
-        job_query = Job.query.filter((Job.status == u'active') | (Job.status == u'failed'))
+        """Reset all running of failed jobs to pending."""
+        job_query = Job.query.filter((Job.status == u'running') | (Job.status == u'failed'))
         if self.task:
             job_query = job_query.filter(Job.task==self.task)
         for job in job_query.all():
-            ds_query = Dataset.query.filter(Dataset.container == job.data_container)
-            if job.task == u'find':
-                ds_query = ds_query.filter(Dataset.kind == u'peripheral')
-            elif job.task == u'proc':
-                ds_query = ds_query.filter(Dataset.kind == u'derived')
-            job.restart(self.nims_path)
-            job.activity = u'reset to new'
+            job.status = u'pending'
+            job.activity = u'reset to pending'
             self.log.info(u'%d %s %s' % (job.id, job, job.activity))
         transaction.commit()
 
@@ -106,23 +97,21 @@ class Pipeline(threading.Thread):
         transaction.commit()
         DBSession.add(self.job)
         try:
-            if self.job.task == u'find':
+            if self.job.task == u'find&proc':
+                self.find()
+                self.process()
+            elif self.job.task == u'find':
                 self.find()
             elif self.job.task == u'proc':
                 self.process()
         except Exception as ex:
-            DBSession.add(self.job)
             self.job.status = u'failed'
             self.job.activity = u'failed: %s' % ex
-            self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+            self.log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         else:
             self.job.status = u'done'
             self.job.activity = u'done'
             self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-            if self.job.next_job_id:
-                next_job = Job.get(self.job.next_job_id)
-                if next_job.status == u'waiting':
-                    next_job.status = u'pending'
         transaction.commit()
 
     def clean(self, data_container, kind):
@@ -133,7 +122,9 @@ class Pipeline(threading.Thread):
     @abc.abstractmethod
     def find(self):
         self.clean(self.job.data_container, u'peripheral')
+        transaction.commit()
         DBSession.add(self.job)
+
         dc = self.job.data_container
         ds = self.job.data_container.primary_dataset
         if dc.physio_flag:
@@ -141,7 +132,7 @@ class Pipeline(threading.Thread):
             if physio_files:
                 self.job.activity = u'physio found %s' % (', '.join([os.path.basename(pf) for pf in physio_files]))
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                dataset = Dataset.at_path(self.nims_path, u'Physio Data')
+                dataset = Dataset.at_path(self.nims_path, u'physio')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
                 dataset.file_cnt_act = 0
@@ -154,12 +145,18 @@ class Pipeline(threading.Thread):
             else:
                 self.job.activity = u'no physio files found'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+        else:
+            self.job.activity = u'physio not recorded'
+            self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
         DBSession.add(self.job)
 
     @abc.abstractmethod
     def process(self):
         self.clean(self.job.data_container, u'derived')
+        self.job.activity = u'generating NIfTI / running recon'
+        self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+        transaction.commit()
         DBSession.add(self.job)
 
 
@@ -174,14 +171,15 @@ class DicomPipeline(Pipeline):
         ds = self.job.data_container.primary_dataset
         with nimsutil.TempDirectory() as outputdir:
             outbase = os.path.join(outputdir, ds.container.name)
-            dcm_series = nimsutil.dicomutil.DicomSeries(os.path.join(self.nims_path, ds.relpath), self.log)
-            conv_res, conv_file = dcm_series.convert(outbase)
+            dcm_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
+            dcm_acq = nimsutil.dicomutil.DicomAcquisition(dcm_tgz, self.log)
+            conv_res = dcm_acq.convert(outbase)
 
             if conv_res:
                 outputdir_list = os.listdir(outputdir)
                 self.job.activity = u'generated %s' % (', '.join([f for f in outputdir_list]))
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                conv_ds = Dataset.at_path(self.nims_path, DS_TYPES[conv_res])
+                conv_ds = Dataset.at_path(self.nims_path, u'bitmap' if conv_res == 'bitmap' else u'nifti')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
 
@@ -194,14 +192,11 @@ class DicomPipeline(Pipeline):
                     conv_ds.file_cnt_act += 1
                 transaction.commit()
 
-                #ds.compressed = True
-                #transaction.commit()
-
-            if conv_res == 'nifti':
-                pyramid_ds = Dataset.at_path(self.nims_path, u'Image Pyramid')
+            if conv_res != 'bitmap':
+                pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                nimsutil.pyramid.ImagePyramid(conv_file, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
+                nimsutil.pyramid.ImagePyramid(conv_res, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
                 self.job.activity = u'image pyramid generated'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'derived'
@@ -228,13 +223,13 @@ class PFilePipeline(Pipeline):
                     pf = None
                 else:
                     break
-            conv_file = pf.to_nii(os.path.join(outputdir, ds.container.name))
+            conv_res = pf.to_nii(os.path.join(outputdir, ds.container.name))
 
-            if conv_file:
+            if conv_res:
                 outputdir_list = os.listdir(outputdir)
                 self.job.activity = u'generated %s' % (', '.join([f for f in outputdir_list]))
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                dataset = Dataset.at_path(self.nims_path, u'NIfTI (raw)')
+                dataset = Dataset.at_path(self.nims_path, u'nifti')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
                 dataset.file_cnt_act = 0
@@ -246,14 +241,10 @@ class PFilePipeline(Pipeline):
                     dataset.file_cnt_act += 1
                 transaction.commit()
 
-                #ds.compressed = True
-                #transaction.commit()
-
-            if conv_file:
-                pyramid_ds = Dataset.at_path(self.nims_path, u'Image Pyramid')
+                pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                nimsutil.pyramid.ImagePyramid(conv_file, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
+                nimsutil.pyramid.ImagePyramid(conv_res, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
                 self.job.activity = u'image pyramid generated'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'derived'
@@ -281,14 +272,12 @@ class ArgumentParser(argparse.ArgumentParser):
 
 
 if __name__ == '__main__':
-    args = ArgumentParser().parse_args()
-
-    log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
-
     # workaround for http://bugs.python.org/issue7980
     import datetime # used in nimsutil
     datetime.datetime.strptime('0', '%S')
 
+    args = ArgumentParser().parse_args()
+    log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
     processor = Processor(args.db_uri, args.nims_path, args.physio_path, args.task, args.filter, log, args.jobs, args.reset, args.sleeptime)
 
     def term_handler(signum, stack):
