@@ -14,7 +14,6 @@ define([], function ()
 
     var showDialog = function(popup, ajax_data, url)
     {
-        console.log(ajax_data);
         $.ajax({
             traditional: true,
             type: 'POST',
@@ -50,21 +49,34 @@ define([], function ()
                                 height = viewport_size.height * .8;
                             }
                             popup.find('iframe').attr('src', data.url);
-                            console.log(data.url);
+                            popup.find('iframe')[0].onload = function() {
+                                popup.dialog({
+                                    resizable:false,
+                                    modal:true,
+                                    focus:function(event, ui) { },
+                                    closeOnEscape:true,
+                                    width:width,
+                                    minHeight:height,
+                                    buttons: { },
+                                });
+                                popup.find('iframe')[0].onload = null;
+                            };
                             $("#image_viewer").height(height);
                             $("#image_viewer").width(width);
                             popup.attr('title', data.type + " " + ajax_data.dataset_id);
                             break;
                     }
-                    popup.dialog({
-                        resizable:false,
-                        modal:true,
-                        focus:function(event, ui) { },
-                        closeOnEscape:true,
-                        width:width,
-                        minHeight:height,
-                        buttons: { },
-                    });
+                    if (data.type != "dataset") {
+                        popup.dialog({
+                            resizable:false,
+                            modal:true,
+                            focus:function(event, ui) { },
+                            closeOnEscape:true,
+                            width:width,
+                            minHeight:height,
+                            buttons: { },
+                        });
+                    }
                 }
             },
         });
