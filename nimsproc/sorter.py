@@ -64,6 +64,7 @@ class Sorter(object):
             if tarfile.is_tarfile(filepath):
                 compressed = True
                 with tarfile.open(filepath) as archive:
+                    archive.next()  # skip over top-level directory
                     dataset = self.get_dataset(archive.extractfile(archive.next()))
             else:
                 compressed = False

@@ -60,17 +60,16 @@ class Scheduler(object):
                     self.log.info(u'Compressing %s %s' % (dc, ds.filetype))
                     dataset_path = os.path.join(self.nims_path, ds.relpath)
                     if ds.filetype == nimsutil.dicomutil.DicomFile.filetype:
-                        arcname = '%s_%d_%d' % (dc.session.exam, dc.series, dc.acq)
-                        arcpath = '%s.tgz' % os.path.join(self.nims_path, ds.relpath, arcname)
-                        if os.path.isfile(arcpath): os.remove(arcpath)
-                        filepaths = [os.path.join(dataset_path, f) for f in os.listdir(dataset_path)]
-                        with tarfile.open(arcpath, 'w:gz', compresslevel=6) as archive:
-                            for filepath in filepaths:
-                                archive.add(filepath, arcname=os.path.join(arcname, os.path.basename(filepath)))
+                        arcdir = '%s_%d_%d' % (dc.session.exam, dc.series, dc.acq)
+                        arcdir_path = os.path.join(dataset_path, arcdir)
+                        os.mkdir(arcdir_path)
+                        for filename in [f for f in os.listdir(dataset_path) if not f.startswith(arcdir)]:
+                            os.rename(os.path.join(dataset_path, filename), os.path.join(arcdir_path, filename))
+                        with tarfile.open('%s.tgz' % arcdir_path, 'w:gz', compresslevel=6) as archive:
+                            archive.add(arcdir_path, arcname=os.path.basename(arcdir_path))
+                        shutil.rmtree(arcdir_path)
                         ds.compressed = True
                         transaction.commit()
-                        for filepath in filepaths:
-                            os.remove(filepath)
                     elif ds.filetype == nimsutil.pfile.PFile.filetype:
                         self.log.info(u'Not actually compressing %s' % ds.filetype)
                         #for pfilepath in [os.path.join(dataset_path, f) for f in os.listdir(dataset_path) if not f.startswith('_')]:

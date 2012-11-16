@@ -150,13 +150,7 @@ class Series(object):
             reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
             reap_count = self.reaper.scu.move(scu.SeriesQuery(StudyID=self.exam.id_, SeriesNumber=self.id_), reap_path)
             if reap_count == self.image_count:
-                self.reaper.log.info('Compressing %s' % self)
-                for acq_no, acq_paths in dicom_series_acq_dict(reap_path).iteritems():
-                    arcname = '%s_%d_%d' % (self.exam.id_, self.id_, acq_no)
-                    with tarfile.open('%s.tgz' % os.path.join(reap_path, arcname), 'w:gz', compresslevel=6) as archive:
-                        for filepath in acq_paths:
-                            archive.add(filepath, arcname='%s/%s.dcm' % (arcname, os.path.basename(filepath)))
-                            os.remove(filepath)
+                self.tar_into_acquisitions(reap_path)
                 shutil.move(reap_path, os.path.join(self.reaper.sort_stage, '.' + stage_dir))
                 os.rename(os.path.join(self.reaper.sort_stage, '.' + stage_dir), os.path.join(self.reaper.sort_stage, stage_dir))
                 self.needs_reaping = False
@@ -165,14 +159,21 @@ class Series(object):
                 shutil.rmtree(reap_path)
                 self.reaper.log.warning('Incomplete %s, %d reaped' % (self, reap_count))
 
-
-def dicom_series_acq_dict(dcm_dir):
-    dcm_dict = {}
-    for filepath in [os.path.join(dcm_dir, filename) for filename in os.listdir(dcm_dir)]:
-        dcm = dicom.read_file(filepath)
-        acq_no = int(dcm.AcquisitionNumber) if 'AcquisitionNumber' in dcm else 0
-        dcm_dict.setdefault(acq_no, []).append(filepath)
-    return dcm_dict
+    def tar_into_acquisitions(self, series_path):
+        dcm_dict = {}
+        self.reaper.log.info('Compressing %s' % self)
+        for filepath in [os.path.join(series_path, filename) for filename in os.listdir(series_path)]:
+            dcm = dicom.read_file(filepath)
+            acq_no = int(dcm.AcquisitionNumber) if 'AcquisitionNumber' in dcm else 0
+            dcm_dict.setdefault(acq_no, []).append(filepath)
+        for acq_no, acq_paths in dcm_dict.iteritems():
+            arcdir_path = os.path.join(series_path, '%s_%d_%d' % (self.exam.id_, self.id_, acq_no))
+            os.mkdir(arcdir_path)
+            for filepath in acq_paths:
+                os.rename(filepath, '%s.dcm' % os.path.join(arcdir_path, os.path.basename(filepath)))
+            with tarfile.open('%s.tgz' % arcdir_path, 'w:gz', compresslevel=6) as archive:
+                archive.add(arcdir_path, arcname=os.path.basename(arcdir_path))
+            shutil.rmtree(arcdir_path)
 
 
 class ArgumentParser(argparse.ArgumentParser):

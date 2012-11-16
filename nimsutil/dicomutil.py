@@ -127,7 +127,7 @@ class DicomAcquisition(object):
     def __init__(self, dcm_path, log=None):
         if os.path.isfile(dcm_path) and tarfile.is_tarfile(dcm_path):
             with tarfile.open(dcm_path) as archive:
-                #dcm_list = [dicom.read_file(archive.extractfile(ti)) for ti in archive]
+                archive.next()  # skip over top-level directory
                 dcm_list = [dicom.read_file(cStringIO.StringIO(archive.extractfile(ti).read())) for ti in archive]  # dead-slow w/o StringIO
         else:
             dcm_list = [dicom.read_file(os.path.join(dcm_path, f)) for f in os.listdir(dcm_path)]

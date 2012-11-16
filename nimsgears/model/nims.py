@@ -4,7 +4,6 @@ import shutil
 import hashlib
 import datetime
 
-import dicom
 import transaction
 from elixir import *
 
