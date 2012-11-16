@@ -75,14 +75,14 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         if (event.table === users && selected_rows.length == 1)
         {
             table_to_change = experiments;
-            id = selected_rows[0].id;
+            id = selected_rows[0].id.split('=')[1];
             url = "experiments/experiments_with_access";
             experiments.deselectAll();
         }
         else if (event.table === experiments && selected_rows.length == 1)
         {
             table_to_change = users;
-            id = selected_rows[0].id.split('_')[1];
+            id = selected_rows[0].id.split('=')[1];
             url = "experiments/users_with_access";
             users.deselectAll();
         }
@@ -92,6 +92,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
 
         if (table_to_change !== undefined)
         {
+            exp_id = selected_rows[0].id.split('=')[1];
             $.ajax(
             {
                 traditional: true,
@@ -212,7 +213,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         });
         modify_experiments.each(function ()
         {
-            exp_ids.push(this.id.split('_')[1]);
+            exp_ids.push(this.id.split('=')[1]);
         });
         showAccessDialog(user_ids, exp_ids, dragged_from);
     };

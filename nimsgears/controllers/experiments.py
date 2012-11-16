@@ -20,7 +20,7 @@ class ExperimentsController(NimsController):
 
         users = User.query.all()
         user_data_list = [(user.uid, user.name) for user in users]
-        user_attr_list = [{'id':user.uid} for user in users]
+        user_attr_list = [{'id': 'uid=%s' % user.uid} for user in users]
 
         exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
         user_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name')]
@@ -73,7 +73,7 @@ class ExperimentsController(NimsController):
         # Then perform a set intersection to determine those common to the two sets
         key_list = set(visible_to_requester.keys()) & set(visible_to_requested_user.keys())
         acc_list = [AccessPrivilege.privilege_names[visible_to_requested_user[key].Access.privilege] for key in key_list]
-        id_list = ['exp_%d' % key for key in key_list]
+        id_list = ['exp=%d' % key for key in key_list]
         access_levels = dict(zip(id_list, acc_list))
 
         return json.dumps(dict(success=True,
@@ -87,12 +87,14 @@ class ExperimentsController(NimsController):
         """
         user = request.identity['user']
         id_ = int(kwargs['id'])
+
         db_query = Experiment.query.filter_by(id=id_)
         db_query = self.filter_access(db_query, user)
         db_result = db_query.first()
 
-        id_list = [access.user.uid for access in db_result.accesses]
+        key_list = [access.user.uid for access in db_result.accesses]
         acc_list = [AccessPrivilege.privilege_names[access.privilege] for access in db_result.accesses]
+        id_list = ['uid=%s' % key for key in key_list]
         access_levels = dict(zip(id_list, acc_list))
 
         return json.dumps(dict(success=True,

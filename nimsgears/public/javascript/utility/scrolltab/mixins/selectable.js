@@ -147,6 +147,8 @@ define([], function()
                     {
                         obj.last_clicked_index = index_clicked;
                         obj.shift_clicked_index = index_clicked;
+                    } else {
+                        obj.last_clicked_index = obj.shift_clicked_index = -1;
                     }
 
                     obj.select();
