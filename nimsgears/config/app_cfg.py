@@ -24,6 +24,7 @@ base_config = AppConfig()
 base_config.renderers = []
 
 base_config.package = nimsgears
+base_config.use_toscawidgets2 = True
 
 # Enable json in expose
 base_config.renderers.append('json')

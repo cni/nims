@@ -19,7 +19,8 @@
     .access_readwrite { }
     .access_manage { font-weight:bold; }
 
-    #users { width:300px; margin-left:5%; margin-right:5%; }
+    #add_experiment_iframe { width:300px; height:400px;}
+    #users { width:300px; }
     #experiments { clear:left; width:300px; }
 
 </style>
@@ -46,7 +47,7 @@
             <py:for each="exp_data, exp_attr in zip(exp_data_list, exp_attr_list)">
                 <tr py:attrs="exp_attr"> <!-- set id for expand queries done on rows later -->
                     <td py:for="param in exp_data">${param}</td>
-                    <td class="access_level"></td>
+                    <td></td> <!-- access level cell added on to the end -->
                 </tr>
             </py:for>
         </tbody>
@@ -64,10 +65,11 @@
             <py:for each="user_data, user_attr in zip(user_data_list, user_attr_list)">
                 <tr py:attrs="user_attr"> <!-- set id for expand queries done on rows later -->
                     <td py:for="param in user_data">${param}</td>
-                    <td class="access_level"></td>
+                    <td></td> <!-- access level cell added on to the end -->
                 </tr>
             </py:for>
         </tbody>
     </table>
+    <iframe id="add_experiment_iframe" src="/auth/experiments/add" frameborder="no"/>
 </body>
 </html>

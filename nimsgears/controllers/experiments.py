@@ -1,19 +1,17 @@
 # @author:  Reno Bowen
 
-from tg import expose, request
+from tg import expose, request, tmpl_context, validate, flash, redirect, lurl, render
 from repoze.what import predicates
 import transaction
-
+import json
 from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
-
-import json
-
+from nimsgears.widgets.experiment import NewExperimentForm
 
 class ExperimentsController(NimsController):
 
     @expose('nimsgears.templates.experiments')
-    def index(self):
+    def index(self, **kw):
         user = request.identity['user']
 
         exp_data_list, exp_attr_list = self.get_experiments(user, True)
@@ -26,17 +24,32 @@ class ExperimentsController(NimsController):
 
         exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
         user_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name')]
-        acc_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name'), ('Access Level', 'col_access')]
 
         return dict(page='experiments',
                     user_data_list=user_data_list,
                     user_attr_list=user_attr_list,
-                    acc_columns=acc_columns,
                     exp_data_list=exp_data_list,
                     exp_attr_list=exp_attr_list,
                     user_columns=user_columns,
                     exp_columns=exp_columns,
                     )
+
+    @expose('nimsgears.templates.experiments.add')
+    def add(self, **kw):
+        return dict(page='experiments',
+                    form=NewExperimentForm,
+                    )
+
+    @expose()
+    @validate(NewExperimentForm, error_handler=add)
+    def post_add(self, **kw):
+        name = kw['name']
+        owner = kw['owner']
+        experiment = Experiment.from_owner_name(
+            owner=ResearchGroup.query.filter_by(gid=owner).one(),
+            name=name)
+        DBSession.add(experiment)
+        redirect('/auth/experiments/add')
 
     @expose()
     def experiments_with_access(self, **kwargs):
