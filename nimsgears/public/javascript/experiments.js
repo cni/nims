@@ -71,14 +71,14 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         if (event.table === users && selected_rows.length == 1)
         {
             table_to_change = experiments;
-            id = selected_rows[0].id;
+            id = selected_rows[0].id.split('=')[1];
             url = "experiments/experiments_with_access";
             experiments.deselectAll();
         }
         else if (event.table === experiments && selected_rows.length == 1)
         {
             table_to_change = users;
-            id = selected_rows[0].id.split('_')[1];
+            id = selected_rows[0].id.split('=')[1];
             url = "experiments/users_with_access";
             users.deselectAll();
         }
