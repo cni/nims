@@ -25,7 +25,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
 
     var getId = function(string)
     {
-        return string.split("_")[1];
+        return string.split("=")[1];
     };
 
     var toggleObject = function (object, makeVisible)
@@ -46,7 +46,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         var id_dict = {};
         selected_rows.each(function()
         {
-            var chunks = this.id.split('_');
+            var chunks = this.id.split('=');
             var key = chunks[0];
             if (id_dict[key] == null)
             {
@@ -341,7 +341,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         sessions = new Drilldown("sessions", "Sessions");
         epochs = new Drilldown("epochs", "Epochs");
         datasets = new Drilldown("datasets", "Datasets");
-        manager = new DrilldownManager([experiments, sessions, epochs, datasets], [refreshExperiments, refreshSessions, refreshEpochs, refreshDatasets], true);
+        manager = new DrilldownManager([experiments, sessions, epochs, datasets], [refreshExperiments, refreshSessions, refreshEpochs, refreshDatasets], true, "main");
         manager.refresh(0, [], true);
 
         TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));
@@ -351,8 +351,8 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         TableDragAndDrop.setupDroppable("#sessions .scrolltable_body table, #datasets .scrolltable_body table", $("#download_drop"), dropDownloads);
         TableDragAndDrop.setupDroppable(".scrolltable_body table", $("#trash_drop"), dropTrash);
 
-        $("#radio_trash input").change(changeTrashFlag);
         $($("#radio_trash input")[getTrashFlag()]).click();
+        $("#radio_trash input").change(changeTrashFlag);
 
         $(".pop").dialog();
         $(".pop").dialog("destroy");
