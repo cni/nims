@@ -80,7 +80,7 @@ class NimsController(BaseController):
         dataset_dict = user.get_datasets(by_epoch_id=epoch_id)
         for key, value in dataset_dict.iteritems():
             dataset = value.Dataset
-            dataset_data_list.append((dataset.label,))
+            dataset_data_list.append((dataset.label + ('*' if dataset.kind == u'primary' else ''),))
             dataset_attr_list.append({'id':'dataset=%d' % key, 'class':'%s' % ('trash' if dataset.trashtime else '')})
         return (dataset_data_list, dataset_attr_list)
 

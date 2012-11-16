@@ -10,13 +10,16 @@ from nimsgears.controllers.nims import NimsController
 import json
 
 
-class AccessController(NimsController):
+class ExperimentsController(NimsController):
 
-    @expose('nimsgears.templates.access')
+    @expose('nimsgears.templates.experiments')
     def index(self):
         user = request.identity['user']
 
         exp_data_list, exp_attr_list = self.get_experiments(user, True)
+        for exp_attr in exp_attr_list:
+            exp_attr['class'] = '' # don't need attributes in this case
+
         users = User.query.all()
         user_data_list = [(user.uid, user.name) for user in users]
         user_attr_list = [{'id': 'uid=%s' % user.uid} for user in users]
@@ -25,7 +28,7 @@ class AccessController(NimsController):
         user_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name')]
         acc_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name'), ('Access Level', 'col_access')]
 
-        return dict(page='access',
+        return dict(page='experiments',
                     user_data_list=user_data_list,
                     user_attr_list=user_attr_list,
                     acc_columns=acc_columns,
@@ -36,21 +39,50 @@ class AccessController(NimsController):
                     )
 
     @expose()
-    def users_with_access(self, **kwargs):
+    def experiments_with_access(self, **kwargs):
+        """ Return ids of experiments the specified user has access to (and the
+        level of that access), intersected with those ids that the requesting user
+        has manage access to.
+        """
         user = request.identity['user']
-        id_ = int(kwargs['exp_id'])
+        id_ = kwargs['id']
+
+        # User we are requesting an experiment list from
+        requested_user = User.query.filter_by(uid=id_).first()
+
+        # The requester needs to have manage access on an experiment to have
+        # permission to see that another user has access to it
+        visible_to_requester = user.get_experiments(including_trash=True, with_privilege=u'Manage')
+        # We then retrieve all things that the requested user has *any* form of
+        # access to
+        visible_to_requested_user = requested_user.get_experiments(including_trash=True)
+
+        # Then perform a set intersection to determine those common to the two sets
+        key_list = set(visible_to_requester.keys()) & set(visible_to_requested_user.keys())
+        acc_list = [AccessPrivilege.privilege_names[visible_to_requested_user[key].Access.privilege] for key in key_list]
+        id_list = ['exp_%d' % key for key in key_list]
+        access_levels = dict(zip(id_list, acc_list))
+
+        return json.dumps(dict(success=True,
+                               access_levels=access_levels))
+
+    @expose()
+    def users_with_access(self, **kwargs):
+        """ Return ids of users that have access to the given experiment under the
+        condition that the user requesting the information has manage access to the
+        experiment.
+        """
+        user = request.identity['user']
+        id_ = int(kwargs['id'])
         db_query = Experiment.query.filter_by(id=id_)
         db_query = self.filter_access(db_query, user)
         db_result = db_query.first()
-        acc_data_list = []
-        acc_attr_list = []
-        if db_result:
-            for access in db_result.accesses:
-                acc_data_list.append((access.user.uid, access.user.name, AccessPrivilege.name(access.privilege)))
-                acc_attr_list.append({'class': AccessPrivilege.name(access.privilege), 'id': 'uid=%s' % access.user.uid})
+        id_list = [access.user.uid for access in db_result.accesses]
+        acc_list = [AccessPrivilege.privilege_names[access.privilege] for access in db_result.accesses]
+        access_levels = dict(zip(id_list, acc_list))
+
         return json.dumps(dict(success=True,
-                               data=acc_data_list,
-                               attrs=acc_attr_list))
+                               access_levels=access_levels))
 
     @expose()
     def get_access_privileges(self, **kwargs):

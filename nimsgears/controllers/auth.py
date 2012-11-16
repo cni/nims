@@ -15,7 +15,7 @@ from nimsgears import model
 from nimsgears.model import *
 
 from nimsgears.lib.base import BaseController
-from nimsgears.controllers.access import AccessController
+from nimsgears.controllers.experiments import ExperimentsController
 from nimsgears.controllers.browse import BrowseController
 from nimsgears.controllers.search import SearchController
 from nimsgears.controllers.groups import GroupsController
@@ -27,7 +27,7 @@ __all__ = ['AuthController']
 
 class AuthController(BaseController):
 
-    access = AccessController()
+    experiments = ExperimentsController()
     browse = BrowseController()
     search = SearchController()
     groups = GroupsController()
@@ -85,9 +85,9 @@ class AuthController(BaseController):
         #    flash(l_('Your account is not yet active.'))
         #    redirect('/auth/prefs')
 
-        failed_jobs = Job.query.filter(Job.status == u'failed').all()
-        active_jobs = Job.query.filter(Job.status == u'running').all()
-        queued_jobs = Job.query.filter((Job.status == u'waiting') | (Job.status == u'pending')).limit(200).all()
+        failed_jobs = Job.query.filter(Job.status == u'failed').order_by(Job.id).all()
+        active_jobs = Job.query.filter(Job.status == u'running').order_by(Job.id).all()
+        queued_jobs = Job.query.filter(Job.status == u'pending').order_by(Job.id).limit(200).all()
         return dict(
                 page='status',
                 failed_jobs=failed_jobs,
