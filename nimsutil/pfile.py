@@ -129,7 +129,7 @@ class PFile(object):
             # to generate each reconned time point.
             self.num_timepoints = (self.header.rec.npasses * self.header.rec.nechoes - 6) / 2
             self.num_echoes = 1
-        elif self.psd_name.startswith('mux'): # multi-band EPI!
+        elif 'mux' in self.psd_name.lower(): # multi-band EPI!
             self.num_bands = int(self.header.rec.user6)
             self.num_mux_cal_cycle = int(self.header.rec.user7)
             self.band_spacing_mm = self.header.rec.user8
