@@ -4,7 +4,6 @@ import shutil
 import hashlib
 import datetime
 
-import dicom
 import transaction
 from elixir import *
 
@@ -19,8 +18,7 @@ __session__ = DBSession
 __metadata__ = metadata
 
 __all__  = ['Group', 'User', 'Permission', 'Message', 'Job', 'Access', 'AccessPrivilege']
-__all__ += ['ResearchGroup', 'Person', 'Subject', 'DataContainer', 'Experiment', 'Session', 'Epoch']
-__all__ += ['Dataset', 'PrimaryMRData', 'NiftiData']
+__all__ += ['ResearchGroup', 'Person', 'Subject', 'DataContainer', 'Experiment', 'Session', 'Epoch', 'Dataset']
 
 
 class Group(Entity):
@@ -162,7 +160,7 @@ class User(Entity):
 
     @property
     def job_cnt(self):
-        return Job.query.filter((Job.status == u'waiting') | (Job.status == u'pending') | (Job.status == u'running')).count()
+        return Job.query.filter((Job.status == u'pending') | (Job.status == u'running')).count()
 
     def get_trash_flag(self):
         trash_flag = session.get(self.uid, 0)
@@ -451,12 +449,11 @@ class Message(Entity):
 class Job(Entity):
 
     timestamp = Field(DateTime, default=datetime.datetime.now)
-    status = Field(Enum(u'waiting', u'pending', u'running', u'done', u'failed', u'abandoned', name=u'job_status'))
-    task = Field(Enum(u'find', u'proc', name=u'job_task'))
-    redo_all = Field(Boolean, default=False)
+    status = Field(Enum(u'pending', u'running', u'done', u'failed', u'abandoned', name=u'job_status'))
+    task = Field(Enum(u'find', u'proc', u'find&proc', name=u'job_task'))
+    needs_rerun = Field(Boolean, default=False)
     progress = Field(Integer)
     activity = Field(Unicode(255))
-    next_job_id = Field(Integer)
 
     data_container = ManyToOne('DataContainer', inverse='jobs')
 
@@ -464,11 +461,7 @@ class Job(Entity):
         return ('<Job %d: %s, %s>' % (self.id, self.task, self.status)).encode('utf-8')
 
     def __unicode__(self):
-        return u'%s#%s' % (self.data_container, self.task)
-
-    def restart(self):
-        self.status = u'pending'
-        self.activity = u'pending'
+        return u'%s %s' % (self.data_container, self.task)
 
 
 class AccessPrivilege(object):
@@ -564,6 +557,10 @@ class DataContainer(Entity):
     @property
     def primary_dataset(self):
         return Dataset.query.filter_by(container=self).filter_by(kind=u'primary').first()
+
+    @property
+    def original_datasets(self):
+        return Dataset.query.filter(Dataset.container == self).filter((Dataset.kind == u'primary') | (Dataset.kind == u'secondary')).all()
 
 
 class Experiment(DataContainer):
@@ -703,7 +700,7 @@ class Session(DataContainer):
 
     using_options(inheritance='multi')
 
-    uid = Field(Binary(32), index=True)
+    uid = Field(LargeBinary(32), index=True)
     exam = Field(Integer)
     notes = Field(Unicode)
 
@@ -762,7 +759,7 @@ class Epoch(DataContainer):
 
     using_options(inheritance='multi')
 
-    uid = Field(Binary(32), index=True)
+    uid = Field(LargeBinary(32), index=True)
     series = Field(Integer)
     acq = Field(Integer, index=True)
     description = Field(Unicode(255))
@@ -831,15 +828,25 @@ class Epoch(DataContainer):
 
 class Dataset(Entity):
 
+    default_labels = {
+            u'pfile':   u'GE PFile',
+            u'dicom':   u'Dicom Data',
+            u'nifti':   u'NIfTI',
+            u'bitmap':  u'Bitmap',
+            u'img_pyr': u'Image Pyramid',
+            u'physio':  u'Physio Data',
+            }
+
+    label = Field(Unicode(63))  # informational only
     offset = Field(Interval, default=datetime.timedelta())
     trashtime = Field(DateTime)
     priority = Field(Integer, default=0)
     kind = Field(Enum(u'primary', u'secondary', u'peripheral', u'derived', name=u'dataset_kind'))
-    label = Field(Unicode(63))
-    datatype = Field(Enum(u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap', u'mr_spectro', name=u'dataset_type'), default=u'unknown')
+    filetype = Field(Enum(u'pfile', u'dicom', u'nifti', u'bitmap', u'img_pyr', u'physio', name=u'dataset_filetype'))
+    datatype = Field(Enum(u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap', u'mr_spectro', name=u'dataset_datatype'), default=u'unknown')
     _updatetime = Field(DateTime, default=datetime.datetime.now, colname='updatetime', synonym='updatetime')
-    digest = Field(Binary(20))
-    compressed = Field(Boolean, default=False, index=True)
+    digest = Field(LargeBinary(20))
+    compressed = Field(Boolean, default=False)
     archived = Field(Boolean, default=False, index=True)
     file_cnt_act = Field(Integer)
     file_cnt_tgt = Field(Integer)
@@ -854,11 +861,46 @@ class Dataset(Entity):
         return u'<%s %s>' % (self.__class__.__name__, self.container)
 
     @classmethod
-    def at_path(cls, nims_path, label=None, archived=False):
-        dataset = cls(label=label, archived=archived)
+    def at_path(cls, nims_path, filetype, label=None, archived=False):
+        dataset = cls(filetype=filetype, label=(label if label else cls.default_labels[filetype]), archived=archived)
         transaction.commit()
         DBSession.add(dataset)
         nimsutil.make_joined_path(nims_path, dataset.relpath)
+        return dataset
+
+    @classmethod
+    def from_mrfile(cls, mrfile, nims_path, archived=True):
+        series_uid = nimsutil.pack_dicom_uid(mrfile.series_uid)
+        dataset = (cls.query.join(Epoch)
+                .filter(Epoch.uid == series_uid)
+                .filter(Epoch.acq == mrfile.acq_no)
+                .filter(cls.filetype == mrfile.filetype)
+                .first())
+        if not dataset:
+            alt_dataset = (cls.query.join(Epoch)
+                    .filter(Epoch.uid == series_uid)
+                    .filter(Epoch.acq == mrfile.acq_no)
+                    .filter(cls.filetype != mrfile.filetype)
+                    .first())
+            if not alt_dataset:
+                kind = u'primary'
+            elif alt_dataset.priority < mrfile.priority:
+                kind = u'primary'
+                alt_dataset.kind = u'secondary'
+            else:
+                kind = u'secondary'
+            epoch = Epoch.from_mrfile(mrfile)
+            dataset = cls(
+                    container=epoch,
+                    priority = mrfile.priority,
+                    filetype=mrfile.filetype,
+                    kind=kind,
+                    label=cls.default_labels[mrfile.filetype],
+                    archived=archived,
+                    )
+            transaction.commit()
+            DBSession.add(dataset)
+            nimsutil.make_joined_path(nims_path, dataset.relpath)
         return dataset
 
     @property
@@ -905,52 +947,4 @@ class Dataset(Entity):
         return self.digest != old_digest
 
     def datatype_from_mrfile(self, mrfile):
-        # subclasses should do something more useful
         return u'unknown'
-
-
-class PrimaryMRData(Dataset):
-
-    @classmethod
-    def from_mrfile(cls, mrfile, nims_path, archived=True):
-        series_uid = nimsutil.pack_dicom_uid(mrfile.series_uid)
-        dataset = (cls.query.join(Epoch)
-                .filter(Epoch.uid == series_uid)
-                .filter(Epoch.acq == mrfile.acq_no)
-                .filter(cls.label == mrfile.label)
-                .first())
-        if not dataset:
-            alt_dataset = (cls.query.join(Epoch)
-                    .filter(Epoch.uid == series_uid)
-                    .filter(Epoch.acq == mrfile.acq_no)
-                    .filter(cls.label != mrfile.label)
-                    .first())
-            if not alt_dataset:
-                kind = u'primary'
-            elif alt_dataset.priority < mrfile.priority:
-                kind = u'primary'
-                alt_dataset.kind = u'secondary'
-            else:
-                kind = u'secondary'
-            epoch = Epoch.from_mrfile(mrfile)
-            dataset = cls(
-                    container=epoch,
-                    priority = mrfile.priority,
-                    label=mrfile.label,
-                    kind=kind,
-                    archived=archived,
-                    )
-            transaction.commit()
-            DBSession.add(dataset)
-            nimsutil.make_joined_path(nims_path, dataset.relpath)
-        return dataset
-
-    def datatype_from_mrfile(self, mrfile):
-        # u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap'
-        datatype = u'unknown'
-        return datatype
-
-
-class NiftiData(Dataset):
-
-    pass

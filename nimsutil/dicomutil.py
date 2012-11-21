@@ -7,8 +7,10 @@ from __future__ import print_function
 
 import os
 import signal
+import tarfile
 import argparse
 import datetime
+import cStringIO
 
 import dicom
 import numpy as np
@@ -46,8 +48,7 @@ class DicomError(Exception):
 
 class DicomFile(object):
 
-    filename_ext = '.dcm'
-    label = u'Dicom Files'
+    filetype = u'dicom'
     priority = 0
 
     def __init__(self, filename):
@@ -80,34 +81,34 @@ class DicomFile(object):
             self.series_uid = dcm.SeriesInstanceUID
             self.series_desc = dcm.SeriesDescription
             self.patient_id = dcm.PatientID
-            self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(dcm.PatientsName, dcm.PatientsBirthDate)
+            self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(dcm.PatientName, dcm.PatientBirthDate)
             self.psd_name = os.path.basename(dcm[TAG_PSD_NAME].value) if TAG_PSD_NAME in dcm else 'unknown'
             self.physio_flag = bool(dcm[TAG_PHYSIO_FLAG].value) if TAG_PHYSIO_FLAG in dcm else False
             self.timestamp = datetime.datetime.strptime(acq_date(dcm) + acq_time(dcm), '%Y%m%d%H%M%S')
 
-            self.ti = float(dcm.InversionTime) / 1000.0
-            self.te = float(dcm.EchoTime) / 1000.0
-            self.tr = float(dcm.RepetitionTime) / 1000.0
-            self.flip_angle = float(dcm.FlipAngle)
-            self.pixel_bandwidth = float(dcm.PixelBandwidth)
-            self.phase_encode = 1 if 'InplanePhaseEncodingDirection' in dcm and dcm.InplanePhaseEncodingDirection == 'COL' else 0
+            self.ti = float(getattr(dcm, 'InversionTime', 0.0)) / 1000.0
+            self.te = float(getattr(dcm, 'EchoTime', 0.0)) / 1000.0
+            self.tr = float(getattr(dcm, 'RepetitionTime', 0.0)) / 1000.0
+            self.flip_angle = float(getattr(dcm, 'FlipAngle', 0.0))
+            self.pixel_bandwidth = float(getattr(dcm, 'PixelBandwidth', 0.0))
+            self.phase_encode = 1 if 'InPlanePhaseEncodingDirection' in dcm and dcm.InPlanePhaseEncodingDirection == 'COL' else 0
 
-            self.total_num_slices = int(dcm.ImagesInAcquisition)
-            self.num_slices = int(dcm[TAG_SLICES_PER_VOLUME].value)
-            self.num_timepoints = int(dcm.NumberOfTemporalPositions) if 'NumberOfTemporalPositions' in dcm else self.total_num_slices / self.num_slices
-            self.num_averages = int(dcm.NumberOfAverages) if 'NumberOfAverages' in dcm else 1
-            self.num_echos = int(dcm.EchoNumbers)
-            self.receive_coil_name = dcm.ReceiveCoilName if 'ReceiveCoilName' in dcm else 'unknown'
+            self.total_num_slices = int(getattr(dcm, 'ImagesInAcquisition', 0))
+            self.num_slices = int(dcm[TAG_SLICES_PER_VOLUME].value) if TAG_SLICES_PER_VOLUME in dcm else 1
+            self.num_timepoints = int(getattr(dcm, 'NumberOfTemporalPositions', self.total_num_slices / self.num_slices))
+            self.num_averages = int(getattr(dcm, 'NumberOfAverages', 1))
+            self.num_echos = int(getattr(dcm, 'EchoNumbers', 1))
+            self.receive_coil_name = getattr(dcm, 'ReceiveCoilName', 'unknown')
             self.num_receivers = 0 # FIXME: where is this stored?
             self.prescribed_duration = datetime.timedelta(0, self.tr * self.num_timepoints * self.num_averages) # FIXME: probably need more hacks in here to compute the correct duration.
             self.duration = self.prescribed_duration # The actual duration can only be computed after the data are loaded. Settled for rx duration for now.
-            self.operator = dcm.OperatorsName if 'OperatorsName' in dcm else 'unknown'
-            self.protocol_name = dcm.ProtocolName if 'ProtocolName' in dcm else 'unknown'
-            self.scanner_name = dcm.InstitutionName + ' ' + dcm.StationName
-            self.scanner_type = dcm.Manufacturer + ' ' + dcm.ManufacturersModelName
-            self.acquisition_type = dcm.MRAcquisitionType if 'MRAcquisitionType' in dcm else 'unknown'
-            self.mm_per_vox = [float(i) for i in dcm.PixelSpacing + [dcm.SpacingBetweenSlices]]
-            self.fov = [float(dcm.ReconstructionDiameter), float(dcm.ReconstructionDiameter) / float(dcm.PercentPhaseFieldOfView)]
+            self.operator = getattr(dcm, 'OperatorsName', 'unknown')
+            self.protocol_name = getattr(dcm, 'ProtocolName', 'unknown')
+            self.scanner_name = '%s %s'.strip() % (getattr(dcm, 'InstitutionName', ''), getattr(dcm, 'StationName', ''))
+            self.scanner_type = '%s %s'.strip() % (getattr(dcm, 'Manufacturer', ''), getattr(dcm, 'ManufacturerModelName', ''))
+            self.acquisition_type = getattr(dcm, 'MRAcquisitionType', 'unknown')
+            self.mm_per_vox = [float(i) for i in dcm.PixelSpacing + [dcm.SpacingBetweenSlices]] if 'PixelSpacing' in dcm and 'SpacingBetweenSlices' in dcm else [0.0, 0.0, 0.0]
+            self.fov = [float(dcm.ReconstructionDiameter), float(dcm.ReconstructionDiameter) / float(dcm.PercentPhaseFieldOfView)] if 'ReconstructionDiameter' in dcm and 'PercentPhaseFieldOfView' in dcm else [0.0, 0.0]
             if self.phase_encode == 1:
                 self.fov = self.fov[::-1]
             self.acquisition_matrix = dcm.AcquisitionMatrix[1:3] if 'AcquisitionMatrix' in dcm else None
@@ -120,19 +121,25 @@ class DicomFile(object):
             self.phase_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[0]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
             self.slice_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[1]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
 
-class DicomSeries(object):
 
-    def __init__(self, dcm_dir, log=None):
-        self.dcm_list = sorted([dicom.read_file(os.path.join(dcm_dir, f)) for f in os.listdir(dcm_dir)], key=lambda dcm: dcm.InstanceNumber)
+class DicomAcquisition(object):
+
+    def __init__(self, dcm_path, log=None):
+        if os.path.isfile(dcm_path) and tarfile.is_tarfile(dcm_path):
+            with tarfile.open(dcm_path) as archive:
+                archive.next()  # skip over top-level directory
+                dcm_list = [dicom.read_file(cStringIO.StringIO(archive.extractfile(ti).read())) for ti in archive]  # dead-slow w/o StringIO
+        else:
+            dcm_list = [dicom.read_file(os.path.join(dcm_path, f)) for f in os.listdir(dcm_path)]
+        self.dcm_list = sorted(dcm_list, key=lambda dcm: dcm.InstanceNumber)
         self.first_dcm = self.dcm_list[0]
         self.log = log
 
     def convert(self, outbase):
-        result = None
-        main_file = None
         try:
             image_type = self.first_dcm.ImageType
         except:
+            result = None
             msg = 'dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase)
             self.log and self.log.warning(msg) or print(msg)
         else:
@@ -143,12 +150,11 @@ class DicomSeries(object):
                 self.to_dti(outbase)
                 result = 'dti'
             if 'PRIMARY' in image_type:
-                main_file = self.to_nii(outbase)
-                result = 'nifti'
+                result = self.to_nii(outbase)
             if not result:
                 msg = 'dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase)
                 self.log and self.log.warning(msg) or print(msg)
-        return result, main_file
+        return result
 
     def to_img(self, outbase):
         """Create bitmap files for each image in a list of dicoms."""
@@ -311,5 +317,5 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    dcm_series = DicomSeries(args.dcm_dir)
-    dcm_series.convert(args.outbase or os.path.basename(args.dcm_dir.rstrip('/')))
+    dcm_acq = DicomAcquisition(args.dcm_dir)
+    dcm_acq.convert(args.outbase or os.path.basename(args.dcm_dir.rstrip('/')))

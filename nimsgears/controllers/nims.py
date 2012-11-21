@@ -59,7 +59,7 @@ class NimsController(BaseController):
             exp = value.Experiment
             acc_priv = u'Manage' if user.is_superuser else AccessPrivilege.name(value.Access.privilege)
             exp_data_list.append((exp.owner.gid, exp.name))
-            exp_attr_list.append({'id':'exp_%d' % key, 'class':'access_%s %s' % (acc_priv.lower(), 'trash' if exp.trashtime else '')})
+            exp_attr_list.append({'id':'exp=%d' % key, 'class':'access=%s %s' % (acc_priv.lower(), 'trash' if exp.trashtime else '')})
         return (exp_data_list, exp_attr_list)
 
     def get_sessions(self, user, exp_id):
@@ -70,7 +70,7 @@ class NimsController(BaseController):
         for key, value in session_dict.iteritems():
             sess = value.Session
             sess_data_list.append((sess.timestamp.strftime('%Y-%m-%d %H:%M'), sess.subject.code))
-            sess_attr_list.append({'id':'sess_%d' % key, 'class':'%s' % ('trash' if sess.trashtime else '')})
+            sess_attr_list.append({'id':'sess=%d' % key, 'class':'%s' % ('trash' if sess.trashtime else '')})
         return (sess_data_list, sess_attr_list)
 
     def get_datasets(self, user, epoch_id):
@@ -80,8 +80,8 @@ class NimsController(BaseController):
         dataset_dict = user.get_datasets(by_epoch_id=epoch_id)
         for key, value in dataset_dict.iteritems():
             dataset = value.Dataset
-            dataset_data_list.append((dataset.label,))
-            dataset_attr_list.append({'id':'dataset_%d' % key, 'class':'%s' % ('trash' if dataset.trashtime else '')})
+            dataset_data_list.append((dataset.label + ('*' if dataset.kind == u'primary' else ''),))
+            dataset_attr_list.append({'id':'dataset=%d' % key, 'class':'%s' % ('trash' if dataset.trashtime else '')})
         return (dataset_data_list, dataset_attr_list)
 
     def get_epochs(self, user, sess_id):
@@ -93,5 +93,5 @@ class NimsController(BaseController):
         for key, value in epoch_dict.iteritems():
             epoch = value.Epoch
             epoch_data_list.append((epoch.timestamp.strftime('%H:%M:%S'), '%s' % epoch.description))
-            epoch_attr_list.append({'id':'epoch_%d' % key, 'class':'%s' % ('trash' if epoch.trashtime else '')})
+            epoch_attr_list.append({'id':'epoch=%d' % key, 'class':'%s' % ('trash' if epoch.trashtime else '')})
         return (epoch_data_list, epoch_attr_list)

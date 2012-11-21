@@ -6,6 +6,7 @@
 import os
 import re
 import glob
+import gzip
 import shutil
 import difflib
 import datetime
@@ -205,3 +206,13 @@ def hrsize(size):
         if size < 1000.:
             return '%3.0f%s' % (size, suffix)
     return '%.0f%s' % (size, 'Y')
+
+
+def gzip_inplace(path, mode=None):
+    gzpath = path + '.gz'
+    with gzip.open(gzpath, 'wb', compresslevel=6) as gzfile:
+        with open(path) as pathfile:
+            gzfile.writelines(pathfile)
+    shutil.copystat(path, gzpath)
+    if mode: os.chmod(gzpath, mode)
+    os.remove(path)

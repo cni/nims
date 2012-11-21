@@ -39,7 +39,7 @@ class PFile(object):
         pf.to_nii(outbase='P56832.7')
     """
 
-    label = u'GE PFile'
+    filetype = u'pfile'
 
     def __init__(self, filename, log=None):
         self.filename = filename
@@ -197,10 +197,13 @@ class PFile(object):
 
     def to_nii(self, outbase, recon_executable=None, saveInOut=False):
         """Create NIFTI file from pfile."""
-        if self.image_data is None and self.recon_func is not None:
-            self.recon_func(recon_executable) if recon_executable else self.recon_func()
-        else:
-            raise PFileError('I don\'t know how to recon this type of data')
+        if self.image_data is None:
+            if self.recon_func:
+                self.recon_func(recon_executable) if recon_executable else self.recon_func()
+            else:
+                raise PFileError('Recon not implemented for this type of data')
+
+        if self.image_data is None: return None     # catches, for example, HO Shims
 
         image_tlhc = np.array([self.header.image.tlhc_R, self.header.image.tlhc_A, self.header.image.tlhc_S])
         image_trhc = np.array([self.header.image.trhc_R, self.header.image.trhc_A, self.header.image.trhc_S])
@@ -357,12 +360,17 @@ class PFile(object):
             #    d,slice_loc = pytave.feval(2, 'mux_epi_recon', self.filename, ref_file, vrgf_file, mux_slice+1)
             #    self.image_data[:,:,slice_loc.astype(int).flatten()-1,:] = d
 
+    def recon_hoshim(self, executable=''):
+        self.log or print('Can\'t recon HO SHIM data')
+
     @property
     def recon_func(self):
         if self.psd_name == 'sprt':
             return self.recon_spirec
         elif self.psd_name.startswith('mux'):
             return self.recon_mux_epi
+        elif self.psd_name == 'sprl_hos':
+            return self.recon_hoshim
         else:
             return None
 
