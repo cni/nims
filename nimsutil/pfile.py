@@ -200,8 +200,7 @@ class PFile(object):
         if self.image_data is None and self.recon_func is not None:
             self.recon_func(recon_executable) if recon_executable else self.recon_func()
         else:
-            self.log and self.log.warning('I don\'t know how to recon this type of data')
-            return
+            raise PFileError('I don\'t know how to recon this type of data')
 
         image_tlhc = np.array([self.header.image.tlhc_R, self.header.image.tlhc_A, self.header.image.tlhc_S])
         image_trhc = np.array([self.header.image.trhc_R, self.header.image.trhc_A, self.header.image.trhc_S])
@@ -340,6 +339,10 @@ class PFile(object):
 
     def recon_mux_epi(self, executable='octave'):
         """Do mux_epi image reconstruction and populate self.image_data."""
+        ref_file  = os.path.join(os.path.dirname(self.filename), '_'+os.path.basename(self.filename)+'_ref.dat')
+        vrgf_file = os.path.join(os.path.dirname(self.filename), '_'+os.path.basename(self.filename)+'_vrgf.dat')
+        if not os.path.isfile(ref_file) or not os.path.isfile(vrgf_file):
+            raise PFileError('dat files not found')
         with nimsutil.TempDirectory() as tmpdir:
             mux_recon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'mux_epi_recon'))
             outname = os.path.join(tmpdir, 'out.mat')
