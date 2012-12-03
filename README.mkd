@@ -4,14 +4,14 @@ NIMS: Neurobiological Image Management System
 NIMS is a scientific data management system, specifically designed for neuroimaging data. It is implemented in Python, based on TurboGears. NIMS is open-source software, released under the MIT license (see below for details).
 
 
-NIMS Development on Ubuntu
---------------------------
+NIMS Development on Ubuntu 12.04
+--------------------------------
 
 Set up a virtual python environment:
 
-    sudo apt-get install build-essential python-dev python-setuptools python-virtualenv libncurses5-dev python-numpy python-imaging
-    virtualenv --system-site-packages tg2
-    source tg2/bin/activate
+    sudo apt-get install build-essential python-dev python-virtualenv python-numpy python-imaging python-h5py
+    virtualenv --system-site-packages tg2env
+    source tg2env/bin/activate
 
 Install the TurboGears development tools:
 
@@ -37,27 +37,26 @@ Generate a development database and start the paste web server:
     paster serve --reload development.ini
 
 
-NIMS Deployment on FreeBSD and Apache
--------------------------------------
+NIMS Deployment on Ubuntu Server 12.04 and Apache
+-------------------------------------------------
 
 Set up a virtual python environment:
 
-    portmaster devel/py-virtualenv
-    virtualenv --no-site-packages /usr/local/www/tg2env
-    source /usr/local/www/tg2env/bin/activate
+    apt-get install build-essential python-dev python-virtualenv php5 libapache2-mod-wsgi libapache2-webauth
+    virtualenv --system-site-packages /var/local/tg2env
+    source /var/local/tg2env/bin/activate
 
 Clone NIMS from GitHub and install its dependencies:
 
     easy_install -i http://tg.gy/current tg.devtools
-    git clone git://github.com/cni/nims.git /usr/local/www/nims
+    git clone git://github.com/cni/nims.git /var/local/nims
     cd !$
     python setup.py develop
 
 Add PostgreSQL and LDAP support:
 
-    portmaster databases/postgresql91-client net/py-ldap2
+    apt-get install postgresql-client libpq-dev python-ldap
     easy_install psycopg2
-    CPATH=/usr/local/include:/usr/local/include/sasl LIBRARY_PATH=/usr/local/lib easy_install python-ldap
 
 Generate the production database:
 
@@ -66,20 +65,21 @@ Generate the production database:
 
 Configure and restart Apache:
 
-    ln -s $PWD/apache.conf /usr/local/etc/apache22/Includes/nimsgears.conf
-    /usr/local/etc/rc.d/apache22 restart
+    ln -s $PWD/apache.conf /etc/apache2/conf.d/nims.conf
+    mkdir /var/cache/nims && chown www-data:www-data /var/cache/nims
+    service apache2 restart
 
 
 Populating the Database
 -----------------------
 
-Once you have the NIMS web gui running, you need a way to get data into NIMS. We use various utilities to pull data from the MR scanner and insert it into NIMS. We use a suite of python scripts (various reapers, sorter.py, scheduler.py and processor.py, all in nimsproc) to do this. The reapers (dicomreaper.py, pfilereaper.py) copy data from the scanner and put it in the NIMS staging area (stage\_path). The sorter moves data from the staging area into the NIMS storage area (store\_path) and creates database entries for the data files. The scheduler finds new datasets in the database and schedules processing jobs for them. The processor executes the scheduled jobs. Some processing steps involve finding peripheral data files associated with the dataset, such as phyio files that are archived on the scanner. This is also where nifti creation happens and image pyramids are generated. All these tools have nice command-line help, so usage should be self-explanatory.
+Once you have the NIMS web GUI running, you need to get your data into NIMS. We use various utilities to pull data from the MR scanner and insert it into NIMS. We use a suite of python scripts (various reapers, sorter.py, scheduler.py and processor.py, all in nimsproc) to do this. The reapers (dicomreaper.py, pfilereaper.py) copy data from the scanner and put it in the NIMS staging area. The sorter moves data from the staging area into the NIMS storage area and creates appropriate database entries. The scheduler finds new datasets in the database and schedules processing jobs for them. The processor executes the scheduled jobs. Some processing steps involve finding peripheral data files associated with the dataset, such as physio files. This is also where NIfTI creation happens and image pyramids are generated. All these tools have nice command-line help, so usage should be self-explanatory.
 
-You also need to run a process to maintain the shadow filesystem, which is a view into the data files that provides human-friendly paths to the data files that are based on the database (e.g., all datasets for an experiment "reading" will appear in a folder called "reading"). Each user gets their own shadow filesystem, and it allows them to have read-only access to the data through, e.g., scp. This shadow file system is rebuilt periodically to keep it in sync with the current DB structure. See nimsutil/symlinks.py.
+You also need to run a process to maintain the shadow filesystem, which is a view into the data files that provides human-friendly paths, which are based on the database (e.g., all datasets for an experiment "exp1" will appear in a directory called "exp1"). Each user gets their own shadow filesystem, and it allows them to have read-only access to the data through, e.g., scp. This shadow filesystem is rebuilt periodically to keep it in sync with the current DB structure (see nimsutil/symlinks.py).
 
-We usually launch all these processes using screen, so we can connect to the screen session from anywhere to check on these daemon processes. We provide an example screenrc file that launches all the processes in separate screens (e.g., "screen -c reaper.screenrc").
+We usually launch all these processes using screen, so that we can connect to the screen session from anywhere to check on them. We provide an example .screenrc file that launches all the processes in separate screens (run as "screen -c reaper.screenrc").
 
-Data are automatically organized by the sorter using the PatientID field from DICOM files (or the analogous field in the raw MR data files). The format of the Patient ID string is PI\_uid/experiment\_name.
+Data are automatically organized by the sorter using the PatientID field from DICOM files (or the analogous field in the raw MR data files). The format of the Patient ID string is PI\_UID/experiment\_name.
 
 
 License

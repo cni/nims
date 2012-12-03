@@ -140,6 +140,6 @@ class AuthController(BaseController):
             tar_dirs = ['%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name, r.Dataset.name) for r in db_res]
         if tar_dirs:
             #redirect('/%s/download.php?%s' % (user_path, '&'.join('dirs[%d]=%s' %(i, p) for i, p in enumerate(tar_dirs))))
-            tar_proc = subprocess.Popen(shlex.split('tar -cLf - -C %s %s' % (user_path, ' '.join(tar_dirs))), stdout=subprocess.PIPE)
+            tar_proc = subprocess.Popen(shlex.split('tar -chf - -C %s %s' % (user_path, ' '.join(tar_dirs))), stdout=subprocess.PIPE)
             response.headerlist.append(('Content-Disposition', 'attachment; filename=%s_%d' % ('nims', time.time())))
             return tar_proc.stdout
