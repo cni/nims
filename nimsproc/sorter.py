@@ -129,15 +129,6 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-
-    from migrate.versioning.api import db_version
-    from migrate.exceptions import DatabaseNotControlledError
-    try:
-        db_version(url=args.db_uri, repository='migration')
-    except DatabaseNotControlledError:
-        print 'ERROR: Invalid database URI'
-        sys.exit(1)
-
     log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
     sorter = Sorter(args.db_uri, args.sort_path, args.preserve_path, args.nims_path, args.dirmode, args.sleeptime, log)
 
