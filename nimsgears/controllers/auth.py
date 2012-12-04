@@ -116,7 +116,7 @@ class AuthController(BaseController):
         if 'id_dict' in kwargs and 'sess' in kwargs['id_dict']:
             query_type = Session
             id_list = [int(id) for id in json.loads(kwargs['id_dict'])['sess']]
-            db_res = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
+            res = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
                     .join(Subject, Session.subject)
                     .join(Experiment, Subject.experiment)
                     .join(ResearchGroup, Experiment.owner)
@@ -125,11 +125,11 @@ class AuthController(BaseController):
                     .filter((Dataset.kind == u'peripheral') | (Dataset.kind == u'derived'))
                     .filter(Session.id.in_(id_list))
                     .all())
-            tar_dirs = ['%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name, r.Dataset.name) for r in db_res]
+            tar_dirs = ['nims/%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name, r.Dataset.name) for r in res]
         elif 'id_dict' in kwargs and 'dataset' in kwargs['id_dict']:
             query_type = Dataset
             id_list = [int(id) for id in json.loads(kwargs['id_dict'])['dataset']]
-            db_res = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
+            res = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
                     .join(Epoch, Dataset.container)
                     .join(Session, Epoch.session)
                     .join(Subject, Session.subject)
@@ -137,7 +137,7 @@ class AuthController(BaseController):
                     .join(ResearchGroup, Experiment.owner)
                     .filter(Dataset.id.in_(id_list))
                     .all())
-            tar_dirs = ['%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name, r.Dataset.name) for r in db_res]
+            tar_dirs = ['nims/%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name, r.Dataset.name) for r in res]
         if tar_dirs:
             #redirect('/%s/download.php?%s' % (user_path, '&'.join('dirs[%d]=%s' %(i, p) for i, p in enumerate(tar_dirs))))
             tar_proc = subprocess.Popen(shlex.split('tar -chf - -C %s %s' % (user_path, ' '.join(tar_dirs))), stdout=subprocess.PIPE)

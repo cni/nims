@@ -234,7 +234,7 @@ class BrowseController(NimsController):
                 .join(ResearchGroup, Experiment.owner)
                 .filter(Dataset.id == id_))
         db_result = self.filter_access(db_query, user).first()
-        ds_path = '%s/%s/%s/%s/%s/%s' % (
+        ds_path = '%s/nims/%s/%s/%s/%s/%s' % (
                 u'superuser' if user.is_superuser else user.uid,
                 db_result.ResearchGroup.gid,
                 db_result.Experiment.name,
