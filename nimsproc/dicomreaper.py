@@ -157,7 +157,7 @@ class Series(object):
                 self.reaper.log.info('Reaped      %s' % self)
             else:
                 shutil.rmtree(reap_path)
-                self.reaper.log.warning('Incomplete %s, %d reaped' % (self, reap_count))
+                self.reaper.log.warning('Incomplete  %s, %d reaped' % (self, reap_count))
 
     def tar_into_acquisitions(self, series_path):
         dcm_dict = {}
