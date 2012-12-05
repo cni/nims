@@ -593,6 +593,11 @@ class Experiment(DataContainer):
         return [s.person for s in self.subject]
 
     @property
+    def next_subject_code(self):
+        code_num = max([int('0%s' % re.sub(r'[^0-9]+', '', subj.code)) for subj in self.subjects]) + 1 if self.subjects else 1
+        return u's%03d' % code_num
+
+    @property
     def is_trash(self):
         return bool(self.trashtime)
 
@@ -620,7 +625,6 @@ class Experiment(DataContainer):
         ordered_subjects = sorted(self.subjects, key=lambda subj: (sorted(subj.sessions, key=lambda session: session.timestamp)[0].timestamp))
         for i, subj in enumerate(ordered_subjects):
             subj.code = u's%03d' % (i+1)
-        #transaction.commit()
 
 
 class Subject(DataContainer):
@@ -653,17 +657,22 @@ class Subject(DataContainer):
         if not subject:
             owner = ResearchGroup.query.filter_by(gid=group_name).one()
             experiment = Experiment.from_owner_name(owner, exp_name)
-            if not mrfile.subj_code:
-                code_num = max([int('0%s' % re.sub(r'[^0-9]+', '', s.code)) for s in experiment.subjects]) + 1 if experiment.subjects else 1
-                mrfile.subj_code = u's%03d' % code_num
+            subj_code = mrfile.subj_code or experiment.next_subject_code
             subject = cls(
                     experiment=experiment,
                     person=Person(),
-                    code=mrfile.subj_code,
+                    code=subj_code,
                     firstname=mrfile.subj_fn,
                     lastname=mrfile.subj_ln,
                     dob=mrfile.subj_dob,
                     )
+        return subject
+
+    @classmethod
+    def for_session_in_experiment(cls, session, experiment):
+        subject = cls.query.filter_by(person=session.subject.person).filter_by(experiment=experiment).first()
+        if not subject:
+            subject = session.subject.clone(experiment)
         return subject
 
     @property
@@ -694,6 +703,15 @@ class Subject(DataContainer):
             self.experiment.untrash()
             for session in self.sessions:
                 session.untrash()
+
+    def clone(self, experiment):
+        subj = Subject()
+        for prop in self.mapper.iterate_properties:
+            if prop.key != 'id' and prop.key != 'sessions':
+                setattr(subj, prop.key, getattr(self, prop.key))
+        subj.code = experiment.next_subject_code    # must be done before setting subj.experiment
+        subj.experiment = experiment
+        return subj
 
 
 class Session(DataContainer):
@@ -754,6 +772,13 @@ class Session(DataContainer):
             self.subject.untrash()
             for epoch in self.epochs:
                 epoch.untrash()
+
+    def move_to_experiment(self, experiment):
+        old_subject = self.subject
+        self.subject = Subject.for_session_in_experiment(self, experiment)
+        if not old_subject.sessions:
+            old_subject.delete()
+
 
 class Epoch(DataContainer):
 

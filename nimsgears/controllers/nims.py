@@ -59,7 +59,7 @@ class NimsController(BaseController):
             exp = value.Experiment
             acc_priv = u'Manage' if user.is_superuser else AccessPrivilege.name(value.Access.privilege)
             exp_data_list.append((exp.owner.gid, exp.name))
-            exp_attr_list.append({'id':'exp=%d' % key, 'class':'access=%s %s' % (acc_priv.lower(), 'trash' if exp.trashtime else '')})
+            exp_attr_list.append({'id':'exp=%d' % key, 'class':'access_%s %s' % (acc_priv.lower(), 'trash' if exp.trashtime else '')})
         return (exp_data_list, exp_attr_list)
 
     def get_sessions(self, user, exp_id):
