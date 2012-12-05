@@ -127,7 +127,7 @@ class Pipeline(threading.Thread):
 
         dc = self.job.data_container
         ds = self.job.data_container.primary_dataset
-        if dc.physio_flag:
+        if dc.physio_recorded:
             physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.duration, dc.psd.encode('utf-8'))
             if physio_files:
                 self.job.activity = u'physio found %s' % (', '.join([os.path.basename(pf) for pf in physio_files]))

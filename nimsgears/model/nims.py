@@ -789,7 +789,8 @@ class Epoch(DataContainer):
     acq = Field(Integer, index=True)
     description = Field(Unicode(255))
     psd = Field(Unicode(255))
-    physio_flag = Field(Boolean, default=False)
+    physio_recorded = Field(Boolean, default=False)
+    physio_valid = Field(Boolean)
 
     tr = Field(Float)
     te = Field(Float)
@@ -817,7 +818,7 @@ class Epoch(DataContainer):
                     acq=mrfile.acq_no,
                     description=nimsutil.clean_string(mrfile.series_desc),
                     psd=unicode(mrfile.psd_name),
-                    physio_flag = mrfile.physio_flag and 'epi' in mrfile.psd_name.lower(),
+                    physio_recorded = mrfile.physio_flag,
                     )
         return epoch
 

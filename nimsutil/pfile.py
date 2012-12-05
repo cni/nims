@@ -75,7 +75,7 @@ class PFile(object):
         self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(
                 self.header.exam.patnameff.strip('\x00'), self.header.exam.dateofbirth.strip('\x00'))
         self.psd_name = os.path.basename(self.header.image.psdname.partition('\x00')[0])
-        self.physio_flag = bool(self.header.rec.user2) and u'sprt' in self.psd_name.lower()
+        self.physio_flag = 'sprt' in self.psd_name.lower()
         if self.header.image.im_datetime > 0:
             self.timestamp = datetime.datetime.utcfromtimestamp(self.header.image.im_datetime)
         else:   # HOShims don't have self.header.image.im_datetime

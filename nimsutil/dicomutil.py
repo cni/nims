@@ -26,7 +26,6 @@ TYPE_EPI =      ['ORIGINAL', 'PRIMARY', 'EPI', 'NONE']
 TYPE_SCREEN =   ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
 
 TAG_PSD_NAME =          (0x0019, 0x109c)
-TAG_PHYSIO_FLAG =       (0x0019, 0x10ac)
 TAG_PHASE_ENCODE_DIR =  (0x0018, 0x1312)
 TAG_EPI_EFFECTIVE_ECHO_SPACING = (0x0043, 0x102c)
 TAG_PHASE_ENCODE_UNDERSAMPLE = (0x0043, 0x1083)
@@ -83,7 +82,7 @@ class DicomFile(object):
             self.patient_id = dcm.PatientID
             self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(dcm.PatientName, dcm.PatientBirthDate)
             self.psd_name = os.path.basename(dcm[TAG_PSD_NAME].value) if TAG_PSD_NAME in dcm else 'unknown'
-            self.physio_flag = bool(dcm[TAG_PHYSIO_FLAG].value) if TAG_PHYSIO_FLAG in dcm else False
+            self.physio_flag = 'epi' in self.psd_name.lower()
             self.timestamp = datetime.datetime.strptime(acq_date(dcm) + acq_time(dcm), '%Y%m%d%H%M%S')
 
             self.ti = float(getattr(dcm, 'InversionTime', 0.0)) / 1000.0
