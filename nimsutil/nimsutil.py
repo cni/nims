@@ -59,13 +59,12 @@ def get_logger(name, filename=None, level='debug'):
 def parse_subject(name, dob):
     if '@' in name:
         code = re.sub(r'^[^@]*@([^\^]*).*', ur'\1', name)
-        lastname, firstname = ('', '')
     else:
         code = ''
-        lastname, firstname = name.split('^') if '^' in name else ('', '')
+    lastname, firstname = name.split('^') if '^' in name else ('', '')
     try:
-        dob = datetime.datetime.strptime(dob, '%Y%m%d')
-        if dob < datetime.datetime(1900, 1, 1):
+        dob = datetime.datetime.strptime(dob, '%Y%m%d').date()
+        if dob < datetime.date(1900, 1, 1):
             raise ValueError
     except ValueError:
         dob = None
