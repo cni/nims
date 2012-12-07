@@ -562,6 +562,10 @@ class DataContainer(Entity):
     def original_datasets(self):
         return Dataset.query.filter(Dataset.container == self).filter((Dataset.kind == u'primary') | (Dataset.kind == u'secondary')).all()
 
+    @property
+    def is_trash(self):
+        return bool(self.trashtime)
+
 
 class Experiment(DataContainer):
 
@@ -598,10 +602,6 @@ class Experiment(DataContainer):
         return u's%03d' % code_num
 
     @property
-    def is_trash(self):
-        return bool(self.trashtime)
-
-    @property
     def contains_trash(self):
         if self.is_trash:
             return True
@@ -615,9 +615,9 @@ class Experiment(DataContainer):
         for subject in self.subjects:
             subject.trash(trashtime)
 
-    def untrash(self):
-        if self.is_trash:
-            self.trashtime = None
+    def untrash(self, propagate=True):
+        self.trashtime = None
+        if propagate:
             for subject in self.subjects:
                 subject.untrash()
 
@@ -680,10 +680,6 @@ class Subject(DataContainer):
         return u'%s %s: %s, %s' % (self.code, self.sessions[0].timestamp, self.lastname, self.firstname)
 
     @property
-    def is_trash(self):
-        return bool(self.trashtime)
-
-    @property
     def contains_trash(self):
         if self.is_trash:
             return True
@@ -697,10 +693,10 @@ class Subject(DataContainer):
         for session in self.sessions:
             session.trash(trashtime)
 
-    def untrash(self):
-        if self.is_trash:
-            self.trashtime = None
-            self.experiment.untrash()
+    def untrash(self, propagate=True):
+        self.trashtime = None
+        self.experiment.untrash(propagate=False)
+        if propagate:
             for session in self.sessions:
                 session.untrash()
 
@@ -749,10 +745,6 @@ class Session(DataContainer):
         return u'%s_%d' % (self.timestamp.strftime(u'%Y%m%d_%H%M'), self.exam)
 
     @property
-    def is_trash(self):
-        return bool(self.trashtime)
-
-    @property
     def contains_trash(self):
         if self.is_trash:
             return True
@@ -766,10 +758,10 @@ class Session(DataContainer):
         for epoch in self.epochs:
             epoch.trash(trashtime)
 
-    def untrash(self):
-        if self.is_trash:
-            self.trashtime = None
-            self.subject.untrash()
+    def untrash(self, propagate=True):
+        self.trashtime = None
+        self.subject.untrash(propagate=False)
+        if propagate:
             for epoch in self.epochs:
                 epoch.untrash()
 
@@ -827,10 +819,6 @@ class Epoch(DataContainer):
         return '%s_%d_%d_%s' % (self.timestamp.strftime('%H%M%S'), self.series, self.acq, self.description)
 
     @property
-    def is_trash(self):
-        return bool(self.trashtime)
-
-    @property
     def contains_trash(self):
         if self.is_trash:
             return True
@@ -844,10 +832,10 @@ class Epoch(DataContainer):
         for dataset in self.datasets:
             dataset.trash(trashtime)
 
-    def untrash(self):
-        if self.is_trash:
-            self.trashtime = None
-            self.session.untrash()
+    def untrash(self, propagate=True):
+        self.trashtime = None
+        self.session.untrash(propagate=False)
+        if propagate:
             for dataset in self.datasets:
                 dataset.untrash()
 
@@ -955,10 +943,9 @@ class Dataset(Entity):
     def trash(self, trashtime=datetime.datetime.now()):
         self.trashtime = trashtime
 
-    def untrash(self):
-        if self.is_trash:
-            self.trashtime = None
-            self.container.untrash()
+    def untrash(self, propagate=True):
+        self.trashtime = None
+        self.container.untrash(propagate=False)
 
     def redigest(self, nims_path):
         old_digest = self.digest
