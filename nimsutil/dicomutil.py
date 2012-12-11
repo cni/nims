@@ -52,9 +52,6 @@ class DicomFile(object):
 
     def __init__(self, filename):
         self.filename = filename
-        self.get_metadata()
-
-    def get_metadata(self):
 
         def acq_date(dcm):
             if 'AcquisitionDate' in dcm:    return dcm.AcquisitionDate
@@ -135,22 +132,22 @@ class DicomAcquisition(object):
         self.log = log
 
     def convert(self, outbase):
+        result = (None, None)
         try:
             image_type = self.first_dcm.ImageType
         except:
-            result = None
             msg = 'dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase)
             self.log and self.log.warning(msg) or print(msg)
         else:
             if image_type == TYPE_SCREEN:
                 self.to_img(outbase)
-                result = 'bitmap'
+                result = ('bitmap', None)
             if image_type == TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in self.first_dcm and self.first_dcm[TAG_DIFFUSION_DIRS].value > 0:
                 self.to_dti(outbase)
-                result = 'dti'
+                result = ('nifti', None)
             if 'PRIMARY' in image_type:
-                result = self.to_nii(outbase)
-            if not result:
+                result = ('nifti', self.to_nii(outbase))
+            if result[0] is None:
                 msg = 'dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase)
                 self.log and self.log.warning(msg) or print(msg)
         return result
