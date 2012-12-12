@@ -103,6 +103,7 @@ class DicomFile(object):
             self.num_receivers = 0 # FIXME: where is this stored?
             self.prescribed_duration = datetime.timedelta(0, self.tr * self.num_timepoints * self.num_averages) # FIXME: probably need more hacks in here to compute the correct duration.
             self.duration = self.prescribed_duration # The actual duration can only be computed after the data are loaded. Settled for rx duration for now.
+            self.patient_id = getattr(dcm, 'PatientID', 'unknown')
             self.operator = getattr(dcm, 'OperatorsName', 'unknown')
             self.protocol_name = getattr(dcm, 'ProtocolName', 'unknown')
             self.scanner_name = '%s %s'.strip() % (getattr(dcm, 'InstitutionName', ''), getattr(dcm, 'StationName', ''))
