@@ -799,10 +799,10 @@ class Epoch(DataContainer):
     scanner_name = Field(Unicode(255))
     size_x = Field(Integer)
     size_y = Field(Integer)
-    fov = Field(Float)
+    fov = Field(Unicode(255))
     scan_type = Field(Unicode(255))
     num_bands = Field(Integer)
-    prescribed_duration = Field(Float)
+    prescribed_duration = Field(Interval, default=datetime.timedelta())
     mm_per_vox = Field(Unicode(255))
     effective_echo_spacing = Field(Float)
     phase_encode_undersample = Field(Float)
@@ -823,39 +823,40 @@ class Epoch(DataContainer):
             if session.timestamp is None or session.timestamp > mrfile.timestamp:
                 session.timestamp = mrfile.timestamp
             epoch = cls(
-                    session=session,
-                    timestamp=mrfile.timestamp,
-                    duration=mrfile.duration,
-                    prescribed_duration=mrfile.prescribed_duration,
-                    uid=uid,
-                    series=mrfile.series_no,
-                    acq=mrfile.acq_no,
-                    description=nimsutil.clean_string(mrfile.series_desc),
-                    psd=unicode(mrfile.psd_name),
+                    session = session,
+                    timestamp = mrfile.timestamp,
+                    duration = mrfile.duration,
+                    prescribed_duration = mrfile.prescribed_duration,
+                    uid = uid,
+                    series = mrfile.series_no,
+                    acq = mrfile.acq_no,
+                    description = nimsutil.clean_string(mrfile.series_desc),
+                    psd = unicode(mrfile.psd_name),
                     physio_recorded = mrfile.physio_flag,
-                    tr=mrfile.tr,
-                    te=mrfile.te,
-                    ti=mrfile.ti,
-                    flip_angle=mrfile.flip_angle,
-                    pixel_bandwidth=mrfile.pixel_bandwidth,
-                    num_slices=mrfile.num_slices,
-                    num_timepoints=mrfile.num_timepoints,
-                    num_averages=mrfile.num_averages,
-                    num_echos=mrfile.num_echos,
-                    receive_coil_name=mrfile.receive_coil_name,
-                    num_receivers=mrfile.num_receivers,
-                    protocol_name=mrfile.protocol_name,
-                    scanner_name=mrfile.scanner_name,
-                    size_x=mrfile.size_x,
-                    size_y=mrfile.size_y,
-                    fov=mrfile.fov,
-                    mm_per_vox=str(mrfile.mm_per_vox),
-                    scan_type=mrfile.scan_type,
-                    num_bands=mrfile.num_bands,
-                    effective_echo_spacing=mrfile.effective_echo_spacing,
-                    phase_encode_undersample=mrfile.phase_encode_undersample,
-                    slice_encode_undersample=mrfile.slice_encode_undersample,
-                    acquisition_matrix=str(mrfile.acquisition_matrix),     # to unpack: np.fromstring(str(mm)[1:-1],sep=',')
+                    tr = mrfile.tr,
+                    te = mrfile.te,
+                    ti = mrfile.ti,
+                    flip_angle = mrfile.flip_angle,
+                    pixel_bandwidth = mrfile.pixel_bandwidth,
+                    num_slices = mrfile.num_slices,
+                    num_timepoints = mrfile.num_timepoints,
+                    num_averages = mrfile.num_averages,
+                    num_echos = mrfile.num_echos,
+                    receive_coil_name = unicode(mrfile.receive_coil_name),
+                    num_receivers = mrfile.num_receivers,
+                    protocol_name = unicode(mrfile.protocol_name),
+                    scanner_name = unicode(mrfile.scanner_name),
+                    size_x = mrfile.size_x,
+                    size_y = mrfile.size_y,
+                    fov = unicode(str(mrfile.fov)),
+                    mm_per_vox = unicode(str(mrfile.mm_per_vox)),
+                    scan_type = unicode(mrfile.scan_type),
+                    num_bands = mrfile.num_bands,
+                    effective_echo_spacing = mrfile.effective_echo_spacing,
+                    phase_encode_undersample = mrfile.phase_encode_undersample,
+                    slice_encode_undersample = mrfile.slice_encode_undersample,
+                    acquisition_matrix = unicode(str(mrfile.acquisition_matrix)),
+                    # to unpack fov, mm_per_vox, and acquisition_matrix: np.fromstring(str(mm)[1:-1],sep=',')
                     )
         return epoch
 
