@@ -96,8 +96,9 @@ class PFile(object):
         self.num_echos = self.header.rec.nechoes
         self.receive_coil_name = self.header.image.cname.strip('\x00')
         self.num_receivers = self.header.rec.dab[0].stop_rcv - self.header.rec.dab[0].start_rcv + 1
-        self.operator = self.header.exam.patidff.strip('\x00')
-        self.protocol_name = self.header.exam.patnameff.strip('\x00')
+        self.patient_id = self.header.exam.patidff.strip('\x00')
+        self.operator = self.header.exam.operator_new.strip('\x00')
+        self.protocol_name = self.header.series.prtcl.strip('\x00')
         self.scanner_name = self.header.exam.hospname.strip('\x00') + ' ' + self.header.exam.ex_sysid.strip('\x00')
         self.scanner_type = 'GE' # FIXME
 

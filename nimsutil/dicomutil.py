@@ -106,6 +106,9 @@ class DicomFile(object):
             self.scanner_type = '%s %s'.strip() % (getattr(dcm, 'Manufacturer', ''), getattr(dcm, 'ManufacturerModelName', ''))
             self.acquisition_type = getattr(dcm, 'MRAcquisitionType', 'unknown')
             self.mm_per_vox = [float(i) for i in dcm.PixelSpacing + [dcm.SpacingBetweenSlices]] if 'PixelSpacing' in dcm and 'SpacingBetweenSlices' in dcm else [0.0, 0.0, 0.0]
+            # FIXME: confirm that DICOM (Columns,Rows) = PFile (X,Y)
+            self.size_x = int(getattr(dcm, 'Columns', None))
+            self.size_y = int(getattr(dcm, 'Rows', None))
             self.fov = [float(dcm.ReconstructionDiameter), float(dcm.ReconstructionDiameter) / float(dcm.PercentPhaseFieldOfView)] if 'ReconstructionDiameter' in dcm and 'PercentPhaseFieldOfView' in dcm else [0.0, 0.0]
             if self.phase_encode == 1:
                 self.fov = self.fov[::-1]
@@ -118,6 +121,8 @@ class DicomFile(object):
             # TODO: find the ASSET/ARC undersample factor and store it here
             self.phase_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[0]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
             self.slice_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[1]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
+            # Assume that dicoms are never multiband
+            self.num_bands = 1
 
 class DicomAcquisition(object):
 
