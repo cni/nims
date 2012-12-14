@@ -1,11 +1,19 @@
 # -*- coding: utf-8 -*-
-#quckstarted Options:
+#quickstarted Options:
 #
 # sqlalchemy: True
 # auth:       sqlalchemy
-# mako:       False
+# mako:       None
 #
 #
+
+#This is just a work-around for a Python2.7 issue causing
+#interpreter crash at exit when trying to log an info message.
+try:
+    import logging
+    import multiprocessing
+except:
+    pass
 
 import sys
 
@@ -20,37 +28,27 @@ testpkgs=['WebTest >= 1.2.3',
                'nose',
                'coverage',
                'wsgiref',
-               'repoze.who-testutil >= 1.0.1',
                ]
 install_requires=[
-    "TurboGears2 >= 2.1.4",
+    "TurboGears2 >= 2.2.0",
     "Genshi",
     "zope.sqlalchemy >= 0.4",
     "repoze.tm2 >= 1.0a5",
     "sqlalchemy",
     "sqlalchemy-migrate",
-    "repoze.what >= 1.0.8",
+    "repoze.who",
     "repoze.who-friendlyform >= 1.0.4",
-    "repoze.what-pylons >= 1.0",
-    "repoze.who==1.0.19",
-    "tgext.admin >= 0.3.11",
-    "repoze.what-quickstart",
-    "repoze.what.plugins.sql>=1.0.1",
-    "tw.forms",
+    "tgext.admin >= 0.5.1",
+    "repoze.who.plugins.sa",
+    "tw2.forms",
     "elixir >= 0.7.1",
     "pydicom >= 0.9.7",
     "nibabel",
     ]
 
-if sys.version_info[:2] == (2,4):
-    testpkgs.extend(['hashlib', 'pysqlite'])
-    install_requires.extend(['hashlib', 'pysqlite'])
-
-print install_requires
-
 setup(
     name='nimsgears',
-    version='0.1',
+    version='1.0',
     description='Neurobiological Image Management System (NIMS)',
     author='Gunnar Schaefer',
     author_email='gsfr [at] stanford [dot] edu',
@@ -78,7 +76,7 @@ setup(
     main = pylons.util:PylonsInstaller
     """,
     dependency_links=[
-        "http://www.turbogears.org/2.1/downloads/current/"
+        "http://tg.gy/220"
         ],
     zip_safe=False
 )

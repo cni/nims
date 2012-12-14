@@ -50,8 +50,8 @@ class User(Entity):
     uid = Field(Unicode(32), unique=True)           # translation for user_name set in app_cfg.py
     firstname = Field(Unicode(255))
     lastname = Field(Unicode(255))
-    email = Field(Unicode(255), info={'rum': {'field':'Email'}})
-    _password = Field(Unicode(128), colname='password', info={'rum': {'field':'Password'}}, synonym='password')
+    email = Field(Unicode(255))
+    _password = Field(Unicode(128), colname='password', synonym='password')
     created = Field(DateTime, default=datetime.datetime.now)
     admin_mode = Field(Boolean, default=False)
 

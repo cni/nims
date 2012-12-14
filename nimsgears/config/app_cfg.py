@@ -22,6 +22,7 @@ from remote_user import RemoteUserIdentifier
 
 base_config = AppConfig()
 base_config.renderers = []
+base_config.prefer_toscawidgets2 = True
 
 base_config.package = nimsgears
 
