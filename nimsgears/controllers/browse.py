@@ -6,6 +6,7 @@ import transaction
 
 from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
+from nimsgears.widgets.experiment import EditExperimentForm
 
 import json
 
@@ -192,101 +193,3 @@ class BrowseController(NimsController):
                 transaction.commit()
 
         return json.dumps(result)
-
-    def get_popup_data_experiment(self, user, id_):
-        db_query = Experiment.query.filter_by(id=id_)
-        db_query = self.filter_access(db_query, user)
-        db_result = db_query.first()
-        return {
-            'type': 'experiment',
-            'name': db_result.name
-            } if db_result else None
-
-    def get_popup_data_session(self, user, id_):
-        db_query = (Session.query.filter_by(id=id_)
-            .join(Subject, Session.subject)
-            .join(Experiment, Subject.experiment))
-        db_query = self.filter_access(db_query, user)
-        db_result = db_query.first()
-        return {
-            'type': 'session',
-            'name': db_result.name
-            } if db_result else None
-
-    def get_popup_data_epoch(self, user, id_):
-        db_query = (Epoch.query.filter_by(id=id_)
-            .join(Session, Epoch.session)
-            .join(Subject, Session.subject)
-            .join(Experiment, Subject.experiment))
-        db_query = self.filter_access(db_query, user)
-        db_result = db_query.first()
-        return {
-            'type': 'epoch',
-            'name': db_result.name
-            } if db_result else None
-
-    def get_popup_data_dataset(self, user, id_):
-        db_query = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
-                .join(Epoch, Dataset.container)
-                .join(Session, Epoch.session)
-                .join(Subject, Session.subject)
-                .join(Experiment, Subject.experiment)
-                .join(ResearchGroup, Experiment.owner)
-                .filter(Dataset.id == id_))
-        db_result = self.filter_access(db_query, user).first()
-        ds_path = '%s/%s/%s/%s/%s/%s' % (
-                u'superuser' if user.is_superuser else user.uid,
-                db_result.ResearchGroup.gid,
-                db_result.Experiment.name,
-                db_result.Session.name,
-                db_result.Epoch.name,
-                db_result.Dataset.name)
-        return {
-            'type': 'dataset',
-            'subtype': 'pyramid',
-            'name': db_result.__class__.__name__,
-            'url': '../data/' + ds_path,
-            } if db_result else None
-
-    @expose()
-    def get_popup_data(self, **kwargs):
-        user = request.identity['user']
-        popup_data = {}
-        if "exp_id" in kwargs:
-            try:
-                id_ = int(kwargs["exp_id"])
-            except:
-                pass
-            else:
-                popup_data = self.get_popup_data_experiment(user, id_)
-
-        elif "sess_id" in kwargs:
-            try:
-                id_ = int(kwargs["sess_id"])
-            except:
-                pass
-            else:
-                popup_data = self.get_popup_data_session(user, id_)
-
-        elif "epoch_id" in kwargs:
-            try:
-                id_ = int(kwargs["epoch_id"])
-            except:
-                pass
-            else:
-                popup_data = self.get_popup_data_epoch(user, id_)
-
-        elif "dataset_id" in kwargs:
-            try:
-                id_ = int(kwargs["dataset_id"])
-            except:
-                pass
-            else:
-                popup_data = self.get_popup_data_dataset(user, id_)
-
-        if popup_data:
-            popup_data.update({'success': True})
-        else:
-            popup_data = {'success': False}
-
-        return json.dumps(popup_data)

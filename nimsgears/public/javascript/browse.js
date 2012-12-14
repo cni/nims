@@ -1,4 +1,4 @@
-require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'dialog'], function (TableDragAndDrop, Drilldown, DrilldownManager, Dialog) {
+require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, Drilldown, DrilldownManager) {
     var experiments;
     var sessions;
     var epochs;
@@ -205,7 +205,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                 {
                     populateNextTableFn(table, data);
                     table.synchronizeSelections();
-                    experiments.onDoubleClick(function() { Dialog.showDialog(experiments_popup, { exp_id: getId(this.id) }, "browse/get_popup_data"); });
+                    experiments.onDoubleClick(function() { showDialog(experiments_popup, "experiment", "/auth/experiment/edit?id="+getId(this.id)); });
                     TableDragAndDrop.setupDroppable(sessions._getBodyTable(), $(experiments.getRows()), dropSessionsOnExperiment);
                 }
                 else
@@ -234,7 +234,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        sessions.onDoubleClick(function() { Dialog.showDialog(sessions_popup, { sess_id: getId(this.id) }, "browse/get_popup_data"); });
+                        sessions.onDoubleClick(function() { showDialog(sessions_popup, "session", "/auth/session/edit?id="+getId(this.id)); });
 
                         //// Disable rows that you don't have manage access to
                         var experiment_rows = $(experiments.getRows());
@@ -284,7 +284,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        epochs.onDoubleClick(function() { Dialog.showDialog(epochs_popup, { epoch_id: getId(this.id) }, "browse/get_popup_data"); });
+                        epochs.onDoubleClick(function() { showDialog(epochs_popup, "epoch", "/auth/epoch/edit?id="+getId(this.id)); });
                     }
                     else
                     {
@@ -318,7 +318,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        datasets.onDoubleClick(function() { Dialog.showDialog(datasets_popup, { dataset_id: getId(this.id) }, "browse/get_popup_data"); });
+                        datasets.onDoubleClick(function() { showDialog(datasets_popup, "dataset", "/auth/dataset?id="+getId(this.id)); });
                     }
                     else
                     {
@@ -334,6 +334,29 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             table.select(is_instant);
         }
     };
+
+    var showDialog = function(popup, type, url)
+    {
+        var iframe = popup.find('iframe');
+        iframe.attr('src', url);
+        iframe[0].onload = function() {
+            var width = iframe[0].contentDocument.width;
+            var height = iframe[0].contentDocument.height;
+            iframe.width(width);
+            iframe.height(height);
+            popup.dialog({
+                beforeClose: function() { manager.refresh(0, [], true); },
+                resizable:false,
+                modal:true,
+                closeOnEscape:true,
+                minWidth:width,
+                minHeight:height
+            });
+            iframe[0].onload = null;
+        };
+        popup.attr('title', "Edit " + type);
+    };
+
 
     var init = function()
     {
@@ -363,7 +386,5 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         datasets_popup = $("#datasets_pop");
     };
 
-    $(function() {
-        init();
-    });
+    $(document).ready(function() { init(); });
 });

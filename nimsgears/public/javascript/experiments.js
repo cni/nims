@@ -223,7 +223,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         var iframe = document.getElementById("add_experiment_iframe");
         iframe.onload = function()
         {
-            if (iframe.contentWindow.location.pathname === "/auth/experiments/add")
+            if (iframe.contentWindow.location.pathname === "/auth/experiment/create")
             {
                 dm.refresh(0);
             }
@@ -263,7 +263,5 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         enableRefreshExperimentOnFormSubmit();
     };
 
-    $(function() {
-        init();
-    });
+    $(document).ready(function() { init(); });
 });

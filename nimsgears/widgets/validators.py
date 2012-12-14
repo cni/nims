@@ -1,5 +1,23 @@
 import tw2.core as twc
 from nimsgears.model import *
+from tg import request
+
+class UserExists(twc.Validator):
+    """
+    Confirm a user exists.
+
+    `owner`
+        Name of the sibling field this must match
+    """
+    msgs = {
+        'doesntexist': twc._("User does not exist.")
+    }
+
+    def validate_python(self, value, state=None):
+        super(UserExists, self).validate_python(value, state)
+        matches = User.query.filter_by(uid=value).all()
+        if len(matches) == 0:
+            raise twc.ValidationError('doesntexist', self)
 
 class ExperimentDoesntExist(twc.Validator):
     """

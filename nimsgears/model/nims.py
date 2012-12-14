@@ -191,7 +191,9 @@ class User(Entity):
                 .join(Session, Epoch.session)
                 .join(Subject, Session.subject)
                 .join(Experiment, Subject.experiment))
-        result = query._filter_query(query, with_privilege).first()
+        else:
+            return False
+        result = self._filter_query(query, with_privilege).first()
         return result != None
 
 
@@ -902,6 +904,23 @@ class Dataset(Entity):
             DBSession.add(dataset)
             nimsutil.make_joined_path(nims_path, dataset.relpath)
         return dataset
+
+    def shadowpath(self, user):
+        db_query = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
+                .join(Epoch, Dataset.container)
+                .join(Session, Epoch.session)
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment)
+                .join(ResearchGroup, Experiment.owner)
+                .filter(Dataset.id == self.id))
+        db_result = db_query.first()
+        return '/data/%s/%s/%s/%s/%s/%s' % (
+                u'superuser' if user.is_superuser else user.uid,
+                db_result.ResearchGroup.gid,
+                db_result.Experiment.name,
+                db_result.Session.name,
+                db_result.Epoch.name,
+                db_result.Dataset.name)
 
     @property
     def name(self):

@@ -32,6 +32,7 @@
 
     .col_time { width:18%; }
     .col_desc { width:82%; }
+    #experiments_pop, #sessions_pop, #epochs_pop, #datasets_pop { padding:0 0 0 0; margin:0px;}
 
     .access_manage { font-weight:bold; }
     #image_viewer { width:100%; height:100%;}
@@ -41,17 +42,16 @@
 <body>
     <!-- Pop Overs -->
     <div id="experiments_pop" class="pop" style="display:none">
-        <p></p>
+        <iframe id="edit_experiment_iframe" src="/auth/experiment/edit?id=413" frameborder="no"/>
     </div>
     <div id="sessions_pop" class="pop" style="display:none">
-        <p></p>
+        <iframe id="edit_session_iframe" src="/auth/session/edit?id=1060" frameborder="no"/>
     </div>
     <div id="epochs_pop" class="pop" style="display:none">
-        <p></p>
+        <iframe id="edit_epoch_iframe" src="/auth/epoch/edit?id=1462" frameborder="no"/>
     </div>
     <div id="datasets_pop" class="pop" style="display:none">
-        <iframe id="image_viewer" src="" />
-        <p></p>
+        <iframe id="edit_dataset_iframe" src="/auth/dataset/edit?id=1462" frameborder="no"/>
     </div>
 
     <div class="subheader">

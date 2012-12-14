@@ -6,7 +6,6 @@ import transaction
 import json
 from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
-from nimsgears.widgets.experiment import NewExperimentForm
 
 class ExperimentsController(NimsController):
 
@@ -33,23 +32,6 @@ class ExperimentsController(NimsController):
                     user_columns=user_columns,
                     exp_columns=exp_columns,
                     )
-
-    @expose('nimsgears.templates.experiments.add')
-    def add(self, **kw):
-        return dict(page='experiments',
-                    form=NewExperimentForm,
-                    )
-
-    @expose()
-    @validate(NewExperimentForm, error_handler=add)
-    def post_add(self, **kw):
-        name = kw['name']
-        owner = kw['owner']
-        experiment = Experiment.from_owner_name(
-            owner=ResearchGroup.query.filter_by(gid=owner).one(),
-            name=name)
-        DBSession.add(experiment)
-        redirect('/auth/experiments/add')
 
     @expose()
     def experiments_with_access(self, **kwargs):
