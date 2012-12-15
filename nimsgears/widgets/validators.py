@@ -2,12 +2,34 @@ import tw2.core as twc
 from nimsgears.model import *
 from tg import request
 
+class SubjectCodeDoesntExist(twc.Validator):
+    """
+    Confirm a subject code doesn't exist.
+
+    `id`
+        Name of the sibling field this must match
+    """
+    msgs = {
+        'exists': twc._("Subject code already exists."),
+        'parseerr': twc._("Error parsing session and subject code")
+    }
+
+    def validate_python(self, value, state):
+        super(SubjectCodeDoesntExist, self).validate_python(value, state)
+        session_id = value['id']
+        subject_id = int(value['subject']['id'])
+        subject_code = value['subject']['code']
+        session = Session.query.filter_by(id=session_id).first()
+        if not session:
+            raise twc.ValidationError('parseerr', self)
+        subject = Subject.query.filter_by(code=subject_code).filter_by(experiment=session.experiment).first()
+        if subject and subject.id != subject_id:
+            raise twc.ValidationError('exists', self)
+
 class UserExists(twc.Validator):
     """
     Confirm a user exists.
 
-    `owner`
-        Name of the sibling field this must match
     """
     msgs = {
         'doesntexist': twc._("User does not exist.")

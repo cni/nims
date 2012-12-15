@@ -22,7 +22,7 @@ class SessionController(NimsController):
                     )
 
     @expose()
-    @validate(EditSessionForm, error_handler='edit')
+    @validate(EditSessionForm, error_handler=edit)
     def post_edit(self, **kw):
         user = request.identity['user']
         if self.user_has_access_to(user, kw['id'], Session):

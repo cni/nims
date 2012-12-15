@@ -59,7 +59,7 @@
 .ui-widget { font-family: Arial,sans-serif; font-size: 1em; }
 .ui-widget .ui-widget { font-size: 1em; }
 .ui-widget input, .ui-widget select, .ui-widget textarea, .ui-widget button { font-family: Arial,sans-serif; font-size: 1em; }
-.ui-widget-content { border: 1px solid #c4bfa9; background: #f6f3e5 url(images/ui-bg_flat_0_f6f3e5_40x100.png) 50% 50% repeat-x; color: #333333; }
+.ui-widget-content { border: 1px solid #c4bfa9; background: white; color: #333333; }
 .ui-widget-content a { color: #333333; }
 .ui-widget-header { border: 1px solid #c4bfa9; background: #ddcf99 url(images/ui-bg_highlight-hard_50_ddcf99_1x100.png) 50% 50% repeat-x; color: #565347; font-weight: bold; }
 .ui-widget-header a { color: #565347; }

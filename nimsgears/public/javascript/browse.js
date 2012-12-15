@@ -335,15 +335,19 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }
     };
 
+    /* Render a jquery dialog for a given dialog (popup), type (string of
+     * type), and load a particular URL into the dialog's iframe */
     var showDialog = function(popup, type, url)
     {
         var iframe = popup.find('iframe');
+        // directs to the relevant URL
         iframe.attr('src', url);
-        iframe[0].onload = function() {
-            var width = iframe[0].contentDocument.width;
-            var height = iframe[0].contentDocument.height;
-            iframe.width(width);
-            iframe.height(height);
+        // then binds an event to show the popup when it is DONE loading
+        iframe.bind('load.show', function() {
+            // width and height of the iframe are computed and bound as minimum
+            // width and height on the popup
+            var width = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).width();
+            var height = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).height();
             popup.dialog({
                 beforeClose: function() { manager.refresh(0, [], true); },
                 resizable:false,
@@ -352,11 +356,27 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                 minWidth:width,
                 minHeight:height
             });
-            iframe[0].onload = null;
-        };
+            // unbind the show event (we don't want to reload the popup every
+            // time it reloads, since we occasionally reload while the window
+            // is still open
+            iframe.unbind('load.show');
+        });
         popup.attr('title', "Edit " + type);
     };
 
+    /* Handles size adjustments when dialog boxes are reloaded while still
+     * open. */
+    var bindSizeChange = function(popup) {
+        var iframe = popup.find('iframe');
+        iframe.bind('load.sizechange', function() {
+            var width = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).width();
+            var height = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).height();
+            popup.width(width);
+            popup.height(height);
+            iframe.width(width);
+            iframe.height(height);
+        });
+    };
 
     var init = function()
     {
@@ -381,9 +401,13 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         $(".pop").dialog("destroy");
 
         experiments_popup = $("#experiments_pop");
+        bindSizeChange(experiments_popup);
         sessions_popup = $("#sessions_pop");
+        bindSizeChange(sessions_popup);
         epochs_popup = $("#epochs_pop");
+        bindSizeChange(epochs_popup);
         datasets_popup = $("#datasets_pop");
+        bindSizeChange(datasets_popup);
     };
 
     $(document).ready(function() { init(); });

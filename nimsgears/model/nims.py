@@ -757,6 +757,10 @@ class Session(DataContainer):
             for epoch in self.epochs:
                 epoch.untrash()
 
+    @property
+    def experiment(self):
+        return DBSession.query(Session, Experiment).join(Subject, Session.subject).join(Experiment, Subject.experiment).filter(Session.id == self.id).one().Experiment
+
 class Epoch(DataContainer):
 
     using_options(inheritance='multi')
