@@ -354,8 +354,10 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                 modal:true,
                 closeOnEscape:true,
                 minWidth:width,
-                minHeight:height
+                minHeight:height + 10
             });
+            //popup.width(width);
+            //popup.height(height);
             // unbind the show event (we don't want to reload the popup every
             // time it reloads, since we occasionally reload while the window
             // is still open
@@ -371,8 +373,6 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         iframe.bind('load.sizechange', function() {
             var width = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).width();
             var height = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).height();
-            popup.width(width);
-            popup.height(height);
             iframe.width(width);
             iframe.height(height);
         });

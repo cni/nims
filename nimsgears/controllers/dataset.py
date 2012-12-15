@@ -1,7 +1,6 @@
 from tg import expose, request, tmpl_context, validate, flash, redirect, lurl, render
 from nimsgears.controllers.nims import NimsController
 from nimsgears.model import *
-from nimsgears.widgets.dataset import EditDatasetForm
 
 class DatasetController(NimsController):
     @expose()
