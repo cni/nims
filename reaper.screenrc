@@ -7,20 +7,20 @@ stuff "source ~/tg2env/bin/activate \015"
 
 screen -t dicomreaper   1
 stuff "source ~/tg2env/bin/activate \015"
-stuff "nimsproc/dicomreaper.py /scratch/nims_stage cnimr:4006 reaper cnimr \015"
+stuff "nimsproc/dicomreaper.py /run/shm/dicomreaper /scratch/nims_stage cnimr:4006 grimreaper cnimr \015"
 
 screen -t pfilereaper    2
 stuff "source ~/tg2env/bin/activate \015"
-stuff "nimsproc/pfilereaper.py /scratch/nims_stage /cnimr/pfiles"
+stuff "nimsproc/pfilereaper.py /run/shm/pfilereaper /scratch/nims_stage /cnimr/pfiles \015"
 
 screen -t sorter        3
 stuff "source ~/tg2env/bin/activate \015"
-stuff "nimsproc/sorter.py -p postgres://nims:nims@nimsfs.stanford.edu:5432/nims /scratch/nims_stage /scratch/nims_store \015"
+stuff "nimsproc/sorter.py -p /scratch/nims_unsortable postgresql://nims:nims@nimsfs.stanford.edu:5432/nims /scratch/nims_stage /scratch/nims_store \015"
 
 screen -t scheduler     4
 stuff "source ~/tg2env/bin/activate \015"
-stuff "nimsproc/scheduler.py postgres://nims:nims@nimsfs.stanford.edu:5432/nims /scratch/nims_store \015"
+stuff "nimsproc/scheduler.py postgresql://nims:nims@nimsfs.stanford.edu:5432/nims /scratch/nims_store \015"
 
 screen -t processor     5
 stuff "source ~/tg2env/bin/activate \015"
-stuff "nimsproc/processor.py -j4 postgres://nims:nims@nimsfs.stanford.edu:5432/nims /scratch/nims_store /cnimr/physio \015"
+stuff "nimsproc/processor.py -j4 postgresql://nims:nims@nimsfs.stanford.edu:5432/nims /scratch/nims_store /cnimr/physio \015"

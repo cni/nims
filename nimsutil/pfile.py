@@ -41,9 +41,10 @@ class PFile(object):
 
     filetype = u'pfile'
 
-    def __init__(self, filename, log=None):
+    def __init__(self, filename, log=None, tmpdir=None):
         self.filename = filename
         self.log = log
+        self.tmpdir = tmpdir
         self.image_data = None
         self.fm_data = None
         with open(self.filename,'rb') as fp:
@@ -75,7 +76,7 @@ class PFile(object):
         self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(
                 self.header.exam.patnameff.strip('\x00'), self.header.exam.dateofbirth.strip('\x00'))
         self.psd_name = os.path.basename(self.header.image.psdname.partition('\x00')[0])
-        self.physio_flag = bool(self.header.rec.user2) and u'sprt' in self.psd_name.lower()
+        self.physio_flag = 'sprt' in self.psd_name.lower()
         if self.header.image.im_datetime > 0:
             self.timestamp = datetime.datetime.utcfromtimestamp(self.header.image.im_datetime)
         else:   # HOShims don't have self.header.image.im_datetime
@@ -95,8 +96,9 @@ class PFile(object):
         self.num_echos = self.header.rec.nechoes
         self.receive_coil_name = self.header.image.cname.strip('\x00')
         self.num_receivers = self.header.rec.dab[0].stop_rcv - self.header.rec.dab[0].start_rcv + 1
-        self.operator = self.header.exam.patidff.strip('\x00')
-        self.protocol_name = self.header.exam.patnameff.strip('\x00')
+        self.patient_id = self.header.exam.patidff.strip('\x00')
+        self.operator = self.header.exam.operator_new.strip('\x00')
+        self.protocol_name = self.header.series.prtcl.strip('\x00')
         self.scanner_name = self.header.exam.hospname.strip('\x00') + ' ' + self.header.exam.ex_sysid.strip('\x00')
         self.scanner_type = 'GE' # FIXME
 
@@ -129,7 +131,7 @@ class PFile(object):
             # to generate each reconned time point.
             self.num_timepoints = (self.header.rec.npasses * self.header.rec.nechoes - 6) / 2
             self.num_echoes = 1
-        elif self.psd_name.startswith('mux'): # multi-band EPI!
+        elif 'mux' in self.psd_name.lower(): # multi-band EPI!
             self.num_bands = int(self.header.rec.user6)
             self.num_mux_cal_cycle = int(self.header.rec.user7)
             self.band_spacing_mm = self.header.rec.user8
@@ -330,9 +332,16 @@ class PFile(object):
 
     def recon_spirec(self, executable='spirec'):
         """Do spiral image reconstruction and populate self.image_data."""
-        with nimsutil.TempDirectory() as tmpdir:
+        with nimsutil.TempDirectory(dir=self.tmpdir) as tmpdir:
+            if self.is_gzipped:
+                pfile_path = os.path.join(tmpdir, os.path.basename(self.filename))
+                with open(pfile_path, 'wb') as fd:
+                    with gzip.open(self.filename, 'rb') as gzfile:
+                        fd.writelines(gzfile)
+            else:
+                pfile_path = os.path.abspath(self.filename)
             basepath = os.path.join(tmpdir, 'recon')
-            cmd = '%s -l --rotate -90 --magfile --savefmap2 --b0navigator -r %s -t %s' % (executable, os.path.abspath(self.filename), 'recon')
+            cmd = '%s -l --rotate -90 --magfile --savefmap2 --b0navigator -r %s -t %s' % (executable, pfile_path, 'recon')
             self.log and self.log.debug(cmd)
             sp.call(shlex.split(cmd), cwd=tmpdir, stdout=open('/dev/null', 'w'))    # run spirec to generate .mag and fieldmap files
 
@@ -342,16 +351,30 @@ class PFile(object):
 
     def recon_mux_epi(self, executable='octave'):
         """Do mux_epi image reconstruction and populate self.image_data."""
-        ref_file  = os.path.join(os.path.dirname(self.filename), '_'+os.path.basename(self.filename)+'_ref.dat')
-        vrgf_file = os.path.join(os.path.dirname(self.filename), '_'+os.path.basename(self.filename)+'_vrgf.dat')
+        pfile_basename = os.path.basename(self.filename)
+        if pfile_basename.endswith('.gz'):
+            pfile_basename = pfile_basename[:-3]
+        ref_file  = os.path.join(os.path.dirname(self.filename), '_'+pfile_basename+'_ref.dat')
+        vrgf_file = os.path.join(os.path.dirname(self.filename), '_'+pfile_basename+'_vrgf.dat')
         if not os.path.isfile(ref_file) or not os.path.isfile(vrgf_file):
-            raise PFileError('.dat files not found')
-        with nimsutil.TempDirectory() as tmpdir:
+            raise PFileError('dat files not found')
+        with nimsutil.TempDirectory(dir=self.tmpdir) as tmpdir:
+            if self.is_gzipped:
+                shutil.copy(ref_file, os.path.join(tmpdir, os.path.basename(ref_file)))
+                shutil.copy(vrgf_file, os.path.join(tmpdir, os.path.basename(vrgf_file)))
+                pfile_path = os.path.join(tmpdir, pfile_basename)
+                with open(pfile_path, 'wb') as fd:
+                    with gzip.open(self.filename, 'rb') as gzfile:
+                        fd.writelines(gzfile)
+            else:
+                pfile_path = os.path.abspath(self.filename)
             mux_recon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'mux_epi_recon'))
             outname = os.path.join(tmpdir, 'out.mat')
-            cmd = '%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s");\'' % (executable, mux_recon_path, os.path.abspath(self.filename), outname)
+            cmd = '%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s");\'' % (executable, mux_recon_path, pfile_path, outname)
             self.log and self.log.debug(cmd)
             sp.call(shlex.split(cmd), stdout=open('/dev/null', 'w'))                # run mux recon
+            if not os.path.isfile(outname):
+                raise PFileError('recon failed!')
             self.set_image_data(outname)
             # TODO: fix size_x/y,num_slices,num_timpoints if they conflict with the returned size of d.
             #self.image_data = np.zeros((self.size_x, self.size_y, self.num_slices, self.num_timepoints))
@@ -389,11 +412,12 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('pfile', help='path to pfile')
         self.add_argument('outbase', nargs='?', help='basename for output files (default: [pfile_name].nii.gz in cwd)')
         self.add_argument('-m', '--matfile', help='path to reconstructed data in .mat format')
+        self.add_argument('-t', '--tmpdir', help='directory to use for scratch files. (Must exist and have lots of space!)')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    pf = PFile(args.pfile)
+    pf = PFile(args.pfile, tmpdir = args.tmpdir)
     if args.matfile:
         pf.set_image_data(args.matfile)
     pf.to_nii(args.outbase or os.path.basename(args.pfile))

@@ -127,7 +127,7 @@ class Pipeline(threading.Thread):
 
         dc = self.job.data_container
         ds = self.job.data_container.primary_dataset
-        if dc.physio_flag:
+        if dc.physio_recorded:
             physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.duration, dc.psd.encode('utf-8'))
             if physio_files:
                 self.job.activity = u'physio found %s' % (', '.join([os.path.basename(pf) for pf in physio_files]))
@@ -173,13 +173,13 @@ class DicomPipeline(Pipeline):
             outbase = os.path.join(outputdir, ds.container.name)
             dcm_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
             dcm_acq = nimsutil.dicomutil.DicomAcquisition(dcm_tgz, self.log)
-            conv_res = dcm_acq.convert(outbase)
+            conv_type, conv_file = dcm_acq.convert(outbase)
 
-            if conv_res:
+            if conv_type:
                 outputdir_list = os.listdir(outputdir)
                 self.job.activity = u'generated %s' % (', '.join([f for f in outputdir_list]))
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                conv_ds = Dataset.at_path(self.nims_path, u'bitmap' if conv_res == 'bitmap' else u'nifti')
+                conv_ds = Dataset.at_path(self.nims_path, unicode(conv_type))
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
 
@@ -192,11 +192,11 @@ class DicomPipeline(Pipeline):
                     conv_ds.file_cnt_act += 1
                 transaction.commit()
 
-            if conv_res != 'bitmap':
+            if conv_type == 'nifti':
                 pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                nimsutil.pyramid.ImagePyramid(conv_res, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
+                nimsutil.pyramid.ImagePyramid(conv_file, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
                 self.job.activity = u'image pyramid generated'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'derived'
@@ -223,9 +223,9 @@ class PFilePipeline(Pipeline):
                     pf = None
                 else:
                     break
-            conv_res = pf.to_nii(os.path.join(outputdir, ds.container.name))
+            conv_file = pf.to_nii(os.path.join(outputdir, ds.container.name))
 
-            if conv_res:
+            if conv_file:
                 outputdir_list = os.listdir(outputdir)
                 self.job.activity = u'generated %s' % (', '.join([f for f in outputdir_list]))
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
@@ -244,7 +244,7 @@ class PFilePipeline(Pipeline):
                 pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                nimsutil.pyramid.ImagePyramid(conv_res, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
+                nimsutil.pyramid.ImagePyramid(conv_file, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
                 self.job.activity = u'image pyramid generated'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'derived'

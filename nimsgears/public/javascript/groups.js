@@ -113,7 +113,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         pis = new Drilldown("pis", "Principal Investigators");
         admins = new Drilldown("admins", "Administrators");
         members = new Drilldown("members", "Members");
-        others = new Drilldown("others", "Others");
+        others = new Drilldown("others", "Non-Members");
 
         pis_mgr = new DrilldownManager([pis], [], true);
         admins_mgr = new DrilldownManager([admins], [], true);

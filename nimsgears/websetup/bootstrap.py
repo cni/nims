@@ -24,6 +24,7 @@ groups = [
         dict(gid=u'awagner',    pis=[u'awagner'],   managers=[u'sfavila']),
         dict(gid=u'cni',        pis=[u'bobd'],      managers=[u'gsfr', u'rfbowen', u'laimab']),
         dict(gid=u'danls',      pis=[u'danls'],     managers=[u'jmtsang', u'hallinen']),
+        dict(gid=u'fbaker',     pis=[u'fbaker'],    managers=[u'nzahr']),
         dict(gid=u'gdaily',     pis=[u'gdaily'],    managers=[u'gbratman']),
         dict(gid=u'greicius',   pis=[u'greicius'],  managers=[u'lhua', u'heydee']),
         dict(gid=u'gross',      pis=[u'gross'],     managers=[u'kkalaf']),

@@ -26,7 +26,7 @@ TYPE_EPI =      ['ORIGINAL', 'PRIMARY', 'EPI', 'NONE']
 TYPE_SCREEN =   ['DERIVED', 'SECONDARY', 'SCREEN SAVE']
 
 TAG_PSD_NAME =          (0x0019, 0x109c)
-TAG_PHYSIO_FLAG =       (0x0019, 0x10ac)
+TAG_PSD_INAME =         (0x0019, 0x109e)
 TAG_PHASE_ENCODE_DIR =  (0x0018, 0x1312)
 TAG_EPI_EFFECTIVE_ECHO_SPACING = (0x0043, 0x102c)
 TAG_PHASE_ENCODE_UNDERSAMPLE = (0x0043, 0x1083)
@@ -53,9 +53,6 @@ class DicomFile(object):
 
     def __init__(self, filename):
         self.filename = filename
-        self.get_metadata()
-
-    def get_metadata(self):
 
         def acq_date(dcm):
             if 'AcquisitionDate' in dcm:    return dcm.AcquisitionDate
@@ -83,7 +80,8 @@ class DicomFile(object):
             self.patient_id = dcm.PatientID
             self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(dcm.PatientName, dcm.PatientBirthDate)
             self.psd_name = os.path.basename(dcm[TAG_PSD_NAME].value) if TAG_PSD_NAME in dcm else 'unknown'
-            self.physio_flag = bool(dcm[TAG_PHYSIO_FLAG].value) if TAG_PHYSIO_FLAG in dcm else False
+            self.scan_type = dcm[TAG_PSD_INAME].value if TAG_PSD_INAME in dcm else 'unknown'
+            self.physio_flag = 'epi' in self.psd_name.lower()
             self.timestamp = datetime.datetime.strptime(acq_date(dcm) + acq_time(dcm), '%Y%m%d%H%M%S')
 
             self.ti = float(getattr(dcm, 'InversionTime', 0.0)) / 1000.0
@@ -108,6 +106,9 @@ class DicomFile(object):
             self.scanner_type = '%s %s'.strip() % (getattr(dcm, 'Manufacturer', ''), getattr(dcm, 'ManufacturerModelName', ''))
             self.acquisition_type = getattr(dcm, 'MRAcquisitionType', 'unknown')
             self.mm_per_vox = [float(i) for i in dcm.PixelSpacing + [dcm.SpacingBetweenSlices]] if 'PixelSpacing' in dcm and 'SpacingBetweenSlices' in dcm else [0.0, 0.0, 0.0]
+            # FIXME: confirm that DICOM (Columns,Rows) = PFile (X,Y)
+            self.size_x = int(getattr(dcm, 'Columns', None))
+            self.size_y = int(getattr(dcm, 'Rows', None))
             self.fov = [float(dcm.ReconstructionDiameter), float(dcm.ReconstructionDiameter) / float(dcm.PercentPhaseFieldOfView)] if 'ReconstructionDiameter' in dcm and 'PercentPhaseFieldOfView' in dcm else [0.0, 0.0]
             if self.phase_encode == 1:
                 self.fov = self.fov[::-1]
@@ -120,7 +121,8 @@ class DicomFile(object):
             # TODO: find the ASSET/ARC undersample factor and store it here
             self.phase_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[0]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
             self.slice_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[1]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
-
+            # Assume that dicoms are never multiband
+            self.num_bands = 1
 
 class DicomAcquisition(object):
 
@@ -136,22 +138,22 @@ class DicomAcquisition(object):
         self.log = log
 
     def convert(self, outbase):
+        result = (None, None)
         try:
             image_type = self.first_dcm.ImageType
         except:
-            result = None
             msg = 'dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase)
             self.log and self.log.warning(msg) or print(msg)
         else:
             if image_type == TYPE_SCREEN:
                 self.to_img(outbase)
-                result = 'bitmap'
+                result = ('bitmap', None)
             if image_type == TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in self.first_dcm and self.first_dcm[TAG_DIFFUSION_DIRS].value > 0:
                 self.to_dti(outbase)
-                result = 'dti'
+                result = ('nifti', None)
             if 'PRIMARY' in image_type:
-                result = self.to_nii(outbase)
-            if not result:
+                result = ('nifti', self.to_nii(outbase))
+            if result[0] is None:
                 msg = 'dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase)
                 self.log and self.log.warning(msg) or print(msg)
         return result

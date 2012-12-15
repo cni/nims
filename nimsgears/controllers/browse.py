@@ -153,8 +153,6 @@ class BrowseController(NimsController):
 
     @expose()
     def transfer_sessions(self, **kwargs):
-        """ Queries DB given info found in POST
-        """
         user = request.identity['user']
 
         sess_id_list = exp_id = None
@@ -170,7 +168,7 @@ class BrowseController(NimsController):
         result = {'success': False}
 
         if sess_id_list and exp_id:
-            exp = DBSession.query(Experiment).filter_by(id = exp_id).one()
+            exp = Experiment.get(exp_id)
             db_query = Session.query.join(Subject, Session.subject).join(Experiment, Subject.experiment).join(Access).filter(Session.id.in_(sess_id_list))
             if not user.is_superuser:
                 db_query = db_query.filter(Access.user == user).filter(Access.privilege >= AccessPrivilege.value(u'Manage'))
@@ -182,7 +180,7 @@ class BrowseController(NimsController):
                 result['untrashed'] = False
                 all_trash = True
                 for session in db_result_sess:
-                    session.subject.experiment = exp
+                    session.move_to_experiment(exp)
                     if all_trash and session.trashtime == None:
                         all_trash = False
                 if not all_trash:

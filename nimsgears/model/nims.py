@@ -50,8 +50,8 @@ class User(Entity):
     uid = Field(Unicode(32), unique=True)           # translation for user_name set in app_cfg.py
     firstname = Field(Unicode(255))
     lastname = Field(Unicode(255))
-    email = Field(Unicode(255), info={'rum': {'field':'Email'}})
-    _password = Field(Unicode(128), colname='password', info={'rum': {'field':'Password'}}, synonym='password')
+    email = Field(Unicode(255))
+    _password = Field(Unicode(128), colname='password', synonym='password')
     created = Field(DateTime, default=datetime.datetime.now)
     admin_mode = Field(Boolean, default=False)
 
@@ -564,6 +564,10 @@ class DataContainer(Entity):
     def original_datasets(self):
         return Dataset.query.filter(Dataset.container == self).filter((Dataset.kind == u'primary') | (Dataset.kind == u'secondary')).all()
 
+    @property
+    def is_trash(self):
+        return bool(self.trashtime)
+
 
 class Experiment(DataContainer):
 
@@ -595,8 +599,9 @@ class Experiment(DataContainer):
         return [s.person for s in self.subject]
 
     @property
-    def is_trash(self):
-        return bool(self.trashtime)
+    def next_subject_code(self):
+        code_num = max([int('0%s' % re.sub(r'[^0-9]+', '', subj.code)) for subj in self.subjects]) + 1 if self.subjects else 1
+        return u's%03d' % code_num
 
     @property
     def contains_trash(self):
@@ -612,9 +617,9 @@ class Experiment(DataContainer):
         for subject in self.subjects:
             subject.trash(trashtime)
 
-    def untrash(self):
-        if self.is_trash:
-            self.trashtime = None
+    def untrash(self, propagate=True):
+        self.trashtime = None
+        if propagate:
             for subject in self.subjects:
                 subject.untrash()
 
@@ -622,7 +627,6 @@ class Experiment(DataContainer):
         ordered_subjects = sorted(self.subjects, key=lambda subj: (sorted(subj.sessions, key=lambda session: session.timestamp)[0].timestamp))
         for i, subj in enumerate(ordered_subjects):
             subj.code = u's%03d' % (i+1)
-        #transaction.commit()
 
 
 class Subject(DataContainer):
@@ -655,26 +659,27 @@ class Subject(DataContainer):
         if not subject:
             owner = ResearchGroup.query.filter_by(gid=group_name).one()
             experiment = Experiment.from_owner_name(owner, exp_name)
-            if not mrfile.subj_code:
-                code_num = max([int('0%s' % re.sub(r'[^0-9]+', '', s.code)) for s in experiment.subjects]) + 1 if experiment.subjects else 1
-                mrfile.subj_code = u's%03d' % code_num
+            subj_code = mrfile.subj_code or experiment.next_subject_code
             subject = cls(
                     experiment=experiment,
                     person=Person(),
-                    code=mrfile.subj_code,
+                    code=subj_code,
                     firstname=mrfile.subj_fn,
                     lastname=mrfile.subj_ln,
                     dob=mrfile.subj_dob,
                     )
         return subject
 
+    @classmethod
+    def for_session_in_experiment(cls, session, experiment):
+        subject = cls.query.filter_by(person=session.subject.person).filter_by(experiment=experiment).first()
+        if not subject:
+            subject = session.subject.clone(experiment)
+        return subject
+
     @property
     def name(self):
         return u'%s %s: %s, %s' % (self.code, self.sessions[0].timestamp, self.lastname, self.firstname)
-
-    @property
-    def is_trash(self):
-        return bool(self.trashtime)
 
     @property
     def contains_trash(self):
@@ -690,12 +695,21 @@ class Subject(DataContainer):
         for session in self.sessions:
             session.trash(trashtime)
 
-    def untrash(self):
-        if self.is_trash:
-            self.trashtime = None
-            self.experiment.untrash()
+    def untrash(self, propagate=True):
+        self.trashtime = None
+        self.experiment.untrash(propagate=False)
+        if propagate:
             for session in self.sessions:
                 session.untrash()
+
+    def clone(self, experiment):
+        subj = Subject()
+        for prop in self.mapper.iterate_properties:
+            if prop.key != 'id' and prop.key != 'sessions':
+                setattr(subj, prop.key, getattr(self, prop.key))
+        subj.code = experiment.next_subject_code    # must be done before setting subj.experiment
+        subj.experiment = experiment
+        return subj
 
 
 class Session(DataContainer):
@@ -733,10 +747,6 @@ class Session(DataContainer):
         return u'%s_%d' % (self.timestamp.strftime(u'%Y%m%d_%H%M'), self.exam)
 
     @property
-    def is_trash(self):
-        return bool(self.trashtime)
-
-    @property
     def contains_trash(self):
         if self.is_trash:
             return True
@@ -745,21 +755,27 @@ class Session(DataContainer):
                 return True
         return False
 
+    @property
+    def experiment(self):
+        return DBSession.query(Session, Experiment).join(Subject, Session.subject).join(Experiment, Subject.experiment).filter(Session.id == self.id).one().Experiment
+
     def trash(self, trashtime=datetime.datetime.now()):
         self.trashtime = trashtime
         for epoch in self.epochs:
             epoch.trash(trashtime)
 
-    def untrash(self):
-        if self.is_trash:
-            self.trashtime = None
-            self.subject.untrash()
+    def untrash(self, propagate=True):
+        self.trashtime = None
+        self.subject.untrash(propagate=False)
+        if propagate:
             for epoch in self.epochs:
                 epoch.untrash()
 
-    @property
-    def experiment(self):
-        return DBSession.query(Session, Experiment).join(Subject, Session.subject).join(Experiment, Subject.experiment).filter(Session.id == self.id).one().Experiment
+    def move_to_experiment(self, experiment):
+        old_subject = self.subject
+        self.subject = Subject.for_session_in_experiment(self, experiment)
+        if not old_subject.sessions:
+            old_subject.delete()
 
 class Epoch(DataContainer):
 
@@ -770,11 +786,33 @@ class Epoch(DataContainer):
     acq = Field(Integer, index=True)
     description = Field(Unicode(255))
     psd = Field(Unicode(255))
-    physio_flag = Field(Boolean, default=False)
+    physio_recorded = Field(Boolean, default=False)
+    physio_valid = Field(Boolean)
 
     tr = Field(Float)
     te = Field(Float)
-    # TODO: Add more metadata fields here...
+    ti = Field(Float)
+    flip_angle = Field(Float)
+    pixel_bandwidth = Field(Float)
+    num_slices = Field(Integer)
+    num_timepoints = Field(Integer)
+    num_averages = Field(Float)
+    num_echos = Field(Integer)
+    receive_coil_name = Field(Unicode(255))
+    num_receivers = Field(Integer)
+    protocol_name = Field(Unicode(255))
+    scanner_name = Field(Unicode(255))
+    size_x = Field(Integer)
+    size_y = Field(Integer)
+    fov = Field(Unicode(255))
+    scan_type = Field(Unicode(255))
+    num_bands = Field(Integer)
+    prescribed_duration = Field(Interval, default=datetime.timedelta())
+    mm_per_vox = Field(Unicode(255))
+    effective_echo_spacing = Field(Float)
+    phase_encode_undersample = Field(Float)
+    slice_encode_undersample = Field(Float)
+    acquisition_matrix = Field(Unicode(255))
 
     session = ManyToOne('Session')
 
@@ -790,25 +828,46 @@ class Epoch(DataContainer):
             if session.timestamp is None or session.timestamp > mrfile.timestamp:
                 session.timestamp = mrfile.timestamp
             epoch = cls(
-                    session=session,
-                    timestamp=mrfile.timestamp,
-                    duration=mrfile.duration,
-                    uid=uid,
-                    series=mrfile.series_no,
-                    acq=mrfile.acq_no,
-                    description=nimsutil.clean_string(mrfile.series_desc),
-                    psd=unicode(mrfile.psd_name),
-                    physio_flag = mrfile.physio_flag and 'epi' in mrfile.psd_name.lower(),
+                    session = session,
+                    timestamp = mrfile.timestamp,
+                    duration = mrfile.duration,
+                    prescribed_duration = mrfile.prescribed_duration,
+                    uid = uid,
+                    series = mrfile.series_no,
+                    acq = mrfile.acq_no,
+                    description = nimsutil.clean_string(mrfile.series_desc),
+                    psd = unicode(mrfile.psd_name),
+                    physio_recorded = mrfile.physio_flag,
+                    tr = mrfile.tr,
+                    te = mrfile.te,
+                    ti = mrfile.ti,
+                    flip_angle = mrfile.flip_angle,
+                    pixel_bandwidth = mrfile.pixel_bandwidth,
+                    num_slices = mrfile.num_slices,
+                    num_timepoints = mrfile.num_timepoints,
+                    num_averages = mrfile.num_averages,
+                    num_echos = mrfile.num_echos,
+                    receive_coil_name = unicode(mrfile.receive_coil_name),
+                    num_receivers = mrfile.num_receivers,
+                    protocol_name = unicode(mrfile.protocol_name),
+                    scanner_name = unicode(mrfile.scanner_name),
+                    size_x = mrfile.size_x,
+                    size_y = mrfile.size_y,
+                    fov = unicode(str(mrfile.fov)),
+                    mm_per_vox = unicode(str(mrfile.mm_per_vox)),
+                    scan_type = unicode(mrfile.scan_type),
+                    num_bands = mrfile.num_bands,
+                    effective_echo_spacing = mrfile.effective_echo_spacing,
+                    phase_encode_undersample = mrfile.phase_encode_undersample,
+                    slice_encode_undersample = mrfile.slice_encode_undersample,
+                    acquisition_matrix = unicode(str(mrfile.acquisition_matrix)),
+                    # to unpack fov, mm_per_vox, and acquisition_matrix: np.fromstring(str(mm)[1:-1],sep=',')
                     )
         return epoch
 
     @property
     def name(self):
         return '%s_%d_%d_%s' % (self.timestamp.strftime('%H%M%S'), self.series, self.acq, self.description)
-
-    @property
-    def is_trash(self):
-        return bool(self.trashtime)
 
     @property
     def contains_trash(self):
@@ -824,10 +883,10 @@ class Epoch(DataContainer):
         for dataset in self.datasets:
             dataset.trash(trashtime)
 
-    def untrash(self):
-        if self.is_trash:
-            self.trashtime = None
-            self.session.untrash()
+    def untrash(self, propagate=True):
+        self.trashtime = None
+        self.session.untrash(propagate=False)
+        if propagate:
             for dataset in self.datasets:
                 dataset.untrash()
 
@@ -952,10 +1011,9 @@ class Dataset(Entity):
     def trash(self, trashtime=datetime.datetime.now()):
         self.trashtime = trashtime
 
-    def untrash(self):
-        if self.is_trash:
-            self.trashtime = None
-            self.container.untrash()
+    def untrash(self, propagate=True):
+        self.trashtime = None
+        self.container.untrash(propagate=False)
 
     def redigest(self, nims_path):
         old_digest = self.digest
