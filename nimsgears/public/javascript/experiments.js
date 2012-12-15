@@ -22,7 +22,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                 var row;
                 if (data.success)
                 {
+                    data.data.map(function(d) { d.push(''); });
+                    data.attrs.map(function(d) { delete d['class']; });
                     populateNextTableFn(table, data);
+                    experiments.synchronizeSelections();
+                    users.select();
                 }
                 else
                 {
@@ -37,13 +41,13 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
     {
         var rows = table.getRows();
         rows.map(function(row) {
-            row.getElementsByClassName('access_level')[0].textContent = '';
+            row.children[row.children.length-1].textContent = '';
             for (var className in accessClasses)
             {
                 if (accessClasses.hasOwnProperty(className))
                 {
-                    row.classList.remove(accessClasses[className]); 
-                } 
+                    row.classList.remove(accessClasses[className]);
+                }
             }
         });
     }
@@ -54,7 +58,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             if (access_levels.hasOwnProperty(row.id))
             {
                 row.classList.add(accessClasses[access_levels[row.id]]);
-                row.getElementsByClassName('access_level')[0].textContent = access_levels[row.id];  
+                row.children[row.children.length-1].textContent = access_levels[row.id];
             }
             else
             {
@@ -85,7 +89,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
 
         removeHighlighting(users);
         removeHighlighting(experiments);
-        
+
         if (table_to_change !== undefined)
         {
             exp_id = selected_rows[0].id.split('=')[1];
@@ -214,6 +218,18 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         showAccessDialog(user_ids, exp_ids, dragged_from);
     };
 
+    var enableRefreshExperimentOnFormSubmit = function()
+    {
+        var iframe = document.getElementById("add_experiment_iframe");
+        iframe.onload = function()
+        {
+            if (iframe.contentWindow.location.pathname === "/auth/experiment/create")
+            {
+                dm.refresh(0);
+            }
+        }.bind(this);
+    };
+
     var init = function()
     {
         users = new Drilldown("users", "Users");
@@ -221,7 +237,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         users.resort();
         experiments.resort();
         new DrilldownManager([users], [], true);
-        new DrilldownManager([experiments], [], true);
+        dm = new DrilldownManager([experiments], [refreshExperiments], true);
 
         TableDragAndDrop.setupDraggable($(users._getBodyTable()));
         TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));
@@ -244,9 +260,8 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             option.textContent = item;
             selector.append(option);
         });
+        enableRefreshExperimentOnFormSubmit();
     };
 
-    $(function() {
-        init();
-    });
+    $(document).ready(function() { init(); });
 });

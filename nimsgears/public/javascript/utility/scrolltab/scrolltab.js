@@ -174,8 +174,11 @@ define([], function()
                 row = this.createTableRowFromTuple(table_dict['data'][i]);
                 if (table_dict.hasOwnProperty('attrs'))
                 {
-                    row.id = table_dict['attrs'][i]['id'];
-                    row.className = table_dict['attrs'][i]['class'];
+                    for (var attr in table_dict['attrs'][i]) {
+                        if (table_dict['attrs'][i].hasOwnProperty(attr)) {
+                            row.setAttribute(attr, table_dict['attrs'][i][attr]);
+                        }
+                    }
                 }
                 tbody.appendChild(row);
             }

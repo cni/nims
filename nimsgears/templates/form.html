@@ -1,0 +1,38 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
+<head>
+<title>NIMS Experiments</title>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
+<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/stanfordmodern.css')}" />
+<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/nimsgears.css')}" />
+<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
+<style>
+#flash { padding:10px; background-color:rgba(0,200,0,0.5); }
+.error span { color:red; font-weight:bold;}
+</style>
+</head>
+<body>
+<py:with vars="flash=tg.flash_obj.message">
+<div py:if="flash" id="flash" style="position:absolute;">${flash}</div>
+</py:with>
+<div id="form" py:if="form">${form.display()}</div>
+<p py:if="not form">Insufficient access privileges.</p>
+<script>
+$(document).ready(function() {
+    var date_field = $(document.getElementById("editsessionform:subject:dob"));
+    if (date_field) {
+        date_field.datepicker({
+            changeMonth: true,
+            changeYear: true,
+            yearRange: "1900:nn"
+        });
+    }
+});
+</script>
+</body>
+</html>

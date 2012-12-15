@@ -82,7 +82,5 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'dialog'], 
         });
     }
 
-    $(function() {
-        init();
-    });
+    $(document).ready(function() { init(); });
 });
