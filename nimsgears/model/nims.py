@@ -191,7 +191,9 @@ class User(Entity):
                 .join(Session, Epoch.session)
                 .join(Subject, Session.subject)
                 .join(Experiment, Subject.experiment))
-        result = query._filter_query(query, with_privilege).first()
+        else:
+            return False
+        result = self._filter_query(query, with_privilege).first()
         return result != None
 
 
@@ -571,7 +573,7 @@ class Experiment(DataContainer):
 
     using_options(inheritance='multi')
 
-    name = Field(Unicode(63))
+    name = Field(Unicode(63), required=True)
     irb = Field(Unicode(16))
 
     owner = ManyToOne('ResearchGroup', required=True)
@@ -753,6 +755,10 @@ class Session(DataContainer):
                 return True
         return False
 
+    @property
+    def experiment(self):
+        return DBSession.query(Session, Experiment).join(Subject, Session.subject).join(Experiment, Subject.experiment).filter(Session.id == self.id).one().Experiment
+
     def trash(self, trashtime=datetime.datetime.now()):
         self.trashtime = trashtime
         for epoch in self.epochs:
@@ -770,7 +776,6 @@ class Session(DataContainer):
         self.subject = Subject.for_session_in_experiment(self, experiment)
         if not old_subject.sessions:
             old_subject.delete()
-
 
 class Epoch(DataContainer):
 
@@ -962,6 +967,23 @@ class Dataset(Entity):
             DBSession.add(dataset)
             nimsutil.make_joined_path(nims_path, dataset.relpath)
         return dataset
+
+    def shadowpath(self, user):
+        db_query = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
+                .join(Epoch, Dataset.container)
+                .join(Session, Epoch.session)
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment)
+                .join(ResearchGroup, Experiment.owner)
+                .filter(Dataset.id == self.id))
+        db_result = db_query.first()
+        return '/data/%s/%s/%s/%s/%s/%s' % (
+                u'superuser' if user.is_superuser else user.uid,
+                db_result.ResearchGroup.gid,
+                db_result.Experiment.name,
+                db_result.Session.name,
+                db_result.Epoch.name,
+                db_result.Dataset.name)
 
     @property
     def name(self):

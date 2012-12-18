@@ -19,6 +19,10 @@ from nimsgears.controllers.experiments import ExperimentsController
 from nimsgears.controllers.browse import BrowseController
 from nimsgears.controllers.search import SearchController
 from nimsgears.controllers.groups import GroupsController
+from nimsgears.controllers.experiment import ExperimentController
+from nimsgears.controllers.session import SessionController
+from nimsgears.controllers.epoch import EpochController
+from nimsgears.controllers.dataset import DatasetController
 
 import json
 
@@ -31,6 +35,10 @@ class AuthController(BaseController):
     browse = BrowseController()
     search = SearchController()
     groups = GroupsController()
+    experiment = ExperimentController()
+    session = SessionController()
+    epoch = EpochController()
+    dataset = DatasetController()
 
     allow_only = predicates.not_anonymous(msg=l_('You must be logged in to view this page.'))
 
