@@ -16,7 +16,7 @@ def get_owners():
 
 class NewExperimentForm(twf.Form):
     submit = twf.SubmitButton(value="Create")
-    action = '/auth/experiment/post_create'
+    action = 'post_create'
     class child(twf.TableLayout):
         owner = twf.SingleSelectField(options=twc.Deferred(get_owners), validator=twc.Required)
         name = twf.TextField(validator=twc.All(twc.StringLengthValidator(min=1), ExperimentDoesntExist('owner')))
@@ -25,7 +25,7 @@ class EditExperimentForm(tws.DbFormPage):
     entity = Experiment
     title = None
     class child(twf.TableForm):
-        action = '/auth/experiment/post_edit'
+        action = 'post_edit'
         id = twf.HiddenField()
         owner = twf.SingleSelectField(options=twc.Deferred(get_owners), validator=twc.Required)
         name = twf.TextField(validator=twc.All(twc.StringLengthValidator(min=1), ExperimentDoesntExist('owner')))

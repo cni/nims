@@ -977,7 +977,7 @@ class Dataset(Entity):
                 .join(ResearchGroup, Experiment.owner)
                 .filter(Dataset.id == self.id))
         db_result = db_query.first()
-        return '/data/%s/%s/%s/%s/%s/%s' % (
+        return '../data/%s/%s/%s/%s/%s/%s' % (
                 u'superuser' if user.is_superuser else user.uid,
                 db_result.ResearchGroup.gid,
                 db_result.Experiment.name,

@@ -11,7 +11,7 @@ class EditSessionForm(tws.DbFormPage):
     entity = Session
     title = None
     class child(twf.TableForm):
-        action = '/auth/session/post_edit'
+        action = 'post_edit'
         id = twf.HiddenField()
         subject = twf.LabelField()
         exam = twf.LabelField()

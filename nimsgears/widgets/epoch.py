@@ -10,7 +10,7 @@ class EditEpochForm(tws.DbFormPage):
     entity = Epoch
     title = None
     class child(twf.TableForm):
-        action = '/auth/epoch/post_edit'
+        action = 'post_edit'
         id = twf.HiddenField()
         series = twf.LabelField()
         acq = twf.LabelField()
