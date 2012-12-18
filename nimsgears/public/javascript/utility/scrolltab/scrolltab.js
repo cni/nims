@@ -161,6 +161,11 @@ define([], function()
         }
     }
 
+    /*
+     * populateTable
+     * relevant data (in the form of a dictionary containing 'data', with
+     * nested keys 'data' (list of tuples for data in each row) and '
+     */
     Scrolltable.prototype.populateTable = function(table_dict)
     {
         this.emptyTable();
