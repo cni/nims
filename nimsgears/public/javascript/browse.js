@@ -205,7 +205,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                 {
                     populateNextTableFn(table, data);
                     table.synchronizeSelections();
-                    experiments.onDoubleClick(function() { showDialog(experiments_popup, "experiment", "/auth/experiment/edit?id="+getId(this.id)); });
+                    experiments.onDoubleClick(function() { showDialog(experiments_popup, "experiment", "experiment/edit?id="+getId(this.id)); });
                     TableDragAndDrop.setupDroppable(sessions._getBodyTable(), $(experiments.getRows()), dropSessionsOnExperiment);
                 }
                 else
@@ -234,7 +234,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        sessions.onDoubleClick(function() { showDialog(sessions_popup, "session", "/auth/session/edit?id="+getId(this.id)); });
+                        sessions.onDoubleClick(function() { showDialog(sessions_popup, "session", "session/edit?id="+getId(this.id)); });
 
                         //// Disable rows that you don't have manage access to
                         var experiment_rows = $(experiments.getRows());
@@ -284,7 +284,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        epochs.onDoubleClick(function() { showDialog(epochs_popup, "epoch", "/auth/epoch/edit?id="+getId(this.id)); });
+                        epochs.onDoubleClick(function() { showDialog(epochs_popup, "epoch", "epoch/edit?id="+getId(this.id)); });
                     }
                     else
                     {
@@ -318,7 +318,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        datasets.onDoubleClick(function() { showDialog(datasets_popup, "dataset", "/auth/dataset?id="+getId(this.id)); });
+                        datasets.onDoubleClick(function() { showDialog(datasets_popup, "dataset", "dataset?id="+getId(this.id)); });
                     }
                     else
                     {
