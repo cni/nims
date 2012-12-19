@@ -114,7 +114,7 @@ class ReapPFile(object):
             success = False
             self.reaper.log.warning('Error while reaping %s' % self)
         else:
-            #nimsutil.gzip_inplace(os.path.join(reap_path, self.basename), 0o644)
+            nimsutil.gzip_inplace(os.path.join(reap_path, self.basename), 0o644)
             shutil.move(reap_path, os.path.join(self.reaper.sort_stage, '.' + stage_dir))
             os.rename(os.path.join(self.reaper.sort_stage, '.' + stage_dir), os.path.join(self.reaper.sort_stage, stage_dir))
             self.needs_reaping = False
