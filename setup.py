@@ -41,6 +41,7 @@ install_requires=[
     "tgext.admin >= 0.5.1",
     "repoze.who.plugins.sa",
     "tw2.forms",
+    "tw2.sqla",
     "elixir >= 0.7.1",
     "pydicom >= 0.9.7",
     "nibabel",
