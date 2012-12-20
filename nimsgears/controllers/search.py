@@ -112,5 +112,5 @@ class SearchController(NimsController):
                               sess.timestamp.strftime('%Y-%m-%d %H:%M'),
                               subject.code,
                               epoch.description))
-            attr_list.append({'id':'epoch_%d' % epoch.id})
+            attr_list.append({'id':'epoch=%d' % epoch.id})
         return data_list, attr_list

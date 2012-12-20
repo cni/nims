@@ -4,6 +4,9 @@ define(['./selectable'], function(asSelectable)
     {
         asSelectable.call(this);
 
+        /*
+         * init_kbsupport
+         */
         this.init_kbsupport = function()
         {
             this.auto_scroll_enabled = document.createElement("div").scrollIntoViewIfNeeded !== undefined;
@@ -11,6 +14,16 @@ define(['./selectable'], function(asSelectable)
             this.enableKeyboardSelection();
         };
 
+        /*
+         * changeRow
+         * Accepts an integer specifying the direction to move row selection.
+         * Used in conjunction with keypresses to navigate through rows in a
+         * table. Returns true or false for whether or not the selection
+         * succeeded.
+         *
+         * direction - integer -1, 0, or 1 to specify selecting the prior,
+         *      same, or next row.
+         */
         this.changeRow = function(direction)
         {
             var success = false;
@@ -34,6 +47,16 @@ define(['./selectable'], function(asSelectable)
             return success;
         };
 
+        /*
+         * shiftRow
+         * Comparable to changeRow, but in this case handles BATCH selection.
+         * For example, if you hold shift and tap down, you would want to call
+         * shiftRow(1) to shift select the next row. Returns true or false for
+         * whether or not the selection succeeded.
+         *
+         * direction - integer -1, 0, or 1 to specify BATCH selecting the
+         *      prior, same, or next row.
+         */
         this.shiftRow = function(direction)
         {
             var success = false;
@@ -53,6 +76,11 @@ define(['./selectable'], function(asSelectable)
             return success;
         };
 
+        /*
+         * enableKeyboardSelection
+         * Enables use of up and down keys to navigate up and down rows in the
+         * table.
+         */
         this.enableKeyboardSelection = function()
         {
             var obj = this;

@@ -9,6 +9,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
     var members_mgr;
     var others_mgr;
 
+    /*
+     * showRetroDialog
+     * Displays dialog to confirm whether user would like to apply permissions
+     * changes retroactively or only for future experiments.
+     */
     var showRetroDialog = function(user_ids, group_id, membership_src, membership_dst)
     {
         $("#retro_dialog").dialog({
@@ -28,6 +33,16 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         });
     };
 
+    /*
+     * modifyGroups
+     * Issues server call to modify group privileges.
+     *
+     * user_ids - user ids that are being modified
+     * membership_src - source group (losing these privileges)
+     * membership_dst - destination group (gaining these privileges)
+     * is_retroactive - whether to apply to all past relevant experiments or
+     *      only future
+     */
     var modifyGroups = function(user_ids, group_id, membership_src, membership_dst, is_retroactive)
     {
         console.log(is_retroactive);
@@ -59,6 +74,13 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }); // ajax call
     };
 
+    /*
+     * dropUsersOnGroup
+     * Callback fired when users are dragged from one group to another.
+     * Computes all relevant ids, membership sources and destinations, as well
+     * as creating the popup to determine whether changes should be retroactive
+     * or not.
+     */
     var dropUsersOnGroup = function(event, ui)
     {
         var group_id = $("#group_select").val();
@@ -80,6 +102,13 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         showRetroDialog(user_ids, group_id, membership_src, membership_dst);
     };
 
+    /*
+     * refreshGroups
+     * Repopulates all tables with the selected research groups members (pi,
+     * admins, etc).
+     *
+     * research_group - group whose members we're requesting
+     */
     var refreshGroups = function(research_group)
     {
         pis.startLoading();

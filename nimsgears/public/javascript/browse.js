@@ -1,4 +1,4 @@
-require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, Drilldown, DrilldownManager) {
+require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/dialog'], function (TableDragAndDrop, Drilldown, DrilldownManager, Dialog) {
     var experiments;
     var sessions;
     var epochs;
@@ -11,6 +11,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
     var epochs_popup;
     var datasets_popup;
 
+    /*
+     * viewport
+     * Helper function to return structure containing width and height of
+     * viewable window.
+     */
     var viewport = function ()
     {
         var e = window;
@@ -23,11 +28,25 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         return { width : e[ a+'Width' ] , height : e[ a+'Height' ] }
     }
 
+    /*
+     * getId
+     * Given an id string, discard the specifier (exp, sess, etc) and return
+     * the number itself. For example, id: "exp=200", returns "200".
+     *
+     * string - id pulled from a row
+     */
     var getId = function(string)
     {
         return string.split("=")[1];
     };
 
+    /*
+     * toggleObject
+     * Toggles the visibility of an object.
+     *
+     * object - object in question
+     * makeVisible - true or false for visible or not visible, respectively
+     */
     var toggleObject = function (object, makeVisible)
     {
         objectVisible = object.css('display') != 'none';
@@ -41,6 +60,15 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }
     };
 
+    /*
+     * getIdDictionary
+     * Given a list of rows, returns a dictionary of types and a list of the
+     * corresponding ids for each of those types. For example, given a list of
+     * rows with ids ["exp=33", "sess=44", "exp=43"] it would return
+     * {"exp":["33", "43"], "sess":["44"]}.
+     *
+     * selected_rows - rows you'd like to prune ids from
+     */
     var getIdDictionary = function (selected_rows)
     {
         var id_dict = {};
@@ -57,6 +85,10 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         return id_dict;
     };
 
+    /*
+     * dropDownloads
+     * Callback when a row or rows have been dropped on the downloads div.
+     */
     var dropDownloads = function (event, ui)
     {
         var id_dict = getIdDictionary(ui.helper.data('moving_rows'));
@@ -72,6 +104,10 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         iframe.src = 'download?id_dict=' + JSON.stringify(id_dict)
     };
 
+    /*
+     * dropTrash
+     * Callback when a row or rows have been dropped on the trash div.
+     */
     var dropTrash = function (event, ui)
     {
         var selected_rows;
@@ -104,6 +140,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         });
     };
 
+    /*
+     * dropSessionsOnExperiment
+     * Callback when we've dropped a session or sessions onto another
+     * experiment table row.
+     */
     var dropSessionsOnExperiment = function(event, ui)
     {
         var selected_rows;
@@ -147,6 +188,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         });
     };
 
+    /*
+     * getTrashFlag
+     * Request and return the current trash flag from the server. Done
+     * synchronously so that we can return the value.
+     */
     var getTrashFlag = function()
     {
         var trash_flag;
@@ -164,6 +210,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         return trash_flag;
     };
 
+    /*
+     * changeTrashFlag
+     * Callback when a trash flag radio button has been selected. Refreshes
+     * rows to reflect new table state.
+     */
     var changeTrashFlag = function(event, ui)
     {
         var trash_flag = getId(this.id);
@@ -190,6 +241,17 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         });
     };
 
+    /*
+     * refreshExperiments
+     * Populator for experiments table.
+     *
+     * table - experiments table
+     * selected_rows - irrelevant for experiments, can be ignored
+     * is_instant - whether refresh should happen immediately or wait for
+     *      another request
+     * populateNextTableFn - callback to populate the next table in the
+     *      drilldown sequence (see drilldown manager)
+     */
     var refreshExperiments = function(table, selected_rows, is_instant, populateNextTableFn)
     {
         $.ajax(
@@ -205,7 +267,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                 {
                     populateNextTableFn(table, data);
                     table.synchronizeSelections();
-                    experiments.onDoubleClick(function() { showDialog(experiments_popup, "experiment", "experiment/edit?id="+getId(this.id)); });
+                    experiments.onDoubleClick(function()
+                    {
+                        Dialog.showDialog(experiments_popup, "experiment", "experiment/edit?id="+getId(this.id));
+                        experiments_popup.on( "dialogbeforeclose", function( event, ui ) { manager.refresh(0, [], true); } );
+                    });
                     TableDragAndDrop.setupDroppable(sessions._getBodyTable(), $(experiments.getRows()), dropSessionsOnExperiment);
                 }
                 else
@@ -217,6 +283,18 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }); // ajax call
     };
 
+    /*
+     * refreshSessions
+     * Populator for sessions table.
+     *
+     * table - session table
+     * selected_rows - selected experiments rows to determine how to populate
+     *      sessions
+     * is_instant - whether refresh should happen immediately or wait for
+     *      another request
+     * populateNextTableFn - callback to populate the next table in the
+     *      drilldown sequence (see drilldown manager)
+     */
     var refreshSessions = function(table, selected_rows, is_instant, populateNextTableFn)
     {
         if (selected_rows && selected_rows.length == 1) // make sure we didn't just get passed an empty list
@@ -234,7 +312,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        sessions.onDoubleClick(function() { showDialog(sessions_popup, "session", "session/edit?id="+getId(this.id)); });
+                        sessions.onDoubleClick(function()
+                        {
+                            Dialog.showDialog(sessions_popup, "session", "session/edit?id="+getId(this.id));
+                            sessions_popup.on( "dialogbeforeclose", function( event, ui ) { manager.refresh(0, [], true); } );
+                        });
 
                         //// Disable rows that you don't have manage access to
                         var experiment_rows = $(experiments.getRows());
@@ -267,6 +349,18 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }
     };
 
+    /*
+     * refreshEpochs
+     * Populator for epochs table.
+     *
+     * table - epoch table
+     * selected_rows - selected sessions rows to determine how to populate
+     *      epochs
+     * is_instant - whether refresh should happen immediately or wait for
+     *      another request
+     * populateNextTableFn - callback to populate the next table in the
+     *      drilldown sequence (see drilldown manager)
+     */
     var refreshEpochs = function(table, selected_rows, is_instant, populateNextTableFn)
     {
         if (selected_rows && selected_rows.length == 1) // make sure we didn't get passed an empty list
@@ -284,7 +378,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        epochs.onDoubleClick(function() { showDialog(epochs_popup, "epoch", "epoch/edit?id="+getId(this.id)); });
+                        epochs.onDoubleClick(function()
+                        {
+                            Dialog.showDialog(epochs_popup, "epoch", "epoch/edit?id="+getId(this.id));
+                            epochs_popup.on( "dialogbeforeclose", function( event, ui ) { manager.refresh(0, [], true); } );
+                        });
                     }
                     else
                     {
@@ -301,6 +399,18 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }
     };
 
+    /*
+     * refreshDatasets
+     * Populator for dataset table.
+     *
+     * table - dataset table
+     * selected_rows - selected epochs rows to determine how to populate
+     *      dataset
+     * is_instant - whether refresh should happen immediately or wait for
+     *      another request
+     * populateNextTableFn - callback to populate the next table in the
+     *      drilldown sequence (see drilldown manager)
+     */
     var refreshDatasets = function(table, selected_rows, is_instant, populateNextTableFn)
     {
         if (selected_rows && selected_rows.length == 1) // make sure we didn't get passed an empty list
@@ -318,7 +428,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        datasets.onDoubleClick(function() { showDialog(datasets_popup, "dataset", "dataset?id="+getId(this.id)); });
+                        datasets.onDoubleClick(function() { Dialog.showDialog(datasets_popup, "dataset", "dataset?id="+getId(this.id)); });
                     }
                     else
                     {
@@ -333,49 +443,6 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             populateNextTableFn(table, []);
             table.select(is_instant);
         }
-    };
-
-    /* Render a jquery dialog for a given dialog (popup), type (string of
-     * type), and load a particular URL into the dialog's iframe */
-    var showDialog = function(popup, type, url)
-    {
-        var iframe = popup.find('iframe');
-        // directs to the relevant URL
-        iframe.attr('src', url);
-        // then binds an event to show the popup when it is DONE loading
-        iframe.bind('load.show', function() {
-            // width and height of the iframe are computed and bound as minimum
-            // width and height on the popup
-            var width = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).width();
-            var height = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).height();
-            popup.dialog({
-                beforeClose: function() { manager.refresh(0, [], true); },
-                resizable:false,
-                modal:true,
-                closeOnEscape:true,
-                minWidth:width,
-                minHeight:height + 10
-            });
-            //popup.width(width);
-            //popup.height(height);
-            // unbind the show event (we don't want to reload the popup every
-            // time it reloads, since we occasionally reload while the window
-            // is still open
-            iframe.unbind('load.show');
-        });
-        popup.attr('title', "Edit " + type);
-    };
-
-    /* Handles size adjustments when dialog boxes are reloaded while still
-     * open. */
-    var bindSizeChange = function(popup) {
-        var iframe = popup.find('iframe');
-        iframe.bind('load.sizechange', function() {
-            var width = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).width();
-            var height = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).height();
-            iframe.width(width);
-            iframe.height(height);
-        });
     };
 
     var init = function()
@@ -401,13 +468,13 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         $(".pop").dialog("destroy");
 
         experiments_popup = $("#experiments_pop");
-        bindSizeChange(experiments_popup);
+        Dialog.bindSizeChange(experiments_popup);
         sessions_popup = $("#sessions_pop");
-        bindSizeChange(sessions_popup);
+        Dialog.bindSizeChange(sessions_popup);
         epochs_popup = $("#epochs_pop");
-        bindSizeChange(epochs_popup);
+        Dialog.bindSizeChange(epochs_popup);
         datasets_popup = $("#datasets_pop");
-        bindSizeChange(datasets_popup);
+        Dialog.bindSizeChange(datasets_popup);
     };
 
     $(document).ready(function() { init(); });

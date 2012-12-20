@@ -2,8 +2,11 @@ define([], function()
 {
     return function()
     {
-        // Enables sorting of table columns by text content, and can enable
-        // sort on header click
+        /*
+         * init_sortable
+         * Enables sorting of table columns by text content, and enables
+         * sort on header click.
+         */
         this.init_sortable = function(callback)
         {
             this.sorted_markers = [];
@@ -13,6 +16,11 @@ define([], function()
             this.enableHeaderClickSorting(callback);
         };
 
+        /*
+         * setupSortedMarkers
+         * Adds text markers to indicate column being used to sort table and
+         * the direction the sort is taking place in (asc vs desc).
+         */
         this.setupSortedMarkers = function()
         {
             var th_els = this._header.getElementsByTagName("th");
@@ -32,11 +40,12 @@ define([], function()
             }
         };
 
-        this.resort = function()
-        {
-            this.sortByColumnIndex(this.sorted_column, this.sorted_direction);
-        };
-
+        /*
+         * _compare
+         * Internal function to return -1, 0, or 1 based on comparison result.
+         * TODO Previously WAS internal, would get rid of it but ends up being
+         * XXX called in search - worth refactoring.
+         */
         this._compare = function(a, b)
         {
             if (a < b) { return -1; }
@@ -44,6 +53,27 @@ define([], function()
             else { return 1; }
         };
 
+        /*
+         * resort
+         * Given current table sort state, resorts table (useful when table
+         * state has been changed and you'd like to return content to its
+         * proper sorted state.
+         */
+        this.resort = function()
+        {
+            this.sortByColumnIndex(this.sorted_column, this.sorted_direction);
+        };
+
+        /*
+         * _sortByElement
+         * Given a table header element, sort all rows under that element. Will
+         * alternate sorting order with each call, so if you continue to issue
+         * this call with the same header element it will flip the sorting
+         * order back and forth.
+         *
+         * th_element - header element for the table body rows you'd like to
+         *      sort by
+         */
         this._sortByElement = function(th_element)
         {
             var columns = this._listToArray(this._header.getElementsByTagName('th'));
@@ -53,6 +83,14 @@ define([], function()
             this.sortByColumnIndex(column_index, new_sorted_direction);
         };
 
+        /*
+         * sortByColumnIndex
+         * Sort table by a particular column in a particular direction.
+         *
+         * column_index - column index (from 0)
+         * direction - -1 or 1 integer to specify direction of sort (desc or
+         *      asc, respectively)
+         */
         this.sortByColumnIndex = function(column_index, direction)
         {
             var rows = this.getRows();
@@ -103,6 +141,10 @@ define([], function()
             this._stripe();
         };
 
+        /*
+         * enableHeaderClickSorting
+         * Turns on sorting by clicking on the table headers.
+         */
         this.enableHeaderClickSorting = function(callback)
         {
             var ths = this._header.getElementsByTagName("th");

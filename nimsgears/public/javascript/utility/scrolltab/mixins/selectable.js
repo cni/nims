@@ -2,9 +2,11 @@ define([], function()
 {
     return function()
     {
-        // we do this so we don't wind up sharing variables across instances...
-        // this refers to the prototype so if you set crap on it you will find
-        // yourself very unhappy
+        /*
+         * Provides all necessary functionality to have single and batch
+         * selectable/deselectable rows. Also contains function to enable mouse
+         * functionality to this end.
+         */
         this.init_selectable = function() {
             this._onSelect = [];
             this._selected_rows = [];
@@ -13,6 +15,18 @@ define([], function()
             this.enableMouseSelection();
         };
 
+        /*
+         * select
+         * Hands off the currently selected rows in the table to all functions
+         * that have been specified with onSelect. They are given a structure
+         * with three entries: .selected_rows, .table (a pointer to the table
+         * we're within), and .is_instant.
+         *
+         * is_instant - whether or not the selection should respond immediately
+         *      or wait for some configured delay (delay has to be handled by
+         *      the onSelect functions - you could certainly ignore this
+         *      functionality if you so choose)
+         */
         this.select = function(is_instant)
         {
             if (is_instant === undefined) is_instant = false;
@@ -29,11 +43,25 @@ define([], function()
             });
         };
 
+        /*
+         * onSelect
+         * Adds function to list of callbacks to occur when a select is issued
+         * on the table.
+         *
+         * fn - function that accepts a dictionary as an argument (see select
+         * for explanation of contents)
+         */
         this.onSelect = function(fn)
         {
             this._onSelect.push(fn);
         };
 
+        /*
+         * deselectAll
+         * Deselects all rows in the table (removes from data structures
+         * tracking selections as well as removes the ui-selected class from
+         * them).
+         */
         this.deselectAll = function()
         {
             this.last_clicked_index = this.shift_clicked_index = -1;
@@ -44,6 +72,11 @@ define([], function()
             });
         };
 
+        /*
+         * cleanUp
+         * Resets table state back to original state (no contents, no selected
+         * rows, all data structures tracking info on table reset).
+         */
         this.cleanUp = function()
         {
             this.emptyTable();
@@ -51,11 +84,28 @@ define([], function()
             this._selected_rows = [];
         };
 
+        /*
+         * onlyOneSelected
+         * Convenience function to return whether or not only one row is
+         * selected in the table.
+         */
         this.onlyOneSelected = function()
         {
             return (this._selected_rows.length == 1);
         }
 
+        /*
+         * _batchSelect
+         * Used internally to handle batch selection. Can specify whether you'd
+         * like to deselect or select everything within set of specified rows
+         * between the given indices.
+         *
+         * rows - rows selection is being performed on
+         * a - one boundary index of the selection (can be high or low)
+         * b - other boundary index of the selection
+         * with_value - false or true based on whether you're deselecting or
+         *      selecting rows, respectively
+         */
         this._batchSelect = function(rows, a, b, with_value)
         {
             var subset;
@@ -84,6 +134,14 @@ define([], function()
             }
         };
 
+        /*
+         * toggleSelect
+         * Switch the selection state of a row to selected or unselected based
+         * on to_value.
+         *
+         * to_value - whether you'd like the row selected (true) or deselected
+         *      (false)
+         */
         this._toggleSelect = function(row, to_value)
         {
             if (row.classList.contains("ui-selected") || ((to_value !== undefined) && to_value == false))
@@ -96,6 +154,10 @@ define([], function()
             }
         };
 
+        /*
+         * getSingleSelectCallback
+         * Returns function to be called when a single row is clicked on.
+         */
         this._getSingleSelectCallback = function()
         {
             var obj = this;
@@ -120,6 +182,12 @@ define([], function()
             }
         };
 
+        /*
+         * getMultiSelectCallback
+         * Returns function to be called when multiple rows are selected (such
+         * as with a batch select key). Differentiates between shift and ctrl -
+         * similar to Apple's Finder.
+         */
         this._getMultiSelectCallback = function()
         {
             var obj = this;
@@ -156,11 +224,25 @@ define([], function()
             };
         };
 
+        /*
+         * _updateSelectedRows
+         * Internal function to update state of _selected_rows field based on
+         * table state.
+         */
         this._updateSelectedRows = function()
         {
             this._selected_rows = this._listToArray(this._body.getElementsByClassName("ui-selected"));
         };
 
+        /*
+         * synchronizeSelections
+         * After you repopulate the table, synchronizeSelections can be called
+         * to reselect entries that were previously selected in the table.
+         * Basically takes advantage of momentary lapse in synchrony between
+         * recorded table state and _selected_rows from the selectable mixin
+         * when a table is repopulated. Requires that the rows have unique ids
+         * set - otherwise there's no reliable way to match selections.
+         */
         this.synchronizeSelections = function()
         {
             // XXX This function requires rows have ids set. XXX
@@ -190,6 +272,10 @@ define([], function()
             this._updateSelectedRows();
         };
 
+        /*
+         * enableMouseSelection
+         * Enables single and multi select (ctrl and shift key) on table.
+         */
         this.enableMouseSelection = function()
         {
             var rows = this.getRows();

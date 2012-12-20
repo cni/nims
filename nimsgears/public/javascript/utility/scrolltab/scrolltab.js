@@ -1,5 +1,11 @@
 define([], function()
 {
+    /*
+     * Scrolltable Constructor
+     *
+     * table_id - id of table to convert to a scrolltable
+     * title - title you'd like displayed over the scrolltable
+     */
     function Scrolltable(table_id, title) {
         this.element;
         this._header;
@@ -14,6 +20,16 @@ define([], function()
         }
     }
 
+    /*
+     * flattenElement
+     * Used to remove all height from an element. Used to take advantage of the
+     * width constraining properties of an element without leaving it
+     * displayed. Primary use case is for flattening the header of a table
+     * while still allowing properties on its header elements to constrain
+     * properties of the body.
+     *
+     * el - element to flatten
+     */
     Scrolltable.prototype._flattenElement = function(el) {
         var children = el.childNodes;
         var n_children = children.length;
@@ -32,6 +48,10 @@ define([], function()
         }
     }
 
+    /*
+     * _stripe
+     * Applies stripe class to every other row in table.
+     */
     Scrolltable.prototype._stripe = function() {
         var rows = this.getRows();
         n_rows = rows.length;
@@ -43,6 +63,14 @@ define([], function()
         }
     }
 
+    /*
+     * _listToArray
+     * Used to convert standard js lists into Arrays to receive the additional
+     * functionality. getElementsByTagName returns elements as a list, so we
+     * call this on the return value to get the extra functionality we'd like.
+     *
+     * list - javascript list to be return as proper Array
+     */
     Scrolltable.prototype._listToArray = function(list)
     {
         var arr = new Array();
@@ -54,11 +82,19 @@ define([], function()
     }
 
 
+    /*
+     * getRows
+     * Return Array of all rows in table.
+     */
     Scrolltable.prototype.getRows = function() {
         var rows = this._body.getElementsByTagName("tbody")[0].getElementsByTagName("tr");
         return this._listToArray(rows);
     }
 
+    /*
+     * render
+     * Performs the actual in-place swap of the old table with the new.
+     */
     Scrolltable.prototype.render = function() {
         /*
         We render 2 (optionally 3) divs above each other. (Title), header, body.
@@ -129,6 +165,11 @@ define([], function()
         table_headerless.style.visibility = "";
     }
 
+    /*
+     * createSpacer
+     * Creates and returns a spacer element that forces elements to line up
+     * properly within the parent div.
+     */
     Scrolltable.prototype.createSpacer = function()
     {
         var spacer = document.createElement("div");
@@ -136,6 +177,13 @@ define([], function()
         return spacer;
     }
 
+    /*
+     * createTableRowFromTuple
+     * Creates a table row from a list of strings, with each string getting its
+     * own cell.
+     *
+     * text_tuple - list of strings to be converted into a table row
+     */
     Scrolltable.prototype.createTableRowFromTuple = function(text_tuple)
     {
         var td;
@@ -150,6 +198,10 @@ define([], function()
         return tr;
     };
 
+    /*
+     * emptyTable
+     * Remove all rows from table - emptying it out.
+     */
     Scrolltable.prototype.emptyTable = function()
     {
         var rows = this.getRows();
@@ -163,8 +215,14 @@ define([], function()
 
     /*
      * populateTable
-     * relevant data (in the form of a dictionary containing 'data', with
-     * nested keys 'data' (list of tuples for data in each row) and '
+     * Populate table with rows (as well as the relevant attributes) based on
+     * table_dict.
+     *
+     * table_dict - relevant data (in the form of a dictionary containing
+     *      'data', with nested keys 'data' (list of tuples for data in each
+     *      row - see createTableRowFromTuple) and 'attrs' (dictionary of
+     *      attributes to be applied to each row, e.g. {'class': 'important',
+     *      'id': 'exp_33'})
      */
     Scrolltable.prototype.populateTable = function(table_dict)
     {
@@ -191,6 +249,10 @@ define([], function()
         }
     };
 
+    /*
+     * onDoubleClick
+     * Set callback to be fired when a row is double clicked on.
+     */
     Scrolltable.prototype.onDoubleClick = function(callback)
     {
         var rows = this.getRows();

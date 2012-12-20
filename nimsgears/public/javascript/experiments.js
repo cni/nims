@@ -9,6 +9,17 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                         };
 
 
+    /*
+     * refreshExperiments
+     * Populator for experiments table.
+     *
+     * table - experiments table
+     * selected_rows - irrelevant for experiments, can be ignored
+     * is_instant - whether refresh should happen immediately or wait for
+     *      another request
+     * populateNextTableFn - callback to populate the next table in the
+     *      drilldown sequence (see drilldown manager)
+     */
     var refreshExperiments = function(table, selected_rows, is_instant, populateNextTableFn)
     {
         $.ajax(
@@ -37,6 +48,12 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }); // ajax call
     };
 
+    /*
+     * removeHighlighting
+     * Clear all highlighting from specified table.
+     *
+     * table - table to clear all highlighting from
+     */
     var removeHighlighting = function(table)
     {
         var rows = table.getRows();
@@ -52,6 +69,13 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         });
     }
 
+    /*
+     * highlightRows
+     * Highlights specified rows with corresponding access levels.
+     *
+     * rows - rows to highlight
+     * access_levels - access levels to apply to rows (indexed by id of rows)
+     */
     var highlightRows = function(rows, access_levels)
     {
         rows.map(function(row) {
@@ -67,6 +91,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         });
     }
 
+    /*
+     * highlightAccess
+     * Callback when a row is selected to update the highlighting on each table
+     * to reflect the selection.
+     */
     var highlightAccess = function(event)
     {
         var id;
@@ -119,6 +148,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }
     }
 
+    /*
+     * getAccessPrivileges
+     * Requests and returns access privileges from server with an asynchrnous
+     * call.
+     */
     var getAccessPrivileges = function()
     {
         var access_priveleges;
@@ -137,6 +171,20 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         return access_privileges;
     };
 
+    /*
+     * modifyAccess
+     * Update access levels based on the selected users, experiments, and the
+     * source table the rows were dragged from. For example, if 3 users are
+     * selected and we drag them to a single experiment, user_ids would contain
+     * the 3, exp_ids the 1, access_level the specified level, and dragged_from
+     * would be the users table.
+     *
+     * user_ids - selected user ids
+     * exp_ids - selected experiment ids
+     * access_level - access level to set relevant rows to
+     * dragged_from - table to update with the relevant new access levels when
+     *      the transaction is complete
+     */
     var modifyAccess = function(user_ids, exp_ids, access_level, dragged_from)
     {
         $.ajax(
@@ -164,6 +212,16 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         }); // ajax call
     };
 
+    /*
+     * showAccessDialog
+     * Pops up when rows have been dragged onto other rows to allow user to
+     * choose what access level to grant.
+     *
+     * user_ids - selected user ids
+     * exp_ids - selected experiment ids
+     * dragged_from - table to update with the relevant new access levels when
+     *      the transaction is complete
+     */
     var showAccessDialog = function(user_ids, exp_ids, dragged_from)
     {
         $("#access_dialog").dialog({
@@ -183,6 +241,12 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         });
     };
 
+    /*
+     * dropAccessModification
+     * Callback issued when rows are dropped onto other rows. Handles computing
+     * the selected ids and relevant dragged_from table and selected access
+     * privs.
+     */
     var dropAccessModification = function(event, ui)
     {
         var experiments_table = $("#experiments .scrolltable_body table");
@@ -218,12 +282,29 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         showAccessDialog(user_ids, exp_ids, dragged_from);
     };
 
+    /*
+     * endsWith
+     * Computes whether string ends with specified suffix.
+     *
+     * str - relevant string
+     * suffix - suffix to search for
+     */
+    var endsWith = function(str, suffix)
+    {
+            return str.indexOf(suffix, str.length - suffix.length) !== -1;
+    }
+
+    /*
+     * enableRefreshExperimentOnFormSubmit
+     * Ensures experiments list is refreshed when the create experiment frame
+     * has been updated.
+     */
     var enableRefreshExperimentOnFormSubmit = function()
     {
         var iframe = document.getElementById("add_experiment_iframe");
         iframe.onload = function()
         {
-            if (iframe.contentWindow.location.pathname === "/auth/experiment/create")
+            if (endsWith(iframe.contentWindow.location.pathname, "/experiment/create"))
             {
                 dm.refresh(0);
             }
