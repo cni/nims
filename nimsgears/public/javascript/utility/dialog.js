@@ -1,5 +1,8 @@
 define([], function ()
 {
+    var width_buffer = 25;
+    var height_buffer = 25;
+
     var viewport = function ()
     {
         var e = window;
@@ -12,8 +15,34 @@ define([], function ()
         return { width : e[ a+'Width' ] , height : e[ a+'Height' ] }
     }
 
-    /* Render a jquery dialog for a given dialog (popup), type (string of
-     * type), and load a particular URL into the dialog's iframe */
+    /*
+     * dialogSize
+     * Compute size dialog should take given the iframes size.
+     *
+     * iframe - iframe object inside popup
+     * type - optional name of type (handles special case)
+     */
+    var dialogSize = function(iframe, type)
+    {
+        var viewport_size = viewport();
+        var max_width = viewport_size.width - width_buffer;
+        var max_height = viewport_size.height - height_buffer;
+        var width = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).width();
+        var height = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).height();
+        if (width > max_width) width = max_width;
+        if (height > max_height) height = max_height;
+        // we handle a special case here - when the dataset loads and is
+        // small, it means we're dealing with the pyramid rendering and
+        // it has yet to finish loading, so we just expand it to full
+        // width and height
+        if (type == 'dataset' && width < 50 && height < 50) { width = max_width; height = max_height };
+        return { 'width': width, 'height': height };
+    };
+
+    /*
+     * Render a jquery dialog for a given dialog (popup), type (string of
+     * type), and load a particular URL into the dialog's iframe
+     */
     var showDialog = function(popup, type, url)
     {
         var iframe = popup.find('iframe');
@@ -21,8 +50,9 @@ define([], function ()
         iframe.bind('load.show', function() {
             // width and height of the iframe are computed and bound as minimum
             // width and height on the popup
-            var width = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).width();
-            var height = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).height();
+            var dims = dialogSize(iframe, type);
+            var width = dims.width;
+            var height = dims.height;
             popup.dialog({
                 resizable:false,
                 modal:true,
@@ -30,8 +60,6 @@ define([], function ()
                 minWidth:width,
                 minHeight:height + 10
             });
-            //popup.width(width);
-            //popup.height(height);
             // unbind the show event (we don't want to reload the popup every
             // time it reloads, since we occasionally reload while the window
             // is still open
@@ -39,16 +67,20 @@ define([], function ()
         });
         // directs to the relevant URL
         iframe.attr('src', url);
-        popup.attr('title', "Edit " + type);
+        var convert_type_string = type.charAt(0).toUpperCase() + type.slice(1)
+        popup.attr('title', convert_type_string);
     };
 
-    /* Handles size adjustments when dialog boxes are reloaded while still
-     * open. */
-    var bindSizeChange = function(popup) {
+    /*
+     * Handles size adjustments when dialog boxes are reloaded while still
+     * open.
+     */
+    var bindSizeChange = function(popup, type) {
         var iframe = popup.find('iframe');
         iframe.bind('load.sizechange', function() {
-            var width = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).width();
-            var height = $(iframe[0].contentDocument.getElementsByTagName("html")[0]).height();
+            var dims = dialogSize(iframe, type);
+            var width = dims.width;
+            var height = dims.height;
             iframe.width(width);
             iframe.height(height);
         });

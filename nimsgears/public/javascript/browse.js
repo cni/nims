@@ -474,7 +474,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         epochs_popup = $("#epochs_pop");
         Dialog.bindSizeChange(epochs_popup);
         datasets_popup = $("#datasets_pop");
-        Dialog.bindSizeChange(datasets_popup);
+        Dialog.bindSizeChange(datasets_popup, 'dataset');
     };
 
     $(document).ready(function() { init(); });
