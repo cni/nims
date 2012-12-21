@@ -48,8 +48,7 @@ define([], function ()
         var iframe = popup.find('iframe');
         // binds an event to show the popup when it is DONE loading
         iframe.bind('load.show', function() {
-            // width and height of the iframe are computed and bound as minimum
-            // width and height on the popup
+            iframe = popup.find('iframe');
             var dims = dialogSize(iframe, type);
             var width = dims.width;
             var height = dims.height;
@@ -57,8 +56,8 @@ define([], function ()
                 resizable:false,
                 modal:true,
                 closeOnEscape:true,
-                minWidth:width,
-                minHeight:height + 10
+                width:width,
+                height:height,
             });
             // unbind the show event (we don't want to reload the popup every
             // time it reloads, since we occasionally reload while the window
@@ -83,6 +82,8 @@ define([], function ()
             var height = dims.height;
             iframe.width(width);
             iframe.height(height);
+            popup.width(width);
+            popup.height(height);
         });
     };
 
