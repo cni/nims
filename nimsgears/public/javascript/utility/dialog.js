@@ -58,6 +58,7 @@ define([], function ()
                 closeOnEscape:true,
                 width:width,
                 height:height,
+                close: function() { $(this).dialog("destroy"); },
             });
             // unbind the show event (we don't want to reload the popup every
             // time it reloads, since we occasionally reload while the window
@@ -77,6 +78,7 @@ define([], function ()
     var bindSizeChange = function(popup, type) {
         var iframe = popup.find('iframe');
         iframe.bind('load.sizechange', function() {
+            iframe = popup.find('iframe');
             var dims = dialogSize(iframe, type);
             var width = dims.width;
             var height = dims.height;
