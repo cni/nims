@@ -71,11 +71,10 @@ class Scheduler(object):
                         ds.compressed = True
                         transaction.commit()
                     elif ds.filetype == nimsutil.pfile.PFile.filetype:
-                        self.log.info(u'Not actually compressing %s' % ds.filetype)
-                        #for pfilepath in [os.path.join(dataset_path, f) for f in os.listdir(dataset_path) if not f.startswith('_')]:
-                        #    nimsutil.gzip_inplace(pfilepath, 0o644)
-                        #ds.compressed = True
-                        #transaction.commit()
+                        for pfilepath in [os.path.join(dataset_path, f) for f in os.listdir(dataset_path) if not f.startswith('_')]:
+                            nimsutil.gzip_inplace(pfilepath, 0o644)
+                        ds.compressed = True
+                        transaction.commit()
                     DBSession.add(dc)
 
                 # schedule job

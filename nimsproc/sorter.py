@@ -67,7 +67,8 @@ class Sorter(object):
                     archive.next()  # skip over top-level directory
                     dataset = self.get_dataset(archive.extractfile(archive.next()))
             else:
-                compressed = False
+                with open(filepath, 'rb') as fp:
+                    compressed = (fp.read(2) == '\x1f\x8b')
                 dataset = self.get_dataset(filepath)
             if dataset:
                 shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filepath)))
