@@ -197,7 +197,7 @@ class User(Entity):
         return result != None
 
 
-    def get_experiments(self, including_trash=None, only_trash=None, contains_trash=None, with_privilege=None):
+    def get_experiments(self, including_trash=None, only_trash=None, contains_trash=None, with_privilege=None, ignore_superuser=False):
         if not (including_trash or only_trash or contains_trash):
             trash_flag = self.get_trash_flag()
             if trash_flag == 1:
@@ -229,24 +229,23 @@ class User(Entity):
                 .filter(Experiment.trashtime == None))
 
         result_dict = {}
-        if self.is_superuser:
+        if self.is_superuser and not ignore_superuser:
             unfiltered_results = query.all()
             for result in unfiltered_results:
                 result_dict[result.id] = result
-
-        filtered_results = self._filter_query(query, with_privilege).all()
-        for result in filtered_results:
-            result_dict[result.Experiment.id] = result
-
-        # Since these don't hit the filter, and thus don't get access privileges appended to them, we add them here
-        if self.is_superuser:
+            # Since these don't hit the filter, and thus don't get access
+            # privileges appended to them, we add them here
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
                     result_dict[key] = NamedTuple([value, None], ['Experiment', 'Access'])
+        else:
+            filtered_results = self._filter_query(query, with_privilege).all()
+            for result in filtered_results:
+                result_dict[result.Experiment.id] = result
 
         return result_dict
 
-    def get_sessions(self, by_experiment_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None):
+    def get_sessions(self, by_experiment_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None, ignore_superuser=False):
         if not (including_trash or only_trash or contains_trash):
             trash_flag = self.get_trash_flag()
             if trash_flag == 1:
@@ -281,25 +280,22 @@ class User(Entity):
                 .filter(Session.trashtime == None))
 
         result_dict = {}
-        if self.is_superuser:
+        if self.is_superuser and not ignore_superuser:
             unfiltered_results = query.all()
             for result in unfiltered_results:
                 result_dict[result.id] = result
-
-        filtered_results = self._filter_query(query, with_privilege).all()
-        for result in filtered_results:
-            result_dict[result.Session.id] = result
-
-        # Since these don't hit the filter, and thus don't get access
-        # privileges appended to them, we add them
-        if self.is_superuser:
+            # Since these don't hit the filter, and thus don't get access
+            # privileges appended to them, we add them
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
                     result_dict[key] = NamedTuple([value, None], ['Session', 'Access'])
-
+        else:
+            filtered_results = self._filter_query(query, with_privilege).all()
+            for result in filtered_results:
+                result_dict[result.Session.id] = result
         return result_dict
 
-    def get_epochs(self, by_experiment_id=None, by_session_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None):
+    def get_epochs(self, by_experiment_id=None, by_session_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None, ignore_superuser=False):
         if not (including_trash or only_trash or contains_trash):
             trash_flag = self.get_trash_flag()
             if trash_flag == 1:
@@ -339,25 +335,22 @@ class User(Entity):
                 .filter(Epoch.trashtime == None))
 
         result_dict = {}
-        if self.is_superuser:
+        if self.is_superuser and not ignore_superuser:
             unfiltered_results = query.all()
             for result in unfiltered_results:
                 result_dict[result.id] = result
-
-        filtered_results = self._filter_query(query, with_privilege).all()
-        for result in filtered_results:
-            result_dict[result.Epoch.id] = result
-
-        # Since these don't hit the filter, and thus don't get access
-        # privileges appended to them, we add them
-        if self.is_superuser:
+            # Since these don't hit the filter, and thus don't get access
+            # privileges appended to them, we add them
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
                     result_dict[key] = NamedTuple([value, None], ['Epoch', 'Access'])
-
+        else:
+            filtered_results = self._filter_query(query, with_privilege).all()
+            for result in filtered_results:
+                result_dict[result.Epoch.id] = result
         return result_dict
 
-    def get_datasets(self, by_experiment_id=None, by_session_id=None, by_epoch_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None):
+    def get_datasets(self, by_experiment_id=None, by_session_id=None, by_epoch_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None, ignore_superuser=False):
         if not (including_trash or only_trash or contains_trash):
             trash_flag = self.get_trash_flag()
             if trash_flag == 1:
@@ -397,22 +390,19 @@ class User(Entity):
                 .filter(Dataset.trashtime == None))
 
         result_dict = {}
-        if self.is_superuser:
+        if self.is_superuser and not ignore_superuser:
             unfiltered_results = query.all()
             for result in unfiltered_results:
                 result_dict[result.id] = result
-
-        filtered_results = self._filter_query(query, with_privilege).all()
-        for result in filtered_results:
-            result_dict[result.Dataset.id] = result
-
-        # Since these don't hit the filter, and thus don't get access
-        # privileges appended to them, we add them
-        if self.is_superuser:
+            # Since these don't hit the filter, and thus don't get access
+            # privileges appended to them, we add them
             for key, value in result_dict.iteritems():
                 if not isinstance(value, NamedTuple):
                     result_dict[key] = NamedTuple([value, None], ['Dataset', 'Access'])
-
+        else:
+            filtered_results = self._filter_query(query, with_privilege).all()
+            for result in filtered_results:
+                result_dict[result.Dataset.id] = result
         return result_dict
 
 class Permission(Entity):

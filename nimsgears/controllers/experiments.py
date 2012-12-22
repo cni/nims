@@ -44,16 +44,19 @@ class ExperimentsController(NimsController):
 
         # User we are requesting an experiment list from
         requested_user = User.query.filter_by(uid=id_).first()
+        if user == requested_user:
+            visible_to_requested_user = user.get_experiments(including_trash=True, with_privilege=u'Manage', ignore_superuser=True)
+            key_list = visible_to_requested_user.keys()
+        else:
+            # The requester needs to have manage access on an experiment to have
+            # permission to see that another user has access to it
+            visible_to_requester = user.get_experiments(including_trash=True, with_privilege=u'Manage')
+            # We then retrieve all things that the requested user has *any* form of
+            # access to
+            visible_to_requested_user = requested_user.get_experiments(including_trash=True)
 
-        # The requester needs to have manage access on an experiment to have
-        # permission to see that another user has access to it
-        visible_to_requester = user.get_experiments(including_trash=True, with_privilege=u'Manage')
-        # We then retrieve all things that the requested user has *any* form of
-        # access to
-        visible_to_requested_user = requested_user.get_experiments(including_trash=True)
-
-        # Then perform a set intersection to determine those common to the two sets
-        key_list = set(visible_to_requester.keys()) & set(visible_to_requested_user.keys())
+            # Then perform a set intersection to determine those common to the two sets
+            key_list = set(visible_to_requester.keys()) & set(visible_to_requested_user.keys())
         acc_list = [AccessPrivilege.privilege_names[visible_to_requested_user[key].Access.privilege] for key in key_list]
         id_list = ['exp=%d' % key for key in key_list]
         access_levels = dict(zip(id_list, acc_list))
