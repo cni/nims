@@ -390,7 +390,7 @@ class PFile(object):
     def recon_func(self):
         if self.psd_name == 'sprt':
             return self.recon_spirec
-        elif self.psd_name.startswith('mux'):
+        elif 'mux' in self.psd_name:
             return self.recon_mux_epi
         elif self.psd_name == 'sprl_hos':
             return self.recon_hoshim
