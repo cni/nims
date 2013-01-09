@@ -61,11 +61,11 @@ class PFileReaper(object):
                                 nimsutil.update_reference_datetime(self.datetime_file, rf.mod_time)
                                 self.current_file_timestamp = rf.mod_time
                         elif mf.needs_reaping:
-                            self.log.info('Monitoring %s' % rf)
+                            self.log.info('Monitoring  %s' % rf)
                         elif rf.size == mf.size:
                             rf.needs_reaping = False
                     else:
-                        self.log.info('Discovered %s' % rf)
+                        self.log.info('Discovered  %s' % rf)
                 self.monitored_files = dict(zip([rf.path for rf in reap_files], reap_files))
             finally:
                 time.sleep(self.sleep_time)
@@ -99,14 +99,14 @@ class ReapPFile(object):
         reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
         aux_reap_files = [arf for arf in glob.glob(self.path + '_*') if open(arf).read(32) == pfile.header.series.series_uid]
         if self.reaper.pat_id and not re.match(self.reaper.pat_id.replace('*','.*'), self.pat_id):
-            self.reaper.log.info('Skipping   %s due to patient ID mismatch' % self)
+            self.reaper.log.info('Skipping    %s due to patient ID mismatch' % self)
             return True
         try:
-            self.reaper.log.info('Reaping    %s' % self)
+            self.reaper.log.info('Reaping     %s' % self)
             shutil.copy2(self.path, reap_path)
             for arf in aux_reap_files:
                 shutil.copy2(arf, os.path.join(reap_path, '_' + os.path.basename(arf)))
-                self.reaper.log.info('Reaping    %s' % '_' + os.path.basename(arf))
+                self.reaper.log.info('Reaping     %s' % '_' + os.path.basename(arf))
         except KeyboardInterrupt:
             shutil.rmtree(reap_path)
             raise
@@ -114,12 +114,13 @@ class ReapPFile(object):
             success = False
             self.reaper.log.warning('Error while reaping %s' % self)
         else:
+            self.reaper.log.info('Compressing %s' % self)
             nimsutil.gzip_inplace(os.path.join(reap_path, self.basename), 0o644)
             shutil.move(reap_path, os.path.join(self.reaper.sort_stage, '.' + stage_dir))
             os.rename(os.path.join(self.reaper.sort_stage, '.' + stage_dir), os.path.join(self.reaper.sort_stage, stage_dir))
             self.needs_reaping = False
             success = True
-            self.reaper.log.info('Reaped     %s' % self)
+            self.reaper.log.info('Reaped      %s' % self)
         return success
 
 
