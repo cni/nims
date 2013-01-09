@@ -18,6 +18,7 @@ superusers = [
         ]
 
 groups = [
+        dict(gid=u'unknown',    pis=[],             managers=[u'laimab']),
         dict(gid=u'aetkin',     pis=[u'aetkin'],    managers=[u'kkpeng']),
         dict(gid=u'amnorcia',   pis=[u'amnorcia'],  managers=[u'jmales']),
         dict(gid=u'areiss1',    pis=[u'areiss1'],   managers=[u'maik']),
@@ -28,15 +29,16 @@ groups = [
         dict(gid=u'gdaily',     pis=[u'gdaily'],    managers=[u'gbratman']),
         dict(gid=u'greicius',   pis=[u'greicius'],  managers=[u'lhua', u'heydee']),
         dict(gid=u'gross',      pis=[u'gross'],     managers=[u'kkalaf']),
-        dict(gid=u'hallss',     pis=[u'hallss'],    managers=[u'hammond1', u'khustyi']),
+        dict(gid=u'hallss',     pis=[u'hallss'],    managers=[u'khustyi']),
         dict(gid=u'hardanay',   pis=[u'hardanay'],  managers=[u'acsamson']),
         dict(gid=u'henderj',    pis=[u'henderj'],   managers=[u'cindyc', u'gilja', u'cblabe']),
         dict(gid=u'hfeldman',   pis=[u'hfeldman'],  managers=[u'vndurand']),
-        dict(gid=u'iang',       pis=[u'iang'],      managers=[u'arkadiy']),
+        dict(gid=u'iang',       pis=[u'iang'],      managers=[u'mlhenry']),
         dict(gid=u'jparvizi',   pis=[u'jparvizi'],  managers=[u'vinitha']),
         dict(gid=u'jzaki',      pis=[u'jzaki'],     managers=[u'enook']),
         dict(gid=u'kalanit',    pis=[u'kalanit'],   managers=[u'kweiner']),
         dict(gid=u'knutson',    pis=[u'knutson'],   managers=[u'kieferk']),
+        dict(gid=u'lisaac',     pis=[u'lisaac'],    managers=[]),
         dict(gid=u'llc',        pis=[u'llc'],       managers=[u'notthoff']),
         dict(gid=u'menon',      pis=[u'menon'],     managers=[u'sangs']),
         dict(gid=u'nass',       pis=[u'nass'],      managers=[u'lharbott']),
@@ -44,7 +46,6 @@ groups = [
         dict(gid=u'pauly',      pis=[u'pauly'],     managers=[u'cvbowen', u'tjou']),
         dict(gid=u'smcclure',   pis=[u'smcclure'],  managers=[u'gstang', u'hennigan', u'mayas']),
         dict(gid=u'wandell',    pis=[u'wandell'],   managers=[u'lmperry']),
-        dict(gid=u'unknown',    pis=[u'laimab'],    managers=[u'gsfr', u'rfbowen', u'bobd']),
         ]
 
 
