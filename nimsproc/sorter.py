@@ -72,7 +72,7 @@ class Sorter(object):
                 dataset = self.get_dataset(filepath)
             if dataset:
                 shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filepath)))
-                for aux_path in aux_paths.get(filename, []):
+                for aux_path in aux_paths.get(os.path.splitext(filename)[0] if compressed else filename, []):
                     shutil.move(aux_path, os.path.join(self.nims_path, dataset.relpath, os.path.basename(aux_path)))
                 dataset.compressed = compressed
                 dataset.updatetime = datetime.datetime.now()
