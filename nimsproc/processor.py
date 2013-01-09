@@ -154,6 +154,7 @@ class Pipeline(threading.Thread):
     @abc.abstractmethod
     def process(self):
         self.clean(self.job.data_container, u'derived')
+        self.clean(self.job.data_container, u'web')
         self.job.activity = u'generating NIfTI / running recon'
         self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
@@ -199,7 +200,7 @@ class DicomPipeline(Pipeline):
                 nimsutil.pyramid.ImagePyramid(conv_file, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
                 self.job.activity = u'image pyramid generated'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                pyramid_ds.kind = u'derived'
+                pyramid_ds.kind = u'web'
                 pyramid_ds.container = self.job.data_container
                 transaction.commit()
 

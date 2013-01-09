@@ -896,7 +896,7 @@ class Dataset(Entity):
     offset = Field(Interval, default=datetime.timedelta())
     trashtime = Field(DateTime)
     priority = Field(Integer, default=0)
-    kind = Field(Enum(u'primary', u'secondary', u'peripheral', u'derived', name=u'dataset_kind'))
+    kind = Field(Enum(u'primary', u'secondary', u'peripheral', u'derived', u'web', name=u'dataset_kind'))
     filetype = Field(Enum(u'pfile', u'dicom', u'nifti', u'bitmap', u'img_pyr', u'physio', name=u'dataset_filetype'))
     datatype = Field(Enum(u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap', u'mr_spectro', name=u'dataset_datatype'), default=u'unknown')
     _updatetime = Field(DateTime, default=datetime.datetime.now, colname='updatetime', synonym='updatetime')
@@ -935,7 +935,7 @@ class Dataset(Entity):
             alt_dataset = (cls.query.join(Epoch)
                     .filter(Epoch.uid == series_uid)
                     .filter(Epoch.acq == mrfile.acq_no)
-                    .filter(cls.filetype != mrfile.filetype)
+                    .filter(cls.kind == u'primary')
                     .first())
             if not alt_dataset:
                 kind = u'primary'
@@ -959,15 +959,15 @@ class Dataset(Entity):
         return dataset
 
     def shadowpath(self, user):
-        db_query = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
+        db_result = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
                 .join(Epoch, Dataset.container)
                 .join(Session, Epoch.session)
                 .join(Subject, Session.subject)
                 .join(Experiment, Subject.experiment)
                 .join(ResearchGroup, Experiment.owner)
-                .filter(Dataset.id == self.id))
-        db_result = db_query.first()
-        return '../data/%s/%s/%s/%s/%s/%s' % (
+                .filter(Dataset.id == self.id)
+                .first())
+        return '/data/%s/nims/%s/%s/%s/%s/%s' % (
                 u'superuser' if user.is_superuser else user.uid,
                 db_result.ResearchGroup.gid,
                 db_result.Experiment.name,
@@ -981,7 +981,7 @@ class Dataset(Entity):
 
     @property
     def relpath(self):
-        return '%s/%03d/%08d' % ('archive' if self.archived else 'data', self.id % 1000, self.id)
+        return '%s/%03d/%08d' % ('archive' if self.archived else 'current', self.id % 1000, self.id)
 
     def _get_updatetime(self):
         return self._updatetime
