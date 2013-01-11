@@ -22,3 +22,10 @@ except:
     print 'Warning: could not import pfile module'
 else:
     datatypes += [pfile.PFile]
+
+try:
+    import physio
+except:
+    print 'Warning: could not import physio module'
+else:
+    datatypes += [physio.PhysioData]
