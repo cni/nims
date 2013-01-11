@@ -188,14 +188,14 @@ class ImagePyramid(object):
             slice_r, slice_c = im_num/num_cols * data.shape[0], im_num%num_cols * data.shape[1]
             self.montage[slice_r:slice_r + data.shape[0], slice_c:slice_c + data.shape[1]] = data[:, :, im_num]
 
-    def get_montage(self):
+    def get_montage(self, bits16 = False):
         """
         Sometimes we just want to use this class as a convenient way to get a montage.
         E.g.,
         from nimsutil import pyramid
         pylab.imshow(pyramid.ImagePyramid('foo.nii.gz').get_montage(), figure=pylab.figure(figsize=(24,24)))
         """
-        self.generate_montage()
+        self.generate_montage(bits16)
         return self.montage
 
 class ArgumentParser(argparse.ArgumentParser):
