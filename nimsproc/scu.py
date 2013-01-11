@@ -19,7 +19,7 @@ import subprocess
 RESPONSE_RE = re.compile("""
 W: # Dicom-Data-Set
 W: # Used TransferSyntax: (?P<transfer_syntax>.+)
-(?P<dicom_cvs>(.*\(.+\n)+)""")
+(?P<dicom_cvs>(W: \(.+\) .+\n){2,})""")
 DICOM_CV_RE = re.compile(""".*\((?P<idx_0>[0-9a-f]{4}),(?P<idx_1>[0-9a-f]{4})\) (?P<type>\w{2}) (?P<value>.+)#[ ]*(?P<length>\d+),[ ]*(?P<n_elems>\d+) (?P<label>\w+)\n""")
 MOVE_OUTPUT_RE = re.compile('.*Completed Suboperations +: ([a-zA-Z0-9]+)', re.DOTALL)
 
@@ -33,12 +33,12 @@ class SCU(object):
     is optional (default=port).
     """
 
-    def __init__(self, host, port, aet, aec, incoming_port=None, log=None):
+    def __init__(self, host, port, return_port, aet, aec, log=None):
         self.host = host
         self.port = port
+        self.return_port = return_port
         self.aet = aet
         self.aec = aec
-        self.incoming_port = incoming_port if incoming_port else port
         self.log = log if log else logging.getLogger('scu')
 
     def find(self, query):
@@ -58,7 +58,7 @@ class SCU(object):
 
     def move(self, query, dest_path='.'):
         """Construct a movescu query. Return the count of images successfully transferred."""
-        cmd = 'movescu --verbose -od %s +P %s %s' % (dest_path, self.incoming_port, self.query_string(query))
+        cmd = 'movescu --verbose -od %s +P %s %s' % (dest_path, self.return_port, self.query_string(query))
         self.log.debug(cmd)
         output = ''
         try:
@@ -89,7 +89,7 @@ class Query(object):
         self.kwargs = kwargs
 
     def __str__(self):
-        string = '-k QueryRetrieveLevel=%s' % self.retrieve_level
+        string = '-k QueryRetrieveLevel="%s"' % self.retrieve_level
         for key, value in self.kwargs.items():
             string += ' -k %s="%s"' % (str(key), str(value))
         return string
@@ -100,17 +100,17 @@ class Query(object):
 
 class StudyQuery(Query):
     def __init__(self, **kwargs):
-        super(StudyQuery, self).__init__('Study', **kwargs)
+        super(StudyQuery, self).__init__('STUDY', **kwargs)
 
 
 class SeriesQuery(Query):
     def __init__(self, **kwargs):
-        super(SeriesQuery, self).__init__('Series', **kwargs)
+        super(SeriesQuery, self).__init__('SERIES', **kwargs)
 
 
 class ImageQuery(Query):
     def __init__(self, **kwargs):
-        super(ImageQuery, self).__init__('Image', **kwargs)
+        super(ImageQuery, self).__init__('IMAGE', **kwargs)
 
 
 class DicomCV(object):

@@ -110,7 +110,7 @@ class Exam(object):
 
     def reap(self):
         """An exam must be reaped at least twice, since newly encountered series are not immediately reaped."""
-        self.reaper.log.debug('Monitoring %s' % self)
+        self.reaper.log.debug('Monitoring  %s' % self)
         updated_series_list = self.get_series_list()
         for updated_series in updated_series_list:
             if not self.reaper.alive: break
@@ -123,16 +123,18 @@ class Exam(object):
     def get_series_list(self):
         responses = self.reaper.scu.find(scu.SeriesQuery(StudyID=self.id_))
         series_numbers = [int(resp.SeriesNumber) for resp in responses]
+        uids = [resp.SeriesInstanceUID for resp in responses]
         image_counts = [int(resp.ImagesInAcquisition) for resp in responses]
-        return [Series(self, self.reaper, id_, image_cnt) for (id_, image_cnt) in zip(series_numbers, image_counts)]
+        return [Series(self, self.reaper, id_, uid, image_cnt) for (id_, uid, image_cnt) in zip(series_numbers, uids, image_counts)]
 
 
 class Series(object):
 
-    def __init__(self, exam, reaper, id_, image_count):
+    def __init__(self, exam, reaper, id_, uid, image_count):
         self.exam = exam
         self.reaper = reaper
         self.id_ = id_
+        self.uid = uid
         self.image_count = image_count
         self.needs_reaping = True
 
@@ -148,7 +150,7 @@ class Series(object):
             self.reaper.log.info('Reaping     %s' % self)
             stage_dir = '%s_%s_%d_%s' % (self.reaper.id_, self.exam.id_, self.id_, datetime.datetime.now().strftime('%s'))
             reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
-            reap_count = self.reaper.scu.move(scu.SeriesQuery(StudyID=self.exam.id_, SeriesNumber=self.id_), reap_path)
+            reap_count = self.reaper.scu.move(scu.SeriesQuery(SeriesInstanceUID=self.uid), reap_path)
             if reap_count == self.image_count:
                 self.tar_into_acquisitions(reap_path)
                 shutil.move(reap_path, os.path.join(self.reaper.sort_stage, '.' + stage_dir))
@@ -194,13 +196,13 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    host, port = args.dicomserver.split(':')
+    host, port, return_port = args.dicomserver.split(':')
 
     log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
-    scu_ = scu.SCU(host, port, args.aet, args.aec, log=log)
-    datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % host)
+    scu_ = scu.SCU(host, port, return_port, args.aet, args.aec, log=log)
+    datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % args.aec)
 
-    reaper = DicomReaper(host, scu_, args.patid, args.reap_path, args.sort_path, datetime_file, args.sleeptime, log)
+    reaper = DicomReaper(args.aec, scu_, args.patid, args.reap_path, args.sort_path, datetime_file, args.sleeptime, log)
 
     def term_handler(signum, stack):
         reaper.halt()
