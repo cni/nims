@@ -5,8 +5,8 @@ from tg.i18n import ugettext as _, lazy_ugettext as l_
 from repoze.what import predicates
 
 import os
-import time
 import shlex
+import datetime
 import subprocess
 from collections import OrderedDict
 
@@ -149,5 +149,5 @@ class AuthController(BaseController):
         if tar_dirs:
             #redirect('/%s/download.php?%s' % (user_path, '&'.join('dirs[%d]=%s' %(i, p) for i, p in enumerate(tar_dirs))))
             tar_proc = subprocess.Popen(shlex.split('tar -chf - -C %s %s' % (user_path, ' '.join(tar_dirs))), stdout=subprocess.PIPE)
-            response.headerlist.append(('Content-Disposition', 'attachment; filename=%s_%d' % ('nims', time.time())))
+            response.headerlist.append(('Content-Disposition', 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))))
             return tar_proc.stdout
