@@ -1,14 +1,12 @@
 # @author:  Reno Bowen
 
 from tg import expose, request, session
-from repoze.what import predicates
 import transaction
+import json
 
 from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
 from nimsgears.widgets.experiment import EditExperimentForm
-
-import json
 
 
 class BrowseController(NimsController):

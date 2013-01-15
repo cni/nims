@@ -1,13 +1,11 @@
 # @author:  Reno Bowen
 
 from tg import expose, request
-from repoze.what import predicates
 import transaction
+import json
 
 from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
-
-import json
 
 
 class GroupsController(NimsController):

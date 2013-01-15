@@ -1,11 +1,12 @@
 # @author:  Reno Bowen
 
 from tg import expose, request, tmpl_context, validate, flash, redirect, lurl, render
-from repoze.what import predicates
 import transaction
 import json
+
 from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
+
 
 class ExperimentsController(NimsController):
 

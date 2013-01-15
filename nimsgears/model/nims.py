@@ -409,7 +409,7 @@ class Permission(Entity):
 
     """Permission definition for :mod:`repoze.what`; `permission_name` required."""
 
-    pid = Field(Unicode(32), unique=True)           # translation for user_name set in app_cfg.py
+    pid = Field(Unicode(32), unique=True)           # translation for permission_name set in app_cfg.py
     name = Field(Unicode(255))
 
     groups = ManyToMany('Group', onupdate='CASCADE', ondelete='CASCADE')
@@ -527,7 +527,7 @@ class Person(Entity):
 
     @property
     def experiments(self):
-        return [r.experiment for r in roles]
+        return [r.experiment for r in self.roles]
 
 
 class DataContainer(Entity):
