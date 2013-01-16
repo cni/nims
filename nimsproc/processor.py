@@ -130,18 +130,29 @@ class Pipeline(threading.Thread):
         if dc.physio_recorded:
             physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.duration, dc.psd.encode('utf-8'))
             if physio_files:
-                self.job.activity = u'physio found %s' % (', '.join([os.path.basename(pf) for pf in physio_files]))
-                self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                dataset = Dataset.at_path(self.nims_path, u'physio')
-                DBSession.add(self.job)
-                DBSession.add(self.job.data_container)
-                dataset.file_cnt_act = 0
-                dataset.file_cnt_tgt = len(physio_files)
-                dataset.kind = u'peripheral'
-                dataset.container = self.job.data_container
-                for f in physio_files:
-                    shutil.copy2(f, os.path.join(self.nims_path, dataset.relpath))
-                    dataset.file_cnt_act += 1
+                # For multiband sequences, we want a regressor for each *muxed* slice, so pass num_slices/num_bands
+                physio = physio.PhysioData(physio_files, dc.tr, dc.num_timepoints, dc.num_slices/dc.num_bands)
+                if physio.is_valid():
+                    self.job.activity = u'valid physio found'
+                    self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                    dataset = Dataset.at_path(self.nims_path, u'physio')
+                    DBSession.add(self.job)
+                    DBSession.add(self.job.data_container)
+                    dataset.file_cnt_act = 0
+                    dataset.file_cnt_tgt = len(physio_files)
+                    dataset.kind = u'peripheral'
+                    dataset.container = self.job.data_container
+                    with nimsutil.TempDirectory() as tempdir:
+                        arcdir_path = os.path.join(tempdir, 'physio')
+                        os.mkdir(arcdir_path)
+                        for f in physio_files:
+                            shutil.copy2(f, arcdir_path)
+                        with tarfile.open(os.path.join(self.nims_path, dataset.relpath, 'physio.tgz'), 'w:gz', compresslevel=6) as archive:
+                            archive.add(arcdir_path, arcname=os.path.basename(arcdir_path))
+                        physio.write_regressors(os.path.join(self.nims_path, dataset.relpath, 'physio_regressors.csv'))
+                else:
+                    self.job.activity = u'invalid physio found and discarded'
+                    self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
             else:
                 self.job.activity = u'no physio files found'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
