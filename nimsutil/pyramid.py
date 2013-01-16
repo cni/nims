@@ -66,7 +66,9 @@ class ImagePyramid(object):
         self.generate_montage()
         viewer_file = os.path.join(outdir, 'index.html')
         try:
-            self.generate_pyramid(outdir)
+            image_dir = os.path.join(outdir,'pyramid')
+            os.mkdir(image_dir)
+            self.generate_pyramid(image_dir)
         except ImagePyramidError as e:
             self.log and self.log.error(e.message) or print(e.message)
             with open(viewer_file, 'w') as f:
