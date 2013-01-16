@@ -19,11 +19,12 @@ superusers = [
 
 groups = [
         dict(gid=u'unknown',    pis=[],             managers=[u'laimab']),
+        dict(gid=u'geservice',  pis=[u'bobd'],      managers=[u'gsfr', u'laimab']),
         dict(gid=u'aetkin',     pis=[u'aetkin'],    managers=[u'kkpeng']),
         dict(gid=u'amnorcia',   pis=[u'amnorcia'],  managers=[u'jmales']),
         dict(gid=u'areiss1',    pis=[u'areiss1'],   managers=[u'maik']),
         dict(gid=u'awagner',    pis=[u'awagner'],   managers=[u'sfavila']),
-        dict(gid=u'cni',        pis=[u'bobd'],      managers=[u'gsfr', u'rfbowen', u'laimab']),
+        dict(gid=u'cni',        pis=[u'bobd'],      managers=[u'gsfr', u'laimab']),
         dict(gid=u'danls',      pis=[u'danls'],     managers=[u'jmtsang', u'hallinen']),
         dict(gid=u'fbaker',     pis=[u'fbaker'],    managers=[u'nzahr']),
         dict(gid=u'gdaily',     pis=[u'gdaily'],    managers=[u'gbratman']),

@@ -16,10 +16,11 @@ import nimsutil
 
 class PFileReaper(object):
 
-    def __init__(self, id_, pat_id, data_path, reap_path, sort_path, datetime_file, sleep_time, log):
+    def __init__(self, id_, pat_id, discard_ids, data_path, reap_path, sort_path, datetime_file, sleep_time, log):
         super(PFileReaper, self).__init__()
         self.id_ = id_
         self.pat_id = pat_id
+        self.discard_ids = discard_ids
         self.data_glob = os.path.join(data_path, 'P?????.7')
         self.reap_stage = nimsutil.make_joined_path(reap_path)
         self.sort_stage = nimsutil.make_joined_path(sort_path)
@@ -98,8 +99,13 @@ class ReapPFile(object):
         stage_dir = '%s_%s' % (self.reaper.id_, datetime.datetime.now().strftime('%s.%f'))
         reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
         aux_reap_files = [arf for arf in glob.glob(self.path + '_*') if open(arf).read(32) == pfile.header.series.series_uid]
+        if self.pat_id.strip('/') in reaper.discard_ids:
+            self.needs_reaping = False
+            self.reaper.log.info('Discarding  %s' % self)
+            return True
         if self.reaper.pat_id and not re.match(self.reaper.pat_id.replace('*','.*'), self.pat_id):
-            self.reaper.log.info('Skipping    %s due to patient ID mismatch' % self)
+            self.needs_reaping = False
+            self.reaper.log.info('Ignoring    %s' % self)
             return True
         try:
             self.reaper.log.info('Reaping     %s' % self)
@@ -132,6 +138,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('sort_path', help='path to sorting stage')
         self.add_argument('data_path', help='path to data source')
         self.add_argument('-p', '--patid', help='glob for patient IDs to reap (default: "*")')
+        self.add_argument('-d', '--discard', default='discard', help='space-separated list of Patient IDs to discard')
         self.add_argument('-s', '--sleeptime', type=int, default=30, help='time to sleep before checking for new data')
         self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
@@ -145,7 +152,7 @@ if __name__ == '__main__':
     log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
     datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % reaper_id)
 
-    reaper = PFileReaper(reaper_id, args.patid, args.data_path, args.reap_path, args.sort_path, datetime_file, args.sleeptime, log)
+    reaper = PFileReaper(reaper_id, args.patid, args.discard.split(), args.data_path, args.reap_path, args.sort_path, datetime_file, args.sleeptime, log)
 
     def term_handler(signum, stack):
         reaper.halt()

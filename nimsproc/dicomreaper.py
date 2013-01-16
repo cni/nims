@@ -21,10 +21,11 @@ import nimsutil
 
 class DicomReaper(object):
 
-    def __init__(self, id_, scu, pat_id, reap_path, sort_path, datetime_file, sleep_time, log):
+    def __init__(self, id_, scu, pat_id, discard_ids, reap_path, sort_path, datetime_file, sleep_time, log):
         self.id_ = id_
         self.scu = scu
         self.pat_id = pat_id
+        self.discard_ids = discard_ids
         self.reap_stage = nimsutil.make_joined_path(reap_path)
         self.sort_stage = nimsutil.make_joined_path(sort_path)
         self.datetime_file = datetime_file
@@ -111,7 +112,7 @@ class Exam(object):
     def reap(self):
         """An exam must be reaped at least twice, since newly encountered series are not immediately reaped."""
         self.reaper.log.debug('Monitoring  %s' % self)
-        updated_series_list = self.get_series_list()
+        updated_series_list = self.get_series_list() if self.pat_id.strip('/') not in reaper.discard_ids else []
         for updated_series in updated_series_list:
             if not self.reaper.alive: break
             if updated_series.id_ in self.series_dict:
@@ -187,7 +188,8 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('dicomserver', help='dicom server and port (hostname:port)')
         self.add_argument('aet', help='caller AE title')
         self.add_argument('aec', help='callee AE title')
-        self.add_argument('-p', '--patid', help='glob for patient IDs to reap (default: "*")')
+        self.add_argument('-d', '--discard', default='discard', help='space-separated list of Patient IDs to discard')
+        self.add_argument('-p', '--patid', help='glob for Patient IDs to reap (default: "*")')
         self.add_argument('-s', '--sleeptime', type=int, default=30, help='time to sleep before checking for new data')
         self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
@@ -202,7 +204,7 @@ if __name__ == '__main__':
     scu_ = scu.SCU(host, port, return_port, args.aet, args.aec, log=log)
     datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % args.aec)
 
-    reaper = DicomReaper(args.aec, scu_, args.patid, args.reap_path, args.sort_path, datetime_file, args.sleeptime, log)
+    reaper = DicomReaper(args.aec, scu_, args.patid, args.discard.split(), args.reap_path, args.sort_path, datetime_file, args.sleeptime, log)
 
     def term_handler(signum, stack):
         reaper.halt()
