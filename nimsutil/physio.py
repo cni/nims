@@ -41,6 +41,9 @@ class PhysioData(object):
     This class reads the physio data and generates RETROICOR and RETORVHR
     regressors from the data.
 
+    Takes either a list of the physio files or a filename that points to a
+    zip or tgz file containing the files.
+
     Example:
         import physio
         p = physio.PhysioData(filename='physio.zip', tr=2, nframes=120, nslices=36)
@@ -52,15 +55,18 @@ class PhysioData(object):
     def __init__(self, filename, tr=None, nframes=None, nslices=None, slice_order=None, log=None, card_dt=0.01, resp_dt=0.04):
         # FIXME: How to infer the file format automatically?
         self.format_str = 'ge'
-        self.filename = filename
         self.log = log
         self.tr = tr
         self.nframes = nframes
-        if slice_order != None:
-            self.nslices = slice_order.size
-        else:
+        if slice_order == None:
             self.nslices = nslices
-        self.slice_order = slice_order
+            # Infer a standard GE interleave slice order
+            self.slice_order = np.array(range(0, self.nslices, 2) + range(1, self.nslices, 2))
+            # msg = 'No explicit slice order set; inferring interleaved.'
+            # self.log and self.log.warn(msg) or print(msg)
+        else:
+            self.nslices = slice_order.size
+            self.slice_order = np.array(slice_order)
         self.card_wave = None
         self.card_trig = None
         self.card_dt = card_dt
@@ -69,45 +75,48 @@ class PhysioData(object):
         self.resp_wave = None
         self.resp_dt = resp_dt
         self.resp_time = None
-        with open(self.filename,'rb') as fp:
-            magic = fp.read(4)
-        self.is_zip = (magic == '\x50\x4b\x03\x04')
-        self.is_tgz = (magic[:2] == '\x1f\x8b')
         self.regressors = None
         self.phases = None
         if self.format_str=='ge':
-            self.read_ge_data()
+            self.read_ge_data(filename)
         else:
             raise PhysioDataError('Only GE physio format is currently supported.')
             # insert other vendor's read_data functions here
 
 
-    def read_ge_data(self):
-        if self.slice_order == None:
-            # FIXME: slice order is hard-coded here, since GE EPIs are interleaved.
-            self.slice_order = np.concatenate((np.arange(0,self.nslices,2),np.arange(1,self.nslices,2)))
-            msg = 'No explicit slice order set; inferring interleaved, non-multiband order.'
-            self.log and self.log.warn(msg) or print(msg)
-        if self.is_zip:
-            with zipfile.ZipFile(self.filename) as zf:
-                fn = zf.namelist()
-                with zf.open([s for s in fn if "RESPData" in s][0],'r') as fp:
-                    self.resp_wave  = np.loadtxt(fp)
-                with zf.open([s for s in fn if "PPGData" in s][0],'r') as fp:
-                    self.card_wave = np.loadtxt(fp)
-                with zf.open([s for s in fn if "PPGTrig" in s][0],'r') as fp:
-                    self.card_trig = np.loadtxt(fp)
-        elif self.is_tgz:
-            with tarfile.open(self.filename, "r:gz") as tf:
-                fn = tf.getnames()
-                with tf.extract_file(tf.get_member([s for s in fn if "RESPData" in s][0])) as fp:
-                    self.resp_wave = np.loadtxt(fp)
-                with tf.extract_file(tf.get_member([s for s in fn if "PPGData" in s][0])) as fp:
-                    self.card_wave = np.loadtxt(fp)
-                with tf.extract_file(tf.get_member([s for s in fn if "PPGTrig" in s][0])) as fp:
-                    self.card_trig = np.loadtxt(fp)
+    def read_ge_data(self, filename):
+        # if we are passed a list, we assume it's a list of the files. Otherwise, it should be a string containing a filename.
+        if getattr(filename, '__iter__', False):
+            for fn in filename:
+                if "RESPData" in fn:
+                    self.resp_wave  = np.loadtxt(fn)
+                if "PPGData" in fn:
+                    self.card_wave = np.loadtxt(fn)
+                if "PPGTrig" in fn:
+                    self.card_trig = np.loadtxt(fn)
         else:
-            raise PhysioDataError('Only tgz and zip files are supported.')
+            with open(filename,'rb') as fp:
+                magic = fp.read(4)
+            if (magic == '\x50\x4b\x03\x04'):
+                with zipfile.ZipFile(filename) as zf:
+                    fn = zf.namelist()
+                    with zf.open([s for s in fn if "RESPData" in s][0],'r') as fp:
+                        self.resp_wave  = np.loadtxt(fp)
+                    with zf.open([s for s in fn if "PPGData" in s][0],'r') as fp:
+                        self.card_wave = np.loadtxt(fp)
+                    with zf.open([s for s in fn if "PPGTrig" in s][0],'r') as fp:
+                        self.card_trig = np.loadtxt(fp)
+            elif (magic[:2] == '\x1f\x8b'):
+                with tarfile.open(filename, "r:gz") as tf:
+                    fn = tf.getnames()
+                    with tf.extract_file(tf.get_member([s for s in fn if "RESPData" in s][0])) as fp:
+                        self.resp_wave = np.loadtxt(fp)
+                    with tf.extract_file(tf.get_member([s for s in fn if "PPGData" in s][0])) as fp:
+                        self.card_wave = np.loadtxt(fp)
+                    with tf.extract_file(tf.get_member([s for s in fn if "PPGTrig" in s][0])) as fp:
+                        self.card_trig = np.loadtxt(fp)
+            else:
+                raise PhysioDataError('Only tgz and zip files are supported.')
 
         duration = self.nframes * self.tr
 
@@ -123,7 +132,7 @@ class PhysioData(object):
         return
 
 
-    def compute_regressors(self):
+    def compute_regressors(self, slice_delta=0):
         """
 
          * catie chang,   catie.chang@nih.gov
@@ -340,6 +349,22 @@ class PhysioData(object):
 
         return d_corrected, PCT_VAR_REDUCED
 
+    def write_regressors(self, filename):
+        self.compute_regressors()
+        # Write the array to disk
+        # Thanks to Joe Kington on StackOverflow! (http://stackoverflow.com/questions/3685265/how-to-write-a-multidimensional-array-to-a-text-file)
+        with file(filename, 'w') as outfile:
+            # I'm writing a header here just for the sake of readability
+            # Any line starting with "#" will be ignored by numpy.loadtxt
+            outfile.write('# Array shape: {0}\n'.format(data.shape))
+            for i,data_slice in enumerate(data):
+                outfile.write('# slice %d\n', % i)
+                # Format as left-justified columns 7 chars wide with 2 decimal places.
+                np.savetxt(outfile, data_slice, fmt='%-7.6f')
+
+    def is_valid(self):
+        # WRITE ME!
+        return True
 
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):
@@ -364,6 +389,5 @@ if __name__ == '__main__':
         np.savetxt(args.outbase + '_resp.txt', phys.resp_wave)
         np.savetxt(args.outbase + '_pulse.txt', phys.card_trig)
         np.savetxt(args.outbase + '_slice.txt', phys.slice_order)
-    phys.get_regressors()
-    np.savetxt(args.outbase + '_reg.txt', phys.regressors)
+    phys.write_regressors(args.outbase + '_reg.txt')
 
