@@ -73,10 +73,12 @@ class PhysioData(object):
         self.card_time = None
         self.heart_rate = None
         self.resp_wave = None
+        self.resp_trig = None
         self.resp_dt = resp_dt
         self.resp_time = None
         self.regressors = None
         self.phases = None
+        self.scan_duration = self.nframes * self.tr
         if self.format_str=='ge':
             self.read_ge_data(filename)
         else:
@@ -90,6 +92,8 @@ class PhysioData(object):
             for fn in filename:
                 if "RESPData" in fn:
                     self.resp_wave  = np.loadtxt(fn)
+                if "RESPTrig" in fn:
+                    self.resp_trig  = np.loadtxt(fn)
                 if "PPGData" in fn:
                     self.card_wave = np.loadtxt(fn)
                 if "PPGTrig" in fn:
@@ -99,40 +103,44 @@ class PhysioData(object):
                 magic = fp.read(4)
             if (magic == '\x50\x4b\x03\x04'):
                 with zipfile.ZipFile(filename) as zf:
-                    fn = zf.namelist()
-                    with zf.open([s for s in fn if "RESPData" in s][0],'r') as fp:
-                        self.resp_wave  = np.loadtxt(fp)
-                    with zf.open([s for s in fn if "PPGData" in s][0],'r') as fp:
-                        self.card_wave = np.loadtxt(fp)
-                    with zf.open([s for s in fn if "PPGTrig" in s][0],'r') as fp:
-                        self.card_trig = np.loadtxt(fp)
+                    file_names = zf.namelist()
+                    for fn in file_names:
+                        if "RESPData" in fn:
+                            self.resp_wave  = np.loadtxt(zf.open(fn))
+                        if "RESPTrig" in fn:
+                            self.resp_trig  = np.loadtxt(zf.open(fn))
+                        if "PPGData" in fn:
+                            self.card_wave  = np.loadtxt(zf.open(fn))
+                        if "PPGTrig" in fn:
+                            self.card_trig  = np.loadtxt(zf.open(fn))
             elif (magic[:2] == '\x1f\x8b'):
                 with tarfile.open(filename, "r:gz") as tf:
-                    fn = tf.getnames()
-                    with tf.extract_file(tf.get_member([s for s in fn if "RESPData" in s][0])) as fp:
-                        self.resp_wave = np.loadtxt(fp)
-                    with tf.extract_file(tf.get_member([s for s in fn if "PPGData" in s][0])) as fp:
-                        self.card_wave = np.loadtxt(fp)
-                    with tf.extract_file(tf.get_member([s for s in fn if "PPGTrig" in s][0])) as fp:
-                        self.card_trig = np.loadtxt(fp)
+                    file_names = tf.getnames()
+                    for fn in file_names:
+                        if "RESPData" in fn:
+                            self.resp_wave  = np.loadtxt(tf.extractfile(tf.getmember(fn)))
+                        if "RESPTrig" in fn:
+                            self.resp_trig  = np.loadtxt(tf.extractfile(tf.getmember(fn)))
+                        if "PPGData" in fn:
+                            self.card_wave = np.loadtxt(tf.extractfile(tf.getmember(fn)))
+                        if "PPGTrig" in fn:
+                            self.card_trig = np.loadtxt(tf.extractfile(tf.getmember(fn)))
             else:
                 raise PhysioDataError('Only tgz and zip files are supported.')
 
-        duration = self.nframes * self.tr
-
         # move time zero to correspond to the start of the fMRI data
-        offset = self.resp_dt * self.resp_wave.size - duration
+        offset = self.resp_dt * self.resp_wave.size - self.scan_duration
         self.resp_time = self.resp_dt * np.arange(self.resp_wave.size) - offset
         resp_inds = np.nonzero(self.resp_time >= 0)[0]
 
-        offset = self.card_dt * self.card_wave.size - duration
+        offset = self.card_dt * self.card_wave.size - self.scan_duration
         self.card_time = self.card_dt * np.arange(self.card_wave.size) - offset
         self.card_trig = self.card_trig * self.card_dt - offset
         card_inds = np.nonzero(self.card_time >= 0)[0]
         return
 
 
-    def compute_regressors(self, slice_delta=0):
+    def compute_regressors(self):
         """
 
          * catie chang,   catie.chang@nih.gov
@@ -161,8 +169,6 @@ class PhysioData(object):
          * resp_wave: respiration amplitude signal
          * resp_dt: sampling interval between the points in respiration
              amplitude signal (in seconds, e.g. resp_dt=0.04 for 25 Hz sampling)
-         * slice_delta: constant temporal offset (in sec) to add to all slice
-             acquisition times. Usually useful only for testing... [default = 0]
 
           (** setting card_trig = [] will ignore cardiac in both corrections)
           (** setting resp_wave = [] will ignore respiration in both corrections)
@@ -182,7 +188,6 @@ class PhysioData(object):
 
         t_win = 6 * 0.5 # 6-sec window for computing RV & HR, default
         nslc = self.slice_order.size
-        duration = self.nframes * self.tr
 
         # Find the derivative of the respiration waveform
         # shift to zero-min
@@ -206,7 +211,7 @@ class PhysioData(object):
         for sl in range(nslc):
             # times (for each frame) at which this slice was acquired (midpoint):
             cur_slice_acq = (sl==self.slice_order).nonzero()[0][0]
-            slice_times = np.arange((self.tr/nslc)*(cur_slice_acq+0.5), duration, self.tr) + slice_delta
+            slice_times = np.arange((self.tr/nslc)*(cur_slice_acq+0.5), self.scan_duration, self.tr)
             for fr in range(self.nframes):
                 # cardiac
                 prev_trigs = np.nonzero(self.card_trig < slice_times[fr])[0]
@@ -265,14 +270,14 @@ class PhysioData(object):
         for sl in range(nslc):
             # times (for each frame) at which this slice was acquired (midpoint):
             cur_slice_acq = (sl==self.slice_order).nonzero()[0][0]
-            slice_times = np.arange((self.tr/nslc)*(cur_slice_acq+0.5), duration, self.tr) + slice_delta
+            slice_times = np.arange((self.tr/nslc)*(cur_slice_acq+0.5), self.scan_duration, self.tr)
             # make slice RV*RRF regressor
             rv = np.zeros(self.nframes)
             for tp in range(self.nframes):
                 i1 = max(0, np.floor((slice_times[tp] - t_win) / self.resp_dt))
-                i2 = min(self.resp_wave.size-1, np.floor((slice_times[tp] + t_win) / self.resp_dt))
+                i2 = min(self.resp_wave.size, np.floor((slice_times[tp] + t_win) / self.resp_dt))
                 if i2 < i1:
-                    raise Exception('respiration data is shorter than length of scan')
+                    raise PhysioDataError('Respiration data is shorter than the scan duration.')
                 rv[tp] = np.std(self.resp_wave[i1:i2])
 
             # conv(rv, rrf)
@@ -293,7 +298,7 @@ class PhysioData(object):
                         # At the end of a run, the last pulse might be recorded before the last data frame.
                         hr[tp] = hr[tp-1]
                     else:
-                        raise Exception('problem with the cardiac trigger times.')
+                        raise PhysioDataError('Cardiac trigger times do not match scan duration.')
                 else:
                     hr[tp] = (inds[-1] - inds[0]) * 60. / (self.card_trig[inds[-1]] - self.card_trig[inds[0]])  # bpm
             # conv(hr, crf)
@@ -350,22 +355,34 @@ class PhysioData(object):
         return d_corrected, PCT_VAR_REDUCED
 
     def write_regressors(self, filename):
+        # FIXME: write out a more portable format. Maybe a simple 2-d csv, with time running
+        # down each row and column headings indicating the regressor and slice #.
         self.compute_regressors()
         # Write the array to disk
-        # Thanks to Joe Kington on StackOverflow! (http://stackoverflow.com/questions/3685265/how-to-write-a-multidimensional-array-to-a-text-file)
+        # Thanks to Joe Kington on StackOverflow (http://stackoverflow.com/questions/3685265/how-to-write-a-multidimensional-array-to-a-text-file)
         with file(filename, 'w') as outfile:
             # Write a little header behind comments
             # Any line starting with "#" will be ignored by numpy.loadtxt
-            outfile.write('# slice_order = %s' & self.slice_order)
-            outfile.write('# Array shape: {0}\n'.format(data.shape))
-            for i,data_slice in enumerate(data):
+            outfile.write('# slice_order = [ ' + str([print('%d ' % i) for i in self.slice_order])) + ']\n'
+            outfile.write('# Full array shape: {0}\n'.format(self.regressors.shape))
+            outfile.write('# time x regressor for each slice in the acquired volume\n')
+            outfile.write('# regressors: [c1_c, s1_c, c2_c, s2_c,c1_r, s1_r, c2_r, s2_r, rv_rrf, rv_rrf_d, hr_crf, hr_crf_d]\n')
+            for i in range(self.regressors.shape[2]):
                 outfile.write('# slice %d\n' % i)
                 # Format as left-justified columns 7 chars wide with 2 decimal places.
-                np.savetxt(outfile, data_slice, fmt='%-7.6f')
+                np.savetxt(outfile, self.regressors[:,:,i], fmt='%-7.6f')
 
     def is_valid(self):
-        # WRITE ME!
-        return True
+        # FIXME: make these heuristics more explicit, maybe in the constructor?
+        # Heuristics to detect invalid data
+        # When not connected, the PPG output is very low amplitude noise
+        card_valid = self.card_wave.std() > 4.
+        # The respiration signal is heavily low-pass filtered, so it might look valid
+        # even when it isn't connected. But the mean signal will be high if the bellows
+        # are not expanded at all.
+        resp_valid = self.resp_wave.mean() < 2200.
+        return card_valid or resp_valid
+
 
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):
