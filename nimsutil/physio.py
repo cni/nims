@@ -354,11 +354,12 @@ class PhysioData(object):
         # Write the array to disk
         # Thanks to Joe Kington on StackOverflow! (http://stackoverflow.com/questions/3685265/how-to-write-a-multidimensional-array-to-a-text-file)
         with file(filename, 'w') as outfile:
-            # I'm writing a header here just for the sake of readability
+            # Write a little header behind comments
             # Any line starting with "#" will be ignored by numpy.loadtxt
+            outfile.write('# slice_order = %s' & self.slice_order)
             outfile.write('# Array shape: {0}\n'.format(data.shape))
             for i,data_slice in enumerate(data):
-                outfile.write('# slice %d\n', % i)
+                outfile.write('# slice %d\n' % i)
                 # Format as left-justified columns 7 chars wide with 2 decimal places.
                 np.savetxt(outfile, data_slice, fmt='%-7.6f')
 
