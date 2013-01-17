@@ -42,6 +42,7 @@ class ImagePyramid(object):
         self.tile_size = tile_size
         self.log = log
         self.montage = None
+        self.image_dir = 'pyramid'
         if isinstance(image, basestring):
             self.data = nibabel.load(image).get_data()
         elif isinstance(image, np.ndarray):
@@ -66,8 +67,8 @@ class ImagePyramid(object):
         self.generate_montage()
         viewer_file = os.path.join(outdir, 'index.html')
         try:
-            image_dir = os.path.join(outdir,'pyramid')
-            os.mkdir(image_dir)
+            image_dir = os.path.join(outdir, self.image_dir)
+            os.makedirs(image_dir)
             self.generate_pyramid(image_dir)
         except ImagePyramidError as e:
             self.log and self.log.error(e.message) or print(e.message)
@@ -131,7 +132,7 @@ class ImagePyramid(object):
             f.write('<script type="text/javascript" src="' + panojs_url + 'panojs/control_svg.js"></script>\n')
             f.write('<script type="text/javascript" src="' + panojs_url + 'viewer.js"></script>\n')
             f.write('<style type="text/css">body { font-family: sans-serif; margin: 0; padding: 10px; color: #000000; background-color: #FFFFFF; font-size: 0.7em; } </style>\n')
-            f.write('<script type="text/javascript">\nvar viewer = null;Ext.onReady(function () { createViewer( viewer, "viewer", ".", "", '+str(self.tile_size)+', '+str(x_size)+', '+str(y_size)+' ) } );\n</script>\n')
+            f.write('<script type="text/javascript">\nvar viewer = null;Ext.onReady(function () { createViewer( viewer, "viewer", "./' + self.image_dir + '", "", '+str(self.tile_size)+', '+str(x_size)+', '+str(y_size)+' ) } );\n</script>\n')
             f.write('</head>\n<body>\n')
             f.write('<div style="width: 100%; height: 100%;"><div id="viewer" class="viewer" style="width: 100%; height: 100%;" ></div></div>\n')
             f.write('</body>\n</html>\n')
