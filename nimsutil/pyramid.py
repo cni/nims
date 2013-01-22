@@ -116,7 +116,7 @@ class ImagePyramid(object):
 
     def generate_viewer(self, outfile, panojs_url):
         """
-        Creates a baisc html file for viewing the image pyramid with panojs.
+        Creates a basic html file for viewing the image pyramid with panojs.
         """
         (x_size,y_size) = self.montage.size
         with open(outfile, 'w') as f:
@@ -206,6 +206,7 @@ class ArgumentParser(argparse.ArgumentParser):
         super(ArgumentParser, self).__init__()
         self.description = """Create a panojs-style image pyramid from a NIfTI file."""
         self.add_argument('-p', '--panojs_url', metavar='URL', help='URL for the panojs javascript.')
+        self.add_argument('-t', '--tilesize', default = 256, help='tile size (default is 256)')
         self.add_argument('-m', '--montage', action="store_true", help='Save the full-size montage image (full pyramid will not be generated)')
         self.add_argument('filename', help='path to NIfTI file')
         self.add_argument('outdir', nargs='?', help='output directory')
@@ -213,7 +214,7 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    pyr = ImagePyramid(args.filename)
+    pyr = ImagePyramid(args.filename, tile_size = args.tilesize)
     if args.montage:
         outdir = args.outdir or os.path.basename(os.path.splitext(os.path.splitext(args.filename)[0])[0]) + '.png'
         pyr.write_montage_as_png(outdir, bits16=False)
