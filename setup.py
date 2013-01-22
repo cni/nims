@@ -34,7 +34,7 @@ install_requires=[
     "Genshi",
     "zope.sqlalchemy >= 0.4",
     "repoze.tm2 >= 1.0a5",
-    "sqlalchemy",
+    "sqlalchemy < 0.8.0b",
     "sqlalchemy-migrate",
     "repoze.who",
     "repoze.who-friendlyform >= 1.0.4",
