@@ -53,6 +53,12 @@ class PhysioData(object):
     filetype = u'physio'
 
     def __init__(self, filename, tr=None, nframes=None, nslices=None, slice_order=None, log=None, card_dt=0.01, resp_dt=0.04):
+        # The is_valid method uses some crude heuristics to detect valid data.
+        # To be valid, the number of temporal frames must be reasonable, and either the cardiac
+        # standard deviation or the respiration mean meet the following criteria.
+        self.min_number_of_frames = 8
+        self.min_card_std = 4.
+        self.max_resp_mean = 2200.
         # FIXME: How to infer the file format automatically?
         self.format_str = 'ge'
         self.log = log
@@ -185,6 +191,12 @@ class PhysioData(object):
          *
 
         """
+
+        if self.nframes < 3:
+            self.regressors = None
+            msg = 'Need at least 3 temporal frames to compute regressors!'
+            self.log and self.log.error(msg) or print(msg)
+            return
 
         t_win = 6 * 0.5 # 6-sec window for computing RV & HR, default
         nslc = self.slice_order.size
@@ -373,14 +385,15 @@ class PhysioData(object):
                 np.savetxt(outfile, self.regressors[:,:,i], fmt='%-7.6f')
 
     def is_valid(self):
-        # FIXME: make these heuristics more explicit, maybe in the constructor?
+        if self.nframes < self.min_number_of_frames:
+            return False
         # Heuristics to detect invalid data
         # When not connected, the PPG output is very low amplitude noise
-        card_valid = self.card_wave.std() > 4.
+        card_valid = self.card_wave.std() > self.min_card_std
         # The respiration signal is heavily low-pass filtered, so it might look valid
         # even when it isn't connected. But the mean signal will be high if the bellows
         # are not expanded at all.
-        resp_valid = self.resp_wave.mean() < 2200.
+        resp_valid = self.resp_wave.mean() < self.max_resp_mean
         return card_valid or resp_valid
 
 
