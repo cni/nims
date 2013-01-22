@@ -363,7 +363,7 @@ class PhysioData(object):
         with file(filename, 'w') as outfile:
             # Write a little header behind comments
             # Any line starting with "#" will be ignored by numpy.loadtxt
-            outfile.write('# slice_order = [ ' + str([print('%d ' % i) for i in self.slice_order])) + ']\n'
+            outfile.write('# slice_order = [ ' + ','.join([str(d) for d in self.slice_order]) + ' ]\n')
             outfile.write('# Full array shape: {0}\n'.format(self.regressors.shape))
             outfile.write('# time x regressor for each slice in the acquired volume\n')
             outfile.write('# regressors: [c1_c, s1_c, c2_c, s2_c,c1_r, s1_r, c2_r, s2_r, rv_rrf, rv_rrf_d, hr_crf, hr_crf_d]\n')
@@ -390,7 +390,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.description = """ Processes physio data to make them amenable to retroicor."""
         self.add_argument('physio_file', help='path to physio data')
         self.add_argument('outbase', help='basename for output files')
-        self.add_argument('-n', 'nifti_file', help='path to corresponding nifti file')
+        self.add_argument('-n', '--nifti_file', help='path to corresponding nifti file')
         # TODO: allow tr, nframes, and nslices to be entered as args if no nifti is provided
         # TODO: allow user to specify custom slice orders
         self.add_argument('-p', '--preprocess', action='store_true', help='Also save pre-processed physio data')
