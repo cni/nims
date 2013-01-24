@@ -60,7 +60,7 @@ class Scheduler(object):
                     self.log.info(u'Compressing %s %s' % (dc, ds.filetype))
                     dataset_path = os.path.join(self.nims_path, ds.relpath)
                     if ds.filetype == nimsutil.dicomutil.DicomFile.filetype:
-                        arcdir = '%s_%d_%d' % (dc.session.exam, dc.series, dc.acq)
+                        arcdir = '%d_%d_%d_dicoms' % (dc.session.exam, dc.series, dc.acq)
                         arcdir_path = os.path.join(dataset_path, arcdir)
                         os.mkdir(arcdir_path)
                         for filename in [f for f in os.listdir(dataset_path) if not f.startswith(arcdir)]:
@@ -68,6 +68,7 @@ class Scheduler(object):
                         with tarfile.open('%s.tgz' % arcdir_path, 'w:gz', compresslevel=6) as archive:
                             archive.add(arcdir_path, arcname=os.path.basename(arcdir_path))
                         shutil.rmtree(arcdir_path)
+                        ds.filenames = os.listdir(dataset_path)
                         ds.compressed = True
                         transaction.commit()
                     elif ds.filetype == nimsutil.pfile.PFile.filetype:

@@ -47,12 +47,12 @@ class PFileReaper(object):
         while self.alive:
             try:
                 reap_files = [ReapPFile(p, self) for p in glob.glob(self.data_glob)]
-                reap_files = sorted(filter(lambda f: f.mod_time >= self.current_file_timestamp, reap_files), key=lambda f: f.mod_time)
                 if not reap_files:
                     raise Warning('No matching files found (or error while checking for files)')
             except (OSError, Warning) as e:
                 self.log.warning(e)
             else:
+                reap_files = sorted(filter(lambda f: f.mod_time >= self.current_file_timestamp, reap_files), key=lambda f: f.mod_time)
                 for rf in reap_files:
                     if rf.path in self.monitored_files:
                         mf = self.monitored_files[rf.path]

@@ -9,6 +9,7 @@ import glob
 import time
 import shutil
 import signal
+import tarfile
 import argparse
 import threading
 
@@ -138,22 +139,25 @@ class Pipeline(threading.Thread):
                     dataset = Dataset.at_path(self.nims_path, u'physio')
                     DBSession.add(self.job)
                     DBSession.add(self.job.data_container)
-                    dataset.file_cnt_act = 0
-                    dataset.file_cnt_tgt = len(physio_files)
                     dataset.kind = u'peripheral'
                     dataset.container = self.job.data_container
                     with nimsutil.TempDirectory() as tempdir:
-                        arcdir_path = os.path.join(tempdir, 'physio')
+                        arcdir_path = os.path.join(tempdir, '%s_physio' % self.job.data_container.name)
                         os.mkdir(arcdir_path)
                         for f in physio_files:
                             shutil.copy2(f, arcdir_path)
-                        with tarfile.open(os.path.join(self.nims_path, dataset.relpath, 'physio.tgz'), 'w:gz', compresslevel=6) as archive:
+                        filename = '%s_physio.tgz' % self.job.data_container.name
+                        dataset.filenames = [filename]
+                        with tarfile.open(os.path.join(self.nims_path, dataset.relpath, filename), 'w:gz', compresslevel=6) as archive:
                             archive.add(arcdir_path, arcname=os.path.basename(arcdir_path))
                         try:
-                            physio.write_regressors(os.path.join(self.nims_path, dataset.relpath, 'physio_regressors.csv'))
-                        except PhysioError:
+                            reg_filename = '%s_physio_regressors.csv' % self.job.data_container.name
+                            physio.write_regressors(os.path.join(self.nims_path, dataset.relpath, reg_filename))
+                        except nimsutil.physio.PhysioDataError:
                             self.job.activity = u'error generating regressors from physio data'
                             self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                        else:
+                            dataset.filenames += [reg_filename]
                 else:
                     self.job.activity = u'invalid physio found and discarded'
                     self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
@@ -199,13 +203,13 @@ class DicomPipeline(Pipeline):
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
 
-                conv_ds.file_cnt_act = 0
-                conv_ds.file_cnt_tgt = len(outputdir_list)
                 conv_ds.kind = u'derived'
                 conv_ds.container = self.job.data_container
+                filenames = []
                 for f in outputdir_list:
+                    filenames.append(f)
                     shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, conv_ds.relpath))
-                    conv_ds.file_cnt_act += 1
+                conv_ds.filenames = filenames
                 transaction.commit()
 
             if conv_type == 'nifti':
@@ -217,6 +221,7 @@ class DicomPipeline(Pipeline):
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'web'
                 pyramid_ds.container = self.job.data_container
+                pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
                 transaction.commit()
 
         DBSession.add(self.job)
@@ -248,13 +253,13 @@ class PFilePipeline(Pipeline):
                 dataset = Dataset.at_path(self.nims_path, u'nifti')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                dataset.file_cnt_act = 0
-                dataset.file_cnt_tgt = len(outputdir_list)
                 dataset.kind = u'derived'
                 dataset.container = self.job.data_container
+                filenames = []
                 for f in outputdir_list:
+                    filenames.append(f)
                     shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, dataset.relpath))
-                    dataset.file_cnt_act += 1
+                dataset.filenames = filenames
                 transaction.commit()
 
                 pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
@@ -265,6 +270,7 @@ class PFilePipeline(Pipeline):
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'web'
                 pyramid_ds.container = self.job.data_container
+                pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
                 transaction.commit()
 
         DBSession.add(self.job)

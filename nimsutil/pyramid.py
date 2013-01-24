@@ -38,7 +38,7 @@ class ImagePyramid(object):
 
     """
 
-    def __init__(self, image, tile_size=256, log=None):
+    def __init__(self, image, tile_size=1024, log=None):
         self.tile_size = tile_size
         self.log = log
         self.montage = None
@@ -65,7 +65,7 @@ class ImagePyramid(object):
         viewer HTML file, using generate_viewer().
         """
         self.generate_montage()
-        viewer_file = os.path.join(outdir, 'index.html')
+        viewer_file = os.path.join(outdir, 'pyramid.html')
         try:
             image_dir = os.path.join(outdir, self.image_dir)
             os.makedirs(image_dir)

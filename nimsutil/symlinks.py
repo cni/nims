@@ -59,12 +59,11 @@ class SymLinker(object):
         symlinks = []
         for r in db_results:
             user_path = os.path.join(links_path, r.User.uid)
-            ep = '%s/nims/%s/%s/%s/%s' % (user_path, r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name)
-            su_ep = '%s/nims/%s/%s/%s/%s' % (superuser_path, r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name)
-            sl = (os.path.join(self.nims_path, r.Dataset.relpath), os.path.join(ep, r.Dataset.name))
-            su_sl = (os.path.join(self.nims_path, r.Dataset.relpath), os.path.join(su_ep, r.Dataset.name))
+            ep    = '%s/nims/%s/%s/%s/%s' % (user_path, r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname)
+            su_ep = '%s/nims/%s/%s/%s/%s' % (superuser_path, r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname)
             epoch_paths.extend([ep, su_ep])
-            symlinks.extend([sl, su_sl])
+            symlinks += [(os.path.join(self.nims_path, r.Dataset.relpath, f), os.path.join(ep, f)) for f in r.Dataset.filenames if f]
+            symlinks += [(os.path.join(self.nims_path, r.Dataset.relpath, f), os.path.join(su_ep, f)) for f in r.Dataset.filenames if f]
 
         for ep in set(epoch_paths):
             os.makedirs(ep)

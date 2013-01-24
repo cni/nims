@@ -120,9 +120,8 @@ class AuthController(BaseController):
     def download(self, **kwargs):
         user = request.identity['user']
         user_path = '%s/%s' % (config.get('links_path'), 'superuser' if user.is_superuser else user.uid)
-        tar_dirs = None
+        files = None
         if 'id_dict' in kwargs and 'sess' in kwargs['id_dict']:
-            query_type = Session
             id_list = [int(id) for id in json.loads(kwargs['id_dict'])['sess']]
             res = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
                     .join(Subject, Session.subject)
@@ -133,9 +132,8 @@ class AuthController(BaseController):
                     .filter((Dataset.kind == u'peripheral') | (Dataset.kind == u'derived'))
                     .filter(Session.id.in_(id_list))
                     .all())
-            tar_dirs = ['nims/%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name, r.Dataset.name) for r in res]
+            files = ['nims/%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname, f) for r in res for f in r.Dataset.filenames]
         elif 'id_dict' in kwargs and 'dataset' in kwargs['id_dict']:
-            query_type = Dataset
             id_list = [int(id) for id in json.loads(kwargs['id_dict'])['dataset']]
             res = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
                     .join(Epoch, Dataset.container)
@@ -145,9 +143,8 @@ class AuthController(BaseController):
                     .join(ResearchGroup, Experiment.owner)
                     .filter(Dataset.id.in_(id_list))
                     .all())
-            tar_dirs = ['nims/%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.name, r.Epoch.name, r.Dataset.name) for r in res]
-        if tar_dirs:
-            #redirect('/%s/download.php?%s' % (user_path, '&'.join('dirs[%d]=%s' %(i, p) for i, p in enumerate(tar_dirs))))
-            tar_proc = subprocess.Popen(shlex.split('tar -chf - -C %s %s' % (user_path, ' '.join(tar_dirs))), stdout=subprocess.PIPE)
+            files = ['nims/%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname, f) for r in res for f in r.Dataset.filenames]
+        if files:
+            tar_proc = subprocess.Popen(shlex.split('tar -chf - -C %s %s' % (user_path, ' '.join(files))), stdout=subprocess.PIPE)
             response.headerlist.append(('Content-Disposition', 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))))
             return tar_proc.stdout

@@ -71,9 +71,12 @@ class Sorter(object):
                     compressed = (fp.read(2) == '\x1f\x8b')
                 dataset = self.get_dataset(filepath)
             if dataset:
-                shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filepath)))
+                new_filenames = [filename]
+                shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
                 for aux_path in aux_paths.get(os.path.splitext(filename)[0] if compressed else filename, []):
+                    new_filenames.append(os.path.basename(aux_path))
                     shutil.move(aux_path, os.path.join(self.nims_path, dataset.relpath, os.path.basename(aux_path)))
+                dataset.filenames = set(dataset.filenames + new_filenames)
                 dataset.compressed = compressed
                 dataset.updatetime = datetime.datetime.now()
                 dataset.untrash()

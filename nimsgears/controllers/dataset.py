@@ -8,6 +8,6 @@ class DatasetController(NimsController):
         user = request.identity['user']
         dataset = Dataset.query.filter_by(id=kw.get('id')).first()
         if dataset:
-            redirect(dataset.shadowpath(user))
+            redirect(dataset.shadowpath(user) + ('/pyramid.html' if dataset.filetype == u'img_pyr' else ''))
         else:
             return "No such dataset."

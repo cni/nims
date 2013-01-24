@@ -123,10 +123,10 @@ class Exam(object):
 
     def get_series_list(self):
         responses = self.reaper.scu.find(scu.SeriesQuery(StudyID=self.id_))
-        series_numbers = [int(resp.SeriesNumber) for resp in responses]
+        series_numbers = [resp.SeriesNumber for resp in responses]
         uids = [resp.SeriesInstanceUID for resp in responses]
         image_counts = [int(resp.ImagesInAcquisition) for resp in responses]
-        return [Series(self, self.reaper, id_, uid, image_cnt) for (id_, uid, image_cnt) in zip(series_numbers, uids, image_counts)]
+        return [Series(self, self.reaper, id_, uid, image_count) for (id_, uid, image_count) in zip(series_numbers, uids, image_counts)]
 
 
 class Series(object):
@@ -140,7 +140,7 @@ class Series(object):
         self.needs_reaping = True
 
     def __str__(self):
-        return '%s, Series %d, %d images' % (self.exam, self.id_, self.image_count)
+        return '%s, Series %s, %d images' % (self.exam, self.id_, self.image_count)
 
     def reap(self, new_image_count):
         if new_image_count > self.image_count:
@@ -149,7 +149,7 @@ class Series(object):
             self.reaper.log.info('Monitoring  %s' % self)
         elif self.needs_reaping: # image count has stopped increasing
             self.reaper.log.info('Reaping     %s' % self)
-            stage_dir = '%s_%s_%d_%s' % (self.reaper.id_, self.exam.id_, self.id_, datetime.datetime.now().strftime('%s'))
+            stage_dir = '%s_%s_%s_%s' % (self.reaper.id_, self.exam.id_, self.id_, datetime.datetime.now().strftime('%s'))
             reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
             reap_count = self.reaper.scu.move(scu.SeriesQuery(SeriesInstanceUID=self.uid), reap_path)
             if reap_count == self.image_count:
@@ -167,10 +167,10 @@ class Series(object):
         self.reaper.log.info('Compressing %s' % self)
         for filepath in [os.path.join(series_path, filename) for filename in os.listdir(series_path)]:
             dcm = dicom.read_file(filepath)
-            acq_no = int(dcm.AcquisitionNumber) if 'AcquisitionNumber' in dcm else 0
+            acq_no = dcm.AcquisitionNumber if 'AcquisitionNumber' in dcm else '0'
             dcm_dict.setdefault(acq_no, []).append(filepath)
         for acq_no, acq_paths in dcm_dict.iteritems():
-            arcdir_path = os.path.join(series_path, '%s_%d_%d' % (self.exam.id_, self.id_, acq_no))
+            arcdir_path = os.path.join(series_path, '%s_%s_%s_dicoms' % (self.exam.id_, self.id_, acq_no))
             os.mkdir(arcdir_path)
             for filepath in acq_paths:
                 os.rename(filepath, '%s.dcm' % os.path.join(arcdir_path, os.path.basename(filepath)))

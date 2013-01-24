@@ -734,7 +734,11 @@ class Session(DataContainer):
 
     @property
     def name(self):
-        return u'%s_%d' % (self.timestamp.strftime(u'%Y%m%d_%H%M'), self.exam)
+        return u'%s_%d' % (self.timestamp.strftime('%Y%m%d_%H%M'), self.exam)
+
+    @property
+    def dirname(self):
+        return u'%s' % self.timestamp.strftime('%Y%m%d_%H%M')
 
     @property
     def contains_trash(self):
@@ -857,7 +861,11 @@ class Epoch(DataContainer):
 
     @property
     def name(self):
-        return '%s_%d_%d_%s' % (self.timestamp.strftime('%H%M%S'), self.series, self.acq, self.description)
+        return '%d_%d_%d' % (self.session.exam, self.series, self.acq)
+
+    @property
+    def dirname(self):
+        return '%d_%d_%s' % (self.series, self.acq, self.description)
 
     @property
     def contains_trash(self):
@@ -903,8 +911,7 @@ class Dataset(Entity):
     digest = Field(LargeBinary(20))
     compressed = Field(Boolean, default=False)
     archived = Field(Boolean, default=False, index=True)
-    file_cnt_act = Field(Integer)
-    file_cnt_tgt = Field(Integer)
+    _filenames = Field(String, default='', colname='filenames', synonym='filenames')
 
     container = ManyToOne('DataContainer')
     parents = ManyToMany('Dataset')
@@ -967,13 +974,12 @@ class Dataset(Entity):
                 .join(ResearchGroup, Experiment.owner)
                 .filter(Dataset.id == self.id)
                 .first())
-        return '/data/%s/nims/%s/%s/%s/%s/%s' % (
+        return '/data/%s/nims/%s/%s/%s/%s' % (
                 u'superuser' if user.is_superuser else user.uid,
                 db_result.ResearchGroup.gid,
                 db_result.Experiment.name,
-                db_result.Session.name,
-                db_result.Epoch.name,
-                db_result.Dataset.name)
+                db_result.Session.dirname,
+                db_result.Epoch.dirname)
 
     @property
     def name(self):
@@ -989,6 +995,12 @@ class Dataset(Entity):
         self._updatetime = updatetime
         self.container.dirty = True
     updatetime = property(_get_updatetime, _set_updatetime)
+
+    def _get_filenames(self):
+        return self._filenames.split(', ') if self._filenames else []
+    def _set_filenames(self, filenames):
+        self._filenames = ', '.join(filenames)
+    filenames = property(_get_filenames, _set_filenames)
 
     @property
     def is_trash(self):
@@ -1014,7 +1026,6 @@ class Dataset(Entity):
                 for chunk in iter(lambda: fd.read(1048576 * new_hash.block_size), ''):
                     new_hash.update(chunk)
         self.digest = new_hash.digest()
-        self.file_cnt_act = len(filelist)
         return self.digest != old_digest
 
     def datatype_from_mrfile(self, mrfile):
