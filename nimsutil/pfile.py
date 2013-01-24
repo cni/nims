@@ -171,7 +171,7 @@ class PFile(object):
         mat = h5py.File(data_file, 'r')
         if 'd' in mat:
             self.image_data = np.atleast_3d(mat['d'].items()[1][1].value)
-            self.image_data = self.image_data.transpose((3,2,1,0))[::-1,:,::-1,:]
+            self.image_data = self.image_data.transpose((3,2,1,0))[::-1,:,:,:]
         elif 'MIP_res' in mat:
             self.image_data = np.atleast_3d(mat['MIP_res'].items()[1][1].value)
             self.image_data = self.image_data.transpose((1,0,2,3))[::-1,::-1,:,:]
