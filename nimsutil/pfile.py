@@ -181,19 +181,19 @@ class PFile(object):
 
         if self.image_data.shape[0] != self.size_x or self.image_data.shape[1] != self.size_y:
             msg = 'Image matrix discrepancy. Fixing the header, assuming image_data is correct...'
-            self.log and self.log.warning(msg) or print(msg)
+            self.log.warning(msg) if self.log else print(msg)
             self.size_x = self.image_data.shape[0]
             self.size_y = self.image_data.shape[1]
             self.mm_per_vox[0] = float(self.fov[0] / self.size_x)
             self.mm_per_vox[1] = float(self.fov[1] / self.size_y)
         if self.image_data.shape[2] != self.num_slices:
             msg = 'Image slice count discrepancy. Fixing the header, assuming image_data is correct...'
-            self.log and self.log.warning(msg) or print(msg)
+            self.log.warning(msg) if self.log else print(msg)
             self.num_slices = self.image_data.shape[2]
         if self.image_data.shape[3] != self.num_timepoints:
             msg = 'Image time frame discrepancy (header=%d, array=%d). Fixing the header, assuming image_data is correct...' \
                     % (self.num_timepoints, self.image_data.shape[3])
-            self.log and self.log.warning(msg) or print(msg)
+            self.log.warning(msg) if self.log else print(msg)
             self.num_timepoints = self.image_data.shape[3]
         self.duration = self.num_timepoints * self.tr # FIXME: maybe need self.num_echoes?
 

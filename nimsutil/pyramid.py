@@ -71,7 +71,7 @@ class ImagePyramid(object):
             os.makedirs(image_dir)
             self.generate_pyramid(image_dir)
         except ImagePyramidError as e:
-            self.log and self.log.error(e.message) or print(e.message)
+            self.log.warning(e.message) if self.log else print(e.message)
             with open(viewer_file, 'w') as f:
                 f.write('<body>\n<center>Image viewer could not be generated for this dataset. (' + e.message + ')</center>\n</body>\n')
         else:

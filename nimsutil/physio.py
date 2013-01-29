@@ -69,7 +69,7 @@ class PhysioData(object):
             # Infer a standard GE interleave slice order
             self.slice_order = np.array(range(0, self.nslices, 2) + range(1, self.nslices, 2))
             # msg = 'No explicit slice order set; inferring interleaved.'
-            # self.log and self.log.warn(msg) or print(msg)
+            # self.log.warning(msg) if self.log else print(msg)
         else:
             self.nslices = slice_order.size
             self.slice_order = np.array(slice_order)
@@ -195,7 +195,7 @@ class PhysioData(object):
         if self.nframes < 3:
             self.regressors = None
             msg = 'Need at least 3 temporal frames to compute regressors!'
-            self.log and self.log.error(msg) or print(msg)
+            self.log.warning(msg) if self.log else print(msg)
             return
 
         t_win = 6 * 0.5 # 6-sec window for computing RV & HR, default

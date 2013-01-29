@@ -143,7 +143,7 @@ class DicomAcquisition(object):
             image_type = self.first_dcm.ImageType
         except:
             msg = 'dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase)
-            self.log and self.log.warning(msg) or print(msg)
+            self.log.warning(msg) if self.log else print(msg)
         else:
             if image_type == TYPE_SCREEN:
                 self.to_img(outbase)
@@ -155,7 +155,7 @@ class DicomAcquisition(object):
                 result = ('nifti', self.to_nii(outbase))
             if result[0] is None:
                 msg = 'dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase)
-                self.log and self.log.warning(msg) or print(msg)
+                self.log.warning(msg) if self.log else print(msg)
         return result
 
     def to_img(self, outbase):
