@@ -92,7 +92,8 @@ class ArrayType(BasicType):
 
     def instantiation_str(self, member_name=None):
         if isinstance(self.elem_type, BasicType) and not isinstance(self.elem_type, (ArrayType, StructType)):
-            string = 'struct.unpack("{1}{0}", fp.read(struct.calcsize("{1}{0}")))[0]'.format(FORMAT_CHARS[self.elem_type.type_name], self.num_elems)
+            string = 'struct.unpack("{1}{0}", fp.read(struct.calcsize("{1}{0}")))'.format(FORMAT_CHARS[self.elem_type.type_name], self.num_elems)
+            if self.elem_type.type_name == 'char': string += '[0]'
         else:
             string = """[]
         for i in range({0}):
