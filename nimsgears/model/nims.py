@@ -1017,16 +1017,5 @@ class Dataset(Entity):
         self.trashtime = None
         self.container.untrash(propagate=False)
 
-    def redigest(self, nims_path):
-        old_digest = self.digest
-        new_hash = hashlib.sha1()
-        filelist = os.listdir(os.path.join(nims_path, self.relpath))
-        for filename in sorted(filelist):
-            with open(os.path.join(nims_path, self.relpath, filename), 'rb') as fd:
-                for chunk in iter(lambda: fd.read(1048576 * new_hash.block_size), ''):
-                    new_hash.update(chunk)
-        self.digest = new_hash.digest()
-        return self.digest != old_digest
-
     def datatype_from_mrfile(self, mrfile):
         return u'unknown'

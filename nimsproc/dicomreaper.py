@@ -166,9 +166,9 @@ class Series(object):
         dcm_dict = {}
         self.reaper.log.info('Compressing %s' % self)
         for filepath in [os.path.join(series_path, filename) for filename in os.listdir(series_path)]:
-            dcm = dicom.read_file(filepath)
-            acq_no = dcm.AcquisitionNumber if 'AcquisitionNumber' in dcm else '0'
-            dcm_dict.setdefault(acq_no, []).append(filepath)
+            dcm = nimsutil.dicomutil.DicomFile(filepath)
+            os.utime(filepath, (int(dcm.timestamp.strftime('%s')), int(dcm.timestamp.strftime('%s'))))
+            dcm_dict.setdefault(dcm.acq_no, []).append(filepath)
         for acq_no, acq_paths in dcm_dict.iteritems():
             arcdir_path = os.path.join(series_path, '%s_%s_%s_dicoms' % (self.exam.id_, self.id_, acq_no))
             os.mkdir(arcdir_path)

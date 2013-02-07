@@ -80,7 +80,9 @@ class Scheduler(object):
 
                 # schedule job
                 self.log.info(u'Inspecting  %s' % dc)
-                if dc.primary_dataset.redigest(self.nims_path):
+                new_digest = nimsutil.redigest(os.path.join(self.nims_path, dc.primary_dataset.relpath))
+                if dc.primary_dataset.digest != new_digest:
+                    dc.primary_dataset.digest = new_digest
                     job = Job.query.filter_by(data_container=dc).filter_by(task=u'find&proc').first()
                     if not job:
                         job = Job(data_container=dc, task=u'find&proc', status=u'pending', activity=u'pending')

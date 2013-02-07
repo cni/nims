@@ -8,7 +8,9 @@ import re
 import glob
 import gzip
 import shutil
+import tarfile
 import difflib
+import hashlib
 import datetime
 import tempfile
 import logging, logging.handlers
@@ -218,3 +220,24 @@ def gzip_inplace(path, mode=None):
     shutil.copystat(path, gzpath)
     if mode: os.chmod(gzpath, mode)
     os.remove(path)
+
+
+def redigest(path):
+
+    def hash_file(fd):
+        for chunk in iter(lambda: fd.read(1048576 * hash_.block_size), ''):
+            hash_.update(chunk)
+
+    hash_ = hashlib.sha1()
+    filepaths = [os.path.join(path, f) for f in os.listdir(path)]
+    for filepath in sorted(filepaths):
+        if tarfile.is_tarfile(filepath):
+            archive = tarfile.open(filepath, 'r:*')
+            for member in archive:
+                if not member.isfile(): continue
+                fd = archive.extractfile(member)
+                hash_file(fd)
+        else:
+            with open(filepath, 'rb') as fd:
+                hash_file(fd)
+    return hash_.digest()
