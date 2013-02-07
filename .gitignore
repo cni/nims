@@ -4,6 +4,6 @@
 *.sqlite
 cache
 production.ini
-nimsutil/pfheader*.py
+nimsutil/pfheader*.*
 nims_stage
 nims_store
