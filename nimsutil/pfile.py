@@ -22,6 +22,11 @@ import nimsutil
 import pfheader
 
 
+def unpack_uid(uid):
+    """Convert packed PFile UID to standard DICOM UID."""
+    return ''.join([str(i-1) if i < 11 else '.' for pair in [(ord(c) >> 4, ord(c) & 15) for c in uid] for i in pair if i > 0])
+
+
 class PFileError(Exception):
     pass
 
@@ -50,13 +55,13 @@ class PFile(object):
         with open(self.filename,'rb') as fp:
             self.is_gzipped = (fp.read(2) == '\x1f\x8b')
         self.get_metadata()
+        self.basename = os.path.basename(self.filename)
+        if self.basename.endswith('.gz'):
+            self.basename = self.basename[:-3]
+        self.filedir = os.path.dirname(self.filename)
 
     def get_metadata(self):
-
-        def unpack_uid(uid):
-            """Convert packed PFile UID to standard DICOM UID."""
-            return ''.join([str(i-1) if i < 11 else '.' for pair in [(ord(c) >> 4, ord(c) & 15) for c in uid] for i in pair if i > 0])
-
+        """ Get useful metadata fields from the pfile header. These should be consistent with the fields that dicomutil yields. """
         try:
             if self.is_gzipped:
                 fp = gzip.open(self.filename)
@@ -146,8 +151,6 @@ class PFile(object):
         # Even for planar sequences, this will be wrong (under-estimate) in case of cardiac-gating.
         self.prescribed_duration = datetime.timedelta(seconds=(self.num_timepoints * self.tr))
         self.duration = self.prescribed_duration # The actual duration can only be computed after the data are loaded. Settled for rx duration for now.
-        # Is this all we need to flag a diffusion scan?
-        self.diffusion_flag = True if self.header.image.b_value>0 else False
         # Compute the voxel size rather than use image.pixsize_X/Y
         self.mm_per_vox = np.array([self.fov[0] / self.size_x,
                                     self.fov[1] / self.size_y,
@@ -163,6 +166,10 @@ class PFile(object):
         self.phase_encode_undersample = 1.0
         self.slice_encode_undersample = 1.0
         self.acquisition_matrix = [0,0,0] #dcm.AcquisitionMatrix[1:3] if 'AcquisitionMatrix' in dcm else None
+        # Diffusion params
+        self.dwi_numdirs = self.header.rec.numdifdirs
+        self.dwi_bvalue = self.header.image.b_value
+        self.diffusion_flag = True if self.dwi_numdirs >= 6 else False
 
 
     def set_image_data(self, data_file):
@@ -328,6 +335,9 @@ class PFile(object):
             nifti = nibabel.Nifti1Image(self.fm_data, None, nii_header)
             nibabel.save(nifti, outbase + '_B0.nii.gz')
 
+        if self.diffusion_flag:
+            self.write_dwi_bvecs(outbase = outbase)
+
         return main_file
 
     def recon_spirec(self, executable='spirec'):
@@ -351,18 +361,15 @@ class PFile(object):
 
     def recon_mux_epi(self, executable='octave'):
         """Do mux_epi image reconstruction and populate self.image_data."""
-        pfile_basename = os.path.basename(self.filename)
-        if pfile_basename.endswith('.gz'):
-            pfile_basename = pfile_basename[:-3]
-        ref_file  = os.path.join(os.path.dirname(self.filename), '_'+pfile_basename+'_ref.dat')
-        vrgf_file = os.path.join(os.path.dirname(self.filename), '_'+pfile_basename+'_vrgf.dat')
+        ref_file  = os.path.join(self.filedir, '_'+self.basename+'_ref.dat')
+        vrgf_file = os.path.join(self.filedir, '_'+self.basename+'_vrgf.dat')
         if not os.path.isfile(ref_file) or not os.path.isfile(vrgf_file):
             raise PFileError('dat files not found')
         with nimsutil.TempDirectory(dir=self.tmpdir) as tmpdir:
             if self.is_gzipped:
                 shutil.copy(ref_file, os.path.join(tmpdir, os.path.basename(ref_file)))
                 shutil.copy(vrgf_file, os.path.join(tmpdir, os.path.basename(vrgf_file)))
-                pfile_path = os.path.join(tmpdir, pfile_basename)
+                pfile_path = os.path.join(tmpdir, self.basename)
                 with open(pfile_path, 'wb') as fd:
                     with gzip.open(self.filename, 'rb') as gzfile:
                         fd.writelines(gzfile)
@@ -383,6 +390,40 @@ class PFile(object):
             #    d,slice_loc = pytave.feval(2, 'mux_epi_recon', self.filename, ref_file, vrgf_file, mux_slice+1)
             #    self.image_data[:,:,slice_loc.astype(int).flatten()-1,:] = d
 
+    def write_dwi_bvecs(self, tensor_file=None, outbase=None):
+        """Create bval and bvec files from a pfile."""
+        if tensor_file == None:
+            tensor_file = os.path.join(self.filedir, '_'+self.basename+'_tensor.dat')
+        if ourbase == None:
+            outbase = os.path.join(self.filedir, self.basename)
+        with open(tensor_file) as fp:
+            uid = fp.readline().rstrip()
+            ndirs = int(fp.readline().rstrip())
+            bvecs = np.fromfile(fp, sep=' ')
+        if uid != self.header.series.series_uid:
+            self.log and self.log.debug('tensor file UID does not match PFile UID!')
+            return
+        if ndirs != self.dwi_numdirs or self.dwi_numdirs != bvecs.size / 3.:
+            self.log and self.log.debug('tensor file numdirs does not match PFile header numdirs!')
+            return
+
+        # FIXME: Assumes that all the non-dwi images are acquired first. Getting explicit information about
+        # this from the PSD would be much better!
+        num_nondwi = self.num_timepoints - self.dwi_numdirs
+        bvals = np.concatenate((np.zeros(num_nondwi, dtype=float), np.tile(self.dwi_bvalue, self.dwi_numdirs)))
+        bvecs = np.hstack((np.zeros((3,num_nondwi), dtype=float), bvecs.reshape(self.dwi_numdirs, 3).T))
+        filename = outbase + '.bval'
+        with open(filename, 'w') as bvals_file:
+            bvals_file.write(' '.join(['%f' % value for value in bvals]))
+        self.log and self.log.debug('generated %s' % os.path.basename(filename))
+        filename = outbase + '.bvec'
+        with open(filename, 'w') as bvecs_file:
+            bvecs_file.write(' '.join(['%f' % value for value in bvecs[0,:]]) + '\n')
+            bvecs_file.write(' '.join(['%f' % value for value in bvecs[1,:]]) + '\n')
+            bvecs_file.write(' '.join(['%f' % value for value in bvecs[2,:]]) + '\n')
+        self.log and self.log.debug('generated %s' % os.path.basename(filename))
+
+
     def recon_hoshim(self, executable=''):
         self.log or print('Can\'t recon HO SHIM data')
 
@@ -400,6 +441,65 @@ class PFile(object):
     @property
     def priority(self):
         return int(bool(self.recon_func)) * 2 - 1
+
+    def get_data(self, slices=None, passes=None, coils=None, echos=None, frames=None):
+        """
+        Reads and returns a chunck of data from the p-file. Specify the slices,
+        timepoints, coils, and echos that you want. None means you get all of
+        them. The default of all Nones will return all data.
+        (based on https://github.com/cni/MRS/blob/master/MRS/files.py)
+        """
+
+        n_frames = self.header.rec.nframes + self.header.rec.hnover
+        n_echoes = self.header.rec.nechoes
+        n_slices = self.header.rec.nslices / self.header.rec.npasses
+        n_coils = self.num_receivers
+        n_passes = self.header.rec.npasses
+        frame_sz = self.header.rec.frame_size
+
+        if passes == None: passes = range(n_passes)
+        if coils == None: coils = range(n_coils)
+        if slices == None: slices = range(n_slices)
+        if echos == None: echos = range(n_echoes)
+        if frames == None: frames = range(n_frames)
+
+        # Size (in bytes) of each sample:
+        ptsize = self.header.rec.point_size
+        data_type = [np.int16, np.int32][ptsize/2 - 1]
+
+        # This is double the size as above, because the data is complex:
+        frame_bytes = 2 * ptsize * frame_sz
+
+        echosz = frame_bytes * (1 + n_frames)
+        slicesz = echosz * n_echoes
+        coilsz = slicesz * n_slices
+        passsz = coilsz * n_coils
+
+        # Byte-offset to get to the data:
+        offset = self.header.rec.off_data
+        try:
+            if self.is_gzipped:
+                fp = gzip.open(self.filename)
+            else:
+                fp = open(self.filename)
+            data = np.zeros((frame_sz, len(frames), len(echos), len(slices),
+                             len(coils), len(passes)), dtype=np.complex)
+            for pi,passidx in enumerate(passes):
+                for ci,coilidx in enumerate(coils):
+                    for si,sliceidx in enumerate(slices):
+                        for ei,echoidx in enumerate(echos):
+                            for fi,frameidx in enumerate(frames):
+                                fp.seek(passidx*passsz + coilidx*coilsz +
+                                        sliceidx*slicesz + echoidx*echosz +
+                                        (frameidx+1)*frame_bytes + offset)
+                                dr = np.fromfile(fp, data_type, frame_sz * 2)
+                                dr = np.reshape(dr, (-1, 2)).T
+                                data[:, fi, ei, si, ci, pi] = dr[0] + dr[1]*1j
+
+            fp.close()
+        except (IOError, pfheader.PFHeaderError):
+            raise PFileError
+        return data
 
 
 class ArgumentParser(argparse.ArgumentParser):
