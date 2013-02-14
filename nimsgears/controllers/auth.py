@@ -51,7 +51,7 @@ class AuthController(BaseController):
 
     @expose()
     def index(self):
-        redirect('/auth/status')
+        redirect('/auth/browse')
 
     @expose('nimsgears.templates.activate')
     def activate(self, **kwargs):
