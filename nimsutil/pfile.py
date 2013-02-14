@@ -394,7 +394,7 @@ class PFile(object):
         """Create bval and bvec files from a pfile."""
         if tensor_file == None:
             tensor_file = os.path.join(self.filedir, '_'+self.basename+'_tensor.dat')
-        if ourbase == None:
+        if outbase == None:
             outbase = os.path.join(self.filedir, self.basename)
         with open(tensor_file) as fp:
             uid = fp.readline().rstrip()
