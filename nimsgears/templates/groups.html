@@ -39,7 +39,7 @@
     <div style="clear:left;">
         Research Group:
         <select id="group_select">
-            <option py:for="research_group in research_groups">${research_group}</option>
+            <option py:for="research_group in sorted(research_groups, key=lambda g: g.gid)">${research_group}</option>
         </select>
     </div>
 

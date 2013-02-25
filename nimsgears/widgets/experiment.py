@@ -12,7 +12,7 @@ def get_owners():
         research_groups = ResearchGroup.query.all()
     else:
         research_groups = user.pi_groups + user.manager_groups
-    return [group.gid for group in research_groups]
+    return sorted([group.gid for group in research_groups])
 
 class NewExperimentForm(twf.Form):
     submit = twf.SubmitButton(value="Create")
