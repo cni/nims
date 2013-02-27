@@ -33,37 +33,24 @@ class SearchController(NimsController):
             search_query = kwargs['search_query'].replace('*', '%')
             if search_query==None:
                 search_query = "*"
-            db_query = DBSession.query(Epoch, Session, Subject, Experiment)
+            db_query = (DBSession.query(Epoch, Session, Subject, Experiment)
+                        .join(Session, Epoch.session)
+                        .join(Subject, Session.subject)
+                        .join(Experiment, Subject.experiment))
             if kwargs['search_param'] == 'PSD Name':
-                db_query = (db_query
-                    .join(Session, Epoch.session)
-                    .join(Subject, Session.subject)
-                    .join(Experiment, Subject.experiment)
-                    .filter(Epoch.psd.ilike(search_query)))
+                db_query = db_query.filter(Epoch.psd.ilike(search_query))
             elif kwargs['search_param'] == 'Subject Name':
-                db_query = (db_query
-                    .join(Session, Epoch.session)
-                    .join(Subject, Session.subject)
-                    .join(Experiment, Subject.experiment)
-                    .filter(Subject.lastname.ilike(search_query)))
+                db_query = db_query.filter(Subject.lastname.ilike(search_query) | Subject.firstname.ilike(search_query))
             elif kwargs['search_param'] == 'Exam':
-                db_query = (db_query
-                    .join(Session, Epoch.session)
-                    .join(Subject, Session.subject)
-                    .join(Experiment, Subject.experiment)
-                    .filter(Session.exam == int(search_query)))
+                db_query = db_query.filter(Session.exam == int(search_query))
             elif kwargs['search_param'] == 'Operator':
-                db_query = (db_query
-                    .join(Session, Epoch.session)
-                    .join(Subject, Session.subject)
-                    .join(Experiment, Subject.experiment)
-                    .join(User)
-                    .filter(User.uid.ilike(search_query)))
+                db_query = (db_query.join(User)
+                    .filter(User.uid.ilike(search_query) | User.firstname.ilike(search_query) | User.lastname.ilike(search_query)))
             elif kwargs['search_param'] == 'Subject Age':
                 # TODO: allow more flexibility in age searches. E.g., "34", "34y", "408m", "=34", ">30", "<40", ">30y and <450m", "30 to 40", etc.
                 min_age = None
                 max_age = None
-                a = re.match(r"\s*>(\d+)\s*<(\d+)|\s*>(\d+)|\s*(\d+)\s*to\s*(\d+)|\s*>(\d+)|\s*(\d+)", search_query)
+                a = re.match(r"\s*>(\d+)\s*<(\d+)|\s*>(\d+)|\s*(\d+)\s*to\s*(\d+)|\s*<(\d+)|\s*(\d+)", search_query)
                 if a != None:
                     min_age = max(a.groups()[0:1]+a.groups()[2:4])
                     max_age = max(a.groups()[1:2]+a.groups()[4:5])
@@ -75,9 +62,6 @@ class SearchController(NimsController):
                 if max_age==None:
                     max_age = 999999999
                 db_query = (db_query
-                    .join(Session, Epoch.session)
-                    .join(Subject, Session.subject)
-                    .join(Experiment, Subject.experiment)
                     .filter(Session.timestamp - Subject.dob >= datetime.timedelta(days=float(min_age)*365.25))
                     .filter(Session.timestamp - Subject.dob <= datetime.timedelta(days=float(max_age)*365.25)))
 
