@@ -48,12 +48,6 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="exp_data, exp_attr in zip(exp_data_list, exp_attr_list)">
-                <tr py:attrs="exp_attr"> <!-- set id for expand queries done on rows later -->
-                    <td py:for="param in exp_data">${param}</td>
-                    <td></td> <!-- access level cell added on to the end -->
-                </tr>
-            </py:for>
         </tbody>
     </table>
     <table id="users" class="scrolltable" style="visibility:hidden">

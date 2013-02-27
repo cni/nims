@@ -38,6 +38,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     populateNextTableFn(table, data);
                     experiments.synchronizeSelections();
                     users.select();
+                    TableDragAndDrop.setupDroppable($(users._getBodyTable()), $(experiments.getRows()), dropAccessModification);
                 }
                 else
                 {
@@ -322,7 +323,6 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
 
         TableDragAndDrop.setupDraggable($(users._getBodyTable()));
         TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));
-        TableDragAndDrop.setupDroppable($(users._getBodyTable()), $(experiments.getRows()), dropAccessModification);
         TableDragAndDrop.setupDroppable($(experiments._getBodyTable()), $(users.getRows()), dropAccessModification);
 
         $("#access_dialog").dialog();

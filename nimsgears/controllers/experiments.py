@@ -14,10 +14,6 @@ class ExperimentsController(NimsController):
     def index(self, **kw):
         user = request.identity['user']
 
-        exp_data_list, exp_attr_list = self.get_experiments(user, True)
-        for exp_attr in exp_attr_list:
-            exp_attr['class'] = '' # don't need attributes in this case
-
         users = User.query.all()
         user_data_list = [(user.uid, user.name) for user in users]
         user_attr_list = [{'id': 'uid=%s' % user.uid} for user in users]
@@ -28,8 +24,6 @@ class ExperimentsController(NimsController):
         return dict(page='experiments',
                     user_data_list=user_data_list,
                     user_attr_list=user_attr_list,
-                    exp_data_list=exp_data_list,
-                    exp_attr_list=exp_attr_list,
                     user_columns=user_columns,
                     exp_columns=exp_columns,
                     )
@@ -46,7 +40,7 @@ class ExperimentsController(NimsController):
         # User we are requesting an experiment list from
         requested_user = User.query.filter_by(uid=id_).first()
         if user == requested_user:
-            visible_to_requested_user = user.get_experiments(including_trash=True, with_privilege=u'Manage', ignore_superuser=True)
+            visible_to_requested_user = user.get_experiments(including_trash=True, ignore_superuser=True)
             key_list = visible_to_requested_user.keys()
         else:
             # The requester needs to have manage access on an experiment to have
@@ -54,7 +48,7 @@ class ExperimentsController(NimsController):
             visible_to_requester = user.get_experiments(including_trash=True, with_privilege=u'Manage')
             # We then retrieve all things that the requested user has *any* form of
             # access to
-            visible_to_requested_user = requested_user.get_experiments(including_trash=True)
+            visible_to_requested_user = requested_user.get_experiments(including_trash=True, ignore_superuser=True)
 
             # Then perform a set intersection to determine those common to the two sets
             key_list = set(visible_to_requester.keys()) & set(visible_to_requested_user.keys())
@@ -72,19 +66,19 @@ class ExperimentsController(NimsController):
         experiment.
         """
         user = request.identity['user']
-        id_ = int(kwargs['id'])
+        exp = Experiment.get(int(kwargs['id']))
 
-        db_query = Experiment.query.filter_by(id=id_)
-        db_query = self.filter_access(db_query, user)
-        db_result = db_query.first()
+        if user.is_superuser:
+            db_results = DBSession.query(User, Access).join(Access).filter(Access.experiment == exp).all()
+        else:
+            user_access = DBSession.query(User, Access).join(Access).filter(Access.experiment == exp).filter(Access.user == user).first()
+            if user_access.Access.privilege < AccessPrivilege.value(u'Manage'):
+                db_results = [user_access]
+            else:
+                db_results = DBSession.query(User, Access).join(Access).filter(Access.experiment == exp).filter(Access.privilege >= AccessPrivilege.value(u'Manage')).all()
 
-        key_list = [access.user.uid for access in db_result.accesses]
-        acc_list = [AccessPrivilege.privilege_names[access.privilege] for access in db_result.accesses]
-        id_list = ['uid=%s' % key for key in key_list]
-        access_levels = dict(zip(id_list, acc_list))
-
-        return json.dumps(dict(success=True,
-                               access_levels=access_levels))
+        access_levels = dict([('uid=%s' % res.User.uid, AccessPrivilege.privilege_names[res.Access.privilege]) for res in db_results])
+        return json.dumps(dict(success=True, access_levels=access_levels))
 
     @expose()
     def get_access_privileges(self, **kwargs):
