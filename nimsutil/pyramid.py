@@ -92,9 +92,12 @@ class ImagePyramid(object):
         sx,sy = self.montage.size
         if sx*sy<1:
             raise ImagePyramidError('degenerate image size (%d,%d); no tiles will be created' % (sx, sy))
+        # Panojs seems to choke if the lowest res image is smaller than the tile size.
+        if sx<self.tile_size and sy<self.tile_size:
+            self.tile_size = max(sx,sy)
 
-        divs = max(0, int(np.ceil(np.log2(float(max(sx,sy))/self.tile_size))))
-        for iz in range(divs+1):
+        divs = max(1, int(np.ceil(np.log2(float(max(sx,sy))/self.tile_size))) + 1)
+        for iz in range(divs):
             z = divs - iz
             ysize = int(round(float(sy)/pow(2,iz)))
             xsize = int(round(float(ysize)/sy*sx))
