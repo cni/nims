@@ -93,7 +93,7 @@ class ImagePyramid(object):
         if sx*sy<1:
             raise ImagePyramidError('degenerate image size (%d,%d); no tiles will be created' % (sx, sy))
 
-        divs = int(np.ceil(np.log2(float(max(sx,sy))/self.tile_size)))
+        divs = max(0, int(np.ceil(np.log2(float(max(sx,sy))/self.tile_size))))
         for iz in range(divs+1):
             z = divs - iz
             ysize = int(round(float(sy)/pow(2,iz)))
@@ -206,7 +206,7 @@ class ArgumentParser(argparse.ArgumentParser):
         super(ArgumentParser, self).__init__()
         self.description = """Create a panojs-style image pyramid from a NIfTI file."""
         self.add_argument('-p', '--panojs_url', metavar='URL', help='URL for the panojs javascript.')
-        self.add_argument('-t', '--tilesize', default = 256, help='tile size (default is 256)')
+        self.add_argument('-t', '--tilesize', default = 256, type=int, help='tile size (default is 256)')
         self.add_argument('-m', '--montage', action="store_true", help='Save the full-size montage image (full pyramid will not be generated)')
         self.add_argument('filename', help='path to NIfTI file')
         self.add_argument('outdir', nargs='?', help='output directory')
