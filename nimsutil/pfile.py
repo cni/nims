@@ -150,8 +150,8 @@ class PFile(object):
         # we'd need to multiply by the # of phase encodes (accounting for any acceleration factors).
         # Even for planar sequences, this will be wrong (under-estimate) in case of cardiac-gating.
         self.prescribed_duration = datetime.timedelta(seconds=(self.num_timepoints * self.tr))
-        self.duration = self.prescribed_duration # The actual duration can only be computed after the data are loaded. Settled for rx duration for now.
-        # Compute the voxel size rather than use image.pixsize_X/Y
+        # The actual duration can only be computed after the data are loaded. Settled for rx duration for now.
+        self.duration = self.prescribed_duration        # Compute the voxel size rather than use image.pixsize_X/Y
         self.mm_per_vox = np.array([self.fov[0] / self.size_x,
                                     self.fov[1] / self.size_y,
                                     self.header.image.slthick + self.header.image.scanspacing])
@@ -160,16 +160,20 @@ class PFile(object):
         self.mm_per_vox = np.array([float(self.fov[0] / self.size_x),
                                     float(self.fov[1] / self.size_y),
                                     self.header.image.slthick + self.header.image.scanspacing])
-        # TODO: Set this correctly (in seconds!)! (it's in the dicom at (0x0043, 0x102c))
-        self.effective_echo_spacing = 0.0
+        self.effective_echo_spacing = self.header.image.effechospace
+        self.phase_encode_undersample = 1. / self.header.rec.ileaves
         # TODO: Set this correctly! (it's in the dicom at (0x0043, 0x1083))
-        self.phase_encode_undersample = 1.0
         self.slice_encode_undersample = 1.0
-        self.acquisition_matrix = [0,0,0] #dcm.AcquisitionMatrix[1:3] if 'AcquisitionMatrix' in dcm else None
+        self.acquisition_matrix = [None,None] #dcm.AcquisitionMatrix[1:3] if 'AcquisitionMatrix' in dcm else None
         # Diffusion params
         self.dwi_numdirs = self.header.rec.numdifdirs
         self.dwi_bvalue = self.header.image.b_value
         self.diffusion_flag = True if self.dwi_numdirs >= 6 else False
+        # if bit 4 of rhtype(int16) is set, then fractional NEX (i.e., partial ky acquisition) was used.
+        self.partial_ky = self.header.rec.scan_type & np.uint16(16) > 0
+        self.caipi = self.header.rec.user13   # true: CAIPIRINHA-type acquisition; false: Direct aliasing of all simultaneous slices.
+        self.cap_blip_start = self.header.rec.user14   # Starting index of the kz blips. 0~(mux-1) correspond to -kmax~kmax.
+        self.cap_blip_inc = self.header.rec.user15   # Increment of the kz blip index for adjacent acquired ky lines.
 
 
     def set_image_data(self, data_file):
@@ -298,6 +302,9 @@ class PFile(object):
         nii_header.set_slice_duration(nii_header.structarr['pixdim'][4] / self.num_slices)
         nii_header.structarr['cal_max'] = self.image_data.max()
         nii_header.structarr['cal_min'] = self.image_data.min()
+        # Unused fields: nii_header['data_type'] (10 chars), nii_header['db_name'] (18 chars),
+        # The description field is a max of 80 chars.
+        nii_header['descrip'] = "te_ms=%.2f;ecsp_ms=%.4f;r=%.1f;" % (self.te*1000., self.effective_echo_spacing*1000., 1./self.phase_encode_undersample)
 
         if self.num_echos == 1:
             nifti = nibabel.Nifti1Image(self.image_data, None, nii_header)

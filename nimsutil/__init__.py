@@ -14,7 +14,7 @@ try:
 except:
     print 'Warning: could not import dicomutil module'
 else:
-    datatypes += [dicomutil.DicomFile]
+    datatypes += [dicomutil.DicomAcquisition]
 
 try:
     import pfile

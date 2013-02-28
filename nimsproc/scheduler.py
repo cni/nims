@@ -59,7 +59,7 @@ class Scheduler(object):
                 for ds in [ds for ds in dc.original_datasets if not ds.compressed]:
                     self.log.info(u'Compressing %s %s' % (dc, ds.filetype))
                     dataset_path = os.path.join(self.nims_path, ds.relpath)
-                    if ds.filetype == nimsutil.dicomutil.DicomFile.filetype:
+                    if ds.filetype == nimsutil.dicomutil.DicomAcquisition.filetype:
                         arcdir = '%d_%d_%d_dicoms' % (dc.session.exam, dc.series, dc.acq)
                         arcdir_path = os.path.join(dataset_path, arcdir)
                         os.mkdir(arcdir_path)

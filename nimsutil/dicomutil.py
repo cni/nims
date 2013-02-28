@@ -2,6 +2,7 @@
 #
 # @author:  Reno Bowen
 #           Gunnar Schaefer
+#           Bob Dougherty
 
 from __future__ import print_function
 
@@ -46,14 +47,11 @@ class DicomError(Exception):
     pass
 
 
-class DicomFile(object):
-
+class DicomAcquisition(object):
     filetype = u'dicom'
     priority = 0
 
-    def __init__(self, filename):
-        self.filename = filename
-
+    def __init__(self, dcm_path, log=None):
         def acq_date(dcm):
             if 'AcquisitionDate' in dcm:    return dcm.AcquisitionDate
             elif 'StudyDate' in dcm:        return dcm.StudyDate
@@ -64,8 +62,21 @@ class DicomFile(object):
             elif 'StudyTime' in dcm:        return dcm.StudyTime
             else:                           return '000000'
 
+        self.dcm_path = dcm_path
+        self.dcm_list = None
+        self.log = log
+
         try:
-            dcm = dicom.read_file(self.filename, stop_before_pixels=True)
+            if os.path.isfile(dcm_path) and tarfile.is_tarfile(dcm_path):
+                with tarfile.open(dcm_path) as archive:
+                    archive.next()  # skip over top-level directory
+                    dcm = dicom.read_file(cStringIO.StringIO(archive.extractfile(archive.next()).read()), stop_before_pixels=True)
+            elif os.path.isfile(dcm_path):
+                # A single dicom file
+                dcm = dicom.read_file(dcm_path, stop_before_pixels=True)
+            else:
+                # Assume it's a directory of dicoms
+                dcm = dicom.read_file(os.path.join(dcm_path, os.listdir(dcm_path)[0]), stop_before_pixels=True)
             if dcm.Manufacturer != 'GE MEDICAL SYSTEMS':    # TODO: make code more general
                 raise DicomError
         except (IOError, dicom.filereader.InvalidDicomError):
@@ -112,53 +123,58 @@ class DicomFile(object):
             self.fov = [float(dcm.ReconstructionDiameter), float(dcm.ReconstructionDiameter) / float(dcm.PercentPhaseFieldOfView)] if 'ReconstructionDiameter' in dcm and 'PercentPhaseFieldOfView' in dcm else [0.0, 0.0]
             if self.phase_encode == 1:
                 self.fov = self.fov[::-1]
-            self.acquisition_matrix = dcm.AcquisitionMatrix[1:3] if 'AcquisitionMatrix' in dcm else None
-            if 'ImageType' in dcm and dcm.ImageType==TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in dcm and dcm[TAG_DIFFUSION_DIRS].value > 0:
+                # The Acquisition matrix field includes four values: [freq rows, freq columns, phase rows, phase columns].
+                # E.g., for a 64x64 image, it would be [64,0,0,64] if the image row axis was the frequency encoding axis or
+                # [0,64,64,0] if the image row was the phase encoding axis. We'll just save all four values.
+                self.acquisition_matrix = dcm.AcquisitionMatrix[0:4:3] if 'AcquisitionMatrix' in dcm else [None,None]
+            else:
+                self.acquisition_matrix = dcm.AcquisitionMatrix[1:3] if 'AcquisitionMatrix' in dcm else [None,None]
+
+            if 'ImageType' in dcm and dcm.ImageType==TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in dcm and dcm[TAG_DIFFUSION_DIRS].value >= 6:
                 self.diffusion_flag = True
             else:
                 self.diffusion_flag = False
             self.effective_echo_spacing = float(dcm[TAG_EPI_EFFECTIVE_ECHO_SPACING].value)/1.0e6 if TAG_EPI_EFFECTIVE_ECHO_SPACING in dcm else 0.0
-            # TODO: find the ASSET/ARC undersample factor and store it here
             self.phase_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[0]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
             self.slice_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[1]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
             # Assume that dicoms are never multiband
             self.num_bands = 1
+            self.image_type = getattr(dcm, 'ImageType', None)
+            self.cosines = getattr(dcm, 'ImageOrientationPatient', [None,None,None,None,None,None])
 
-class DicomAcquisition(object):
-
-    def __init__(self, dcm_path, log=None):
-        if os.path.isfile(dcm_path) and tarfile.is_tarfile(dcm_path):
-            with tarfile.open(dcm_path) as archive:
+    def load_all_dicoms(self):
+        if os.path.isfile(self.dcm_path) and tarfile.is_tarfile(self.dcm_path):
+            with tarfile.open(self.dcm_path) as archive:
                 archive.next()  # skip over top-level directory
                 dcm_list = [dicom.read_file(cStringIO.StringIO(archive.extractfile(ti).read())) for ti in archive]  # dead-slow w/o StringIO
+        elif os.path.isfile(self.dcm_path):
+            dcm_list = [dicom.read_file(self.dcm_path)]
         else:
-            dcm_list = [dicom.read_file(os.path.join(dcm_path, f)) for f in os.listdir(dcm_path)]
+            dcm_list = [dicom.read_file(os.path.join(self.dcm_path, f)) for f in os.listdir(self.dcm_path)]
         self.dcm_list = sorted(dcm_list, key=lambda dcm: dcm.InstanceNumber)
-        self.first_dcm = self.dcm_list[0]
-        self.log = log
 
     def convert(self, outbase):
+        self.dcm_list or self.load_all_dicoms()
         result = (None, None)
-        try:
-            image_type = self.first_dcm.ImageType
-        except:
+        if not self.image_type:
+            # *** Should we raise an exception here? (Old code did) ***
             msg = 'dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase)
             self.log.warning(msg) if self.log else print(msg)
         else:
-            if image_type == TYPE_SCREEN:
-                self.to_img(outbase)
+            if self.image_type == TYPE_SCREEN:
+                self._to_img(outbase)
                 result = ('bitmap', None)
-            if image_type == TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in self.first_dcm and self.first_dcm[TAG_DIFFUSION_DIRS].value > 0:
-                self.to_dti(outbase)
+            if self.diffusion_flag:
+                self._to_dti(outbase)
                 result = ('nifti', None)
-            if 'PRIMARY' in image_type:
-                result = ('nifti', self.to_nii(outbase))
+            if 'PRIMARY' in self.image_type:
+                result = ('nifti', self._to_nii(outbase))
             if result[0] is None:
                 msg = 'dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase)
                 self.log.warning(msg) if self.log else print(msg)
         return result
 
-    def to_img(self, outbase):
+    def _to_img(self, outbase):
         """Create bitmap files for each image in a list of dicoms."""
         for i, pixels in enumerate([dcm.pixel_array for dcm in self.dcm_list]):
             filename = outbase + '_%d.png' % (i+1)
@@ -173,7 +189,7 @@ class DicomAcquisition(object):
                     png.Writer(pixels.shape[0], pixels.shape[1]/3).write(fd, pixels)
             self.log and self.log.debug('generated %s' % os.path.basename(filename))
 
-    def to_dti(self, outbase):
+    def _to_dti(self, outbase):
         """Create bval and bvec files from an ordered list of dicoms."""
         images_per_volume = self.dcm_list[0][TAG_SLICES_PER_VOLUME].value
         bvals = np.array([dcm[TAG_BVALUE].value[0] for dcm in self.dcm_list[0::images_per_volume]], dtype=float)
@@ -189,9 +205,8 @@ class DicomAcquisition(object):
             bvecs_file.write(' '.join(['%f' % value for value in bvecs[2,:]]) + '\n')
         self.log and self.log.debug('generated %s' % os.path.basename(filename))
 
-    def to_nii(self, outbase):
+    def _to_nii(self, outbase):
         """Create a single nifti file from an ordered list of dicoms."""
-        # TODO: get effective_echo_spacing and acquisition_matrix into the header somehow.
         flipped = False
         slice_loc = [dcm_i.SliceLocation for dcm_i in self.dcm_list]
         slice_num = [dcm_i.InstanceNumber for dcm_i in self.dcm_list]
@@ -200,14 +215,14 @@ class DicomAcquisition(object):
 
         unique_slice_pos = np.unique(image_position).astype(np.float)
         slices_per_volume = len(unique_slice_pos) # also: image[TAG_SLICES_PER_VOLUME].value
-        num_volumes = self.first_dcm.ImagesinAcquisition / slices_per_volume
+        num_volumes = self.total_num_slices / slices_per_volume
         if num_volumes == 1:
             # crude check for a 3-plane localizer. When we get one of these, we actually
             # want each plane to be a different time point.
             d = np.sqrt((np.diff(unique_slice_pos,axis=0)**2).sum(1))
             num_volumes = np.sum((d - np.median(d)) > 10) + 1
-            slices_per_volume = self.first_dcm.ImagesinAcquisition / num_volumes
-        dims = np.array((self.first_dcm.Rows, self.first_dcm.Columns, slices_per_volume, num_volumes))
+            slices_per_volume = self.total_num_slices / num_volumes
+        dims = np.array((self.size_y, self.size_x, slices_per_volume, num_volumes))
         slices_total = len(self.dcm_list)
 
         # If we can figure the dimensions out, reshape the matrix
@@ -220,7 +235,7 @@ class DicomAcquisition(object):
             slices_padding = slices_total_rounded_up - slices_total
             if slices_padding: #LOOK AT THIS MORE CLOSELY TODO
                 self.log and self.log.debug("dimensions indicate missing slices from volume - zero padding the gap")
-                padding = np.zeros((self.first_dcm.Rows, self.first_dcm.Columns, slices_padding))
+                padding = np.zeros((self.size_y, self.size_x, slices_padding))
                 image_data = np.dstack([image_data, padding])
             volume_start_indices = range(0, slices_total_rounded_up, slices_per_volume)
             image_data = np.concatenate([image_data[:,:,index:(index + slices_per_volume),np.newaxis] for index in volume_start_indices], axis=3)
@@ -236,10 +251,8 @@ class DicomAcquisition(object):
             for vol_num in range(num_volumes):
                 image_data[:,:,:,vol_num] = tmp[:,:,vol_num::num_volumes]
 
-        mm_per_vox = np.hstack((self.first_dcm.PixelSpacing, self.first_dcm.SpacingBetweenSlices)).astype(float)
-
-        row_cosines = self.first_dcm.ImageOrientationPatient[0:3]
-        col_cosines = self.first_dcm.ImageOrientationPatient[3:6]
+        row_cosines = self.cosines[0:3]
+        col_cosines = self.cosines[3:6]
         slice_norm = np.cross(row_cosines, col_cosines)
 
         qto_xyz = np.zeros((4,4))
@@ -265,7 +278,7 @@ class DicomAcquisition(object):
 
         pos = image_position[0]
         qto_xyz[:,3] = np.array((-pos[0], -pos[1], pos[2], 1)).T
-        qto_xyz[0:3,0:3] = np.dot(qto_xyz[0:3,0:3], np.diag(mm_per_vox))
+        qto_xyz[0:3,0:3] = np.dot(qto_xyz[0:3,0:3], np.diag(self.mm_per_vox))
 
         nii_header = nibabel.Nifti1Header()
         nii_header.set_xyzt_units('mm', 'sec')
@@ -275,7 +288,7 @@ class DicomAcquisition(object):
         nii_header['slice_start'] = 0
         nii_header['slice_end'] = slices_per_volume - 1
         slice_order = SLICE_ORDER_UNKNOWN
-        if slices_total >= slices_per_volume and 'TriggerTime' in self.first_dcm and self.first_dcm.TriggerTime != '':
+        if slices_total >= slices_per_volume and 'TriggerTime' in self.dcm_list[0] and self.dcm_list[0].TriggerTime != '':
             first_volume = self.dcm_list[0:slices_per_volume]
             trigger_times = np.array([dcm_i.TriggerTime for dcm_i in first_volume])
             trigger_times_from_first_slice = trigger_times[0] - trigger_times
@@ -290,16 +303,24 @@ class DicomAcquisition(object):
                 slice_order = SLICE_ORDER_SEQ_INC
         nii_header['slice_code'] = slice_order
 
-        if TAG_PHASE_ENCODE_DIR in self.first_dcm and self.first_dcm[TAG_PHASE_ENCODE_DIR].value == 'ROWS':
+        if self.phase_encode == 0: # self[TAG_PHASE_ENCODE_DIR].value == 'ROWS':
             fps_dim = [1, 0, 2]
         else:
             fps_dim = [0, 1, 2]
         nii_header.set_dim_info(*fps_dim)
 
-        nii_header.structarr['pixdim'][4] = float(self.first_dcm.RepetitionTime) / 1000.
+        nii_header.structarr['pixdim'][4] = self.tr
 
         if image_data.dtype == np.dtype('int16'):
             nii_header.set_data_dtype(np.int16)
+
+        # Let's stuff some extra data into the description field (max of 80 chars)
+        nii_header['descrip'] = "te_ms=%.2f;ecsp_ms=%.4f;r=%.1f;acq=[%s];" % (
+                                 self.te * 1000.,
+                                 self.effective_echo_spacing * 1000.,
+                                 1. / self.phase_encode_undersample,
+                                 ','.join(map(str, self.acquisition_matrix)))
+        # Other unused fields: nii_header['data_type'] (10 chars), nii_header['db_name'] (18 chars),
 
         nifti = nibabel.Nifti1Image(image_data, None, nii_header)
         filename = outbase + '.nii.gz'

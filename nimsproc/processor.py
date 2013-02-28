@@ -52,7 +52,7 @@ class Processor(object):
                 if job:
                     if isinstance(job.data_container, Epoch):
                         ds = job.data_container.primary_dataset
-                        if ds.filetype == nimsutil.dicomutil.DicomFile.filetype:
+                        if ds.filetype == nimsutil.dicomutil.DicomAcquisition.filetype:
                             pipeline_class = DicomPipeline
                         elif ds.filetype == nimsutil.pfile.PFile.filetype:
                             pipeline_class = PFilePipeline
