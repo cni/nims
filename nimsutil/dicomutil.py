@@ -35,6 +35,7 @@ TAG_SLICES_PER_VOLUME = (0x0021, 0x104f)
 TAG_DIFFUSION_DIRS =    (0x0019, 0x10e0)
 TAG_BVALUE =            (0x0043, 0x1039)
 TAG_BVEC =              [(0x0019, 0x10bb), (0x0019, 0x10bc), (0x0019, 0x10bd)]
+TAG_MTOFF_HZ =          (0x0043, 0x1034)
 
 SLICE_ORDER_UNKNOWN = 0
 SLICE_ORDER_SEQ_INC = 1
@@ -101,6 +102,7 @@ class DicomAcquisition(object):
             self.flip_angle = float(getattr(dcm, 'FlipAngle', 0.0))
             self.pixel_bandwidth = float(getattr(dcm, 'PixelBandwidth', 0.0))
             self.phase_encode = 1 if 'InPlanePhaseEncodingDirection' in dcm and dcm.InPlanePhaseEncodingDirection == 'COL' else 0
+            self.mt_offset_hz = float(dcm[TAG_MTOFF_HZ].value) if TAG_MTOFF_HZ in dcm else 0.0
 
             self.total_num_slices = int(getattr(dcm, 'ImagesInAcquisition', 0))
             self.num_slices = int(dcm[TAG_SLICES_PER_VOLUME].value) if TAG_SLICES_PER_VOLUME in dcm else 1
@@ -315,11 +317,14 @@ class DicomAcquisition(object):
             nii_header.set_data_dtype(np.int16)
 
         # Let's stuff some extra data into the description field (max of 80 chars)
-        nii_header['descrip'] = "te_ms=%.2f;ecsp_ms=%.4f;r=%.1f;acq=[%s];" % (
+        nii_header['descrip'] = "te=%.2f;ti=%.0f;fa=%.0f;ec=%.4f;r=%.1f;acq=[%s];mt=%.0f;" % (
                                  self.te * 1000.,
+                                 self.ti * 1000.,
+                                 self.flip_angle,
                                  self.effective_echo_spacing * 1000.,
                                  1. / self.phase_encode_undersample,
-                                 ','.join(map(str, self.acquisition_matrix)))
+                                 ','.join(map(str, self.acquisition_matrix)),
+                                 self.mt_offset_hz)
         # Other unused fields: nii_header['data_type'] (10 chars), nii_header['db_name'] (18 chars),
 
         nifti = nibabel.Nifti1Image(image_data, None, nii_header)

@@ -95,6 +95,7 @@ class PFile(object):
         self.flip_angle = float(self.header.image.mr_flip)
         self.pixel_bandwidth = self.header.rec.bw
         self.phase_encode = 1 if self.header.image.freq_dir == 0 else 0
+        self.mt_offset_hz = self.header.image.offsetfreq
 
         self.num_slices = self.header.rec.nslices
         self.num_averages = self.header.image.averages
@@ -160,7 +161,7 @@ class PFile(object):
         self.mm_per_vox = np.array([float(self.fov[0] / self.size_x),
                                     float(self.fov[1] / self.size_y),
                                     self.header.image.slthick + self.header.image.scanspacing])
-        self.effective_echo_spacing = self.header.image.effechospace
+        self.effective_echo_spacing = self.header.image.effechospace / 1.e6
         self.phase_encode_undersample = 1. / self.header.rec.ileaves
         # TODO: Set this correctly! (it's in the dicom at (0x0043, 0x1083))
         self.slice_encode_undersample = 1.0
@@ -303,11 +304,14 @@ class PFile(object):
         nii_header.structarr['cal_max'] = self.image_data.max()
         nii_header.structarr['cal_min'] = self.image_data.min()
         # Let's stuff some extra data into the description field (max of 80 chars)
-        nii_header['descrip'] = "te_ms=%.2f;ecsp_ms=%.4f;r=%.1f;acq=[%s];" % (
+        nii_header['descrip'] = "te=%.2f;ti=%.0f;fa=%.0f;ec=%.4f;r=%.1f;acq=[%s];mt=%.0f;" % (
                                  self.te * 1000.,
+                                 self.ti * 1000.,
+                                 self.flip_angle,
                                  self.effective_echo_spacing * 1000.,
                                  1. / self.phase_encode_undersample,
-                                 ','.join(map(str, self.acquisition_matrix)))
+                                 ','.join(map(str, self.acquisition_matrix)),
+                                 self.mt_offset_hz)
         # Other unused fields: nii_header['data_type'] (10 chars), nii_header['db_name'] (18 chars),
 
         if self.num_echos == 1:
