@@ -164,7 +164,7 @@ class PFile(object):
         self.phase_encode_undersample = 1. / self.header.rec.ileaves
         # TODO: Set this correctly! (it's in the dicom at (0x0043, 0x1083))
         self.slice_encode_undersample = 1.0
-        self.acquisition_matrix = [None,None] #dcm.AcquisitionMatrix[1:3] if 'AcquisitionMatrix' in dcm else None
+        self.acquisition_matrix = [self.header.rec.rc_xres, self.header.rec.rc_yres]
         # Diffusion params
         self.dwi_numdirs = self.header.rec.numdifdirs
         self.dwi_bvalue = self.header.image.b_value
@@ -302,9 +302,13 @@ class PFile(object):
         nii_header.set_slice_duration(nii_header.structarr['pixdim'][4] / self.num_slices)
         nii_header.structarr['cal_max'] = self.image_data.max()
         nii_header.structarr['cal_min'] = self.image_data.min()
-        # Unused fields: nii_header['data_type'] (10 chars), nii_header['db_name'] (18 chars),
-        # The description field is a max of 80 chars.
-        nii_header['descrip'] = "te_ms=%.2f;ecsp_ms=%.4f;r=%.1f;" % (self.te*1000., self.effective_echo_spacing*1000., 1./self.phase_encode_undersample)
+        # Let's stuff some extra data into the description field (max of 80 chars)
+        nii_header['descrip'] = "te_ms=%.2f;ecsp_ms=%.4f;r=%.1f;acq=[%s];" % (
+                                 self.te * 1000.,
+                                 self.effective_echo_spacing * 1000.,
+                                 1. / self.phase_encode_undersample,
+                                 ','.join(map(str, self.acquisition_matrix)))
+        # Other unused fields: nii_header['data_type'] (10 chars), nii_header['db_name'] (18 chars),
 
         if self.num_echos == 1:
             nifti = nibabel.Nifti1Image(self.image_data, None, nii_header)
