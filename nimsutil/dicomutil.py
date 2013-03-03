@@ -209,6 +209,7 @@ class DicomAcquisition(object):
 
     def _to_nii(self, outbase):
         """Create a single nifti file from an ordered list of dicoms."""
+        notes_filename = outbase + '_README.txt'
         flipped = False
         slice_loc = [dcm_i.SliceLocation for dcm_i in self.dcm_list]
         slice_num = [dcm_i.InstanceNumber for dcm_i in self.dcm_list]
@@ -236,7 +237,10 @@ class DicomAcquisition(object):
             slices_total_rounded_up = ((slices_total + slices_per_volume - 1) / slices_per_volume) * slices_per_volume
             slices_padding = slices_total_rounded_up - slices_total
             if slices_padding: #LOOK AT THIS MORE CLOSELY TODO
-                self.log and self.log.debug("dimensions indicate missing slices from volume - zero padding the gap")
+                msg = "dimensions indicate missing slices from volume - zero padding with %d slices." % slices_padding
+                self.log.warning(msg) if self.log else print(msg)
+                with open(notes_filename, 'at') as fp:
+                    fp.write('WARNING: ' + msg + '\n')
                 padding = np.zeros((self.size_y, self.size_x, slices_padding))
                 image_data = np.dstack([image_data, padding])
             volume_start_indices = range(0, slices_total_rounded_up, slices_per_volume)
@@ -249,7 +253,17 @@ class DicomAcquisition(object):
         #       an expensive loop and a copy of the data, which doubles memory usage. Instead, try
         #       to do the de-interleaving up front in the beginning.
         if num_volumes>1 and slice_loc[0::num_volumes]==slice_loc[1::num_volumes] and image_data.ndim==4:
-            tmp = image_data.copy().reshape([image_data.shape[0],image_data.shape[1],np.prod(image_data.shape[2:4])], order='F')
+            # If a scan was aborted, the number of volumes might be less than the target number of
+            # volumes (num_volumes). We'll zero-pad in that case.
+            if image_data.shape[3] < num_volumes:
+                pad_vols = num_volumes - image_data.shape[3]
+                msg = "dimensions indicate missing data - zero padding with %d volumes." % pad_vols
+                self.log.warning(msg) if self.log else print(msg)
+                image_data = np.append(image_data, np.zeros(image_data.shape[0:3]+(pad_vols,), dtype=image_data.dtype), axis=3)
+                with open(notes_filename, 'at') as fp:
+                    fp.write('WARNING: ' + msg + '\n')
+            nvols = np.prod(image_data.shape[2:4])
+            tmp = image_data.copy().reshape([image_data.shape[0], image_data.shape[1], nvols], order='F')
             for vol_num in range(num_volumes):
                 image_data[:,:,:,vol_num] = tmp[:,:,vol_num::num_volumes]
 
