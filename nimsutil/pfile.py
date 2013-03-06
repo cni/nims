@@ -170,6 +170,10 @@ class PFile(object):
         self.dwi_numdirs = self.header.rec.numdifdirs
         self.dwi_bvalue = self.header.image.b_value
         self.diffusion_flag = True if self.dwi_numdirs >= 6 else False
+        if self.diffusion_flag and self.dwi_bvalue==0:
+            msg = 'the data appear to be diffusion-weighted, but image.b_value is 0!'
+            self.log.warning(msg) if self.log else print(msg)
+
         # if bit 4 of rhtype(int16) is set, then fractional NEX (i.e., partial ky acquisition) was used.
         self.partial_ky = self.header.rec.scan_type & np.uint16(16) > 0
         self.caipi = self.header.rec.user13   # true: CAIPIRINHA-type acquisition; false: Direct aliasing of all simultaneous slices.
@@ -429,13 +433,13 @@ class PFile(object):
         bvecs = np.hstack((np.zeros((3,num_nondwi), dtype=float), bvecs.reshape(self.dwi_numdirs, 3).T))
         filename = outbase + '.bval'
         with open(filename, 'w') as bvals_file:
-            bvals_file.write(' '.join(['%f' % value for value in bvals]))
+!            bvals_file.write(' '.join(['%.1f' % value for value in bvals]))
         self.log and self.log.debug('generated %s' % os.path.basename(filename))
         filename = outbase + '.bvec'
         with open(filename, 'w') as bvecs_file:
-            bvecs_file.write(' '.join(['%f' % value for value in bvecs[0,:]]) + '\n')
-            bvecs_file.write(' '.join(['%f' % value for value in bvecs[1,:]]) + '\n')
-            bvecs_file.write(' '.join(['%f' % value for value in bvecs[2,:]]) + '\n')
+            bvecs_file.write(' '.join(['%.6f' % value for value in bvecs[0,:]]) + '\n')
+            bvecs_file.write(' '.join(['%.6f' % value for value in bvecs[1,:]]) + '\n')
+            bvecs_file.write(' '.join(['%.6f' % value for value in bvecs[2,:]]) + '\n')
         self.log and self.log.debug('generated %s' % os.path.basename(filename))
 
 
