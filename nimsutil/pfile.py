@@ -53,7 +53,7 @@ class PFile(object):
         self.image_data = None
         self.fm_data = None
         with open(self.filename,'rb') as fp:
-            self.is_gzipped = (fp.read(2) == '\x1f\x8b')
+            self.compressed = (fp.read(2) == '\x1f\x8b')
         self.get_metadata()
         self.basename = os.path.basename(self.filename)
         if self.basename.endswith('.gz'):
@@ -63,7 +63,7 @@ class PFile(object):
     def get_metadata(self):
         """ Get useful metadata fields from the pfile header. These should be consistent with the fields that dicomutil yields. """
         try:
-            if self.is_gzipped:
+            if self.compressed:
                 fp = gzip.open(self.filename)
             else:
                 fp = open(self.filename)
@@ -362,7 +362,7 @@ class PFile(object):
     def recon_spirec(self, executable='spirec'):
         """Do spiral image reconstruction and populate self.image_data."""
         with nimsutil.TempDirectory(dir=self.tmpdir) as tmpdir:
-            if self.is_gzipped:
+            if self.compressed:
                 pfile_path = os.path.join(tmpdir, os.path.basename(self.filename))
                 with open(pfile_path, 'wb') as fd:
                     with gzip.open(self.filename, 'rb') as gzfile:
@@ -385,7 +385,7 @@ class PFile(object):
         if not os.path.isfile(ref_file) or not os.path.isfile(vrgf_file):
             raise PFileError('dat files not found')
         with nimsutil.TempDirectory(dir=self.tmpdir) as tmpdir:
-            if self.is_gzipped:
+            if self.compressed:
                 shutil.copy(ref_file, os.path.join(tmpdir, os.path.basename(ref_file)))
                 shutil.copy(vrgf_file, os.path.join(tmpdir, os.path.basename(vrgf_file)))
                 pfile_path = os.path.join(tmpdir, self.basename)
@@ -433,7 +433,7 @@ class PFile(object):
         bvecs = np.hstack((np.zeros((3,num_nondwi), dtype=float), bvecs.reshape(self.dwi_numdirs, 3).T))
         filename = outbase + '.bval'
         with open(filename, 'w') as bvals_file:
-!            bvals_file.write(' '.join(['%.1f' % value for value in bvals]))
+            bvals_file.write(' '.join(['%.1f' % value for value in bvals]))
         self.log and self.log.debug('generated %s' % os.path.basename(filename))
         filename = outbase + '.bvec'
         with open(filename, 'w') as bvecs_file:
@@ -497,7 +497,7 @@ class PFile(object):
         # Byte-offset to get to the data:
         offset = self.header.rec.off_data
         try:
-            if self.is_gzipped:
+            if self.compressed:
                 fp = gzip.open(self.filename)
             else:
                 fp = open(self.filename)

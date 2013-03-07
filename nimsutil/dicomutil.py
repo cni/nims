@@ -68,16 +68,19 @@ class DicomAcquisition(object):
         self.log = log
 
         try:
-            if os.path.isfile(dcm_path) and tarfile.is_tarfile(dcm_path):
-                with tarfile.open(dcm_path) as archive:
+            if os.path.isfile(self.dcm_path) and tarfile.is_tarfile(self.dcm_path):
+                with tarfile.open(self.dcm_path) as archive:
                     archive.next()  # skip over top-level directory
                     dcm = dicom.read_file(cStringIO.StringIO(archive.extractfile(archive.next()).read()), stop_before_pixels=True)
-            elif os.path.isfile(dcm_path):
+                self.compressed = True
+            elif os.path.isfile(self.dcm_path):
                 # A single dicom file
-                dcm = dicom.read_file(dcm_path, stop_before_pixels=True)
+                dcm = dicom.read_file(self.dcm_path, stop_before_pixels=True)
+                self.compressed = False
             else:
                 # Assume it's a directory of dicoms
-                dcm = dicom.read_file(os.path.join(dcm_path, os.listdir(dcm_path)[0]), stop_before_pixels=True)
+                dcm = dicom.read_file(os.path.join(self.dcm_path, os.listdir(self.dcm_path)[0]), stop_before_pixels=True)
+                self.compressed = False
             if dcm.Manufacturer != 'GE MEDICAL SYSTEMS':    # TODO: make code more general
                 raise DicomError
         except (IOError, dicom.filereader.InvalidDicomError):
