@@ -137,8 +137,17 @@ class DicomAcquisition(object):
             else:
                 self.diffusion_flag = False
             self.effective_echo_spacing = float(dcm[TAG_EPI_EFFECTIVE_ECHO_SPACING].value)/1.0e6 if TAG_EPI_EFFECTIVE_ECHO_SPACING in dcm else 0.0
-            self.phase_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[0]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
-            self.slice_encode_undersample = float(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value[1]) if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm else 1.0
+            # The R-factor (phase/slice undersample) field usualy contains a list of length 2, with each element containing
+            # a string that represents a float. But these two floats have been known to be stuffed into a single string,
+            # separated by two slashes (e.g., in a GE "Cerebral Blood Flow" image derived from and ASL scan).
+            if TAG_PHASE_ENCODE_UNDERSAMPLE in dcm and isinstance(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value, list):
+                r = dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value
+            elif TAG_PHASE_ENCODE_UNDERSAMPLE in dcm and isinstance(dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value, str):
+                r = dcm[TAG_PHASE_ENCODE_UNDERSAMPLE].value.split('\\')
+            else:
+                r = [1.,1.]
+            self.phase_encode_undersample = float(r[0])
+            self.slice_encode_undersample = float(r[1])
             # Assume that dicoms are never multiband
             self.num_bands = 1
             self.image_type = getattr(dcm, 'ImageType', None)
@@ -331,14 +340,18 @@ class DicomAcquisition(object):
             nii_header.set_data_dtype(np.int16)
 
         # Let's stuff some extra data into the description field (max of 80 chars)
-        nii_header['descrip'] = "te=%.2f;ti=%.0f;fa=%.0f;ec=%.4f;r=%.1f;acq=[%s];mt=%.0f;" % (
+        nii_header['descrip'] = 'te=%.2f;ti=%.0f;fa=%.0f;ec=%.4f;acq=[%s];mt=%.0f;rp=%.1f;' % (
                                  self.te * 1000.,
                                  self.ti * 1000.,
                                  self.flip_angle,
                                  self.effective_echo_spacing * 1000.,
-                                 1. / self.phase_encode_undersample,
                                  ','.join(map(str, self.acquisition_matrix)),
-                                 self.mt_offset_hz)
+                                 self.mt_offset_hz,
+                                 1. / self.phase_encode_undersample)
+        # For 3D acquisitions, we'll add the slice R-factor
+        if '3D' in self.acquisition_type:
+            nii_header['descrip'] = str(nii_header['descrip']) + 'rs=%.1f' % (1. / self.slice_encode_undersample)
+
         # Other unused fields: nii_header['data_type'] (10 chars), nii_header['db_name'] (18 chars),
 
         nifti = nibabel.Nifti1Image(image_data, None, nii_header)
