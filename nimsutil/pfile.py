@@ -69,8 +69,8 @@ class PFile(object):
                 fp = open(self.filename)
             self.header = pfheader.get_header(fp)
             fp.close()
-        except (IOError, pfheader.PFHeaderError):
-            raise PFileError
+        except (IOError, pfheader.PFHeaderError) as e:
+            raise PFileError(e)
         self.exam_no = self.header.exam.ex_no
         self.series_no = self.header.series.se_no
         self.acq_no = self.header.image.scanactno
