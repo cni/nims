@@ -123,8 +123,8 @@ class DicomAcquisition(object):
             self.acquisition_type = getattr(dcm, 'MRAcquisitionType', 'unknown')
             self.mm_per_vox = [float(i) for i in dcm.PixelSpacing + [dcm.SpacingBetweenSlices]] if 'PixelSpacing' in dcm and 'SpacingBetweenSlices' in dcm else [0.0, 0.0, 0.0]
             # FIXME: confirm that DICOM (Columns,Rows) = PFile (X,Y)
-            self.size_x = int(getattr(dcm, 'Columns', None))
-            self.size_y = int(getattr(dcm, 'Rows', None))
+            self.size_x = int(getattr(dcm, 'Columns', 0))
+            self.size_y = int(getattr(dcm, 'Rows', 0))
             self.fov = [float(dcm.ReconstructionDiameter), float(dcm.ReconstructionDiameter) / float(dcm.PercentPhaseFieldOfView)] if 'ReconstructionDiameter' in dcm and 'PercentPhaseFieldOfView' in dcm else [0.0, 0.0]
             if self.phase_encode == 1:
                 self.fov = self.fov[::-1]
