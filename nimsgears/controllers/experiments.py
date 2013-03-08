@@ -75,7 +75,7 @@ class ExperimentsController(NimsController):
             if user_access.Access.privilege < AccessPrivilege.value(u'Manage'):
                 db_results = [user_access]
             else:
-                db_results = DBSession.query(User, Access).join(Access).filter(Access.experiment == exp).filter(Access.privilege >= AccessPrivilege.value(u'Manage')).all()
+                db_results = DBSession.query(User, Access).join(Access).filter(Access.experiment == exp).all()
 
         access_levels = dict([('uid=%s' % res.User.uid, AccessPrivilege.privilege_names[res.Access.privilege]) for res in db_results])
         return json.dumps(dict(success=True, access_levels=access_levels))
