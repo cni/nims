@@ -66,7 +66,7 @@ def bootstrap(command, conf, vars):
 
         print 'Bootstrapping superusers'
         for uid in superusers:
-            u = model.User.by_uid(uid=uid, create=True, password=uid)
+            u = model.User.by_uid(uid=uid, create=True)
             s.users.append(u)
             a.users.append(u)
 
@@ -74,16 +74,16 @@ def bootstrap(command, conf, vars):
         for group in groups:
             g = model.ResearchGroup(gid=group['gid'])
             for uid in group['pis']:
-                u = model.User.by_uid(uid=uid, create=True, password=uid)
+                u = model.User.by_uid(uid=uid, create=True)
                 a.users.append(u)
                 g.pis.append(u)
             for uid in group['managers']:
-                u = model.User.by_uid(uid=uid, create=True, password=uid)
+                u = model.User.by_uid(uid=uid, create=True)
                 a.users.append(u)
                 g.managers.append(u)
 
         print 'Bootstrapping @public user'
-        u = model.User.by_uid(uid=u'@public', create=True, password=u'@public')
+        u = model.User.by_uid(uid=u'@public', create=True)
         u.lastname = u'Public Access'
         a.users.append(u)
 
