@@ -956,6 +956,7 @@ class Dataset(Entity):
                     container=epoch,
                     priority = mrfile.priority,
                     filetype=mrfile.filetype,
+                    compressed=mrfile.compressed,
                     kind=kind,
                     label=cls.default_labels[mrfile.filetype],
                     archived=archived,

@@ -61,23 +61,14 @@ class Sorter(object):
     def sort_files(self, dirpath, filenames, aux_paths):
         for filepath, filename in [(os.path.join(dirpath, fn), fn) for fn in filenames]:
             self.log.debug('Sorting %s' % filename)
-            if tarfile.is_tarfile(filepath):
-                compressed = True
-                with tarfile.open(filepath) as archive:
-                    archive.next()  # skip over top-level directory
-                    dataset = self.get_dataset(archive.extractfile(archive.next()))
-            else:
-                with open(filepath, 'rb') as fp:
-                    compressed = (fp.read(2) == '\x1f\x8b')
-                dataset = self.get_dataset(filepath)
+            dataset = self.get_dataset(filepath)
             if dataset:
                 new_filenames = [filename]
                 shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
-                for aux_path in aux_paths.get(os.path.splitext(filename)[0] if compressed else filename, []):
+                for aux_path in aux_paths.get(os.path.splitext(filename)[0] if dataset.compressed else filename, []):
                     new_filenames.append(os.path.basename(aux_path))
                     shutil.move(aux_path, os.path.join(self.nims_path, dataset.relpath, os.path.basename(aux_path)))
                 dataset.filenames = set(dataset.filenames + new_filenames)
-                dataset.compressed = compressed
                 dataset.updatetime = datetime.datetime.now()
                 dataset.untrash()
                 transaction.commit()
@@ -94,7 +85,6 @@ class Sorter(object):
                 shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filepath)))
                 for aux_path in aux_paths:
                     shutil.move(aux_path, os.path.join(self.nims_path, dataset.relpath, os.path.basename(aux_path)))
-            dataset.compressed = False
             dataset.updatetime = datetime.datetime.now()
             dataset.untrash()
             transaction.commit()
