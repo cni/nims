@@ -402,7 +402,11 @@ class User(Entity):
         else:
             filtered_results = self._filter_query(query, with_privilege).all()
             for result in filtered_results:
-                result_dict[result.Dataset.id] = result
+                if result.Dataset.kind == u'primary' or result.Dataset.kind == u'secondary':
+                    if result.Access.privilege >= AccessPrivilege.value(u'Read-Only'):
+                        result_dict[result.Dataset.id] = result
+                else:
+                    result_dict[result.Dataset.id] = result
         return result_dict
 
 class Permission(Entity):

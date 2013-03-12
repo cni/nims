@@ -107,6 +107,28 @@ class AuthController(BaseController):
     def admin(self):
         return dict(page='admin', params={})
 
+    @expose(content_type='application/octet-stream')
+    def getfile(self, **kwargs):
+        user = request.identity['user']
+        if 'id' in kwargs and 'filename' in kwargs:
+            response.headerlist.append(('Content-Disposition', 'attachment; filename=%s' % kwargs['filename']))
+            ds = Dataset.get(int(kwargs['id']))
+            if ds.kind == u'primary' or ds.kind == u'secondary':
+                privilege = u'Read-Only'
+            else:
+                privilege = None
+            if user.has_access_to(ds, privilege) or user.is_superuser:
+                path =  os.path.join(config.get('store_path'), ds.relpath, kwargs['filename'])
+                if os.path.exists(path):
+                    return open(path, 'r')
+                else:
+                    # TODO: raise an exception that the middleware can handle
+                    raise Exception()
+            else:
+                raise Exception()
+        else:
+            raise Exception()
+
     @expose(content_type='image/png')
     def image(self, *args):
         return open('/tmp/image.png', 'r')
