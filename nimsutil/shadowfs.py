@@ -33,6 +33,7 @@ class SymLinker(object):
                 .join(ResearchGroup, Experiment.owner)
                 .join(Access)
                 .join(User, Access.user)
+                .filter((Access.privilege >= AccessPrivilege.value(u'Read-Only')) | ((Dataset.kind != u'primary') & (Dataset.kind != u'secondary')))
                 .all())
 
         with open(os.path.join(links_path, '.htaccess'), 'w') as htaccess:

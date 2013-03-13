@@ -3,6 +3,7 @@
 from tg import config, expose, flash, redirect, request, response
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 from repoze.what import predicates
+import webob.exc
 
 import os
 import shlex
@@ -111,32 +112,22 @@ class AuthController(BaseController):
     def getfile(self, **kwargs):
         user = request.identity['user']
         if 'id' in kwargs and 'filename' in kwargs:
-            response.headerlist.append(('Content-Disposition', 'attachment; filename=%s' % kwargs['filename']))
             ds = Dataset.get(int(kwargs['id']))
-            if ds.kind == u'primary' or ds.kind == u'secondary':
-                privilege = u'Read-Only'
-            else:
-                privilege = None
-            if user.has_access_to(ds, privilege) or user.is_superuser:
-                path =  os.path.join(config.get('store_path'), ds.relpath, kwargs['filename'])
-                if os.path.exists(path):
-                    return open(path, 'r')
+            filepath =  os.path.join(config.get('store_path'), ds.relpath, kwargs['filename'])
+            privilege = u'Read-Only' if (ds.kind == u'primary' or ds.kind == u'secondary') else None
+            if user.is_superuser or user.has_access_to(ds, privilege):
+                if os.path.exists(filepath):
+                    response.content_disposition = 'attachment; filename=%s' % kwargs['filename'].encode('utf-8')
+                    response.content_length = os.path.getsize(filepath) # not actually working
+                    return open(filepath, 'r')
                 else:
-                    # TODO: raise an exception that the middleware can handle
-                    raise Exception()
+                    raise webob.exc.HTTPNotFound()
             else:
-                raise Exception()
-        else:
-            raise Exception()
+                raise webob.exc.HTTPForbidden()
 
     @expose(content_type='image/png')
     def image(self, *args):
         return open('/tmp/image.png', 'r')
-
-    @expose(content_type='application/octet-stream')
-    def speed(self, *args):
-        #return open('/boot/kernel/kernel.symbols', 'r')
-        return subprocess.Popen(shlex.split('tar -cLf - %s' % '/boot/kernel/kernel.symbols'), stdout=subprocess.PIPE, cwd='/tmp').stdout
 
     @expose(content_type='application/x-tar')
     def download(self, **kwargs):
@@ -168,5 +159,5 @@ class AuthController(BaseController):
             files = ['nims/%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname, f) for r in res for f in r.Dataset.filenames]
         if files:
             tar_proc = subprocess.Popen(shlex.split('tar -chf - -C %s %s' % (user_path, ' '.join(files))), stdout=subprocess.PIPE)
-            response.headerlist.append(('Content-Disposition', 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))))
+            response.content_disposition = 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
             return tar_proc.stdout
