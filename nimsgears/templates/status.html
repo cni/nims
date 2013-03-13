@@ -25,9 +25,9 @@
     </py:for>
   </table>
 
-  <h2>Failed Jobs (${len(failed_jobs)})</h2>
+  <h2>Active Jobs (${len(active_jobs)})</h2>
   <table>
-      <py:for each="job in failed_jobs">
+      <py:for each="job in active_jobs">
       <tr>
         <td>${job.id}</td>
         <td>${job.data_container}</td>
@@ -37,9 +37,9 @@
       </py:for>
   </table>
 
-  <h2>Active Jobs (${len(active_jobs)})</h2>
+  <h2>Failed Jobs (${len(failed_jobs)})</h2>
   <table>
-      <py:for each="job in active_jobs">
+      <py:for each="job in failed_jobs">
       <tr>
         <td>${job.id}</td>
         <td>${job.data_container}</td>
