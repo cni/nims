@@ -40,8 +40,8 @@ class NimsController(BaseController):
         return success
 
     def user_has_access_to(self, user, id_, class_, with_privilege=u'Manage'):
-        obj = class_.query.filter_by(id=id_).all() if id_ else None
-        return obj and user.has_access_to(obj[0], with_privilege)
+        obj = class_.get(id_) if id_ else None
+        return obj and user.has_access_to(obj, with_privilege)
 
     def filter_access(self, db_query, user):
         db_query = db_query.join(Access)

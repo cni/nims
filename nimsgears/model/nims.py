@@ -167,20 +167,22 @@ class User(Entity):
         return trash_flag
 
     def _filter_query(self, query, with_privilege=None):
-        query = query.add_entity(Access).join(Access).filter(Access.user == self)
+        query = query.add_entity(Access).join(Access).join(User, Access.user).filter(Access.user == self)
         if with_privilege:
             query = query.filter(Access.privilege >= AccessPrivilege.value(with_privilege))
         return query
 
     def has_access_to(self, element, with_privilege=None):
         if isinstance(element, Experiment):
-            query = Experiment.query
+            query = Experiment.query.filter(Experiment.id == element.id)
         elif isinstance(element, Session):
             query = (Session.query
+                .filter(Session.id == element.id)
                 .join(Subject, Session.subject)
                 .join(Experiment, Subject.experiment))
         elif isinstance(element, Epoch):
             query = (Epoch.query
+                .filter(Epoch.id == element.id)
                 .join(Session, Epoch.session)
                 .join(Subject, Session.subject)
                 .join(Experiment, Subject.experiment))
