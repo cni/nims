@@ -12,7 +12,7 @@ class ExperimentController(NimsController):
         if tmpl_context.form_errors:
             form = EditExperimentForm
         else:
-            if self.user_has_access_to(user, kw.get('id'), Experiment):
+            if user.has_access_to(Experiment.get(kw.get('id')), u'Read-Only'):
                 form = EditExperimentForm().req()
                 form.fetch_data(request)
             else:
@@ -25,7 +25,7 @@ class ExperimentController(NimsController):
     @validate(EditExperimentForm, error_handler=edit)
     def post_edit(self, **kw):
         user = request.identity['user']
-        if self.user_has_access_to(user, kw['id'], Experiment):
+        if user.has_access_to(Experiment.get(kw.get('id')), u'Read-Write'):
             id_ = kw['id']
             name = kw['name']
             owner = ResearchGroup.query.filter_by(gid=kw['owner']).one()
@@ -46,19 +46,9 @@ class ExperimentController(NimsController):
     @expose()
     @validate(NewExperimentForm, error_handler=create)
     def post_create(self, **kw):
-        name = kw['name']
-        owner = kw['owner']
-        if owner in get_owners():
-            experiment = Experiment.from_owner_name(
-                owner=ResearchGroup.query.filter_by(gid=owner).one(),
-                name=name)
+        print 'post_create called'
+        user = request.identity['user']
+        if kw['owner'] in user.admin_group_names:
+            experiment = Experiment.from_owner_name(owner=ResearchGroup.query.filter_by(gid=kw['owner']).one(), name=kw['name'])
             DBSession.add(experiment)
         redirect('/auth/experiment/create')
-
-def get_owners():
-    user = request.identity['user']
-    if user.is_superuser:
-        research_groups = ResearchGroup.query.all()
-    else:
-        research_groups = user.pi_groups + user.manager_groups
-    return [group.gid for group in research_groups]

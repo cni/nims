@@ -7,6 +7,7 @@ from formencode.compound import All
 from nimsgears.model import ResearchGroup, Session, Subject, User
 
 user_list = lambda: [u.uid for u in User.query.all()]
+
 class EditSessionForm(tws.DbFormPage):
     entity = Session
     title = None

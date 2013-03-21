@@ -63,7 +63,7 @@ def get_logger(name, filename=None, level='debug'):
 
 def parse_subject(name, dob):
     if '@' in name:
-        code = re.sub(r'^[^@]*@([^\^]*).*', ur'\1', name)
+        code = re.sub(r'^[^@]*@([^\^]*).*', r'\1', name)
     else:
         code = ''
     lastname, firstname = name.split('^') if '^' in name else ('', '')

@@ -1,4 +1,5 @@
 # @author:  Reno Bowen
+#           Gunnar Schaefer
 
 from tg import expose, request
 import json
@@ -10,14 +11,11 @@ from nimsgears.lib.base import BaseController
 class NimsController(BaseController):
 
     @expose()
-    def get_trash_flag(self, **kwargs):
-        user = request.identity['user']
-        trash_flag = user.get_trash_flag()
-        return json.dumps(trash_flag)
+    def trash_flag(self, **kwargs):
+        return json.dumps(request.identity['user'].trash_flag)
 
     def _modify_access(self, user, exp_list, user_list, set_to_privilege):
         success = True
-
         for exp in exp_list:
             for user_ in user_list:
                 if (user_ not in exp.owner.pis) or user.is_superuser:
@@ -36,63 +34,36 @@ class NimsController(BaseController):
                     break
             if not success:
                 break
-
         return success
 
-    def user_has_access_to(self, user, id_, class_, with_privilege=u'Manage'):
-        obj = class_.get(id_) if id_ else None
-        return obj and user.has_access_to(obj, with_privilege)
-
-    def filter_access(self, db_query, user):
-        db_query = db_query.join(Access)
-        if not user.is_superuser:
-            db_query = db_query.filter(Access.user == user).filter(Access.privilege >= AccessPrivilege.value(u'Manage'))
-        return db_query
-
-    def get_experiments(self, user, manage_only=False):
+    def get_experiments(self, user):
         exp_data_list = []
         exp_attr_list = []
-
-        experiment_dict = user.get_experiments(with_privilege=(u'Manage' if manage_only else None))
-
-        # if superuser, ignore access items and set all to manage
-        for key, value in experiment_dict.iteritems():
-            exp = value.Experiment
-            acc_priv = u'Manage' if user.is_superuser else AccessPrivilege.name(value.Access.privilege)
+        for exp, acc_priv in user.experiments_with_access_privilege():
             exp_data_list.append((exp.owner.gid, exp.name))
-            exp_attr_list.append({'id':'exp=%d' % key, 'class':'access_%s %s' % (acc_priv.lower(), 'trash' if exp.trashtime else '')})
+            exp_attr_list.append({'id':'exp=%d' % exp.id, 'class':'access_%s %s' % (acc_priv.lower(), 'trash' if exp.trashtime else '')})
         return (exp_data_list, exp_attr_list)
 
     def get_sessions(self, user, exp_id):
         sess_data_list = []
         sess_attr_list = []
-
-        session_dict = user.get_sessions(by_experiment_id=exp_id)
-        for key, value in session_dict.iteritems():
-            sess = value.Session
+        for sess in user.sessions(exp_id):
             sess_data_list.append((sess.timestamp.strftime('%Y-%m-%d %H:%M'), sess.subject.code))
-            sess_attr_list.append({'id':'sess=%d' % key, 'class':'%s' % ('trash' if sess.trashtime else '')})
+            sess_attr_list.append({'id':'sess=%d' % sess.id, 'class':'%s' % ('trash' if sess.trashtime else '')})
         return (sess_data_list, sess_attr_list)
-
-    def get_datasets(self, user, epoch_id):
-        dataset_data_list = []
-        dataset_attr_list = []
-
-        dataset_dict = user.get_datasets(by_epoch_id=epoch_id)
-        for key, value in dataset_dict.iteritems():
-            dataset = value.Dataset
-            dataset_data_list.append((dataset.label + ('*' if dataset.kind == u'primary' else ''),))
-            dataset_attr_list.append({'id':'dataset=%d' % key, 'class':'%s' % ('trash' if dataset.trashtime else '')})
-        return (dataset_data_list, dataset_attr_list)
 
     def get_epochs(self, user, sess_id):
         epoch_data_list = []
         epoch_attr_list = []
-
-        epoch_dict = user.get_epochs(by_session_id=sess_id)
-
-        for key, value in epoch_dict.iteritems():
-            epoch = value.Epoch
+        for epoch in user.epochs(sess_id):
             epoch_data_list.append((epoch.timestamp.strftime('%H:%M:%S'), '%s' % epoch.description))
-            epoch_attr_list.append({'id':'epoch=%d' % key, 'class':'%s' % ('trash' if epoch.trashtime else '')})
+            epoch_attr_list.append({'id':'epoch=%d' % epoch.id, 'class':'%s' % ('trash' if epoch.trashtime else '')})
         return (epoch_data_list, epoch_attr_list)
+
+    def get_datasets(self, user, epoch_id):
+        dataset_data_list = []
+        dataset_attr_list = []
+        for dataset in user.datasets(epoch_id):
+            dataset_data_list.append((dataset.label + ('*' if dataset.kind == u'primary' else ''),))
+            dataset_attr_list.append({'id':'dataset=%d' % dataset.id, 'class':'%s' % ('trash' if dataset.trashtime else '')})
+        return (dataset_data_list, dataset_attr_list)

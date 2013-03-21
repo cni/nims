@@ -114,7 +114,7 @@ class AuthController(BaseController):
         if 'id' in kwargs and 'filename' in kwargs:
             ds = Dataset.get(int(kwargs['id']))
             filepath =  os.path.join(config.get('store_path'), ds.relpath, kwargs['filename'])
-            privilege = u'Read-Only' if (ds.kind == u'primary' or ds.kind == u'secondary') else None
+            privilege = u'Read-Only' if (ds.kind == u'primary' or ds.kind == u'secondary') else u'Anon-Read'
             if user.is_superuser or user.has_access_to(ds, privilege):
                 if os.path.exists(filepath):
                     response.content_disposition = 'attachment; filename=%s' % kwargs['filename'].encode('utf-8')

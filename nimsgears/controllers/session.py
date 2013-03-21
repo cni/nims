@@ -12,7 +12,7 @@ class SessionController(NimsController):
         if tmpl_context.form_errors:
             form = EditSessionForm
         else:
-            if user.is_superuser or self.user_has_access_to(user, kw.get('id'), Session, u'Read-Only'):
+            if user.has_access_to(Session.get(kw.get('id')), u'Read-Only'):
                 form = EditSessionForm().req()
                 form.fetch_data(request)
             else:
@@ -25,7 +25,7 @@ class SessionController(NimsController):
     @validate(EditSessionForm, error_handler=edit)
     def post_edit(self, **kw):
         user = request.identity['user']
-        if user.is_superuser or self.user_has_access_to(user, kw['id'], Session, u'Read-Write'):
+        if user.has_access_to(Session.get(kw.get('id')), u'Read-Write'):
             id_ = kw['id']
             username = kw['operator']['uid']
             session = Session.query.filter_by(id=id_).one()

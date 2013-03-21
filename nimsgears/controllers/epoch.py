@@ -12,7 +12,7 @@ class EpochController(NimsController):
         if tmpl_context.form_errors:
             form = EditEpochForm
         else:
-            if self.user_has_access_to(user, kw.get('id'), Epoch):
+            if user.has_access_to(Epoch.get(kw.get('id')), u'Read-Only'):
                 form = EditEpochForm().req()
                 form.fetch_data(request)
             else:
@@ -25,7 +25,7 @@ class EpochController(NimsController):
     @validate(EditEpochForm, error_handler=edit)
     def post_edit(self, **kw):
         user = request.identity['user']
-        if self.user_has_access_to(user, kw['id'], Epoch):
+        if user.has_access_to(Epoch.get(kw.get('id')), u'Read-Write'):
             id_ = kw['id']
             epoch = Epoch.query.filter_by(id=kw['id']).one()
             epoch.description = kw['description']

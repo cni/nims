@@ -140,7 +140,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
     var init = function()
     {
         pis = new Drilldown("pis", "Principal Investigators");
-        admins = new Drilldown("admins", "Administrators");
+        admins = new Drilldown("admins", "Managers");
         members = new Drilldown("members", "Members");
         others = new Drilldown("others", "Non-Members");
 

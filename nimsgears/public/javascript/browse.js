@@ -199,7 +199,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         $.ajax({
             traditional: true,
             type: 'POST',
-            url: "browse/get_trash_flag",
+            url: "browse/trash_flag",
             dataType: "json",
             async: false,
             success: function(data)
