@@ -125,8 +125,42 @@ class AuthController(BaseController):
             else:
                 raise webob.exc.HTTPForbidden()
 
+    @expose()
+    def image_viewer(self, **kwargs):
+        panojs_url = 'https://cni.stanford.edu/js/panojs/'
+        ds = Dataset.get(int(kwargs['dataset_id']))
+        pyramid_db_file =  os.path.join(config.get('store_path'), ds.relpath, kwargs['filename'])
+        (tile_size,x_size,y_size) = nimsutil.pyramid.get_info_from_db(pyramid_db_file)
+        html = ('<head>\n<meta http-equiv="imagetoolbar" content="no"/>\n'
+                '<style type="text/css">@import url(' + panojs_url + 'styles/panojs.css);</style>\n'
+                '<script type="text/javascript" src="' + panojs_url + 'extjs/ext-core.js"></script>\n'
+                '<script type="text/javascript" src="' + panojs_url + 'panojs/utils.js"></script>\n'
+                '<script type="text/javascript" src="' + panojs_url + 'panojs/PanoJS.js"></script>\n'
+                '<script type="text/javascript" src="' + panojs_url + 'panojs/controls.js"></script>\n'
+                '<script type="text/javascript" src="' + panojs_url + 'panojs/pyramid_imgcnv.js"></script>\n'
+                '<script type="text/javascript" src="' + panojs_url + 'panojs/control_thumbnail.js"></script>\n'
+                '<script type="text/javascript" src="' + panojs_url + 'panojs/control_info.js"></script>\n'
+                '<script type="text/javascript" src="' + panojs_url + 'panojs/control_svg.js"></script>\n'
+                '<script type="text/javascript" src="' + panojs_url + 'viewer.js"></script>\n'
+                '<style type="text/css">body { font-family: sans-serif; margin: 0; padding: 10px; color: #000000; background-color: #FFFFFF; font-size: 0.7em; } </style>\n'
+                '<script type="text/javascript">\nvar viewer = null;Ext.onReady('
+                'function () { createViewer( viewer, "viewer", "./images", "'+str(ds.id)+'_","'+str(tile_size)+'","'+str(x_size)+'","'+str(y_size)+'") } );</script>\n'
+                '</head>\n<body>\n'
+                '<div style="width: 100%; height: 100%;"><div id="viewer" class="viewer" style="width: 100%; height: 100%;" ></div></div>\n'
+                '</body>\n</html>\n')
+        return html
+
+    @expose(content_type='image/jpeg')
+    def images(self, *args):
+        user = request.identity['user']
+        dataset_id,z,x,y = args[0].split('_')
+        ds = Dataset.get(dataset_id)
+        pyramid_db_file =  os.path.join(config.get('store_path'), ds.relpath, ds.filenames[0])
+        image = nimsutil.pyramid.get_tile_from_db(pyramid_db_file, z, y, x)
+        return image
+
     @expose(content_type='image/png')
-    def image(self, *args):
+    def pngimage(self, *args):
         return open('/tmp/image.png', 'r')
 
     @expose(content_type='application/x-tar')

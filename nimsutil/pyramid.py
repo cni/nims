@@ -12,16 +12,37 @@ from __future__ import print_function
 
 import os
 import argparse
-
-import math
-import Image
-import numpy as np
-import nibabel
-
-import png
+import sqlite3
+import cStringIO
 
 class ImagePyramidError(Exception):
     pass
+
+
+def get_tile_from_db(dbfile, z, x, y):
+    """
+    Get a specific image tile from an sqlite db. Returns a cStringIO object.
+    """
+    con = sqlite3.connect(dbfile)
+    with con:
+        cur = con.cursor()
+        cur.execute('SELECT image FROM tiles where z=? AND x=? AND y=?', (z,y,x))
+        image = cur.fetchone()[0]
+    return(cStringIO.StringIO(image))
+
+def get_info_from_db(dbfile):
+    """
+    Returns the tile_size, x_size, and y_size from the sqlite pyramid db.
+    """
+    try:
+        con = sqlite3.connect(dbfile)
+        with con:
+            cur = con.cursor()
+            cur.execute('SELECT * FROM info')
+            tile_size,x_size,y_size = cur.fetchone()
+    except ImagePyramidError as e:
+        print(e.message)
+    return(tile_size,x_size,y_size)
 
 
 class ImagePyramid(object):
@@ -39,6 +60,11 @@ class ImagePyramid(object):
     """
 
     def __init__(self, image, tile_size=1024, log=None):
+        import Image
+        import math
+        import numpy as np
+        import nibabel
+
         self.tile_size = tile_size
         self.log = log
         self.montage = None
@@ -51,6 +77,7 @@ class ImagePyramid(object):
             raise ImagePyramidError('argument must be a filename or a numpy ndarray.')
 
     def write_montage_as_png(self, filename, bits16=True):
+        import png
         if self.montage==None:
             self.generate_montage(bits16=bits16)
         with open(filename, 'wb') as fd:
@@ -59,7 +86,29 @@ class ImagePyramid(object):
             else:
                 png.Writer(size=self.montage.shape[::-1], greyscale=True, bitdepth=8).write(fd, self.montage)
 
-    def generate(self, outdir, panojs_url='https://cni.stanford.edu/js/panojs/'):
+    def generate_sqlite(self, dbfile):
+        """
+        Generate a multi-resolution image pyramid and save all the resulting jpeg files in an sqlite db.
+        """
+        self.generate_montage()
+        try:
+            # Rudely clobber the file if it exists. User beware!
+            if os.path.exists(dbfile):
+                os.remove(dbfile)
+            con = sqlite3.connect(dbfile)
+            with con:
+                cur = con.cursor()
+                cur.execute("CREATE TABLE info(tile_size INT, x_size INT, y_size INT)")
+                cur.execute("CREATE TABLE tiles(z INT, x INT, y INT, image BLOB)")
+                self.generate_pyramid(dbcur=cur)
+                # It's important to get the pyramid metadata *after* the pyramid is generated.
+                # E.g., the montage might be cropped and the tile size adjusted in there.
+                (x_size,y_size) = self.montage.size
+                cur.execute('INSERT INTO info(tile_size,x_size,y_size) VALUES (?,?,?)', (self.tile_size, x_size, y_size))
+        except ImagePyramidError as e:
+            self.log.warning(e.message) if self.log else print(e.message)
+
+    def generate_dir(self, outdir, panojs_url='https://cni.stanford.edu/js/panojs/'):
         """
         Generate a multi-resolution image pyramid, using generate_pyramid(), and the corresponding
         viewer HTML file, using generate_viewer().
@@ -69,7 +118,7 @@ class ImagePyramid(object):
         try:
             image_dir = os.path.join(outdir, self.image_dir)
             os.makedirs(image_dir)
-            self.generate_pyramid(image_dir)
+            self.generate_pyramid(outdir=image_dir)
         except ImagePyramidError as e:
             self.log.warning(e.message) if self.log else print(e.message)
             with open(viewer_file, 'w') as f:
@@ -77,14 +126,16 @@ class ImagePyramid(object):
         else:
             self.generate_viewer(viewer_file, panojs_url)
 
-    def generate_pyramid(self, outdir):
+    def generate_pyramid(self, outdir=None, dbcur=None):
         """
         Slice up a NIfTI file into a multi-res pyramid of tiles.
         We use the file name convention suitable for PanoJS (http://www.dimin.net/software/panojs/):
         The zoom level (z) is an integer between 0 and n, where 0 is fully zoomed in and n is zoomed out.
         E.g., z=n is for 1 tile covering the whole world, z=n-1 is for 2x2=4 tiles, ... z=0 is the original resolution.
         """
-        if not os.path.exists(outdir): os.makedirs(outdir)
+        if not outdir and not dbcur:
+            raise Exception('at least one of outdir and dbcur must be supplied')
+        if outdir and not os.path.exists(outdir): os.makedirs(outdir)
         # Convert the montage to an Image
         self.montage = Image.fromarray(self.montage)
         # NOTE: the following will crop away edges that contain only zeros. Not sure if we want this.
@@ -115,7 +166,13 @@ class ImagePyramid(object):
             for x in range(xpieces):
                 for y in range(ypieces):
                     tile = im.copy().crop((x*self.tile_size, y*self.tile_size, min((x+1)*self.tile_size,xsize), min((y+1)*self.tile_size,ysize)))
-                    tile.save(os.path.join(outdir, ('%03d_%03d_%03d.jpg' % (iz,x,y))), "JPEG", quality=85)
+                    if outdir:
+                        tile.save(os.path.join(outdir, ('%03d_%03d_%03d.jpg' % (iz,x,y))), "JPEG", quality=85)
+                    if dbcur:
+                        buf = cStringIO.StringIO()
+                        tile.save(buf, "JPEG", quality=85)
+                        dbcur.execute('INSERT INTO tiles(z,x,y,image) VALUES (?,?,?,?)', (iz, x, y, sqlite3.Binary(buf.getvalue())))
+                        buf.close()
 
     def generate_viewer(self, outfile, panojs_url):
         """
@@ -211,8 +268,9 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-p', '--panojs_url', metavar='URL', help='URL for the panojs javascript.')
         self.add_argument('-t', '--tilesize', default = 256, type=int, help='tile size (default is 256)')
         self.add_argument('-m', '--montage', action="store_true", help='Save the full-size montage image (full pyramid will not be generated)')
+        self.add_argument('-s', '--sqlite', action="store_true", help='Save the image tiles in an sqlite3 db instead of separate image files.')
         self.add_argument('filename', help='path to NIfTI file')
-        self.add_argument('outdir', nargs='?', help='output directory')
+        self.add_argument('out', nargs='?', help='output directory name or sqlite db filename')
 
 
 if __name__ == '__main__':
@@ -222,5 +280,9 @@ if __name__ == '__main__':
         outdir = args.outdir or os.path.basename(os.path.splitext(os.path.splitext(args.filename)[0])[0]) + '.png'
         pyr.write_montage_as_png(outdir, bits16=False)
     else:
-        outdir = args.outdir or os.path.basename(os.path.splitext(os.path.splitext(args.filename)[0])[0]) + '.pyr'
-        pyr.generate(outdir, args.panojs_url) if args.panojs_url else pyr.generate(outdir)
+        if args.sqlite:
+            pyr.generate_sqlite(args.out)
+        else:
+            outdir = args.out or os.path.basename(os.path.splitext(os.path.splitext(args.filename)[0])[0]) + '.pyr'
+            pyr.generate_dir(outdir, args.panojs_url) if args.panojs_url else pyr.generate_dir(outdir)
+
