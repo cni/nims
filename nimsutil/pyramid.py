@@ -15,7 +15,12 @@ import argparse
 import sqlite3
 import cStringIO
 
-class ImagePyramidError(Exception):
+try:
+    import Image
+    import math
+    import nibabel
+    import numpy as np
+except:
     pass
 
 
@@ -30,6 +35,7 @@ def get_tile_from_db(dbfile, z, x, y):
         image = cur.fetchone()[0]
     return(cStringIO.StringIO(image))
 
+
 def get_info_from_db(dbfile):
     """
     Returns the tile_size, x_size, and y_size from the sqlite pyramid db.
@@ -43,6 +49,10 @@ def get_info_from_db(dbfile):
     except ImagePyramidError as e:
         print(e.message)
     return(tile_size,x_size,y_size)
+
+
+class ImagePyramidError(Exception):
+    pass
 
 
 class ImagePyramid(object):
@@ -60,11 +70,6 @@ class ImagePyramid(object):
     """
 
     def __init__(self, image, tile_size=1024, log=None):
-        import Image
-        import math
-        import numpy as np
-        import nibabel
-
         self.tile_size = tile_size
         self.log = log
         self.montage = None

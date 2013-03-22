@@ -113,7 +113,7 @@ class AuthController(BaseController):
         user = request.identity['user']
         if 'id' in kwargs and 'filename' in kwargs:
             ds = Dataset.get(int(kwargs['id']))
-            filepath =  os.path.join(config.get('store_path'), ds.relpath, kwargs['filename'])
+            filepath = os.path.join(config.get('store_path'), ds.relpath, kwargs['filename'])
             privilege = u'Read-Only' if (ds.kind == u'primary' or ds.kind == u'secondary') else u'Anon-Read'
             if user.is_superuser or user.has_access_to(ds, privilege):
                 if os.path.exists(filepath):
@@ -129,8 +129,8 @@ class AuthController(BaseController):
     def image_viewer(self, **kwargs):
         panojs_url = 'https://cni.stanford.edu/js/panojs/'
         ds = Dataset.get(int(kwargs['dataset_id']))
-        pyramid_db_file =  os.path.join(config.get('store_path'), ds.relpath, kwargs['filename'])
-        (tile_size,x_size,y_size) = nimsutil.pyramid.get_info_from_db(pyramid_db_file)
+        pyramid_db_file = os.path.join(config.get('store_path'), ds.relpath, ds.filenames[0])
+        tile_size, x_size, y_size = nimsutil.pyramid.get_info_from_db(pyramid_db_file)
         html = ('<head>\n<meta http-equiv="imagetoolbar" content="no"/>\n'
                 '<style type="text/css">@import url(' + panojs_url + 'styles/panojs.css);</style>\n'
                 '<script type="text/javascript" src="' + panojs_url + 'extjs/ext-core.js"></script>\n'
@@ -155,7 +155,7 @@ class AuthController(BaseController):
         user = request.identity['user']
         dataset_id,z,x,y = args[0].split('_')
         ds = Dataset.get(dataset_id)
-        pyramid_db_file =  os.path.join(config.get('store_path'), ds.relpath, ds.filenames[0])
+        pyramid_db_file = os.path.join(config.get('store_path'), ds.relpath, ds.filenames[0])
         image = nimsutil.pyramid.get_tile_from_db(pyramid_db_file, z, y, x)
         return image
 

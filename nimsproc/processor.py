@@ -98,18 +98,21 @@ class Pipeline(threading.Thread):
         self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
         DBSession.add(self.job)
-        try:
-            if self.job.task == u'find&proc':
-                self.find()
-                self.process()
-            elif self.job.task == u'find':
-                self.find()
-            elif self.job.task == u'proc':
-                self.process()
-        except Exception as ex:
-            self.job.status = u'failed'
-            self.job.activity = u'failed: %s' % ex
-            self.log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+        if self.job.task == u'find&proc':
+            self.find()
+            self.process()
+        #try:
+        #    if self.job.task == u'find&proc':
+        #        self.find()
+        #        self.process()
+        #    elif self.job.task == u'find':
+        #        self.find()
+        #    elif self.job.task == u'proc':
+        #        self.process()
+        #except Exception as ex:
+        #    self.job.status = u'failed'
+        #    self.job.activity = u'failed: %s' % ex
+        #    self.log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         else:
             self.job.status = u'done'
             self.job.activity = u'done'
@@ -217,7 +220,7 @@ class DicomPipeline(Pipeline):
                 pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                nimsutil.pyramid.ImagePyramid(conv_file, log=self.log).generate_sqlite(os.path.join(self.nims_path, pyramid_ds.relpath, ds.container.name+'.pyrdb'))
+                nimsutil.pyramid.ImagePyramid(conv_file, log=self.log).generate_sqlite(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
                 self.job.activity = u'image pyramid generated'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'web'
