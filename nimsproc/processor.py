@@ -98,21 +98,18 @@ class Pipeline(threading.Thread):
         self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
         DBSession.add(self.job)
-        if self.job.task == u'find&proc':
-            self.find()
-            self.process()
-        #try:
-        #    if self.job.task == u'find&proc':
-        #        self.find()
-        #        self.process()
-        #    elif self.job.task == u'find':
-        #        self.find()
-        #    elif self.job.task == u'proc':
-        #        self.process()
-        #except Exception as ex:
-        #    self.job.status = u'failed'
-        #    self.job.activity = u'failed: %s' % ex
-        #    self.log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+        try:
+            if self.job.task == u'find&proc':
+                self.find()
+                self.process()
+            elif self.job.task == u'find':
+                self.find()
+            elif self.job.task == u'proc':
+                self.process()
+        except Exception as ex:
+            self.job.status = u'failed'
+            self.job.activity = u'failed: %s' % ex
+            self.log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         else:
             self.job.status = u'done'
             self.job.activity = u'done'
