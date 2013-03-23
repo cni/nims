@@ -20,6 +20,7 @@ try:
     import math
     import nibabel
     import numpy as np
+    import h5py
 except:
     pass
 
@@ -35,7 +36,6 @@ def get_tile_from_db(dbfile, z, x, y):
         image = cur.fetchone()[0]
     return(cStringIO.StringIO(image))
 
-
 def get_info_from_db(dbfile):
     """
     Returns the tile_size, x_size, and y_size from the sqlite pyramid db.
@@ -48,6 +48,26 @@ def get_info_from_db(dbfile):
             tile_size,x_size,y_size = cur.fetchone()
     except ImagePyramidError as e:
         print(e.message)
+    return(tile_size,x_size,y_size)
+
+
+def get_tile_from_hdf5(hdf5file, z, x, y):
+    """
+    Get a specific image tile from an hdf5 file. Returns a cStringIO object.
+    """
+    with h5py.File(hdf5file, 'r') as f:
+        image = f['/tiles/%d/%d/%d' % (z,x,y)].value
+    # image should be a 1d numpy array of type uint8. Dump it to the StringIO.
+    return(cStringIO.StringIO(image.tostring()))
+
+def get_info_from_hdf5(hdf5file):
+    """
+    Returns the tile_size, x_size, and y_size from the hdf5 pyramid.
+    """
+    with h5py.File(hdf5file, 'r') as f:
+        tile_size = f['/tile_x_y_size'][0]
+        x_size = f['/tile_x_y_size'][1]
+        y_size = f['/tile_x_y_size'][2]
     return(tile_size,x_size,y_size)
 
 
@@ -69,7 +89,7 @@ class ImagePyramid(object):
 
     """
 
-    def __init__(self, image, tile_size=1024, log=None):
+    def __init__(self, image, tile_size=256, log=None):
         self.tile_size = tile_size
         self.log = log
         self.montage = None
@@ -90,6 +110,23 @@ class ImagePyramid(object):
                 png.Writer(size=self.montage.shape[::-1], greyscale=True, bitdepth=16).write(fd, self.montage)
             else:
                 png.Writer(size=self.montage.shape[::-1], greyscale=True, bitdepth=8).write(fd, self.montage)
+
+    def generate_hdf5(self, hdf5file):
+        """
+        Generate a multi-resolution image pyramid and save all the resulting jpeg files in an hdf5 file.
+        """
+        self.generate_montage()
+        try:
+            # Open in write mode-- will rudely clobber the file if it exists. User beware!
+            with h5py.File(hdf5file, 'w') as f:
+                tiles = f.create_group('tiles')
+                self.generate_pyramid(h5py_tiles = tiles)
+                # It's important to get the pyramid metadata *after* the pyramid is generated.
+                # E.g., the montage might be cropped and the tile size adjusted in there.
+                (x_size,y_size) = self.montage.size
+                f.create_dataset('tile_x_y_size', (3,), dtype='i')[:] = (self.tile_size, x_size, y_size)
+        except ImagePyramidError as e:
+            self.log.warning(e.message) if self.log else print(e.message)
 
     def generate_sqlite(self, dbfile):
         """
@@ -131,15 +168,15 @@ class ImagePyramid(object):
         else:
             self.generate_viewer(viewer_file, panojs_url)
 
-    def generate_pyramid(self, outdir=None, dbcur=None):
+    def generate_pyramid(self, outdir=None, dbcur=None, h5py_tiles=None):
         """
         Slice up a NIfTI file into a multi-res pyramid of tiles.
         We use the file name convention suitable for PanoJS (http://www.dimin.net/software/panojs/):
         The zoom level (z) is an integer between 0 and n, where 0 is fully zoomed in and n is zoomed out.
         E.g., z=n is for 1 tile covering the whole world, z=n-1 is for 2x2=4 tiles, ... z=0 is the original resolution.
         """
-        if not outdir and not dbcur:
-            raise Exception('at least one of outdir and dbcur must be supplied')
+        if not outdir and not dbcur and not h5py_tiles:
+            raise Exception('at least one of outdir, dbcur, and h5py_tiles must be supplied')
         if outdir and not os.path.exists(outdir): os.makedirs(outdir)
         # Convert the montage to an Image
         self.montage = Image.fromarray(self.montage)
@@ -154,6 +191,8 @@ class ImagePyramid(object):
 
         divs = max(1, int(np.ceil(np.log2(float(max(sx,sy))/self.tile_size))) + 1)
         for iz in range(divs):
+            if h5py_tiles:
+                h5py_zdir = h5py_tiles.create_group('%d' % iz)
             z = divs - iz
             ysize = int(round(float(sy)/pow(2,iz)))
             xsize = int(round(float(ysize)/sy*sx))
@@ -169,15 +208,21 @@ class ImagePyramid(object):
             # Convert the image to grayscale
             im = im.convert("L")
             for x in range(xpieces):
+                if h5py_tiles:
+                    h5py_xdir = h5py_zdir.create_group('%d' % x)
                 for y in range(ypieces):
                     tile = im.copy().crop((x*self.tile_size, y*self.tile_size, min((x+1)*self.tile_size,xsize), min((y+1)*self.tile_size,ysize)))
+                    buf = cStringIO.StringIO()
+                    tile.save(buf, "JPEG", quality=85)
                     if outdir:
-                        tile.save(os.path.join(outdir, ('%03d_%03d_%03d.jpg' % (iz,x,y))), "JPEG", quality=85)
+                        with open(os.path.join(outdir, ('%03d_%03d_%03d.jpg' % (iz,x,y))), 'wb') as fp:
+                            fp.write(buf.getvalue())
                     if dbcur:
-                        buf = cStringIO.StringIO()
-                        tile.save(buf, "JPEG", quality=85)
                         dbcur.execute('INSERT INTO tiles(z,x,y,image) VALUES (?,?,?,?)', (iz, x, y, sqlite3.Binary(buf.getvalue())))
-                        buf.close()
+                    if h5py_tiles:
+                        h5py_xdir.create_dataset('%d' % y, data=buf.getvalue())
+                    buf.close()
+
 
     def generate_viewer(self, outfile, panojs_url):
         """
@@ -273,7 +318,9 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-p', '--panojs_url', metavar='URL', help='URL for the panojs javascript.')
         self.add_argument('-t', '--tilesize', default = 256, type=int, help='tile size (default is 256)')
         self.add_argument('-m', '--montage', action="store_true", help='Save the full-size montage image (full pyramid will not be generated)')
-        self.add_argument('-s', '--sqlite', action="store_true", help='Save the image tiles in an sqlite3 db instead of separate image files.')
+        self.add_argument('-d', '--directory', action='store_true', help='Store image tiles in a directory')
+        self.add_argument('-s', '--sqlite', action='store_true', help='Store image tiles in an sqlite db')
+        self.add_argument('-f', '--hdf5', action='store_true', help='Store image tiles in an hdf5 file')
         self.add_argument('filename', help='path to NIfTI file')
         self.add_argument('out', nargs='?', help='output directory name or sqlite db filename')
 
@@ -287,7 +334,9 @@ if __name__ == '__main__':
     else:
         if args.sqlite:
             pyr.generate_sqlite(args.out)
-        else:
+        if args.hdf5:
+            pyr.generate_hdf5(args.out)
+        if args.directory:
             outdir = args.out or os.path.basename(os.path.splitext(os.path.splitext(args.filename)[0])[0]) + '.pyr'
             pyr.generate_dir(outdir, args.panojs_url) if args.panojs_url else pyr.generate_dir(outdir)
 
