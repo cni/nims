@@ -74,6 +74,7 @@ class Scheduler(object):
                     elif ds.filetype == nimsutil.pfile.PFile.filetype:
                         for pfilepath in [os.path.join(dataset_path, f) for f in os.listdir(dataset_path) if not f.startswith('_')]:
                             nimsutil.gzip_inplace(pfilepath, 0o644)
+                        ds.filenames = os.listdir(dataset_path)
                         ds.compressed = True
                         transaction.commit()
                     DBSession.add(dc)
