@@ -1,6 +1,7 @@
 # @author:  Gunnar Schaefer
 
 from tg import config, expose, flash, redirect, request, response
+from pylons.controllers.util import etag_cache
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 from repoze.what import predicates
 import webob.exc
@@ -126,34 +127,6 @@ class AuthController(BaseController):
             else:
                 raise webob.exc.HTTPForbidden()
 
-    @expose()
-    def oldpyramid(self, **kwargs):
-        panojs_url = 'https://cni.stanford.edu/js/panojs/'
-        ds = Dataset.get(kwargs['dataset_id'])
-        pyramid_db_file = os.path.join(store_path, ds.relpath, ds.filenames[0])
-        tile_size, x_size, y_size = nimsutil.pyramid.info_from_db(pyramid_db_file)
-        html = ('<!DOCTYPE html">\n'
-                '<html xmlns="http://www.w3.org/1999/xhtml">\n<head>\n<meta http-equiv="imagetoolbar" content="no"/>\n'
-                '<style type="text/css">@import url(' + panojs_url + 'styles/panojs.css);</style>\n'
-                '<script type="text/javascript" src="' + panojs_url + 'extjs/ext-core.js"></script>\n'
-                '<script type="text/javascript" src="' + panojs_url + 'panojs/utils.js"></script>\n'
-                '<script type="text/javascript" src="' + panojs_url + 'panojs/PanoJS.js"></script>\n'
-                '<script type="text/javascript" src="' + panojs_url + 'panojs/controls.js"></script>\n'
-                '<script type="text/javascript" src="' + panojs_url + 'panojs/pyramid_imgcnv.js"></script>\n'
-                '<script type="text/javascript" src="' + panojs_url + 'panojs/control_thumbnail.js"></script>\n'
-                '<script type="text/javascript" src="' + panojs_url + 'panojs/control_info.js"></script>\n'
-                '<script type="text/javascript" src="' + panojs_url + 'panojs/control_svg.js"></script>\n'
-                '<script type="text/javascript" src="' + panojs_url + 'viewer.js"></script>\n'
-                '<style type="text/css">body { font-family: sans-serif; margin: 0; padding: 10px; color: #000000; background-color: #FFFFFF; font-size: 0.7em; } </style>\n'
-                '<script type="text/javascript">\n  var viewer = null;\n  Ext.onReady(\n'
-                '    function () {\n      createViewer( viewer, "viewer", "pyramid_tile", "'+str(ds.id)+'_","'+str(tile_size)+'","'+str(x_size)+'","'+str(y_size)+'")\n    }\n  );\n</script>\n'
-                '</head>\n<body>\n'
-                '<div style="width: 100%; height: 100%;">\n'
-                '  <div id="viewer" class="viewer" style="width: 100%; height: 100%;" ></div>\n'
-                '</div>\n'
-                '</body>\n</html>\n')
-        return html
-
     @expose('nimsgears.templates.pyramid', render_params={'doctype': None})
     def pyramid(self, **kwargs):
         user = request.identity['user']
@@ -169,8 +142,11 @@ class AuthController(BaseController):
         ds = Dataset.get(dataset_id)
         if user.has_access_to(ds):
             image = nimsutil.pyramid.tile_from_db(os.path.join(store_path, ds.relpath, ds.filenames[0]), z, x, y)
-            response.content_length = len(image)
-            return cStringIO.StringIO(image)
+            etag_cache(args[0])
+            response.cache_control = 'max-age = 31536000'
+            response.pragma = ''
+            response.last_modified = ds._get_updatetime()
+            return cStringIO.StringIO(image).getvalue()
 
     @expose(content_type='application/x-tar')
     def download(self, **kwargs):
