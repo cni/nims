@@ -217,7 +217,8 @@ class DicomPipeline(Pipeline):
                 pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                nimsutil.pyramid.ImagePyramid(conv_file, log=self.log).generate_sqlite(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
+                pyr = nimsutil.pyramid.ImagePyramid(conv_file, log=self.log)
+                pyr.generate_hdf5(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.hdf5'))
                 self.job.activity = u'image pyramid generated'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'web'
@@ -266,7 +267,8 @@ class PFilePipeline(Pipeline):
                 pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                nimsutil.pyramid.ImagePyramid(conv_file, log=self.log).generate(os.path.join(self.nims_path, pyramid_ds.relpath))
+                pyr = nimsutil.pyramid.ImagePyramid(conv_file, log=self.log)
+                pyr.generate_sqlite(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
                 self.job.activity = u'image pyramid generated'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'web'

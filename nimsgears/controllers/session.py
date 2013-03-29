@@ -17,24 +17,22 @@ class SessionController(NimsController):
                 form.fetch_data(request)
             else:
                 form = None
-        return dict(page='session',
-                    form=form,
-                    )
+        return dict(page='session', form=form)
 
     @expose()
     @validate(EditSessionForm, error_handler=edit)
     def post_edit(self, **kw):
         user = request.identity['user']
-        if user.has_access_to(Session.get(kw.get('id')), u'Read-Write'):
-            id_ = kw['id']
-            username = kw['operator']['uid']
-            session = Session.query.filter_by(id=id_).one()
+        session = Session.get(kw['id'])
+        if user.has_access_to(session, u'Read-Write'):
             session.notes = kw['notes']
-            session.operator = User.query.filter_by(uid=username).one() if username else None
+            session.operator = User.get_by(uid=kw['operator']['uid'])
             session.subject.code = kw['subject']['code']
             session.subject.firstname = kw['subject']['firstname']
             session.subject.lastname = kw['subject']['lastname']
             session.subject.dob = kw['subject']['dob']
             transaction.commit()
-        flash('Saved (%s)' % datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
-        redirect('/auth/session/edit?id=%s' % id_)
+            flash('Saved (%s)' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        else:
+            flash('permission denied')
+        redirect('/auth/session/edit?id=%s' % kw['id'])

@@ -14,26 +14,26 @@ class NimsController(BaseController):
     def trash_flag(self, **kwargs):
         return json.dumps(request.identity['user'].trash_flag)
 
-    def _modify_access(self, user, exp_list, user_list, set_to_privilege):
+    def _modify_access(self, user, exp_list, user_list, access_level):
+        privilege = AccessPrivilege.value(access_level)
         success = True
         for exp in exp_list:
+            if not user.has_access_to(exp, u'Manage'):
+                success = False
+                break
             for user_ in user_list:
-                if (user_ not in exp.owner.pis) or user.is_superuser:
-                    acc = Access.query.filter(Access.experiment == exp).filter(Access.user == user_).first()
-                    if acc:
-                        if set_to_privilege:
-                            acc.privilege = set_to_privilege
-                        else:
-                            acc.delete()
-                    else:
-                        if set_to_privilege:
-                            Access(experiment=exp, user=user_, privilege=set_to_privilege)
-                else:
-                    # user is a pi on that exp - you shouldn't be able to modify their access
+                if user_ in exp.owner.pis: # no one can modify the access of a PI
                     success = False
                     break
-            if not success:
-                break
+                else:
+                    access = Access.query.filter(Access.experiment == exp).filter(Access.user == user_).first()
+                    if privilege and access:
+                        access.privilege = privilege
+                    elif privilege and not access:
+                        Access(experiment=exp, user=user_, privilege=privilege)
+                    elif access: # and not privilege
+                        access.delete()
+            if not success: break
         return success
 
     def get_experiments(self, user):
@@ -63,7 +63,8 @@ class NimsController(BaseController):
     def get_datasets(self, user, epoch_id):
         dataset_data_list = []
         dataset_attr_list = []
-        for dataset in user.datasets(epoch_id):
-            dataset_data_list.append((dataset.label + ('*' if dataset.kind == u'primary' else ''),))
-            dataset_attr_list.append({'id':'dataset=%d' % dataset.id, 'class':'%s' % ('trash' if dataset.trashtime else '')})
+        for ds in user.datasets(epoch_id):
+            if (ds.kind != u'primary' and ds.kind != u'secondary') or user.has_access_to(ds, u'Read-Only'):
+                dataset_data_list.append((ds.label + ('*' if ds.kind == u'primary' else ''),))
+                dataset_attr_list.append({'id':'dataset=%d' % ds.id, 'class':'%s' % ('trash' if ds.trashtime else '')})
         return (dataset_data_list, dataset_attr_list)

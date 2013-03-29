@@ -17,36 +17,29 @@ class ExperimentController(NimsController):
                 form.fetch_data(request)
             else:
                 form = None
-        return dict(page='experiment',
-                    form=form,
-                    )
+        return dict(page='experiment', form=form)
 
     @expose()
     @validate(EditExperimentForm, error_handler=edit)
     def post_edit(self, **kw):
         user = request.identity['user']
-        if user.has_access_to(Experiment.get(kw.get('id')), u'Read-Write'):
-            id_ = kw['id']
-            name = kw['name']
-            owner = ResearchGroup.query.filter_by(gid=kw['owner']).one()
-            exp = Experiment.query.filter_by(id=id_).one()
-            exp.name = name
-            exp.owner = owner
+        exp = Experiment.get(kw['id'])
+        if user.has_access_to(exp, u'Read-Write'):
+            exp.name = kw['name']
+            exp.owner = ResearchGroup.get_by(gid=kw['owner'])
             transaction.commit()
-        flash('Saved (%s)' % datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
-        redirect('/auth/experiment/edit?id=%s' % id_)
+            flash('Saved (%s)' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        else:
+            flash('permission denied')
+        redirect('/auth/experiment/edit?id=%s' % kw['id'])
 
     @expose('nimsgears.templates.experiments.add')
     def create(self, **kw):
-        form = NewExperimentForm
-        return dict(page='experiments',
-                    form=form,
-                    )
+        return dict(page='experiments', form=NewExperimentForm)
 
     @expose()
     @validate(NewExperimentForm, error_handler=create)
     def post_create(self, **kw):
-        print 'post_create called'
         user = request.identity['user']
         if kw['owner'] in user.admin_group_names:
             experiment = Experiment.from_owner_name(owner=ResearchGroup.query.filter_by(gid=kw['owner']).one(), name=kw['name'])

@@ -6,8 +6,10 @@ from repoze.what import predicates
 import webob.exc
 
 import os
+import json
 import shlex
 import datetime
+import cStringIO
 import subprocess
 from collections import OrderedDict
 
@@ -25,9 +27,9 @@ from nimsgears.controllers.session import SessionController
 from nimsgears.controllers.epoch import EpochController
 from nimsgears.controllers.dataset import DatasetController
 
-import json
-
 __all__ = ['AuthController']
+
+store_path = config.get('store_path')
 
 
 class AuthController(BaseController):
@@ -109,13 +111,12 @@ class AuthController(BaseController):
         return dict(page='admin', params={})
 
     @expose(content_type='application/octet-stream')
-    def getfile(self, **kwargs):
+    def file(self, **kwargs):
         user = request.identity['user']
         if 'id' in kwargs and 'filename' in kwargs:
-            ds = Dataset.get(int(kwargs['id']))
-            filepath = os.path.join(config.get('store_path'), ds.relpath, kwargs['filename'])
-            privilege = u'Read-Only' if (ds.kind == u'primary' or ds.kind == u'secondary') else u'Anon-Read'
-            if user.is_superuser or user.has_access_to(ds, privilege):
+            ds = Dataset.get(kwargs['id'])
+            filepath = os.path.join(store_path, ds.relpath, kwargs['filename'])
+            if user.has_access_to(ds, u'Read-Only' if (ds.kind == u'primary' or ds.kind == u'secondary') else u'Anon-Read'):
                 if os.path.exists(filepath):
                     response.content_disposition = 'attachment; filename=%s' % kwargs['filename'].encode('utf-8')
                     response.content_length = os.path.getsize(filepath) # not actually working
@@ -126,12 +127,13 @@ class AuthController(BaseController):
                 raise webob.exc.HTTPForbidden()
 
     @expose()
-    def image_viewer(self, **kwargs):
+    def oldpyramid(self, **kwargs):
         panojs_url = 'https://cni.stanford.edu/js/panojs/'
-        ds = Dataset.get(int(kwargs['dataset_id']))
-        pyramid_db_file = os.path.join(config.get('store_path'), ds.relpath, ds.filenames[0])
-        tile_size, x_size, y_size = nimsutil.pyramid.get_info_from_db(pyramid_db_file)
-        html = ('<head>\n<meta http-equiv="imagetoolbar" content="no"/>\n'
+        ds = Dataset.get(kwargs['dataset_id'])
+        pyramid_db_file = os.path.join(store_path, ds.relpath, ds.filenames[0])
+        tile_size, x_size, y_size = nimsutil.pyramid.info_from_db(pyramid_db_file)
+        html = ('<!DOCTYPE html">\n'
+                '<html xmlns="http://www.w3.org/1999/xhtml">\n<head>\n<meta http-equiv="imagetoolbar" content="no"/>\n'
                 '<style type="text/css">@import url(' + panojs_url + 'styles/panojs.css);</style>\n'
                 '<script type="text/javascript" src="' + panojs_url + 'extjs/ext-core.js"></script>\n'
                 '<script type="text/javascript" src="' + panojs_url + 'panojs/utils.js"></script>\n'
@@ -143,25 +145,32 @@ class AuthController(BaseController):
                 '<script type="text/javascript" src="' + panojs_url + 'panojs/control_svg.js"></script>\n'
                 '<script type="text/javascript" src="' + panojs_url + 'viewer.js"></script>\n'
                 '<style type="text/css">body { font-family: sans-serif; margin: 0; padding: 10px; color: #000000; background-color: #FFFFFF; font-size: 0.7em; } </style>\n'
-                '<script type="text/javascript">\nvar viewer = null;Ext.onReady('
-                'function () { createViewer( viewer, "viewer", "./images", "'+str(ds.id)+'_","'+str(tile_size)+'","'+str(x_size)+'","'+str(y_size)+'") } );</script>\n'
+                '<script type="text/javascript">\n  var viewer = null;\n  Ext.onReady(\n'
+                '    function () {\n      createViewer( viewer, "viewer", "pyramid_tile", "'+str(ds.id)+'_","'+str(tile_size)+'","'+str(x_size)+'","'+str(y_size)+'")\n    }\n  );\n</script>\n'
                 '</head>\n<body>\n'
-                '<div style="width: 100%; height: 100%;"><div id="viewer" class="viewer" style="width: 100%; height: 100%;" ></div></div>\n'
+                '<div style="width: 100%; height: 100%;">\n'
+                '  <div id="viewer" class="viewer" style="width: 100%; height: 100%;" ></div>\n'
+                '</div>\n'
                 '</body>\n</html>\n')
         return html
 
-    @expose(content_type='image/jpeg')
-    def images(self, *args):
+    @expose('nimsgears.templates.pyramid', render_params={'doctype': None})
+    def pyramid(self, **kwargs):
         user = request.identity['user']
-        dataset_id,z,x,y = args[0].split('_')
-        ds = Dataset.get(dataset_id)
-        pyramid_db_file = os.path.join(config.get('store_path'), ds.relpath, ds.filenames[0])
-        image = nimsutil.pyramid.get_tile_from_db(pyramid_db_file, z, y, x)
-        return image
+        ds = Dataset.get(kwargs['dataset_id'])
+        if user.has_access_to(ds):
+            db_file = os.path.join(store_path, ds.relpath, ds.filenames[0])
+            return dict(zip(['dataset_id', 'tile_size', 'x_size', 'y_size'], (ds.id,) + nimsutil.pyramid.info_from_db(db_file)))
 
-    @expose(content_type='image/png')
-    def pngimage(self, *args):
-        return open('/tmp/image.png', 'r')
+    @expose(content_type='image/jpeg')
+    def pyramid_tile(self, *args):
+        user = request.identity['user']
+        dataset_id, z, x, y = map(int, args[0].rsplit('.', 1)[0].split('_'))
+        ds = Dataset.get(dataset_id)
+        if user.has_access_to(ds):
+            image = nimsutil.pyramid.tile_from_db(os.path.join(store_path, ds.relpath, ds.filenames[0]), z, x, y)
+            response.content_length = len(image)
+            return cStringIO.StringIO(image)
 
     @expose(content_type='application/x-tar')
     def download(self, **kwargs):
@@ -195,3 +204,9 @@ class AuthController(BaseController):
             tar_proc = subprocess.Popen(shlex.split('tar -chf - -C %s %s' % (user_path, ' '.join(files))), stdout=subprocess.PIPE)
             response.content_disposition = 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
             return tar_proc.stdout
+
+    @expose(content_type='application/x-tar')
+    def tarball(self, **kwargs):
+        user = request.identity['user']
+        tar_proc = subprocess.Popen(shlex.split('nims_tar.sh tmp_dir'), stdout=subprocess.PIPE)
+        response.content_disposition = 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))

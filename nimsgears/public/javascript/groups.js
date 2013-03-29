@@ -120,7 +120,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             $.ajax(
             {
                 type: 'POST',
-                url: "groups/groups_query",
+                url: "groups/members_query",
                 dataType: "json",
                 data:
                 {

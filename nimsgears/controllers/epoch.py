@@ -17,18 +17,17 @@ class EpochController(NimsController):
                 form.fetch_data(request)
             else:
                 form = None
-        return dict(page='epoch',
-                    form=form,
-                    )
+        return dict(page='epoch', form=form)
 
     @expose()
     @validate(EditEpochForm, error_handler=edit)
     def post_edit(self, **kw):
         user = request.identity['user']
-        if user.has_access_to(Epoch.get(kw.get('id')), u'Read-Write'):
-            id_ = kw['id']
-            epoch = Epoch.query.filter_by(id=kw['id']).one()
+        epoch = Epoch.get(kw.get('id'))
+        if user.has_access_to(epoch, u'Read-Write'):
             epoch.description = kw['description']
             transaction.commit()
-        flash('Saved (%s)' % datetime.now().strftime("%m/%d/%Y %H:%M:%S"))
-        redirect('/auth/epoch/edit?id=%s' % id_)
+            flash('Saved (%s)' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        else:
+            flash('permission denied')
+        redirect('/auth/epoch/edit?id=%s' % kw['id'])

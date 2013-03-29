@@ -13,20 +13,13 @@ class BrowseController(NimsController):
 
     @expose('nimsgears.templates.browse')
     def index(self):
-        user = request.identity['user']
-
-        # Table columns and their relevant classes
-        exp_columns = [('Group', 'col_sunet'), ('Experiment', 'col_exp')]
-        session_columns = [('Date & Time', 'col_datetime'), ('Subj. Code', 'col_subj')]
-        epoch_columns = [('Time', 'col_time'), ('Description', 'col_desc')]
-        dataset_columns = [('Data Type', 'col_type')]
-
-        return dict(page='browse',
-                    exp_columns=exp_columns,
-                    session_columns=session_columns,
-                    epoch_columns=epoch_columns,
-                    dataset_columns=dataset_columns,
-                    )
+        return dict(
+                page='browse',
+                exp_columns=[('Group', 'col_sunet'), ('Experiment', 'col_exp')],
+                session_columns=[('Date & Time', 'col_datetime'), ('Subj. Code', 'col_subj')],
+                epoch_columns=[('Time', 'col_time'), ('Description', 'col_desc')],
+                dataset_columns=[('Data Type', 'col_type')],
+                )
 
     @expose()
     def set_trash_flag(self, **kwargs):
@@ -47,145 +40,74 @@ class BrowseController(NimsController):
 
     @expose()
     def list_query(self, **kwargs):
-        """ Return info about sessions for given experiment id."""
         user = request.identity['user']
-
         result = {}
-        data_list, attr_list = [], []
-        if 'dataset_list' in kwargs:
-            try:
-                epoch_id = int(kwargs['dataset_list'])
-            except:
-                result['success'] = False
-            else:
-                data_list, attr_list = self.get_datasets(user, epoch_id)
-                result['success'] = True
-        elif 'epoch_list' in kwargs:
-            try:
-                sess_id = int(kwargs['epoch_list'])
-            except:
-                result['success'] = False
-            else:
-                data_list, attr_list = self.get_epochs(user, sess_id)
-                result['success'] = True
+        if 'exp_list' in kwargs:
+            result['data'], result['attrs'] = self.get_experiments(user)
+            result['success'] = True
         elif 'sess_list' in kwargs:
-            try:
-                exp_id = int(kwargs['sess_list'])
-            except:
-                result['success'] = False
-            else:
-                data_list, attr_list = self.get_sessions(user, exp_id)
-                result['success'] = True
-        elif 'exp_list' in kwargs:
-            data_list, attr_list = self.get_experiments(user)
+            result['data'], result['attrs'] = self.get_sessions(user, kwargs['sess_list'])
+            result['success'] = True
+        elif 'epoch_list' in kwargs:
+            result['data'], result['attrs'] = self.get_epochs(user, kwargs['epoch_list'])
+            result['success'] = True
+        elif 'dataset_list' in kwargs:
+            result['data'], result['attrs'] = self.get_datasets(user, kwargs['dataset_list'])
             result['success'] = True
         else:
+            result['data'], result['attrs'] = [], []
             result['success'] = False
-
-        result['data'], result['attrs'] = data_list, attr_list
-
         return json.dumps(result)
 
     @expose()
     def trash(self, **kwargs):
         user = request.identity['user']
-        id_list = query_type = db_query = None
-        if "exp" in kwargs:
-            id_list = kwargs["exp"]
-            query_type = Experiment
-            db_query = Experiment.query
-        elif "sess" in kwargs:
-            id_list = kwargs["sess"]
-            query_type = Session
-            db_query = (Session.query
-                .join(Subject, Session.subject)
-                .join(Experiment, Subject.experiment))
-        elif "epoch" in kwargs:
-            id_list = kwargs["epoch"]
-            query_type = Epoch
-            db_query = (Epoch.query
-                .join(Session, Epoch.session)
-                .join(Subject, Session.subject)
-                .join(Experiment, Subject.experiment))
-        elif "dataset" in kwargs:
-            id_list = kwargs["dataset"]
-            query_type = Dataset
-            db_query = (Dataset.query
-                .join(Epoch)
-                .join(Session, Epoch.session)
-                .join(Subject, Session.subject)
-                .join(Experiment, Subject.experiment))
-        db_query = db_query.join(Access)
-
+        if 'exp' in kwargs:
+            id_list = kwargs['exp'] if isinstance(kwargs['exp'], list) else [kwargs['exp']]
+            db_results = Experiment.query.filter(Experiment.id.in_(id_list)).all()
+        elif 'sess' in kwargs:
+            id_list = kwargs['exp'] if isinstance(kwargs['exp'], list) else [kwargs['exp']]
+            db_results = Session.query.filter(Session.id.in_(id_list)).all()
+        elif 'epoch' in kwargs:
+            id_list = kwargs['exp'] if isinstance(kwargs['exp'], list) else [kwargs['exp']]
+            db_results = Epoch.query.filter(Epoch.id.in_(id_list)).all()
+        elif 'dataset' in kwargs:
+            id_list = kwargs['exp'] if isinstance(kwargs['exp'], list) else [kwargs['exp']]
+            db_results = Dataset.query.filter(Dataset.id.in_(id_list)).all()
+        else:
+            db_results = None
         result = {'success': False}
-        if id_list and query_type and db_query:
-            if not isinstance(id_list, list):
-                id_list = [id_list]
-
-            db_query = db_query.filter(query_type.id.in_(id_list))
-
-            if not user.is_superuser:
-                db_query = db_query.filter(Access.user == user).filter(Access.privilege >= AccessPrivilege.value(u'Manage'))
-
-            db_result = db_query.all()
-
-            # Verify that we still have all of the requested items after access
-            # filtering
-            if len(db_result) == len(id_list):
-                result['success'] = True
-                result['untrashed'] = False
-                all_trash = True
-                for db_item in db_result:
-                    if all_trash and db_item.trashtime == None:
-                        all_trash = False
-                if not all_trash:
-                    for db_item in db_result:
-                        db_item.trash()
-                else:
-                    for db_item in db_result:
-                        db_item.untrash()
-                    result['untrashed'] = True
-                transaction.commit()
-
+        if db_results and all([user.has_access_to(datum, u'Read-Write') for datum in db_results]):
+            if any([(datum.trashtime is None) for datum in db_results]):    # trashing
+                result['untrashed'] = True
+                for datum in db_results:
+                    datum.trash()
+            else:                                                           # untrashing
+                result['untrashed'] = True
+                for datum in db_results:
+                    datum.untrash()
+            result['success'] = True
+            transaction.commit()
+        else:
+            transaction.abort()
         return json.dumps(result)
 
     @expose()
     def transfer_sessions(self, **kwargs):
         user = request.identity['user']
-
-        sess_id_list = exp_id = None
-        if "sess_id_list" in kwargs:
-            sess_id_list = kwargs["sess_id_list"]
-            if isinstance(sess_id_list, list):
-                sess_id_list = [int(item) for item in kwargs["sess_id_list"]]
-            else:
-                sess_id_list = [sess_id_list]
-        if "exp_id" in kwargs:
-            exp_id = int(kwargs["exp_id"])
-
-        result = {'success': False}
-
-        if sess_id_list and exp_id:
-            exp = Experiment.get(exp_id)
-            db_query = Session.query.join(Subject, Session.subject).join(Experiment, Subject.experiment).join(Access).filter(Session.id.in_(sess_id_list))
-            if not user.is_superuser:
-                db_query = db_query.filter(Access.user == user).filter(Access.privilege >= AccessPrivilege.value(u'Manage'))
-            db_result_sess = db_query.all()
-
-            # Verify that we still have all of the requested sessions after access filtering
-            if len(db_result_sess) == len(sess_id_list):
-                result['success'] = True
-                result['untrashed'] = False
-                all_trash = True
-                for session in db_result_sess:
-                    session.move_to_experiment(exp)
-                    if all_trash and session.trashtime == None:
-                        all_trash = False
-                if not all_trash:
-                    if session.subject.experiment.trashtime != None:
-                        session.subject.experiment.untrash()
-                        result['untrashed'] = True
-
-                transaction.commit()
-
+        if 'sess_id_list' in kwargs:
+            sess_ids = kwargs['sess_id_list'] if isinstance(kwargs['sess_id_list'], list) else [kwargs['sess_id_list']]
+        sessions = Session.query.filter(Session.id.in_(sess_ids))
+        exp = Experiment.get(kwargs.get('exp_id'))
+        result = {'success': False, 'untrashed': False}
+        if sessions and exp and all([user.has_access_to(s, u'Read-Write') for s in sessions]) and user.has_access_to(exp, u'Read-Write'):
+            for sess in sessions:
+                sess.move_to_experiment(exp)
+            if exp.trashtime is not None and any([(sess.trashtime is None) for sess in sessions]):
+                exp.untrash(propagate=False)
+                result['untrashed'] = True
+            result['success'] = True
+            transaction.commit()
+        else:
+            transaction.abort()
         return json.dumps(result)

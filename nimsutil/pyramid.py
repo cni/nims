@@ -11,32 +11,25 @@ See: http://www.dimin.net/software/panojs/
 from __future__ import print_function
 
 import os
-import argparse
+import math
 import sqlite3
+import argparse
 import cStringIO
 
-try:
-    import Image
-    import math
-    import nibabel
-    import numpy as np
-    import h5py
-except:
-    pass
 
-
-def get_tile_from_db(dbfile, z, x, y):
+def tile_from_db(dbfile, z, x, y):
     """
-    Get a specific image tile from an sqlite db. Returns a cStringIO object.
+    Get a specific image tile from an sqlite db.
     """
     con = sqlite3.connect(dbfile)
     with con:
         cur = con.cursor()
-        cur.execute('SELECT image FROM tiles where z=? AND x=? AND y=?', (z,y,x))
+        cur.execute('SELECT image FROM tiles where z=? AND x=? AND y=?', (z, x, y))
         image = cur.fetchone()[0]
-    return(cStringIO.StringIO(image))
+    return image
 
-def get_info_from_db(dbfile):
+
+def info_from_db(dbfile):
     """
     Returns the tile_size, x_size, and y_size from the sqlite pyramid db.
     """
@@ -45,30 +38,33 @@ def get_info_from_db(dbfile):
         with con:
             cur = con.cursor()
             cur.execute('SELECT * FROM info')
-            tile_size,x_size,y_size = cur.fetchone()
+            tile_size, x_size, y_size = cur.fetchone()
     except ImagePyramidError as e:
-        print(e.message)
-    return(tile_size,x_size,y_size)
+        self.log.warning(e.message) if self.log else print(e.message)
+    return tile_size, x_size, y_size
 
 
-def get_tile_from_hdf5(hdf5file, z, x, y):
+def tile_from_hdf5(hdf5file, z, x, y):
     """
-    Get a specific image tile from an hdf5 file. Returns a cStringIO object.
+    Get a specific image tile from an hdf5 file.
     """
+    import h5py
     with h5py.File(hdf5file, 'r') as f:
-        image = f['/tiles/%d/%d/%d' % (z,x,y)].value
+        image = f['/tiles/%d/%d/%d' % (z, x, y)].value
     # image should be a 1d numpy array of type uint8. Dump it to the StringIO.
-    return(cStringIO.StringIO(image.tostring()))
+    return image.tostring()
 
-def get_info_from_hdf5(hdf5file):
+
+def info_from_hdf5(hdf5file):
     """
     Returns the tile_size, x_size, and y_size from the hdf5 pyramid.
     """
+    import h5py
     with h5py.File(hdf5file, 'r') as f:
         tile_size = f['/tile_x_y_size'][0]
         x_size = f['/tile_x_y_size'][1]
         y_size = f['/tile_x_y_size'][2]
-    return(tile_size,x_size,y_size)
+    return tile_size, x_size, y_size
 
 
 class ImagePyramidError(Exception):
@@ -86,10 +82,11 @@ class ImagePyramid(object):
         import pyramid
         pyr = pyramid.ImagePyramid('t1.nii.gz')
         pyr.generate()
-
     """
 
     def __init__(self, image, tile_size=256, log=None):
+        import nibabel
+        import numpy as np
         self.tile_size = tile_size
         self.log = log
         self.montage = None
@@ -115,6 +112,7 @@ class ImagePyramid(object):
         """
         Generate a multi-resolution image pyramid and save all the resulting jpeg files in an hdf5 file.
         """
+        import h5py
         self.generate_montage()
         try:
             # Open in write mode-- will rudely clobber the file if it exists. User beware!
@@ -123,7 +121,7 @@ class ImagePyramid(object):
                 self.generate_pyramid(h5py_tiles = tiles)
                 # It's important to get the pyramid metadata *after* the pyramid is generated.
                 # E.g., the montage might be cropped and the tile size adjusted in there.
-                (x_size,y_size) = self.montage.size
+                x_size, y_size = self.montage.size
                 f.create_dataset('tile_x_y_size', (3,), dtype='i')[:] = (self.tile_size, x_size, y_size)
         except ImagePyramidError as e:
             self.log.warning(e.message) if self.log else print(e.message)
@@ -145,7 +143,7 @@ class ImagePyramid(object):
                 self.generate_pyramid(dbcur=cur)
                 # It's important to get the pyramid metadata *after* the pyramid is generated.
                 # E.g., the montage might be cropped and the tile size adjusted in there.
-                (x_size,y_size) = self.montage.size
+                x_size, y_size = self.montage.size
                 cur.execute('INSERT INTO info(tile_size,x_size,y_size) VALUES (?,?,?)', (self.tile_size, x_size, y_size))
         except ImagePyramidError as e:
             self.log.warning(e.message) if self.log else print(e.message)
@@ -175,6 +173,8 @@ class ImagePyramid(object):
         The zoom level (z) is an integer between 0 and n, where 0 is fully zoomed in and n is zoomed out.
         E.g., z=n is for 1 tile covering the whole world, z=n-1 is for 2x2=4 tiles, ... z=0 is the original resolution.
         """
+        import Image
+        import numpy as np
         if not outdir and not dbcur and not h5py_tiles:
             raise Exception('at least one of outdir, dbcur, and h5py_tiles must be supplied')
         if outdir and not os.path.exists(outdir): os.makedirs(outdir)
@@ -223,14 +223,13 @@ class ImagePyramid(object):
                         h5py_xdir.create_dataset('%d' % y, data=buf.getvalue())
                     buf.close()
 
-
     def generate_viewer(self, outfile, panojs_url):
         """
         Creates a basic html file for viewing the image pyramid with panojs.
         """
         (x_size,y_size) = self.montage.size
         with open(outfile, 'w') as f:
-            f.write('<head>\n<meta http-equiv="imagetoolbar" content="no"/>\n')
+            f.write('<html>\n<head>\n<meta http-equiv="imagetoolbar" content="no"/>\n')
             f.write('<style type="text/css">@import url(' + panojs_url + 'styles/panojs.css);</style>\n')
             f.write('<script type="text/javascript" src="' + panojs_url + 'extjs/ext-core.js"></script>\n')
             f.write('<script type="text/javascript" src="' + panojs_url + 'panojs/utils.js"></script>\n')
@@ -257,6 +256,7 @@ class ImagePyramid(object):
         # TODO: we should handle data_type = RGB as a special case.
         # TODO: should we use the scaled data (getScaledData())? (We do some auto-windowing below)
 
+        import numpy as np
         data = self.data.squeeze()
         # TODO: "percentile" is very slow for large arrays. Is there a short cut that we can use?
         # Maybe try taking a smaller subset of the array?
@@ -310,6 +310,7 @@ class ImagePyramid(object):
         """
         self.generate_montage(bits16)
         return self.montage
+
 
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):

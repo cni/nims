@@ -177,6 +177,12 @@ class User(Entity):
     def admin_group_names(self):
         return sorted([group.gid for group in self.admin_groups])
 
+    def manages_group(self, group):
+        return group in self.admin_groups
+
+    def is_group_pi(self, group):
+        return self.is_superuser or self in group.pis
+
     def _filter_access(self, query, min_access_level=u'Anon-Read'):
         return query.join(Access).filter(Access.user == self).filter(Access.privilege >= AccessPrivilege.value(min_access_level))
 
@@ -184,29 +190,27 @@ class User(Entity):
         if self.is_superuser:
             return True
         else:
+            data_container.toplevel_query().first()
             return bool(self._filter_access(data_container.toplevel_query(), min_access_level)
                     .filter(data_container.__class__.id == data_container.id)
                     .first())
 
-    def experiments_with_access_privilege(self, min_access_level=u'Anon-Read'):
+    def experiments_with_access_privilege(self, min_access_level=u'Anon-Read', ignore_superuser=False):
         trash_flag = session.get(self.uid, 0)
         query = Experiment.toplevel_query()
-        if not self.is_superuser:
+        if not self.is_superuser or ignore_superuser:
             query = self._filter_access(query, min_access_level)
         if trash_flag == 0:
             query = query.filter(Experiment.trashtime == None)
         elif trash_flag == 2:
             query = query.filter(Experiment.trashtime != None)
-        if self.is_superuser:
+        if self.is_superuser and not ignore_superuser:
             return [(exp, u'Manage') for exp in query.all()]
         else:
             return [(exp, AccessPrivilege.name(acc.privilege)) for exp, acc in query.add_entity(Access).all()]
 
-    #def experiments(self, min_access_level=u'Anon-Read'):
-    #    if self.is_superuser:
-    #        return Experiment.toplevel_query().all()
-    #    else:
-    #        return self._filter_access(Experiment.toplevel_query(), min_access_level).all()
+    def experiments(self, min_access_level=u'Anon-Read', ignore_superuser=False):
+        return [exp for exp, acc in self.experiments_with_access_privilege(min_access_level, ignore_superuser)]
 
     def sessions(self, exp_id, min_access_level=u'Anon-Read'):
         trash_flag = session.get(self.uid, 0)
@@ -359,6 +363,10 @@ class ResearchGroup(Entity):
     @classmethod
     def all_ids(cls):
         return [rg.gid for rg in cls.query.all()]
+
+    @property
+    def all_member_ids(self):
+        return [u.uid for u in (self.pis + self.managers + self.members)]
 
 
 class Person(Entity):
@@ -724,7 +732,7 @@ class Epoch(DataContainer):
         return epoch
 
     @classmethod
-    def toplevel_query(self):
+    def toplevel_query(cls):
         return (Epoch.query
                 .join(Session, Epoch.session)
                 .join(Subject, Session.subject)
@@ -837,6 +845,14 @@ class Dataset(Entity):
             nimsutil.make_joined_path(nims_path, dataset.relpath)
         return dataset
 
+    @classmethod
+    def toplevel_query(cls):
+        return (Dataset.query
+                .join(Epoch, Dataset.container)
+                .join(Session, Epoch.session)
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment))
+
     def shadowpath(self, user):
         db_result = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
                 .join(Epoch, Dataset.container)
@@ -881,14 +897,6 @@ class Dataset(Entity):
     @property
     def contains_trash(self):
         return self.is_trash
-
-    @property
-    def toplevel_query(self):
-        return (Dataset.query
-                .join(Epoch)
-                .join(Session, Epoch.session)
-                .join(Subject, Session.subject)
-                .join(Experiment, Subject.experiment))
 
     def trash(self, trashtime=datetime.datetime.now()):
         self.trashtime = trashtime
