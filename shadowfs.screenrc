@@ -1,0 +1,12 @@
+# vim: filetype=screen :
+
+defscrollback 100000
+hardstatus alwayslastline "%{W} %w %= %D %d %M %y %c"
+bindkey -k kD stuff ^H
+shell -bash
+
+sessionname shadowfs
+
+screen -t bash          0
+stuff "source /var/local/tg2env/bin/activate \015"
+stuff "/var/local/nims/nimsutil/shadowfs.py -c postgres://nims:nims@nimsfs.stanford.edu:5432/nims /nimsfs/nims /run/shm \015"
