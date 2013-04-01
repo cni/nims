@@ -218,7 +218,7 @@ class DicomPipeline(Pipeline):
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
                 pyr = nimsutil.pyramid.ImagePyramid(conv_file, log=self.log)
-                pyr.generate_hdf5(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.hdf5'))
+                pyr.generate_sqlite(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
                 self.job.activity = u'image pyramid generated'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'web'

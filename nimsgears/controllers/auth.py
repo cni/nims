@@ -1,7 +1,6 @@
 # @author:  Gunnar Schaefer
 
 from tg import config, expose, flash, redirect, request, response
-from pylons.controllers.util import etag_cache
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 from repoze.what import predicates
 import webob.exc
@@ -10,7 +9,6 @@ import os
 import json
 import shlex
 import datetime
-import cStringIO
 import subprocess
 from collections import OrderedDict
 
@@ -141,12 +139,11 @@ class AuthController(BaseController):
         dataset_id, z, x, y = map(int, args[0].rsplit('.', 1)[0].split('_'))
         ds = Dataset.get(dataset_id)
         if user.has_access_to(ds):
-            image = nimsutil.pyramid.tile_from_db(os.path.join(store_path, ds.relpath, ds.filenames[0]), z, x, y)
-            etag_cache(args[0])
-            response.cache_control = 'max-age = 31536000'
-            response.pragma = ''
-            response.last_modified = ds._get_updatetime()
-            return cStringIO.StringIO(image).getvalue()
+            del response.pragma
+            response.etag = args[0]
+            response.cache_control = 'max-age = 86400'
+            response.last_modified = ds.updatetime
+            return nimsutil.pyramid.tile_from_db(os.path.join(store_path, ds.relpath, ds.filenames[0]), z, x, y)
 
     @expose(content_type='application/x-tar')
     def download(self, **kwargs):
