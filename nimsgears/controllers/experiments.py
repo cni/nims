@@ -12,73 +12,30 @@ class ExperimentsController(NimsController):
 
     @expose('nimsgears.templates.experiments')
     def index(self, **kw):
-        user = request.identity['user']
-
         users = User.query.all()
-        user_data_list = [(user.uid, user.name) for user in users]
-        user_attr_list = [{'id': 'uid=%s' % user.uid} for user in users]
-
-        exp_columns = [('Owner', 'col_sunet'), ('Name', 'col_name')]
-        user_columns = [('SUNet ID', 'col_sunet'), ('Name', 'col_name')]
-
-        return dict(page='experiments',
-                    user_data_list=user_data_list,
-                    user_attr_list=user_attr_list,
-                    user_columns=user_columns,
-                    exp_columns=exp_columns,
-                    )
+        return dict(
+                page='experiments',
+                user_data_list=[(user.uid, user.name) for user in users],
+                user_attr_list=[{'id': 'uid=%s' % user.uid} for user in users],
+                user_columns=[('SUNet ID', 'col_sunet'), ('Name', 'col_name')],
+                exp_columns=[('Owner', 'col_sunet'), ('Name', 'col_name')],
+                )
 
     @expose()
     def experiments_with_access(self, **kwargs):
-        """ Return ids of experiments the specified user has access to (and the
-        level of that access), intersected with those ids that the requesting user
-        has manage access to.
-        """
         user = request.identity['user']
-        id_ = kwargs['id']
-
-        # User we are requesting an experiment list from
-        requested_user = User.query.filter_by(uid=id_).first()
-        if user == requested_user:
-            visible_to_requested_user = user.get_experiments(including_trash=True, ignore_superuser=True)
-            key_list = visible_to_requested_user.keys()
-        else:
-            # The requester needs to have manage access on an experiment to have
-            # permission to see that another user has access to it
-            visible_to_requester = user.get_experiments(including_trash=True, with_privilege=u'Manage')
-            # We then retrieve all things that the requested user has *any* form of
-            # access to
-            visible_to_requested_user = requested_user.get_experiments(including_trash=True, ignore_superuser=True)
-
-            # Then perform a set intersection to determine those common to the two sets
-            key_list = set(visible_to_requester.keys()) & set(visible_to_requested_user.keys())
-        acc_list = [AccessPrivilege.privilege_names[visible_to_requested_user[key].Access.privilege] for key in key_list]
-        id_list = ['exp=%d' % key for key in key_list]
-        access_levels = dict(zip(id_list, acc_list))
-
-        return json.dumps(dict(success=True,
-                               access_levels=access_levels))
+        requested_user = User.query.filter_by(uid=kwargs['id']).first()
+        exp_with_acc_priv = requested_user.experiments_with_access_privilege(ignore_superuser=True)
+        if requested_user != user:
+            experiments = set(user.experiments(u'Manage')) & set(requested_user.experiments(ignore_superuser=True))
+            exp_with_acc_priv = [(exp, acc_priv) for exp, acc_priv in exp_with_acc_priv if exp in experiments]
+        return json.dumps(dict(success=True, access_levels=dict([('exp=%s' % exp.id, acc_priv) for exp, acc_priv in exp_with_acc_priv])))
 
     @expose()
     def users_with_access(self, **kwargs):
-        """ Return ids of users that have access to the given experiment under the
-        condition that the user requesting the information has manage access to the
-        experiment.
-        """
         user = request.identity['user']
         exp = Experiment.get(int(kwargs['id']))
-
-        if user.is_superuser:
-            db_results = DBSession.query(User, Access).join(Access).filter(Access.experiment == exp).all()
-        else:
-            user_access = DBSession.query(User, Access).join(Access).filter(Access.experiment == exp).filter(Access.user == user).first()
-            if user_access.Access.privilege < AccessPrivilege.value(u'Manage'):
-                db_results = [user_access]
-            else:
-                db_results = DBSession.query(User, Access).join(Access).filter(Access.experiment == exp).all()
-
-        access_levels = dict([('uid=%s' % res.User.uid, AccessPrivilege.privilege_names[res.Access.privilege]) for res in db_results])
-        return json.dumps(dict(success=True, access_levels=access_levels))
+        return json.dumps(dict(success=True, access_levels=dict([('uid=%s' % u.uid, ap) for u, ap in exp.users_with_access_privilege(user)])))
 
     @expose()
     def get_access_privileges(self, **kwargs):
@@ -87,36 +44,22 @@ class ExperimentsController(NimsController):
     @expose()
     def modify_access(self, **kwargs):
         user = request.identity['user']
-        exp_id_list = user_id_list = access_level = None
-        if "exp_ids" in kwargs:
-            exp_id_list = kwargs['exp_ids']
-            if isinstance(exp_id_list, list):
-                exp_id_list = [int(item) for item in exp_id_list]
-            else:
-                exp_id_list = [exp_id_list]
-        if "user_ids" in kwargs:
-            user_id_list = kwargs['user_ids']
-            if not isinstance(user_id_list, list):
-                user_id_list = [user_id_list]
-        if "access_level" in kwargs:
+        exp_id_list = None
+        user_id_list = None
+        access_level = None
+        if 'exp_ids' in kwargs:
+            exp_id_list = kwargs['exp_ids'] if isinstance(kwargs['exp_ids'], list) else [kwargs['exp_ids']]
+        if 'user_ids' in kwargs:
+            user_id_list = kwargs['user_ids'] if isinstance(kwargs['user_ids'], list) else [kwargs['user_ids']]
+        if 'access_level' in kwargs:
             access_level = kwargs['access_level']
-
-        result = {}
-        result['success'] = False
+        result = {'success': False}
         if exp_id_list and user_id_list and access_level:
-            db_query = Experiment.query
-
-            if not user.is_superuser:
-                db_query = db_query.join(Access).filter(Access.user == user).filter(Access.privilege == AccessPrivilege.value(u'Manage'))
-
-            db_result_exps = db_query.filter(Experiment.id.in_(exp_id_list)).all()
-
-            if len(db_result_exps) == len(exp_id_list):
-                db_result_users = User.query.filter(User.uid.in_(user_id_list)).all()
-                result['success'] = self._modify_access(user, db_result_exps, db_result_users, AccessPrivilege.value(access_level))
+            acc_exps = Experiment.query.filter(Experiment.id.in_(exp_id_list)).all()
+            acc_users = User.query.filter(User.uid.in_(user_id_list)).all()
+            result['success'] = self._modify_access(user, acc_exps, acc_users, access_level)
         if result['success']:
             transaction.commit()
         else:
             transaction.abort()
-
         return json.dumps(result)

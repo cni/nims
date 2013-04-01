@@ -120,7 +120,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             $.ajax(
             {
                 type: 'POST',
-                url: "groups/groups_query",
+                url: "groups/members_query",
                 dataType: "json",
                 data:
                 {
@@ -140,7 +140,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
     var init = function()
     {
         pis = new Drilldown("pis", "Principal Investigators");
-        admins = new Drilldown("admins", "Administrators");
+        admins = new Drilldown("admins", "Managers");
         members = new Drilldown("members", "Members");
         others = new Drilldown("others", "Non-Members");
 

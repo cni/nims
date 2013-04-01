@@ -1,3 +1,7 @@
+# @author:  Gunnar Schaefer
+#           Reno Bowen
+#           Bob Dougherty
+
 import os
 import re
 import shutil
@@ -9,7 +13,6 @@ from elixir import *
 
 import nimsutil
 from nimsgears.model import metadata, DBSession
-from repoze.what import predicates
 
 from tg import session
 from sqlalchemy.util._collections import NamedTuple
@@ -94,7 +97,7 @@ class User(Entity):
     @property
     def is_superuser(self):
         """Return True if user is a superuser and has admin mode enabled."""
-        return predicates.in_group('superusers') and self.admin_mode
+        return Group.by_gid(u'superusers') in self.groups and self.admin_mode
 
     @classmethod
     def by_email(cls, email):
@@ -162,252 +165,86 @@ class User(Entity):
     def job_cnt(self):
         return Job.query.filter((Job.status == u'pending') | (Job.status == u'running')).count()
 
-    def get_trash_flag(self):
+    @property
+    def trash_flag(self):
+        return session.get(self.uid, 0)
+
+    @property
+    def admin_groups(self):
+        return ResearchGroup.query.all() if self.is_superuser else self.pi_groups + self.manager_groups
+
+    @property
+    def admin_group_names(self):
+        return sorted([group.gid for group in self.admin_groups])
+
+    def manages_group(self, group):
+        return group in self.admin_groups
+
+    def is_group_pi(self, group):
+        return self.is_superuser or self in group.pis
+
+    def _filter_access(self, query, min_access_level=u'Anon-Read'):
+        return query.join(Access).filter(Access.user == self).filter(Access.privilege >= AccessPrivilege.value(min_access_level))
+
+    def has_access_to(self, data_container, min_access_level=u'Anon-Read'):
+        if self.is_superuser:
+            return True
+        else:
+            data_container.toplevel_query().first()
+            return bool(self._filter_access(data_container.toplevel_query(), min_access_level)
+                    .filter(data_container.__class__.id == data_container.id)
+                    .first())
+
+    def experiments_with_access_privilege(self, min_access_level=u'Anon-Read', ignore_superuser=False):
         trash_flag = session.get(self.uid, 0)
-        return trash_flag
-
-    def _filter_query(self, query, with_privilege=None):
-        query = query.add_entity(Access).join(Access).join(User, Access.user).filter(Access.user == self)
-        if with_privilege:
-            query = query.filter(Access.privilege >= AccessPrivilege.value(with_privilege))
-        return query
-
-    def has_access_to(self, element, with_privilege=None):
-        if isinstance(element, Experiment):
-            query = Experiment.query.filter(Experiment.id == element.id)
-        elif isinstance(element, Session):
-            query = (Session.query
-                .filter(Session.id == element.id)
-                .join(Subject, Session.subject)
-                .join(Experiment, Subject.experiment))
-        elif isinstance(element, Epoch):
-            query = (Epoch.query
-                .filter(Epoch.id == element.id)
-                .join(Session, Epoch.session)
-                .join(Subject, Session.subject)
-                .join(Experiment, Subject.experiment))
-        elif isinstance(element, Dataset):
-            query = (Dataset.query
-                .filter(Dataset.id == element.id)
-                .join(Epoch)
-                .join(Session, Epoch.session)
-                .join(Subject, Session.subject)
-                .join(Experiment, Subject.experiment))
-        else:
-            return False
-        result = self._filter_query(query, with_privilege).first()
-        return result != None
-
-
-    def get_experiments(self, including_trash=None, only_trash=None, contains_trash=None, with_privilege=None, ignore_superuser=False):
-        if not (including_trash or only_trash or contains_trash):
-            trash_flag = self.get_trash_flag()
-            if trash_flag == 1:
-                including_trash = True
-            elif trash_flag == 2:
-                contains_trash = True
-
-        query = Experiment.query
-
-        if including_trash:
-            pass # including everything, so no filter necessary
-        elif only_trash or contains_trash:
-            query = (query
-                .join(Subject, Experiment.subjects)
-                .join(Session, Subject.sessions)
-                .join(Epoch, Session.epochs)
-                .join(Dataset, Epoch.datasets))
-            if only_trash:
-                query = (query
-                    .filter(Experiment.trashtime != None))
-            else: # contains_trash
-                query = (query
-                    .filter((Experiment.trashtime != None) |
-                            (Session.trashtime != None) |
-                            (Epoch.trashtime != None) |
-                            (Dataset.trashtime != None)))
-        else: # no trash
-            query = (query
-                .filter(Experiment.trashtime == None))
-
-        result_dict = {}
+        query = Experiment.toplevel_query()
+        if not self.is_superuser or ignore_superuser:
+            query = self._filter_access(query, min_access_level)
+        if trash_flag == 0:
+            query = query.filter(Experiment.trashtime == None)
+        elif trash_flag == 2:
+            query = query.filter(Experiment.trashtime != None)
         if self.is_superuser and not ignore_superuser:
-            unfiltered_results = query.all()
-            for result in unfiltered_results:
-                result_dict[result.id] = result
-            # Since these don't hit the filter, and thus don't get access
-            # privileges appended to them, we add them here
-            for key, value in result_dict.iteritems():
-                if not isinstance(value, NamedTuple):
-                    result_dict[key] = NamedTuple([value, None], ['Experiment', 'Access'])
+            return [(exp, u'Manage') for exp in query.all()]
         else:
-            filtered_results = self._filter_query(query, with_privilege).all()
-            for result in filtered_results:
-                result_dict[result.Experiment.id] = result
+            return [(exp, AccessPrivilege.name(acc.privilege)) for exp, acc in query.add_entity(Access).all()]
 
-        return result_dict
+    def experiments(self, min_access_level=u'Anon-Read', ignore_superuser=False):
+        return [exp for exp, acc in self.experiments_with_access_privilege(min_access_level, ignore_superuser)]
 
-    def get_sessions(self, by_experiment_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None, ignore_superuser=False):
-        if not (including_trash or only_trash or contains_trash):
-            trash_flag = self.get_trash_flag()
-            if trash_flag == 1:
-                including_trash = True
-            elif trash_flag == 2:
-                contains_trash = True
+    def sessions(self, exp_id, min_access_level=u'Anon-Read'):
+        trash_flag = session.get(self.uid, 0)
+        query = Session.toplevel_query().filter(Experiment.id == exp_id)
+        if not self.is_superuser:
+            query = self._filter_access(query, min_access_level)
+        if trash_flag == 0:
+            query = query.filter(Session.trashtime == None)
+        elif trash_flag == 2:
+            query = query.filter(Session.trashtime != None)
+        return query.all()
 
-        query = (Session.query
-            .join(Subject, Session.subject)
-            .join(Experiment, Subject.experiment))
+    def epochs(self, sess_id, min_access_level=u'Anon-Read'):
+        trash_flag = session.get(self.uid, 0)
+        query = Epoch.query.join(Session, Epoch.session).filter(Session.id == sess_id).join(Subject, Session.subject).join(Experiment, Subject.experiment) ## FIXME: use toplevel_query (sqlalchemy is broken, filter and join have order dependency)
+        if not self.is_superuser:
+            query = self._filter_access(query, min_access_level)
+        if trash_flag == 0:
+            query = query.filter(Epoch.trashtime == None)
+        elif trash_flag == 2:
+            query = query.filter(Epoch.trashtime != None)
+        return query.all()
 
-        if by_experiment_id:
-            query = (query
-                .filter(Experiment.id == by_experiment_id))
+    def datasets(self, epoch_id, min_access_level=u'Anon-Read'):
+        trash_flag = session.get(self.uid, 0)
+        query = Dataset.query.join(Epoch, Dataset.container).filter(Epoch.id == epoch_id).join(Session, Epoch.session).join(Subject, Session.subject).join(Experiment, Subject.experiment) ## FIXME: use toplevel_query (sqlalchemy is broken, filter and join have order dependency)
+        if not self.is_superuser:
+            query = self._filter_access(query, min_access_level)
+        if trash_flag == 0:
+            query = query.filter(Dataset.trashtime == None)
+        elif trash_flag == 2:
+            query = query.filter(Dataset.trashtime != None)
+        return query.all()
 
-        if including_trash:
-            pass # including everything, so no filter necessary
-        elif contains_trash or only_trash:
-            query = (query
-                .join(Epoch, Session.epochs)
-                .join(Dataset, Epoch.datasets))
-            if only_trash:
-                query = (query
-                    .filter(Session.trashtime != None))
-            else: # contains_trash
-                query = (query
-                    .filter((Session.trashtime != None) |
-                            (Epoch.trashtime != None) |
-                            (Dataset.trashtime != None)))
-        else: # no trash
-            query = (query
-                .filter(Session.trashtime == None))
-
-        result_dict = {}
-        if self.is_superuser and not ignore_superuser:
-            unfiltered_results = query.all()
-            for result in unfiltered_results:
-                result_dict[result.id] = result
-            # Since these don't hit the filter, and thus don't get access
-            # privileges appended to them, we add them
-            for key, value in result_dict.iteritems():
-                if not isinstance(value, NamedTuple):
-                    result_dict[key] = NamedTuple([value, None], ['Session', 'Access'])
-        else:
-            filtered_results = self._filter_query(query, with_privilege).all()
-            for result in filtered_results:
-                result_dict[result.Session.id] = result
-        return result_dict
-
-    def get_epochs(self, by_experiment_id=None, by_session_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None, ignore_superuser=False):
-        if not (including_trash or only_trash or contains_trash):
-            trash_flag = self.get_trash_flag()
-            if trash_flag == 1:
-                including_trash = True
-            elif trash_flag == 2:
-                contains_trash = True
-
-        query = (Epoch.query
-            .join(Session, Epoch.session))
-
-        if by_session_id:
-            query = (query
-                .filter(Session.id == by_session_id))
-
-        query = (query
-            .join(Subject, Session.subject)
-            .join(Experiment, Subject.experiment))
-
-        if by_experiment_id:
-            query = (query
-                .filter(Experiment.id == by_experiment_id))
-
-        if including_trash:
-            pass # including everything, so no filter necessary
-        elif only_trash or contains_trash:
-            query = (query
-                .join(Dataset, Epoch.datasets))
-            if only_trash:
-                query = (query
-                    .filter(Epoch.trashtime != None))
-            else: # contains_trash
-                query = (query
-                    .filter((Epoch.trashtime != None) |
-                            (Dataset.trashtime != None)))
-        else: # no trash
-            query = (query
-                .filter(Epoch.trashtime == None))
-
-        result_dict = {}
-        if self.is_superuser and not ignore_superuser:
-            unfiltered_results = query.all()
-            for result in unfiltered_results:
-                result_dict[result.id] = result
-            # Since these don't hit the filter, and thus don't get access
-            # privileges appended to them, we add them
-            for key, value in result_dict.iteritems():
-                if not isinstance(value, NamedTuple):
-                    result_dict[key] = NamedTuple([value, None], ['Epoch', 'Access'])
-        else:
-            filtered_results = self._filter_query(query, with_privilege).all()
-            for result in filtered_results:
-                result_dict[result.Epoch.id] = result
-        return result_dict
-
-    def get_datasets(self, by_experiment_id=None, by_session_id=None, by_epoch_id=None, including_trash=False, only_trash=False, contains_trash=False, with_privilege=None, ignore_superuser=False):
-        if not (including_trash or only_trash or contains_trash):
-            trash_flag = self.get_trash_flag()
-            if trash_flag == 1:
-                including_trash = True
-            elif trash_flag == 2:
-                contains_trash = True
-
-        query = (Dataset.query
-            .join(Epoch))
-
-        if by_epoch_id:
-            query = (query
-                .filter(Epoch.id == by_epoch_id))
-
-        query = (query
-            .join(Session, Epoch.session))
-
-        if by_session_id:
-            query = (query
-                .filter(Session.id == by_session_id))
-
-        query = (query
-            .join(Subject, Session.subject)
-            .join(Experiment, Subject.experiment))
-
-        if by_experiment_id:
-            query = (query
-                .filter(Experiment.id == by_experiment_id))
-
-        if including_trash:
-            pass # including everything, so no filter necessary
-        elif only_trash or contains_trash:
-            query = (query
-                .filter(Dataset.trashtime != None))
-        else: # no trash
-            query = (query
-                .filter(Dataset.trashtime == None))
-
-        result_dict = {}
-        if self.is_superuser and not ignore_superuser:
-            unfiltered_results = query.all()
-            for result in unfiltered_results:
-                result_dict[result.id] = result
-            # Since these don't hit the filter, and thus don't get access
-            # privileges appended to them, we add them
-            for key, value in result_dict.iteritems():
-                if not isinstance(value, NamedTuple):
-                    result_dict[key] = NamedTuple([value, None], ['Dataset', 'Access'])
-        else:
-            filtered_results = self._filter_query(query, with_privilege).all()
-            for result in filtered_results:
-                if (result.Access.privilege >= AccessPrivilege.value(u'Read-Only') or
-                        (result.Dataset.kind != u'primary' and result.Dataset.kind != u'secondary')):
-                    result_dict[result.Dataset.id] = result
-        return result_dict
 
 class Permission(Entity):
 
@@ -499,6 +336,9 @@ class Access(Entity):
             kwargs['privilege'] = AccessPrivilege.value(kwargs['privilege_name'])
         super(Access, self).__init__(**kwargs)
 
+    def __repr__(self):
+        return (u'%s' % self).encode('utf-8')
+
     def __unicode__(self):
         return u'%s: (%s, %s)' % (AccessPrivilege.name(self.privilege), self.user, self.experiment)
 
@@ -521,8 +361,12 @@ class ResearchGroup(Entity):
         return self.name or self.gid
 
     @classmethod
-    def get_all_ids(cls):
+    def all_ids(cls):
         return [rg.gid for rg in cls.query.all()]
+
+    @property
+    def all_member_ids(self):
+        return [u.uid for u in (self.pis + self.managers + self.members)]
 
 
 class Person(Entity):
@@ -548,7 +392,7 @@ class DataContainer(Entity):
     jobs = OneToMany('Job')
 
     def __repr__(self):
-        return (u'<%s: %s>' % (self.__class__.__name__, self.name)).encode('utf-8')
+        return (u'<%s: %s>' % (self.__class__.__name__, self)).encode('utf-8')
 
     @property
     def primary_dataset(self):
@@ -588,6 +432,10 @@ class Experiment(DataContainer):
                 Access(experiment=experiment, user=member, privilege_name=u'Read-Only')
         return experiment
 
+    @classmethod
+    def toplevel_query(self):
+        return Experiment.query
+
     @property
     def persons(self):
         return [s.person for s in self.subject]
@@ -605,6 +453,14 @@ class Experiment(DataContainer):
             if subject.contains_trash:
                 return True
         return False
+
+    def users_with_access_privilege(self, user):
+        user_access = User.query.join(Access).add_entity(Access).filter(Access.experiment == self).filter(Access.user == user).first()
+        if user.is_superuser or user_access.Access.privilege == AccessPrivilege.value(u'Manage'):
+            db_results = User.query.join(Access).add_entity(Access).filter(Access.experiment == self).all()
+        else:
+            db_results = [user_access]
+        return [(user, AccessPrivilege.name(acc.privilege)) for user, acc in db_results]
 
     def trash(self, trashtime=datetime.datetime.now()):
         self.trashtime = trashtime
@@ -642,7 +498,7 @@ class Subject(DataContainer):
 
     @classmethod
     def from_mrfile(cls, mrfile):
-        group_name, exp_name = nimsutil.parse_patient_id(mrfile.patient_id, ResearchGroup.get_all_ids())
+        group_name, exp_name = nimsutil.parse_patient_id(mrfile.patient_id, ResearchGroup.all_ids())
         query = cls.query.join(Experiment, cls.experiment).filter(Experiment.name==exp_name)
         if mrfile.subj_code:
             subject = query.filter(cls.code==mrfile.subj_code).first()
@@ -670,6 +526,11 @@ class Subject(DataContainer):
         if not subject:
             subject = session.subject.clone(experiment)
         return subject
+
+    @classmethod
+    def toplevel_query(self):
+        return (Subject.query
+                .join(Experiment, Subject.experiment))
 
     @property
     def name(self):
@@ -719,7 +580,7 @@ class Session(DataContainer):
     epochs = OneToMany('Epoch')
 
     def __unicode__(self):
-        return u'Session'
+        return self.name
 
     @classmethod
     def from_mrfile(cls, mrfile):
@@ -735,6 +596,12 @@ class Session(DataContainer):
             operator = User.by_uid(unicode(mrfile.operator), create=False)
             session = Session(uid=uid, exam=mrfile.exam_no, subject=subject, operator=operator)
         return session
+
+    @classmethod
+    def toplevel_query(self):
+        return (Session.query
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment))
 
     @property
     def name(self):
@@ -774,6 +641,7 @@ class Session(DataContainer):
         self.subject = Subject.for_session_in_experiment(self, experiment)
         if not old_subject.sessions:
             old_subject.delete()
+
 
 class Epoch(DataContainer):
 
@@ -862,6 +730,13 @@ class Epoch(DataContainer):
                     # to unpack fov, mm_per_vox, and acquisition_matrix: np.fromstring(str(mm)[1:-1],sep=',')
                     )
         return epoch
+
+    @classmethod
+    def toplevel_query(cls):
+        return (Epoch.query
+                .join(Session, Epoch.session)
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment))
 
     @property
     def name(self):
@@ -969,6 +844,14 @@ class Dataset(Entity):
             DBSession.add(dataset)
             nimsutil.make_joined_path(nims_path, dataset.relpath)
         return dataset
+
+    @classmethod
+    def toplevel_query(cls):
+        return (Dataset.query
+                .join(Epoch, Dataset.container)
+                .join(Session, Epoch.session)
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment))
 
     def shadowpath(self, user):
         db_result = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)

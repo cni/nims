@@ -1,0 +1,37 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<head>
+  <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/javascript/panojs/styles/panojs.css')}" />
+  <script type="text/javascript" src="${tg.url('/javascript/panojs/extjs/ext-core.js')}"></script>
+  <script type="text/javascript" src="${tg.url('/javascript/panojs/panojs/utils.js')}"></script>
+  <script type="text/javascript" src="${tg.url('/javascript/panojs/panojs/PanoJS.js')}"></script>
+  <script type="text/javascript" src="${tg.url('/javascript/panojs/panojs/controls.js')}"></script>
+  <script type="text/javascript" src="${tg.url('/javascript/panojs/panojs/pyramid_imgcnv.js')}"></script>
+  <script type="text/javascript" src="${tg.url('/javascript/panojs/panojs/control_thumbnail.js')}"></script>
+  <script type="text/javascript" src="${tg.url('/javascript/panojs/panojs/control_info.js')}"></script>
+  <script type="text/javascript" src="${tg.url('/javascript/panojs/panojs/control_svg.js')}"></script>
+  <script type="text/javascript" src="${tg.url('/javascript/panojs/viewer.js')}"></script>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 10px; color: #000000; background-color: #FFFFFF; font-size: 0.7em; }
+  </style>
+  <meta http-equiv="imagetoolbar" content="no"/>
+
+  <script type="text/javascript">
+    var viewer = null;
+    Ext.onReady(
+      function () {
+        createViewer( viewer, "viewer", "${tg.url('/auth/pyramid_tile')}", "${dataset_id}_", ${tile_size}, ${x_size}, ${y_size} )
+      }
+    );
+  </script>
+</head>
+
+<body>
+  <div style="width: 100%; height: 100%;">
+    <div id="viewer" class="viewer" style="width: 100%; height: 100%;" ></div>
+  </div>
+</body>
+
+</html>

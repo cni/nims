@@ -199,7 +199,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         $.ajax({
             traditional: true,
             type: 'POST',
-            url: "browse/get_trash_flag",
+            url: "browse/trash_flag",
             dataType: "json",
             async: false,
             success: function(data)
@@ -321,11 +321,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                         //// Disable rows that you don't have manage access to
                         var experiment_rows = $(experiments.getRows());
                         experiment_row = $(selected_rows[0]);
-                        if (experiment_row.hasClass('access_manage'))
+                        if (experiment_row.hasClass('access_manage') || experiment_row.hasClass('access_read-write'))
                         {
                             experiment_rows.each(function()
                             {
-                                var disable_drop = !$(this).hasClass('access_manage') || $(this).is(experiment_row);
+                                var disable_drop = (!$(this).hasClass('access_manage') && !$(this).hasClass('access_read-write')) || $(this).is(experiment_row);
                                 $(this).droppable("option", "disabled", disable_drop);
                             });
                         }
