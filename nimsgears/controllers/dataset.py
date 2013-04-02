@@ -3,9 +3,10 @@ from nimsgears.controllers.nims import NimsController
 from nimsgears.model import *
 
 class DatasetController(NimsController):
+
     @expose()
     def index(self, **kw):
-        user = request.identity['user']
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         dataset = Dataset.get(kw.get('id'))
         if dataset:
             if dataset.filetype == u'img_pyr':

@@ -10,10 +10,6 @@ from nimsgears.lib.base import BaseController
 
 class NimsController(BaseController):
 
-    @expose()
-    def trash_flag(self, **kwargs):
-        return json.dumps(request.identity['user'].trash_flag)
-
     def _modify_access(self, user, exp_list, user_list, access_level):
         privilege = AccessPrivilege.value(access_level)
         success = True

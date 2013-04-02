@@ -101,7 +101,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             iframe.style.visibility = 'hidden';
             document.body.appendChild(iframe);
         }
-        iframe.src = 'download?id_dict=' + JSON.stringify(id_dict)
+        iframe.src = '../download?id_dict=' + JSON.stringify(id_dict)
     };
 
     /*
@@ -269,7 +269,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     table.synchronizeSelections();
                     experiments.onDoubleClick(function()
                     {
-                        Dialog.showDialog(experiments_popup, "experiment", "experiment/edit?id="+getId(this.id));
+                        Dialog.showDialog(experiments_popup, "experiment", "../experiment/edit?id="+getId(this.id));
                         experiments_popup.on( "dialogbeforeclose", function( event, ui ) { manager.refresh(0, [], true); } );
                     });
                     TableDragAndDrop.setupDroppable(sessions._getBodyTable(), $(experiments.getRows()), dropSessionsOnExperiment);
@@ -314,7 +314,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                         table.synchronizeSelections();
                         sessions.onDoubleClick(function()
                         {
-                            Dialog.showDialog(sessions_popup, "session", "session/edit?id="+getId(this.id));
+                            Dialog.showDialog(sessions_popup, "session", "../session/edit?id="+getId(this.id));
                             sessions_popup.on( "dialogbeforeclose", function( event, ui ) { manager.refresh(0, [], true); } );
                         });
 
@@ -380,7 +380,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                         table.synchronizeSelections();
                         epochs.onDoubleClick(function()
                         {
-                            Dialog.showDialog(epochs_popup, "epoch", "epoch/edit?id="+getId(this.id));
+                            Dialog.showDialog(epochs_popup, "epoch", "../epoch/edit?id="+getId(this.id));
                             epochs_popup.on( "dialogbeforeclose", function( event, ui ) { manager.refresh(0, [], true); } );
                         });
                     }
@@ -428,7 +428,7 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        datasets.onDoubleClick(function() { Dialog.showDialog(datasets_popup, "dataset", "dataset?id="+getId(this.id)); });
+                        datasets.onDoubleClick(function() { Dialog.showDialog(datasets_popup, "dataset", "../dataset?id="+getId(this.id)); });
                     }
                     else
                     {

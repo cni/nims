@@ -6,7 +6,9 @@ from nimsgears.widgets.validators import UserExists, SubjectCodeDoesntExist
 from formencode.compound import All
 from nimsgears.model import ResearchGroup, Session, Subject, User
 
-user_list = lambda: [u.uid for u in User.query.all()]
+def user_list():
+    user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
+    return [u.uid for u in User.query.all()] if user.uid != u'@public' else []
 
 class EditSessionForm(tws.DbFormPage):
     entity = Session

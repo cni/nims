@@ -8,7 +8,7 @@ import transaction
 class SessionController(NimsController):
     @expose('nimsgears.templates.form')
     def edit(self, **kw):
-        user = request.identity['user']
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         if tmpl_context.form_errors:
             form = EditSessionForm
         else:
@@ -22,7 +22,7 @@ class SessionController(NimsController):
     @expose()
     @validate(EditSessionForm, error_handler=edit)
     def post_edit(self, **kw):
-        user = request.identity['user']
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         session = Session.get(kw['id'])
         if user.has_access_to(session, u'Read-Write'):
             session.notes = kw['notes']
@@ -35,4 +35,4 @@ class SessionController(NimsController):
             flash('Saved (%s)' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         else:
             flash('permission denied')
-        redirect('/auth/session/edit?id=%s' % kw['id'])
+        redirect('../session/edit?id=%s' % kw['id'])

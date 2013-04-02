@@ -165,9 +165,12 @@ class User(Entity):
     def job_cnt(self):
         return Job.query.filter((Job.status == u'pending') | (Job.status == u'running')).count()
 
-    @property
-    def trash_flag(self):
-        return session.get(self.uid, 0)
+    def _get_trash_flag(self):
+        return session.get('trash_flag', 0)
+    def _set_trash_flag(self, trash_flag):
+        session['trash_flag'] = trash_flag
+        session.save()
+    trash_flag = property(_get_trash_flag, _set_trash_flag)
 
     @property
     def admin_groups(self):
@@ -196,13 +199,12 @@ class User(Entity):
                     .first())
 
     def experiments_with_access_privilege(self, min_access_level=u'Anon-Read', ignore_superuser=False):
-        trash_flag = session.get(self.uid, 0)
         query = Experiment.toplevel_query()
         if not self.is_superuser or ignore_superuser:
             query = self._filter_access(query, min_access_level)
-        if trash_flag == 0:
+        if self.trash_flag == 0:
             query = query.filter(Experiment.trashtime == None)
-        elif trash_flag == 2:
+        elif self.trash_flag == 2:
             query = query.filter(Experiment.trashtime != None)
         if self.is_superuser and not ignore_superuser:
             return [(exp, u'Manage') for exp in query.all()]
@@ -213,35 +215,32 @@ class User(Entity):
         return [exp for exp, acc in self.experiments_with_access_privilege(min_access_level, ignore_superuser)]
 
     def sessions(self, exp_id, min_access_level=u'Anon-Read'):
-        trash_flag = session.get(self.uid, 0)
         query = Session.toplevel_query().filter(Experiment.id == exp_id)
         if not self.is_superuser:
             query = self._filter_access(query, min_access_level)
-        if trash_flag == 0:
+        if self.trash_flag == 0:
             query = query.filter(Session.trashtime == None)
-        elif trash_flag == 2:
+        elif self.trash_flag == 2:
             query = query.filter(Session.trashtime != None)
         return query.all()
 
     def epochs(self, sess_id, min_access_level=u'Anon-Read'):
-        trash_flag = session.get(self.uid, 0)
         query = Epoch.query.join(Session, Epoch.session).filter(Session.id == sess_id).join(Subject, Session.subject).join(Experiment, Subject.experiment) ## FIXME: use toplevel_query (sqlalchemy is broken, filter and join have order dependency)
         if not self.is_superuser:
             query = self._filter_access(query, min_access_level)
-        if trash_flag == 0:
+        if self.trash_flag == 0:
             query = query.filter(Epoch.trashtime == None)
-        elif trash_flag == 2:
+        elif self.trash_flag == 2:
             query = query.filter(Epoch.trashtime != None)
         return query.all()
 
     def datasets(self, epoch_id, min_access_level=u'Anon-Read'):
-        trash_flag = session.get(self.uid, 0)
         query = Dataset.query.join(Epoch, Dataset.container).filter(Epoch.id == epoch_id).join(Session, Epoch.session).join(Subject, Session.subject).join(Experiment, Subject.experiment) ## FIXME: use toplevel_query (sqlalchemy is broken, filter and join have order dependency)
         if not self.is_superuser:
             query = self._filter_access(query, min_access_level)
-        if trash_flag == 0:
+        if self.trash_flag == 0:
             query = query.filter(Dataset.trashtime == None)
-        elif trash_flag == 2:
+        elif self.trash_flag == 2:
             query = query.filter(Dataset.trashtime != None)
         return query.all()
 

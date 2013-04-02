@@ -8,7 +8,7 @@ import transaction
 class EpochController(NimsController):
     @expose('nimsgears.templates.form')
     def edit(self, **kw):
-        user = request.identity['user']
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         if tmpl_context.form_errors:
             form = EditEpochForm
         else:
@@ -22,7 +22,7 @@ class EpochController(NimsController):
     @expose()
     @validate(EditEpochForm, error_handler=edit)
     def post_edit(self, **kw):
-        user = request.identity['user']
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         epoch = Epoch.get(kw.get('id'))
         if user.has_access_to(epoch, u'Read-Write'):
             epoch.description = kw['description']
@@ -30,4 +30,4 @@ class EpochController(NimsController):
             flash('Saved (%s)' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         else:
             flash('permission denied')
-        redirect('/auth/epoch/edit?id=%s' % kw['id'])
+        redirect('../epoch/edit?id=%s' % kw['id'])

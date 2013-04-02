@@ -5,10 +5,12 @@ from nimsgears.model import *
 from nimsgears.widgets.experiment import NewExperimentForm, EditExperimentForm
 import transaction
 
+
 class ExperimentController(NimsController):
+
     @expose('nimsgears.templates.form')
     def edit(self, **kw):
-        user = request.identity['user']
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         if tmpl_context.form_errors:
             form = EditExperimentForm
         else:
@@ -22,7 +24,7 @@ class ExperimentController(NimsController):
     @expose()
     @validate(EditExperimentForm, error_handler=edit)
     def post_edit(self, **kw):
-        user = request.identity['user']
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         exp = Experiment.get(kw['id'])
         if user.has_access_to(exp, u'Read-Write'):
             exp.name = kw['name'].lower()
@@ -31,7 +33,7 @@ class ExperimentController(NimsController):
             flash('Saved (%s)' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         else:
             flash('permission denied')
-        redirect('/auth/experiment/edit?id=%s' % kw['id'])
+        redirect('../experiment/edit?id=%s' % kw['id'])
 
     @expose('nimsgears.templates.experiments.add')
     def create(self, **kw):
@@ -44,4 +46,4 @@ class ExperimentController(NimsController):
         if kw['owner'] in user.admin_group_names:
             experiment = Experiment.from_owner_name(owner=ResearchGroup.query.filter_by(gid=kw['owner']).one(), name=kw['name'])
             DBSession.add(experiment)
-        redirect('/auth/experiment/create')
+        redirect('../experiment/create')

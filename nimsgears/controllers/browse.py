@@ -22,25 +22,23 @@ class BrowseController(NimsController):
                 )
 
     @expose()
+    def trash_flag(self, **kwargs):
+        return json.dumps(request.identity['user'].trash_flag if request.identity else 0)
+
+    @expose()
     def set_trash_flag(self, **kwargs):
         user = request.identity['user']
-        result = {}
-        if 'trash_flag' in kwargs:
-            try:
-                trash_flag = int(kwargs['trash_flag'])
-            except:
-                result['success'] = False
-            else:
-                session[user.uid] = trash_flag
-                session.save()
-                result['success'] = True
-        else:
-            result['success'] = False
-        return json.dumps(result)
+        try:
+            trash_flag = int(kwargs['trash_flag'])
+            user.trash_flag = trash_flag
+            success = True
+        except:
+            success = False
+        return json.dumps({'success': success})
 
     @expose()
     def list_query(self, **kwargs):
-        user = request.identity['user']
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         result = {}
         if 'exp_list' in kwargs:
             result['data'], result['attrs'] = self.get_experiments(user)
