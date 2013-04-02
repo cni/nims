@@ -66,13 +66,13 @@ class BrowseController(NimsController):
             id_list = kwargs['exp'] if isinstance(kwargs['exp'], list) else [kwargs['exp']]
             db_results = Experiment.query.filter(Experiment.id.in_(id_list)).all()
         elif 'sess' in kwargs:
-            id_list = kwargs['exp'] if isinstance(kwargs['exp'], list) else [kwargs['exp']]
+            id_list = kwargs['sess'] if isinstance(kwargs['sess'], list) else [kwargs['sess']]
             db_results = Session.query.filter(Session.id.in_(id_list)).all()
         elif 'epoch' in kwargs:
-            id_list = kwargs['exp'] if isinstance(kwargs['exp'], list) else [kwargs['exp']]
+            id_list = kwargs['epoch'] if isinstance(kwargs['epoch'], list) else [kwargs['epoch']]
             db_results = Epoch.query.filter(Epoch.id.in_(id_list)).all()
         elif 'dataset' in kwargs:
-            id_list = kwargs['exp'] if isinstance(kwargs['exp'], list) else [kwargs['exp']]
+            id_list = kwargs['dataset'] if isinstance(kwargs['dataset'], list) else [kwargs['dataset']]
             db_results = Dataset.query.filter(Dataset.id.in_(id_list)).all()
         else:
             db_results = None

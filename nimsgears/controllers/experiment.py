@@ -25,7 +25,7 @@ class ExperimentController(NimsController):
         user = request.identity['user']
         exp = Experiment.get(kw['id'])
         if user.has_access_to(exp, u'Read-Write'):
-            exp.name = kw['name']
+            exp.name = kw['name'].lower()
             exp.owner = ResearchGroup.get_by(gid=kw['owner'])
             transaction.commit()
             flash('Saved (%s)' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
