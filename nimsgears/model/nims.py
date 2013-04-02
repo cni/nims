@@ -513,9 +513,9 @@ class Subject(DataContainer):
             subject = cls(
                     experiment=experiment,
                     person=Person(),
-                    code=subj_code,
-                    firstname=mrfile.subj_fn,
-                    lastname=mrfile.subj_ln,
+                    code=subj_code[:31],
+                    firstname=mrfile.subj_fn[:63],
+                    lastname=mrfile.subj_ln[:63],
                     dob=mrfile.subj_dob,
                     )
         return subject
