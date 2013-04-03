@@ -10,10 +10,7 @@ class DatasetController(NimsController):
         dataset = Dataset.get(kw.get('id'))
         if dataset:
             if dataset.filetype == u'img_pyr':
-                if dataset.filenames[0].endswith('.pyrdb') or dataset.filenames[0].endswith('.hdf5'):
-                    redirect('pyramid?dataset_id=%d' % dataset.id)
-                else:
-                    redirect(dataset.shadowpath(user) + '/pyramid.html')
+                redirect('pyramid?dataset_id=%d' % dataset.id)
             else:
                 html_str = '<html><body><ul>'
                 for filename in dataset.filenames:

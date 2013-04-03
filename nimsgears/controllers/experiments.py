@@ -12,11 +12,8 @@ class ExperimentsController(NimsController):
 
     @expose('nimsgears.templates.experiments')
     def index(self, **kw):
-        users = User.query.all()
         return dict(
                 page='experiments',
-                user_data_list=[(user.uid, user.name) for user in users],
-                user_attr_list=[{'id': 'uid=%s' % user.uid} for user in users],
                 user_columns=[('SUNet ID', 'col_sunet'), ('Name', 'col_name')],
                 exp_columns=[('Owner', 'col_sunet'), ('Name', 'col_name')],
                 )

@@ -22,6 +22,7 @@ from nimsgears.controllers.experiment import ExperimentController
 from nimsgears.controllers.session import SessionController
 from nimsgears.controllers.epoch import EpochController
 from nimsgears.controllers.dataset import DatasetController
+from nimsgears.controllers.user import UserController
 
 __all__ = ['RootController']
 
@@ -39,6 +40,7 @@ class RootController(BaseController):
     session = SessionController()
     epoch = EpochController()
     dataset = DatasetController()
+    user = UserController()
 
     @expose('nimsgears.templates.index')
     def index(self):

@@ -1,8 +1,8 @@
-from tg import expose, request, tmpl_context, validate, flash, redirect, lurl, render
-from datetime import datetime
+from tg import expose, request, tmpl_context, validate, flash, redirect
 from nimsgears.controllers.nims import NimsController
 from nimsgears.model import *
 from nimsgears.widgets.experiment import NewExperimentForm, EditExperimentForm
+import datetime
 import transaction
 
 
@@ -19,7 +19,7 @@ class ExperimentController(NimsController):
                 form.fetch_data(request)
             else:
                 form = None
-        return dict(page='experiment', form=form)
+        return dict(form=form)
 
     @expose()
     @validate(EditExperimentForm, error_handler=edit)
@@ -35,9 +35,9 @@ class ExperimentController(NimsController):
             flash('permission denied')
         redirect('../experiment/edit?id=%s' % kw['id'])
 
-    @expose('nimsgears.templates.experiments.add')
+    @expose('nimsgears.templates.experiment.add')
     def create(self, **kw):
-        return dict(page='experiments', form=NewExperimentForm)
+        return dict(form=NewExperimentForm)
 
     @expose()
     @validate(NewExperimentForm, error_handler=create)

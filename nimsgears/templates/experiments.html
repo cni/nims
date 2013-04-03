@@ -20,13 +20,18 @@
     .access_manage { }
 
     #add_experiment_iframe { width:300px; height:200px;}
+    #add_user_iframe { width:300px; height:200px;}
     #users { width:300px; }
     #experiments { clear:left; width:300px; }
+    #user_pop { padding:0 0 0 0; margin:0px;}
 
 </style>
 </head>
 
 <body>
+    <div id="user_pop" class="pop" style="display:none">
+        <iframe id="edit_user_iframe" src="" frameborder="no"/>
+    </div>
     <div id="access_dialog" title="Select access level to assign:" style="display:none">
         <select id="access_select">
         </select>
@@ -60,14 +65,9 @@
             </tr>
         </thead>
         <tbody>
-            <py:for each="user_data, user_attr in zip(user_data_list, user_attr_list)">
-                <tr py:attrs="user_attr"> <!-- set id for expand queries done on rows later -->
-                    <td py:for="param in user_data">${param}</td>
-                    <td></td> <!-- access level cell added on to the end -->
-                </tr>
-            </py:for>
         </tbody>
     </table>
     <iframe id="add_experiment_iframe" src="../experiment/create" frameborder="no"/>
+    <iframe id="add_user_iframe" src="../user/create" frameborder="no"/>
 </body>
 </html>

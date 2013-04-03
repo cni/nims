@@ -1,0 +1,22 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<head>
+  <title>NIMS Users</title>
+  <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/stanfordmodern.css')}" />
+  <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/nimsgears.css')}" />
+  <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
+  <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
+</head>
+
+<body>
+  <div id="add_user_form">
+    <h3>Create New User</h3>
+    ${form.display()}
+  </div>
+</body>
+
+</html>

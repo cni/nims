@@ -1,6 +1,7 @@
-require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager'], function (TableDragAndDrop, Drilldown, DrilldownManager) {
+require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/dialog'], function (TableDragAndDrop, Drilldown, DrilldownManager, Dialog) {
     var users;
     var experiments;
+    var user_popup;
     var accessClasses = {'Anon-Read':   'access_anonread',
                          'Read-Only':   'access_readonly',
                          'Read-Write':  'access_readwrite',
@@ -39,6 +40,51 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                     experiments.synchronizeSelections();
                     users.select();
                     TableDragAndDrop.setupDroppable($(users._getBodyTable()), $(experiments.getRows()), dropAccessModification);
+                }
+                else
+                {
+                    alert('Failed'); // implement better alert
+                }
+                table.select(is_instant);
+            },
+        }); // ajax call
+    };
+
+    /*
+     * refreshUsers
+     * Populator for users table.
+     *
+     * table - users table
+     * selected_rows - irrelevant for users, can be ignored
+     * is_instant - whether refresh should happen immediately or wait for
+     *      another request
+     * populateNextTableFn - callback to populate the next table in the
+     *      drilldown sequence (see drilldown manager)
+     */
+    var refreshUsers = function(table, selected_rows, is_instant, populateNextTableFn)
+    {
+        $.ajax(
+        {
+            type: 'POST',
+            url: "../user/all",
+            dataType: "json",
+            data: { },
+            success: function(data)
+            {
+                var row;
+                if (data.success)
+                {
+                    data.data.map(function(d) { d.push(''); });
+                    data.attrs.map(function(d) { delete d['class']; });
+                    populateNextTableFn(table, data);
+                    users.synchronizeSelections();
+                    users.select();
+                    users.onDoubleClick(function()
+                    {
+                        Dialog.showDialog(user_popup, "user", "../user/edit?"+this.id);
+                        user_popup.on( "dialogbeforeclose", function( event, ui ) { udm.refresh(0, [], true); } );
+                    });
+                    TableDragAndDrop.setupDroppable($(experiments._getBodyTable()), $(users.getRows()), dropAccessModification);
                 }
                 else
                 {
@@ -307,7 +353,24 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         {
             if (endsWith(iframe.contentWindow.location.pathname, "/experiment/create"))
             {
-                dm.refresh(0);
+                edm.refresh(0);
+            }
+        }.bind(this);
+    };
+
+    /*
+     * enableRefreshUserOnFormSubmit
+     * Ensures user list is refreshed when the create user frame
+     * has been updated.
+     */
+    var enableRefreshUserOnFormSubmit = function()
+    {
+        var iframe = document.getElementById("add_user_iframe");
+        iframe.onload = function()
+        {
+            if (endsWith(iframe.contentWindow.location.pathname, "/user/create"))
+            {
+                udm.refresh(0);
             }
         }.bind(this);
     };
@@ -318,12 +381,11 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
         experiments = new Drilldown("experiments", "Experiments");
         users.resort();
         experiments.resort();
-        new DrilldownManager([users], [], true);
-        dm = new DrilldownManager([experiments], [refreshExperiments], true);
+        udm = new DrilldownManager([users], [refreshUsers], true);
+        edm = new DrilldownManager([experiments], [refreshExperiments], true);
 
         TableDragAndDrop.setupDraggable($(users._getBodyTable()));
         TableDragAndDrop.setupDraggable($(experiments._getBodyTable()));
-        TableDragAndDrop.setupDroppable($(experiments._getBodyTable()), $(users.getRows()), dropAccessModification);
 
         $("#access_dialog").dialog();
         $("#access_dialog").dialog("destroy");
@@ -342,6 +404,10 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             selector.append(option);
         });
         enableRefreshExperimentOnFormSubmit();
+        enableRefreshUserOnFormSubmit();
+
+        user_popup = $("#user_pop");
+        Dialog.bindSizeChange(user_popup);
     };
 
     $(document).ready(function() { init(); });
