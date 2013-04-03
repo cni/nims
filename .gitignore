@@ -1,4 +1,4 @@
-.*.swp
+.*.sw[op]
 *.py[co]
 *.egg-info
 *.sqlite
