@@ -3,8 +3,8 @@
 
 import os
 import json
-import shlex
 import datetime
+import tempfile
 import subprocess
 
 from tg import config, expose, flash, lurl, request, redirect, response
@@ -120,11 +120,13 @@ class RootController(BaseController):
     @expose(content_type='application/x-tar')
     def download(self, **kwargs):
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
-        user_path = '%s/%s' % (config.get('links_path'), 'superuser' if user.is_superuser else user.uid)
-        files = None
+        db_results = []
+        epoch_paths = []
+        symlinks = []
+        temp_dir = tempfile.mkdtemp()
         if 'id_dict' in kwargs and 'sess' in kwargs['id_dict']:
             id_list = [int(id) for id in json.loads(kwargs['id_dict'])['sess']]
-            res = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
+            db_results = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
                     .join(Subject, Session.subject)
                     .join(Experiment, Subject.experiment)
                     .join(ResearchGroup, Experiment.owner)
@@ -133,10 +135,9 @@ class RootController(BaseController):
                     .filter((Dataset.kind == u'peripheral') | (Dataset.kind == u'derived'))
                     .filter(Session.id.in_(id_list))
                     .all())
-            files = ['nims/%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname, f) for r in res for f in r.Dataset.filenames]
         elif 'id_dict' in kwargs and 'dataset' in kwargs['id_dict']:
             id_list = [int(id) for id in json.loads(kwargs['id_dict'])['dataset']]
-            res = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
+            db_results = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
                     .join(Epoch, Dataset.container)
                     .join(Session, Epoch.session)
                     .join(Subject, Session.subject)
@@ -144,14 +145,14 @@ class RootController(BaseController):
                     .join(ResearchGroup, Experiment.owner)
                     .filter(Dataset.id.in_(id_list))
                     .all())
-            files = ['nims/%s/%s/%s/%s/%s' % (r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname, f) for r in res for f in r.Dataset.filenames]
-        if files:
-            tar_proc = subprocess.Popen(shlex.split('tar -chf - -C %s %s' % (user_path, ' '.join(files))), stdout=subprocess.PIPE)
-            response.content_disposition = 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
-            return tar_proc.stdout
-
-    @expose(content_type='application/x-tar')
-    def tarball(self, **kwargs):
-        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
-        tar_proc = subprocess.Popen(shlex.split('nims_tar.sh tmp_dir'), stdout=subprocess.PIPE)
+        for r in db_results:
+            ep = '%s/nims/%s/%s/%s/%s' % (temp_dir, r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname)
+            epoch_paths.append(ep)
+            symlinks += [(os.path.join(store_path, r.Dataset.relpath, f), os.path.join(ep, f)) for f in r.Dataset.filenames if f]
+        for ep in set(epoch_paths):
+            os.makedirs(ep)
+        for sl in symlinks:
+            os.symlink(*sl)
+        tar_proc = subprocess.Popen('tar -chf - -C %s nims; rm -r %s' % (temp_dir, temp_dir), shell=True, stdout=subprocess.PIPE)
         response.content_disposition = 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+        return tar_proc.stdout

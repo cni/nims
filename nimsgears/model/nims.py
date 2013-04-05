@@ -852,22 +852,6 @@ class Dataset(Entity):
                 .join(Subject, Session.subject)
                 .join(Experiment, Subject.experiment))
 
-    def shadowpath(self, user):
-        db_result = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
-                .join(Epoch, Dataset.container)
-                .join(Session, Epoch.session)
-                .join(Subject, Session.subject)
-                .join(Experiment, Subject.experiment)
-                .join(ResearchGroup, Experiment.owner)
-                .filter(Dataset.id == self.id)
-                .first())
-        return '/data/%s/nims/%s/%s/%s/%s' % (
-                u'superuser' if user.is_superuser else user.uid,
-                db_result.ResearchGroup.gid,
-                db_result.Experiment.name,
-                db_result.Session.dirname,
-                db_result.Epoch.dirname)
-
     @property
     def name(self):
         return nimsutil.clean_string(self.label)
