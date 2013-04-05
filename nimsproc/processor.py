@@ -130,7 +130,7 @@ class Pipeline(threading.Thread):
         dc = self.job.data_container
         ds = self.job.data_container.primary_dataset
         if dc.physio_recorded:
-            physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.duration, dc.psd.encode('utf-8'))
+            physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.prescribed_duration, dc.psd.encode('utf-8'))
             if physio_files:
                 # For multiband sequences, we want a regressor for each *muxed* slice, so pass num_slices/num_bands
                 physio = nimsutil.physio.PhysioData(physio_files, dc.tr, dc.num_timepoints, dc.num_slices/dc.num_bands)
