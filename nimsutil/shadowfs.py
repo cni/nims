@@ -19,9 +19,10 @@ from nimsgears.model import *
 
 class SymLinker(object):
 
-    def __init__(self, db_uri, nims_path):
+    def __init__(self, db_uri, nims_path, username=None):
         super(SymLinker, self).__init__()
         self.nims_path = nims_path
+        self.username = username
         init_model(sqlalchemy.create_engine(db_uri, echo=False))
 
     def make_links(self, links_path):
@@ -40,17 +41,15 @@ class SymLinker(object):
             htaccess.write('AuthType WebAuth\n')
             htaccess.write('Require valid-user\n')
 
-        for uid in set(r.User.uid for r in db_results):
+        for uid in ([self.username] if self.username else set(r.User.uid for r in db_results)):
             user_path = os.path.join(links_path, uid)
             os.mkdir(user_path)
-            shutil.copy(os.path.join(os.path.dirname(__file__), 'download.php'), user_path)
             with open(os.path.join(user_path, '.htaccess'), 'w') as htaccess:
                 htaccess.write('AuthType WebAuth\n')
                 htaccess.write('Require user %s\n' % uid)
 
         superuser_path = os.path.join(links_path, 'superuser')
         os.mkdir(superuser_path)
-        shutil.copy(os.path.join(os.path.dirname(__file__), 'download.php'), superuser_path)
         with open(os.path.join(superuser_path, '.htaccess'), 'w') as htaccess:
             htaccess.write('AuthType WebAuth\n')
             for superuser in User.query.join(Group, User.groups).filter(Group.gid == u'superusers').all():
@@ -59,12 +58,14 @@ class SymLinker(object):
         epoch_paths = []
         symlinks = []
         for r in db_results:
-            user_path = os.path.join(links_path, r.User.uid)
-            ep    = '%s/nims/%s/%s/%s/%s' % (user_path, r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname)
+            if not self.username or r.User.uid == self.username:
+                user_path = os.path.join(links_path, r.User.uid)
+                ep = '%s/nims/%s/%s/%s/%s' % (user_path, r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname)
+                symlinks += [(os.path.join(self.nims_path, r.Dataset.relpath, f), os.path.join(ep, f)) for f in r.Dataset.filenames if f]
+                epoch_paths.append(ep)
             su_ep = '%s/nims/%s/%s/%s/%s' % (superuser_path, r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname)
-            epoch_paths.extend([ep, su_ep])
-            symlinks += [(os.path.join(self.nims_path, r.Dataset.relpath, f), os.path.join(ep, f)) for f in r.Dataset.filenames if f]
             symlinks += [(os.path.join(self.nims_path, r.Dataset.relpath, f), os.path.join(su_ep, f)) for f in r.Dataset.filenames if f]
+            epoch_paths.append(su_ep)
 
         for ep in set(epoch_paths):
             os.makedirs(ep)
@@ -79,6 +80,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-c', '--continuous', action='store_true', help='run continuously, implies -i')
         self.add_argument('-i', '--inplace', action='store_true', help='update existing links_path with rsync')
         self.add_argument('-t', '--interval', type=int, default=300, help='total interval per iteration (default: 300s)')
+        self.add_argument('-u', '--user', help='generate shadow fs for this user only')
         self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
         self.add_argument('-l', '--loglevel', default='info', help='path to log file')
@@ -98,7 +100,7 @@ if __name__ == '__main__':
     nims_links_path = os.path.join(args.links_path, 'nimslinks')
 
     log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
-    linker = SymLinker(args.db_uri, args.nims_path)
+    linker = SymLinker(args.db_uri, args.nims_path, args.user)
     while True:
         start_time = time.time()
         tmp_links_path = tempfile.mkdtemp(dir=args.links_path)
