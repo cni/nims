@@ -152,7 +152,8 @@ class PFile(object):
         # Even for planar sequences, this will be wrong (under-estimate) in case of cardiac-gating.
         self.prescribed_duration = datetime.timedelta(seconds=(self.num_timepoints * self.tr))
         # The actual duration can only be computed after the data are loaded. Settled for rx duration for now.
-        self.duration = self.prescribed_duration        # Compute the voxel size rather than use image.pixsize_X/Y
+        self.duration = self.prescribed_duration
+        # Compute the voxel size rather than use image.pixsize_X/Y
         self.mm_per_vox = np.array([self.fov[0] / self.size_x,
                                     self.fov[1] / self.size_y,
                                     self.header.image.slthick + self.header.image.scanspacing])
