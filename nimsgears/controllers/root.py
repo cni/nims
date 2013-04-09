@@ -27,6 +27,7 @@ from nimsgears.controllers.user import UserController
 __all__ = ['RootController']
 
 store_path = config.get('store_path')
+temp_path = config.get('temp_path')
 
 
 class RootController(BaseController):
@@ -123,7 +124,7 @@ class RootController(BaseController):
         db_results = []
         epoch_paths = []
         symlinks = []
-        temp_dir = tempfile.mkdtemp()
+        temp_dir = tempfile.mkdtemp(dir=temp_path)
         if 'id_dict' in kwargs and 'sess' in kwargs['id_dict']:
             id_list = [int(id) for id in json.loads(kwargs['id_dict'])['sess']]
             db_results = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
