@@ -774,7 +774,7 @@ class Dataset(Entity):
             u'dicom':   u'Dicom Data',
             u'nifti':   u'NIfTI',
             u'bitmap':  u'Bitmap',
-            u'img_pyr': u'Image Pyramid',
+            u'img_pyr': u'Image Viewer',
             u'physio':  u'Physio Data',
             }
 
