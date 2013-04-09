@@ -44,6 +44,14 @@ class PhysioData(object):
     Takes either a list of the physio files or a filename that points to a
     zip or tgz file containing the files.
 
+    If tr and/or nframes are missing, the data will not be properly time-shifted
+    to the start of the scan and the regressors won't be valid.
+
+    Ideally, you should specify the slice_order, in which case, num_slices can be
+    omitted since it will be inferred from the slice_order list. If you don't,
+    the code will assume a standard interleaved acquisition. If neither slice_order
+    nor num_slices is specified, the regressors can't be computed.
+
     Example:
         import physio
         p = physio.PhysioData(filename='physio.zip', tr=2, nframes=120, nslices=36)
@@ -52,7 +60,7 @@ class PhysioData(object):
 
     filetype = u'physio'
 
-    def __init__(self, filename, tr=None, nframes=None, nslices=None, slice_order=None, log=None, card_dt=0.01, resp_dt=0.04):
+    def __init__(self, filename, tr=2, nframes=100, nslices=1, slice_order=None, log=None, card_dt=0.01, resp_dt=0.04):
         # The is_valid method uses some crude heuristics to detect valid data.
         # To be valid, the number of temporal frames must be reasonable, and either the cardiac
         # standard deviation or the respiration low-frequency power meet the following criteria.
@@ -137,12 +145,10 @@ class PhysioData(object):
         # move time zero to correspond to the start of the fMRI data
         offset = self.resp_dt * self.resp_wave.size - self.scan_duration
         self.resp_time = self.resp_dt * np.arange(self.resp_wave.size) - offset
-        resp_inds = np.nonzero(self.resp_time >= 0)[0]
 
         offset = self.card_dt * self.card_wave.size - self.scan_duration
         self.card_time = self.card_dt * np.arange(self.card_wave.size) - offset
         self.card_trig = self.card_trig * self.card_dt - offset
-        card_inds = np.nonzero(self.card_time >= 0)[0]
         return
 
 
