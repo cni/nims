@@ -39,7 +39,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                 {
                     populateNextTableFn(table, data);
                     table.synchronizeSelections();
-                    epochs.onDoubleClick(function() { Dialog.showDialog(epochs_popup, "epoch", "epoch/edit?id="+getId(this.id)); });
+                    epochs.onDoubleClick(function() { Dialog.showDialog(epochs_popup, "epoch", "../epoch/edit?id="+getId(this.id)); });
                 }
                 else
                 {
@@ -79,7 +79,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                     {
                         populateNextTableFn(table, data);
                         table.synchronizeSelections();
-                        datasets.onDoubleClick(function() { Dialog.showDialog(datasets_popup, "dataset", "dataset?id="+getId(this.id)); });
+                        datasets.onDoubleClick(function() { Dialog.showDialog(datasets_popup, "dataset", "../dataset?id="+getId(this.id)); });
                     }
                     else
                     {
@@ -94,14 +94,14 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
             populateNextTableFn(table, []);
             table.select(is_instant);
         }
-    }
+    };
 
     var init = function()
     {
         epochs_popup = $("#epochs_pop");
         datasets_popup = $("#datasets_pop");
         Dialog.bindSizeChange(epochs_popup);
-        Dialog.bindSizeChange(datasets_popup);
+        Dialog.bindSizeChange(datasets_popup, 'dataset');
 
         epochs = new Drilldown("epochs", "Results");
         datasets = new Drilldown("datasets", "Datasets");

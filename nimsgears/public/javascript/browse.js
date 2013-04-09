@@ -12,23 +12,6 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
     var datasets_popup;
 
     /*
-     * viewport
-     * Helper function to return structure containing width and height of
-     * viewable window.
-     */
-    var viewport = function ()
-    {
-        var e = window;
-        a = 'inner';
-        if ( !( 'innerWidth' in window ) )
-        {
-            a = 'client';
-            e = document.documentElement || document.body;
-        }
-        return { width : e[ a+'Width' ] , height : e[ a+'Height' ] }
-    }
-
-    /*
      * getId
      * Given an id string, discard the specifier (exp, sess, etc) and return
      * the number itself. For example, id: "exp=200", returns "200".

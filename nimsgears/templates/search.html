@@ -7,12 +7,11 @@
   <xi:include href="master.html" />
 
 <head>
-<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
-<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
-<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.16/jquery-ui.min.js"></script>
-<script data-main="${tg.url('/javascript/search')}" src="${tg.url('/javascript/require.js')}"></script>
-<link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/css/jquery-ui-1.8.13.custom.css')}"/>
 <title>NIMS Search</title>
+
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
+<script data-main="${tg.url('/javascript/search')}" src="${tg.url('/javascript/require.js')}"></script>
+
 <style>
     #query_table { width:150px; }
 
@@ -25,7 +24,7 @@
     .col_datetime { width:17%; }
     .col_subj { width:12%; }
     .col_desc { width:32%; }
-    #epochs_pop, #datasets_pop { padding:0 0 0 0; margin:0px; overflow: hidden}
+    #epochs_pop, #datasets_pop { padding:0px; margin:0px; overflow:hidden; }
 </style>
 </head>
 
@@ -34,7 +33,7 @@
         <iframe src="" frameborder="no"/>
     </div>
     <div id="datasets_pop" class="pop" style="display:none">
-        <iframe id="image_viewer" src="" frameborder="no" />
+        <iframe id="edit_dataset_iframe" src="" frameborder="no"/>
     </div>
 
   <h2>Search</h2>
