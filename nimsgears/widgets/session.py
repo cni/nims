@@ -19,7 +19,7 @@ class EditSessionForm(tws.DbFormPage):
         subject = twf.LabelField()
         exam = twf.LabelField()
         timestamp = twf.LabelField()
-        notes = twf.TextArea(validator=twc.StringLengthValidator(max=1024))
+        notes = twf.TextArea(validator=twc.StringLengthValidator(max=2048), rows=10, cols=40)
         class operator(twf.TableLayout):
             uid = twf.SingleSelectField(label="SUNetID", options=twc.Deferred(user_list), validator=twc.Any(twc.StringLengthValidator(min=0,max=0), UserExists()))
         class subject(twf.TableLayout):
