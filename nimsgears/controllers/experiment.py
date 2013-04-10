@@ -30,7 +30,7 @@ class ExperimentController(NimsController):
             exp.name = kw['name'].lower()
             exp.owner = ResearchGroup.get_by(gid=kw['owner'])
             transaction.commit()
-            flash('Saved (%s)' % datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            flash('Saved (%s)' % datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         else:
             flash('permission denied')
         redirect('../experiment/edit?id=%s' % kw['id'])
