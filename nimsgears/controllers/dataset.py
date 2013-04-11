@@ -12,10 +12,16 @@ class DatasetController(NimsController):
             if dataset.filetype == u'img_pyr':
                 redirect('pyramid?dataset_id=%d' % dataset.id)
             else:
-                html_str = '<html><body><ul>'
-                for filename in dataset.filenames:
-                    html_str += '<li><a href="file?id=%d&filename=%s">%s</a></li>\n' % (dataset.id, filename, filename)
-                html_str += '</ul></body></html>\n'
+                html_str = '<html><body>'
+                if dataset.filetype == u'bitmap':
+                    for filename in dataset.filenames:
+                        html_str += '<a href="file?id=%d&filename=%s"><img src="file?id=%d&filename=%s"></a><br>\n' % ((dataset.id, filename) * 2)
+                else:
+                    html_str += '<ul>'
+                    for filename in dataset.filenames:
+                        html_str += '<li><a href="file?id=%d&filename=%s">%s</a></li>\n' % (dataset.id, filename, filename)
+                    html_str += '</ul>'
+                html_str += '</body></html>\n'
                 return html_str
         else:
             return "No such dataset."
