@@ -16,7 +16,7 @@ class BrowseController(NimsController):
         return dict(
                 page='browse',
                 exp_columns=[('Group', 'col_sunet'), ('Experiment', 'col_exp')],
-                session_columns=[('Date & Time', 'col_datetime'), ('Subj. Code', 'col_subj')],
+                session_columns=[('Date & Time', 'col_datetime'), ('Exam','col_exam'), ('Subj.', 'col_subj')],
                 epoch_columns=[('Time', 'col_time'), ('Description', 'col_desc')],
                 dataset_columns=[('Data Type', 'col_type')],
                 )

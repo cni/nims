@@ -44,7 +44,7 @@ class NimsController(BaseController):
         sess_data_list = []
         sess_attr_list = []
         for sess in user.sessions(exp_id):
-            sess_data_list.append((sess.timestamp.strftime('%Y-%m-%d %H:%M'), sess.subject.code))
+            sess_data_list.append((sess.timestamp.strftime('%Y-%m-%d %H:%M'), sess.exam, sess.subject.code))
             sess_attr_list.append({'id':'sess=%d' % sess.id, 'class':'%s' % ('trash' if sess.trashtime else '')})
         return (sess_data_list, sess_attr_list)
 
@@ -52,7 +52,7 @@ class NimsController(BaseController):
         epoch_data_list = []
         epoch_attr_list = []
         for epoch in user.epochs(sess_id):
-            epoch_data_list.append((epoch.timestamp.strftime('%H:%M:%S'), '%s' % epoch.description))
+            epoch_data_list.append((epoch.timestamp.strftime('%H:%M:%S'), '%s' % (epoch.description)))
             epoch_attr_list.append({'id':'epoch=%d' % epoch.id, 'class':'%s' % ('trash' if epoch.trashtime else '')})
         return (epoch_data_list, epoch_attr_list)
 
