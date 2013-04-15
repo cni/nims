@@ -248,14 +248,21 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
                 var row;
                 if (data.success)
                 {
-                    populateNextTableFn(table, data);
-                    table.synchronizeSelections();
-                    experiments.onDoubleClick(function()
+                    if (data.data.length==0)
                     {
-                        Dialog.showDialog(experiments_popup, "experiment", "../experiment/edit?id="+getId(this.id));
-                        experiments_popup.on( "dialogbeforeclose", function( event, ui ) { manager.refresh(0, [], true); } );
-                    });
-                    TableDragAndDrop.setupDroppable(sessions._getBodyTable(), $(experiments.getRows()), dropSessionsOnExperiment);
+                        alert('You have not been granted access to any data. Please contact your lab manager or a data owner.');
+                    }
+                    else
+                    {
+                        populateNextTableFn(table, data);
+                        table.synchronizeSelections();
+                        experiments.onDoubleClick(function()
+                        {
+                            Dialog.showDialog(experiments_popup, "experiment", "../experiment/edit?id="+getId(this.id));
+                            experiments_popup.on( "dialogbeforeclose", function( event, ui ) { manager.refresh(0, [], true); } );
+                        });
+                        TableDragAndDrop.setupDroppable(sessions._getBodyTable(), $(experiments.getRows()), dropSessionsOnExperiment);
+                    }
                 }
                 else
                 {
