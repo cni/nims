@@ -79,7 +79,7 @@ class ArgumentParser(argparse.ArgumentParser):
         super(ArgumentParser, self).__init__()
         self.add_argument('-c', '--continuous', action='store_true', help='run continuously, implies -i')
         self.add_argument('-i', '--inplace', action='store_true', help='update existing links_path with rsync')
-        self.add_argument('-t', '--interval', type=int, default=300, help='total interval per iteration (default: 300s)')
+        self.add_argument('-t', '--interval', type=int, default=600, help='total interval per iteration (default: 600s)')
         self.add_argument('-u', '--user', help='generate shadow fs for this user only')
         self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
