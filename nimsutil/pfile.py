@@ -169,7 +169,10 @@ class PFile(object):
         self.acquisition_matrix = [self.header.rec.rc_xres, self.header.rec.rc_yres]
         # Diffusion params
         self.dwi_numdirs = self.header.rec.numdifdirs
-        self.dwi_bvalue = self.header.image.b_value
+        # You might think that the b-valuei for diffusion scans would be stored in self.header.image.b_value.
+        # But alas, this is GE. Apparently, that var stores the b-value of the just the first image, which is
+        # usually a non-dwi. So, we had to modify the PSD and stick the b-value into an rhuser CV. Sigh.
+        self.dwi_bvalue = self.header.rec.user22
         self.diffusion_flag = True if self.dwi_numdirs >= 6 else False
         if self.diffusion_flag and self.dwi_bvalue==0:
             msg = 'the data appear to be diffusion-weighted, but image.b_value is 0!'
