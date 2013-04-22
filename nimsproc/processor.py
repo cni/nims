@@ -241,7 +241,8 @@ class PFilePipeline(Pipeline):
         with nimsutil.TempDirectory() as outputdir:
             for pfile in os.listdir(os.path.join(self.nims_path, ds.relpath)):
                 try:
-                    pf = nimsutil.pfile.PFile(os.path.join(self.nims_path, ds.relpath, pfile), self.log)
+                    pf = nimsutil.pfile.PFile(os.path.join(self.nims_path, ds.relpath, pfile),
+                            log=self.log, tmpdir='/run/shm/', max_num_jobs=32)
                 except nimsutil.pfile.PFileError:
                     pf = None
                 else:

@@ -11,6 +11,7 @@ import shlex
 import shutil
 import argparse
 import datetime
+import time
 import tempfile
 import subprocess as sp
 
@@ -46,9 +47,10 @@ class PFile(object):
 
     filetype = u'pfile'
 
-    def __init__(self, filename, log=None, tmpdir=None):
+    def __init__(self, filename, log=None, tmpdir=None, max_num_jobs=8):
         self.filename = filename
         self.log = log
+        self.max_num_jobs = max_num_jobs
         self.tmpdir = tmpdir
         self.image_data = None
         self.fm_data = None
@@ -184,21 +186,26 @@ class PFile(object):
         self.cap_blip_start = self.header.rec.user14   # Starting index of the kz blips. 0~(mux-1) correspond to -kmax~kmax.
         self.cap_blip_inc = self.header.rec.user15   # Increment of the kz blip index for adjacent acquired ky lines.
 
-
     def set_image_data(self, data_file):
+        img = self.load_image_data(data_file)
+        self.update_image_data(img)
+
+    def load_image_data(self, data_file):
         """ Load raw image data from a file and do some sanity checking on num slices, matrix size, etc. """
         # TODO: confirm that the voxel reordering is necessary. Maybe lean on the recon folks to standardize their voxel order?
         mat = h5py.File(data_file, 'r')
         if 'd' in mat:
-            self.image_data = np.atleast_3d(mat['d'].items()[1][1].value)
-            self.image_data = self.image_data.transpose((3,2,1,0))[::-1,:,:,:]
+            img = np.atleast_3d(mat['d'].items()[1][1].value)
+            img = img.transpose((3,2,1,0))[::-1,:,:,:]
         elif 'MIP_res' in mat:
-            self.image_data = np.atleast_3d(mat['MIP_res'].items()[1][1].value)
-            self.image_data = self.image_data.transpose((1,0,2,3))[::-1,::-1,:,:]
+            img = np.atleast_3d(mat['MIP_res'].items()[1][1].value)
+            img = img.transpose((1,0,2,3))[::-1,::-1,:,:]
+        if img.ndim == 3:
+            img = img.reshape(img.shape + (1,))
+        return img
 
-        if self.image_data.ndim == 3:
-            self.image_data = self.image_data.reshape(self.image_data.shape + (1,))
-
+    def update_image_data(self, img):
+        self.image_data = img
         if self.image_data.shape[0] != self.size_x or self.image_data.shape[1] != self.size_y:
             msg = 'Image matrix discrepancy. Fixing the header, assuming image_data is correct...'
             self.log.warning(msg) if self.log else print(msg)
@@ -382,7 +389,7 @@ class PFile(object):
             if os.path.exists(basepath+'.B0freq2') and os.path.getsize(basepath+'.B0freq2')>0:
                 self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echos,self.num_slices],order='F').transpose((0,1,3,2))
 
-    def recon_mux_epi(self, executable='octave'):
+    def recon_mux_epi(self, executable='octave', timepoints=[]):
         """Do mux_epi image reconstruction and populate self.image_data."""
         ref_file  = os.path.join(self.filedir, '_'+self.basename+'_ref.dat')
         vrgf_file = os.path.join(self.filedir, '_'+self.basename+'_vrgf.dat')
@@ -398,20 +405,43 @@ class PFile(object):
                         fd.writelines(gzfile)
             else:
                 pfile_path = os.path.abspath(self.filename)
-            mux_recon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'mux_epi_recon'))
-            outname = os.path.join(tmpdir, 'out.mat')
-            cmd = '%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s");\'' % (executable, mux_recon_path, pfile_path, outname)
-            self.log and self.log.debug(cmd)
-            sp.call(shlex.split(cmd), stdout=open('/dev/null', 'w'))                # run mux recon
-            if not os.path.isfile(outname):
-                raise PFileError('recon failed!')
-            self.set_image_data(outname)
+            recon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'mux_epi_recon'))
+            outname = os.path.join(tmpdir, 'sl')
+
+            # Spawn the desired number of subprocesses until all slices have been spawned
+            num_muxed_slices = self.num_slices / self.num_bands
+            mux_recon_jobs = []
+            slice_num = 0
+            while slice_num < num_muxed_slices:
+                num_running_jobs = sum([job.poll()==None for job in mux_recon_jobs])
+                if num_running_jobs < self.max_num_jobs:
+                    # Recon each slice separately. Note the slice_num+1 to deal with matlab's 1-indexing.
+                    cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", [], %d, %s);\''
+                            % (executable, recon_path, pfile_path, outname, slice_num, slice_num + 1, str(timepoints)))
+                    self.log and self.log.debug(cmd)
+                    mux_recon_jobs.append(sp.Popen(args=shlex.split(cmd), stdout=open('/dev/null', 'w')))
+                    slice_num += 1
+                else:
+                    time.sleep(1.)
+
+            # Now wait for all the jobs to finish
+            for job in mux_recon_jobs:
+                job.wait()
+
+            #try:
+            # Load the first slice to initialize the image array
+            img = self.load_image_data("%s_%03d.mat" % (outname, 0))
+            for slice_num in range(1, num_muxed_slices):
+                new_img = self.load_image_data("%s_%03d.mat" % (outname, slice_num))
+                # Allow for a partial last timepoint. This sometimes happens when the user aborts.
+                img[...,0:new_img.shape[-1]] += new_img
+            self.update_image_data(img)
+            #except:
+            #    raise PFileError('recon failed!')
+
+            #sp.call(shlex.split(cmd), stdout=open('/dev/null', 'w'))
+            #self.set_image_data(outname)
             # TODO: fix size_x/y,num_slices,num_timpoints if they conflict with the returned size of d.
-            #self.image_data = np.zeros((self.size_x, self.size_y, self.num_slices, self.num_timepoints))
-            #num_mux_slices = self.num_slices / self.num_bands
-            #for mux_slice in range(num_mux_slices):
-            #    d,slice_loc = pytave.feval(2, 'mux_epi_recon', self.filename, ref_file, vrgf_file, mux_slice+1)
-            #    self.image_data[:,:,slice_loc.astype(int).flatten()-1,:] = d
 
     def write_dwi_bvecs(self, tensor_file=None, outbase=None):
         """Create bval and bvec files from a pfile."""
@@ -536,11 +566,11 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('outbase', nargs='?', help='basename for output files (default: [pfile_name].nii.gz in cwd)')
         self.add_argument('-m', '--matfile', help='path to reconstructed data in .mat format')
         self.add_argument('-t', '--tmpdir', help='directory to use for scratch files. (Must exist and have lots of space!)')
-
+        self.add_argument('-j', '--jobs', default=8, type=int, help='maximum number of processes to spawn')
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    pf = PFile(args.pfile, tmpdir = args.tmpdir)
+    pf = PFile(args.pfile, tmpdir=args.tmpdir, max_num_jobs=args.jobs)
     if args.matfile:
         pf.set_image_data(args.matfile)
     pf.to_nii(args.outbase or os.path.basename(args.pfile))
