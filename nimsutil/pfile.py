@@ -80,7 +80,7 @@ class PFile(object):
         self.series_uid = unpack_uid(self.header.series.series_uid)
         self.series_desc = self.header.series.se_desc.strip('\x00')
         self.patient_id = self.header.exam.patidff.strip('\x00')
-        self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(
+        self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(
                 self.header.exam.patnameff.strip('\x00'), self.header.exam.dateofbirth.strip('\x00'))
         self.psd_name = os.path.basename(self.header.image.psdname.partition('\x00')[0])
         self.physio_flag = 'sprt' in self.psd_name.lower()

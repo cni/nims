@@ -62,10 +62,6 @@ def get_logger(name, filename=None, level='debug'):
 
 
 def parse_subject(name, dob):
-    if '@' in name:
-        code = re.sub(r'^[^@]*@([^\^]*).*', r'\1', name)
-    else:
-        code = ''
     lastname, firstname = name.split('^') if '^' in name else ('', '')
     try:
         dob = datetime.datetime.strptime(dob, '%Y%m%d').date()
@@ -73,7 +69,7 @@ def parse_subject(name, dob):
             raise ValueError
     except ValueError:
         dob = None
-    return (unicode(code), unicode(firstname.capitalize()), unicode(lastname.capitalize()), dob)
+    return (unicode(firstname.capitalize()), unicode(lastname.capitalize()), dob)
 
 
 def parse_patient_id(patient_id, known_ids):
@@ -83,7 +79,8 @@ def parse_patient_id(patient_id, known_ids):
     We use fuzzy matching to find the best matching known lab id. If we can't
     do so with high confidence, the lab id is set to 'unknown'.
     """
-    lab_info = patient_id.lower().rpartition('@')[2].partition('/')
+    subj_code, dummy, lab_info = patient_id.lower().rpartition('@')
+    lab_info = lab_info.partition('/')
     lab_id = clean_string(lab_info[0]) if lab_info[0] else 'nogroup'
     exp_id = clean_string(lab_info[2]) if lab_info[2] else 'untitled'
 
@@ -93,7 +90,7 @@ def parse_patient_id(patient_id, known_ids):
     else:
         exp_id = lab_id + '/' + exp_id
         lab_id = 'unknown'
-    return (unicode(lab_id), unicode(exp_id))
+    return (unicode(subj_code), unicode(lab_id), unicode(exp_id))
 
 
 def clean_string(string):

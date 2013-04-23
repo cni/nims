@@ -497,10 +497,10 @@ class Subject(DataContainer):
 
     @classmethod
     def from_mrfile(cls, mrfile):
-        group_name, exp_name = nimsutil.parse_patient_id(mrfile.patient_id, ResearchGroup.all_ids())
+        subj_code, group_name, exp_name = nimsutil.parse_patient_id(mrfile.patient_id, ResearchGroup.all_ids())
         query = cls.query.join(Experiment, cls.experiment).filter(Experiment.name==exp_name)
-        if mrfile.subj_code:
-            subject = query.filter(cls.code==mrfile.subj_code).first()
+        if subj_code:
+            subject = query.filter(cls.code==subj_code).first()
         elif mrfile.subj_fn and mrfile.subj_ln:
             subject = query.filter(cls.firstname==mrfile.subj_fn).filter(cls.lastname==mrfile.subj_ln).filter(cls.dob==mrfile.subj_dob).first()
         else:
@@ -508,11 +508,10 @@ class Subject(DataContainer):
         if not subject:
             owner = ResearchGroup.query.filter_by(gid=group_name).one()
             experiment = Experiment.from_owner_name(owner, exp_name)
-            subj_code = mrfile.subj_code or experiment.next_subject_code
             subject = cls(
                     experiment=experiment,
                     person=Person(),
-                    code=subj_code[:31],
+                    code=subj_code[:31] or experiment.next_subject_code,
                     firstname=mrfile.subj_fn[:63],
                     lastname=mrfile.subj_ln[:63],
                     dob=mrfile.subj_dob,

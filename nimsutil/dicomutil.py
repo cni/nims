@@ -93,7 +93,7 @@ class DicomAcquisition(object):
             self.series_uid = dcm.SeriesInstanceUID
             self.series_desc = dcm.SeriesDescription
             self.patient_id = dcm.PatientID
-            self.subj_code, self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(dcm.PatientName, dcm.PatientBirthDate)
+            self.subj_fn, self.subj_ln, self.subj_dob = nimsutil.parse_subject(dcm.PatientName, dcm.PatientBirthDate)
             self.psd_name = os.path.basename(dcm[TAG_PSD_NAME].value) if TAG_PSD_NAME in dcm else 'unknown'
             self.scan_type = dcm[TAG_PSD_INAME].value if TAG_PSD_INAME in dcm else 'unknown'
             self.physio_flag = 'epi' in self.psd_name.lower()
