@@ -4,11 +4,9 @@
 #           Gunnar Schaefer
 
 import os
-import sys
 import time
 import shutil
 import signal
-import tarfile
 import argparse
 import datetime
 
