@@ -498,7 +498,8 @@ class Subject(DataContainer):
     @classmethod
     def from_mrfile(cls, mrfile):
         subj_code, group_name, exp_name = nimsutil.parse_patient_id(mrfile.patient_id, ResearchGroup.all_ids())
-        query = cls.query.join(Experiment, cls.experiment).filter(Experiment.name==exp_name)
+        query = cls.query.join(Experiment, cls.experiment).filter(Experiment.name == exp_name)
+        query = query.join(ResearchGroup, Experiment.owner).filter(ResearchGroup.gid == group_name)
         if subj_code:
             subject = query.filter(cls.code==subj_code).first()
         elif mrfile.subj_fn and mrfile.subj_ln:
