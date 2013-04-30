@@ -13,7 +13,7 @@
 <script data-main="${tg.url('/javascript/browse')}" src="${tg.url('/javascript/require.js')}"></script>
 
 <style>
-    .dropbox { text-align:center; float:right; height:15px; width:70px; border:2px solid #820000; padding:10px; margin:5px; }
+    .dropbox { text-align:center; float:right; height:25px; width:90px; border:2px solid #820000; padding:5px 15px 15px 15px; margin:5px 5px 5px 35px; }
     .dropbox.hover {background-color:#ddcf99}
     .subheader { float:left; }
 
@@ -65,7 +65,7 @@
         </ul>
     </div>
     <py:if test="tg.identity">
-      <div id="radio_trash" style="float:right; margin-left:1px;" >
+      <div id="radio_trash" style="float:right; margin-left:0px;" >
         <input type="radio" id="trashflag=0" name="radio">Hide Trash</input><br />
         <input type="radio" id="trashflag=1" name="radio">Show Trash</input><br />
         <input type="radio" id="trashflag=2" name="radio">Trash Only</input>
@@ -74,11 +74,9 @@
         Trash
       </div>
     </py:if>
-    <div id="checkbox_download" style="float:right; margin-left:1px; margin-right:20px;" >
-        <input type="checkbox" id="raw" name="raw_cb">Include raw</input>
-    </div>
     <div class="dropbox" id="download_drop">
-        Download
+        Download<br />
+        <input type="checkbox" id="raw" name="raw_cb">Include raw</input>
     </div>
 
     <table id="experiments" class="scrolltable" style="visibility:hidden">

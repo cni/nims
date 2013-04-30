@@ -127,25 +127,17 @@ class RootController(BaseController):
         temp_dir = tempfile.mkdtemp(dir=temp_path)
         if 'id_dict' in kwargs and 'sess' in kwargs['id_dict']:
             id_list = [int(id) for id in json.loads(kwargs['id_dict'])['sess']]
+            db_query = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
+                .join(Subject, Session.subject)
+                .join(Experiment, Subject.experiment)
+                .join(ResearchGroup, Experiment.owner)
+                .join(Epoch, Session.epochs)
+                .join(Dataset, Epoch.datasets)
+                .filter(Session.id.in_(id_list)))
             if 'raw' in kwargs:
-                db_results = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
-                    .join(Subject, Session.subject)
-                    .join(Experiment, Subject.experiment)
-                    .join(ResearchGroup, Experiment.owner)
-                    .join(Epoch, Session.epochs)
-                    .join(Dataset, Epoch.datasets)
-                    .filter(Session.id.in_(id_list))
-                    .all())
+                db_results = db_query.filter(Dataset.kind != u'web').all()
             else:
-                db_results = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
-                    .join(Subject, Session.subject)
-                    .join(Experiment, Subject.experiment)
-                    .join(ResearchGroup, Experiment.owner)
-                    .join(Epoch, Session.epochs)
-                    .join(Dataset, Epoch.datasets)
-                    .filter((Dataset.kind == u'peripheral') | (Dataset.kind == u'derived'))
-                    .filter(Session.id.in_(id_list))
-                    .all())
+                db_results = db_query.filter((Dataset.kind == u'peripheral') | (Dataset.kind == u'derived')).all()
         elif 'id_dict' in kwargs and 'dataset' in kwargs['id_dict']:
             id_list = [int(id) for id in json.loads(kwargs['id_dict'])['dataset']]
             db_results = (DBSession.query(Dataset, Epoch, Session, Experiment, ResearchGroup)
