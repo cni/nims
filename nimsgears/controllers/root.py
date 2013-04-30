@@ -127,7 +127,17 @@ class RootController(BaseController):
         temp_dir = tempfile.mkdtemp(dir=temp_path)
         if 'id_dict' in kwargs and 'sess' in kwargs['id_dict']:
             id_list = [int(id) for id in json.loads(kwargs['id_dict'])['sess']]
-            db_results = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
+            if 'raw' in kwargs:
+                db_results = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
+                    .join(Subject, Session.subject)
+                    .join(Experiment, Subject.experiment)
+                    .join(ResearchGroup, Experiment.owner)
+                    .join(Epoch, Session.epochs)
+                    .join(Dataset, Epoch.datasets)
+                    .filter(Session.id.in_(id_list))
+                    .all())
+            else:
+                db_results = (DBSession.query(Session, Experiment, ResearchGroup, Dataset, Epoch)
                     .join(Subject, Session.subject)
                     .join(Experiment, Subject.experiment)
                     .join(ResearchGroup, Experiment.owner)
