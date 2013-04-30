@@ -76,7 +76,9 @@
     </py:if>
     <div class="dropbox" id="download_drop">
         Download<br />
-        <input type="checkbox" id="raw" name="raw_cb">Include raw</input>
+        <py:if test="tg.identity">
+          <input type="checkbox" id="raw" name="raw_cb">Include raw</input>
+        </py:if>
     </div>
 
     <table id="experiments" class="scrolltable" style="visibility:hidden">
