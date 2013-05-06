@@ -47,7 +47,7 @@ class PFile(object):
 
     filetype = u'pfile'
 
-    def __init__(self, filename, log=None, tmpdir=None, max_num_jobs=8):
+    def __init__(self, filename, log=None, tmpdir=None, max_num_jobs=8, num_virtual_coils=0):
         self.filename = filename
         self.log = log
         self.max_num_jobs = max_num_jobs
@@ -61,6 +61,7 @@ class PFile(object):
         if self.basename.endswith('.gz'):
             self.basename = self.basename[:-3]
         self.filedir = os.path.dirname(self.filename)
+        self.num_vcoils = num_virtual_coils
 
     def get_metadata(self):
         """ Get useful metadata fields from the pfile header. These should be consistent with the fields that dicomutil yields. """
@@ -416,8 +417,9 @@ class PFile(object):
                 num_running_jobs = sum([job.poll()==None for job in mux_recon_jobs])
                 if num_running_jobs < self.max_num_jobs:
                     # Recon each slice separately. Note the slice_num+1 to deal with matlab's 1-indexing.
-                    cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", [], %d, %s);\''
-                            % (executable, recon_path, pfile_path, outname, slice_num, slice_num + 1, str(timepoints)))
+                    # Use 'str' on timepoints that an empty array will produce '[]'
+                    cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", [], %d, %s, %d);\''
+                            % (executable, recon_path, pfile_path, outname, slice_num, slice_num + 1, str(timepoints), self.num_vcoils))
                     self.log and self.log.debug(cmd)
                     mux_recon_jobs.append(sp.Popen(args=shlex.split(cmd), stdout=open('/dev/null', 'w')))
                     slice_num += 1
