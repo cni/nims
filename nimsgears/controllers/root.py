@@ -134,7 +134,7 @@ class RootController(BaseController):
                 .join(Epoch, Session.epochs)
                 .join(Dataset, Epoch.datasets)
                 .filter(Session.id.in_(id_list)))
-            if 'raw' in kwargs:
+            if kwargs.get('raw'):
                 db_results = db_query.filter(Dataset.kind != u'web').all()
             else:
                 db_results = db_query.filter((Dataset.kind == u'peripheral') | (Dataset.kind == u'derived')).all()
@@ -149,9 +149,23 @@ class RootController(BaseController):
                     .filter(Dataset.id.in_(id_list))
                     .all())
         for r in db_results:
-            ep = '%s/nims/%s/%s/%s/%s' % (temp_dir, r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname)
-            epoch_paths.append(ep)
-            symlinks += [(os.path.join(store_path, r.Dataset.relpath, f), os.path.join(ep, f)) for f in r.Dataset.filenames if f]
+            if user.has_access_to(r.Dataset, u'Read-Only' if (r.Dataset.kind == u'primary' or r.Dataset.kind == u'secondary') else u'Anon-Read'):
+                if kwargs.get('legacy'):
+                    ep = '%s/nims/%s/%s/%s' % (temp_dir, r.ResearchGroup.gid, r.Experiment.name, r.Session.legacy_dirname)
+                else:
+                    ep = '%s/nims/%s/%s/%s/%s' % (temp_dir, r.ResearchGroup.gid, r.Experiment.name, r.Session.dirname, r.Epoch.dirname)
+                epoch_paths.append(ep)
+                for filename in r.Dataset.filenames:
+                    if kwargs.get('legacy'):
+                        name, sep, ext = filename.partition('.')
+                        if name.endswith('_B0'):        ext = '_B0.%s' % ext
+                        elif name.endswith('_physio'):  ext = '_physio.%s' % ext
+                        elif name.endswith('_dicoms'):  ext = '_dicoms.%s' % ext
+                        else:                           ext = '.%s' % ext
+                        sl_name = '%04d_%02d_%s%s' % (r.Epoch.series, r.Epoch.acq, r.Epoch.description, ext)
+                    else:
+                        sl_name = filename
+                    symlinks += [(os.path.join(store_path, r.Dataset.relpath, filename), os.path.join(ep, sl_name))]
         for ep in set(epoch_paths):
             os.makedirs(ep)
         for sl in symlinks:

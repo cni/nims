@@ -611,6 +611,10 @@ class Session(DataContainer):
         return u'%s' % self.timestamp.strftime('%Y%m%d_%H%M')
 
     @property
+    def legacy_dirname(self):
+        return u'%s_%s' % (self.timestamp.strftime('%Y%m%d'), self.exam)
+
+    @property
     def contains_trash(self):
         if self.is_trash:
             return True
