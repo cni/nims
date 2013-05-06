@@ -65,21 +65,21 @@
         </ul>
     </div>
     <py:if test="tg.identity">
-      <div id="radio_trash" style="float:right; margin-left:0px;" >
+      <div id="radio_trash" style="float:right; margin-left:0px;">
         <input type="radio" id="trashflag=0" name="radio">Hide Trash</input><br />
         <input type="radio" id="trashflag=1" name="radio">Show Trash</input><br />
         <input type="radio" id="trashflag=2" name="radio">Trash Only</input>
       </div>
-      <div class="dropbox" id="trash_drop">
+      <div class="dropbox" id="trash_drop" title="Drag anything here to put it in the trash. If you drag something that is already in the trash, it will be restored.">
           <strong>Trash</strong>
       </div>
     </py:if>
-    <div class="dropbox" id="download_drop">
+    <div class="dropbox" id="download_drop" title="Use checkboxes to include raw data and to use legacy file naming.">
         <strong>Download</strong><br />
         <py:if test="tg.identity">
         <div style="text-align:left">
-            <input type="checkbox" id="raw" name="raw_cb">Include raw</input><br />
-            <input type="checkbox" id="legacy" name="legacy_cb">Legacy format</input>
+            <input type="checkbox" id="raw" name="raw_cb" title="Include raw data (p-files and dicoms) in the download.">Include raw</input><br />
+            <input type="checkbox" id="legacy" name="legacy_cb" title="Use the old NIMS file naming convention.">Legacy format</input>
         </div>
         </py:if>
     </div>
