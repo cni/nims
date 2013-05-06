@@ -85,8 +85,10 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
             document.body.appendChild(iframe);
         }
         iframe.src = '../download?download_opts=&id_dict=' + JSON.stringify(id_dict)
-        if ($('#download_drop input').is(':checked'))
+        if ($('#download_drop input[id=raw]').is(':checked'))
             iframe.src += '&raw=1';
+        if ($('#download_drop input[id=legacy]').is(':checked'))
+            iframe.src += '&legacy=1';
 
     };
 
