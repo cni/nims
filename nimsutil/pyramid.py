@@ -313,8 +313,8 @@ if __name__ == '__main__':
     args = ArgumentParser().parse_args()
     pyr = ImagePyramid(args.filename, tile_size = args.tilesize)
     if args.montage:
-        outdir = args.outdir or os.path.basename(os.path.splitext(os.path.splitext(args.filename)[0])[0]) + '.png'
-        pyr.write_montage_as_png(outdir, bits16=False)
+        outfile = (args.out or os.path.basename(os.path.splitext(os.path.splitext(args.filename)[0])[0])) + '.png'
+        pyr.write_montage_as_png(outfile, bits16=False)
     else:
         if args.sqlite:
             pyr.generate_sqlite(args.out)
