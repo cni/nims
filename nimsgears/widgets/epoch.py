@@ -27,5 +27,7 @@ class EditEpochForm(tws.DbFormPage):
         num_bands = twf.LabelField()
         prescribed_duration = twf.LabelField()
         mm_per_vox  = twf.LabelField()
+        fov = twf.LabelField()
+        acquisition_matrix=twf.LabelField()
         phase_encode_undersample = twf.LabelField()
         slice_encode_undersample = twf.LabelField()
