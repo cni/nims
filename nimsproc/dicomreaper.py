@@ -13,8 +13,6 @@ import argparse
 import datetime
 import collections
 
-import dicom
-
 import scu
 import nimsutil
 
@@ -194,13 +192,14 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
         self.add_argument('-l', '--loglevel', default='info', help='path to log file')
+        self.add_argument('-q', '--quiet', action='store_true', default=False, help='disable console logging')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
     host, port, return_port = args.dicomserver.split(':')
 
-    log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
+    log = nimsutil.get_logger(args.logname, args.logfile, not args.quiet, args.loglevel)
     scu_ = scu.SCU(host, port, return_port, args.aet, args.aec, log=log)
     datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % args.aec)
 

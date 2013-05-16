@@ -40,7 +40,7 @@ class Scheduler(object):
             for job in Job.query.filter((Job.status != u'running') & (Job.status != u'abandoned') & (Job.needs_rerun == True)).all():
                 job.status = u'pending'
                 job.activity = u'reset to pending'
-                self.log.info(u'%d %s %s' % (job.id, job, job.activity))
+                self.log.info(u'Reset       %s to pending' % job)
                 job.needs_rerun = False
             transaction.commit()
 
@@ -117,11 +117,12 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
         self.add_argument('-l', '--loglevel', default='info', help='path to log file')
+        self.add_argument('-q', '--quiet', action='store_true', default=False, help='disable console logging')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
+    log = nimsutil.get_logger(args.logname, args.logfile, not args.quiet, args.loglevel)
     scheduler = Scheduler(args.db_uri, args.nims_path, log, args.sleeptime, args.cooltime)
 
     def term_handler(signum, stack):

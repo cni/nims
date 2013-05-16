@@ -117,11 +117,12 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
         self.add_argument('-l', '--loglevel', default='info', help='path to log file')
+        self.add_argument('-q', '--quiet', action='store_true', default=False, help='disable console logging')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    log = nimsutil.get_logger(args.logname, args.logfile, args.loglevel)
+    log = nimsutil.get_logger(args.logname, args.logfile, not args.quiet, args.loglevel)
     sorter = Sorter(args.db_uri, args.sort_path, args.preserve_path, args.nims_path, args.dirmode, args.sleeptime, log)
 
     def term_handler(signum, stack):

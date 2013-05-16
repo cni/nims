@@ -33,7 +33,7 @@ class TempDirectory(object):
         shutil.rmtree(self.temp_dir)
 
 
-def get_logger(name, filename=None, level='debug'):
+def get_logger(name, filepath=None, console=True, level='debug'):
     """Return a nims-configured logger."""
     logging._levelNames[10] = 'DBUG'
     logging._levelNames[20] = 'INFO'
@@ -43,21 +43,16 @@ def get_logger(name, filename=None, level='debug'):
 
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, level.upper()))
-
-    if filename:
-        if os.path.dirname(filename): make_joined_path(os.path.dirname(filename))
-        handler = logging.handlers.TimedRotatingFileHandler(filename, when='W6')
-    else:
-        handler = logging.StreamHandler()
-
     formatter = logging.Formatter('%(asctime)s %(name)12.12s:%(levelname)s %(message)s')
-
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-    if filename:
-        logger.warning('********** Logging initialized **********')
-
+    if filepath:
+        handler = logging.handlers.TimedRotatingFileHandler(filepath, when='W6')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    if console:
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    logger.warning('********** Logging initialized **********')
     return logger
 
 
