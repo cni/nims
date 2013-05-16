@@ -66,23 +66,8 @@ class DicomAcquisition(object):
         self.dcm_path = dcm_path
         self.dcm_list = None
         self.log = log
-
         try:
-            if os.path.isfile(self.dcm_path) and tarfile.is_tarfile(self.dcm_path):
-                with tarfile.open(self.dcm_path) as archive:
-                    archive.next()  # skip over top-level directory
-                    dcm = dicom.read_file(cStringIO.StringIO(archive.extractfile(archive.next()).read()), stop_before_pixels=True)
-                self.compressed = True
-            elif os.path.isfile(self.dcm_path):
-                # A single dicom file
-                dcm = dicom.read_file(self.dcm_path, stop_before_pixels=True)
-                self.compressed = False
-            else:
-                # Assume it's a directory of dicoms
-                dcm = dicom.read_file(os.path.join(self.dcm_path, os.listdir(self.dcm_path)[0]), stop_before_pixels=True)
-                self.compressed = False
-            if dcm.Manufacturer != 'GE MEDICAL SYSTEMS':    # TODO: make code more general
-                raise DicomError
+            dcm = self.load_first_dicom()
         except (IOError, dicom.filereader.InvalidDicomError):
             raise DicomError
         else:
@@ -125,15 +110,20 @@ class DicomAcquisition(object):
             # FIXME: confirm that DICOM (Columns,Rows) = PFile (X,Y)
             self.size_x = int(getattr(dcm, 'Columns', 0))
             self.size_y = int(getattr(dcm, 'Rows', 0))
-            self.fov = [float(dcm.ReconstructionDiameter), float(dcm.ReconstructionDiameter) / float(dcm.PercentPhaseFieldOfView)] if 'ReconstructionDiameter' in dcm and 'PercentPhaseFieldOfView' in dcm else [0.0, 0.0]
+            self.fov = [float(dcm.ReconstructionDiameter), float(dcm.ReconstructionDiameter)] if 'ReconstructionDiameter' in dcm else [0.0, 0.0]
+            # Dicom convention is ROW,COL. E.g., ROW is the first dim (index==0), COL is the second (index==1)
             if self.phase_encode == 1:
-                self.fov = self.fov[::-1]
                 # The Acquisition matrix field includes four values: [freq rows, freq columns, phase rows, phase columns].
                 # E.g., for a 64x64 image, it would be [64,0,0,64] if the image row axis was the frequency encoding axis or
                 # [0,64,64,0] if the image row was the phase encoding axis. We'll just save all four values.
-                self.acquisition_matrix = dcm.AcquisitionMatrix[0:4:3] if 'AcquisitionMatrix' in dcm else [None,None]
+                self.acquisition_matrix = dcm.AcquisitionMatrix[0:4:3] if 'AcquisitionMatrix' in dcm else [0,0]
+                if 'PercentPhaseFieldOfView' in dcm:
+                    self.fov[1] = self.fov[1] / (float(dcm.PercentPhaseFieldOfView)/100.)
             else:
-                self.acquisition_matrix = dcm.AcquisitionMatrix[1:3] if 'AcquisitionMatrix' in dcm else [None,None]
+                # We want the acq matrix to always be ROWS,COLS, so we flip the order for the case where the phase encode is the first dim:
+                self.acquisition_matrix = dcm.AcquisitionMatrix[2:0:-1] if 'AcquisitionMatrix' in dcm else [0,0]
+                if 'PercentPhaseFieldOfView' in dcm:
+                    self.fov[0] = self.fov[0] / (float(dcm.PercentPhaseFieldOfView)/100.)
 
             if 'ImageType' in dcm and dcm.ImageType==TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in dcm and dcm[TAG_DIFFUSION_DIRS].value >= 6:
                 self.diffusion_flag = True
@@ -155,6 +145,24 @@ class DicomAcquisition(object):
             self.num_bands = 1
             self.image_type = getattr(dcm, 'ImageType', None)
             self.cosines = getattr(dcm, 'ImageOrientationPatient', [None,None,None,None,None,None])
+
+    def load_first_dicom(self):
+        if os.path.isfile(self.dcm_path) and tarfile.is_tarfile(self.dcm_path):
+            with tarfile.open(self.dcm_path) as archive:
+                archive.next()  # skip over top-level directory
+                dcm = dicom.read_file(cStringIO.StringIO(archive.extractfile(archive.next()).read()), stop_before_pixels=True)
+            self.compressed = True
+        elif os.path.isfile(self.dcm_path):
+            # A single dicom file
+            dcm = dicom.read_file(self.dcm_path, stop_before_pixels=True)
+            self.compressed = False
+        else:
+            # Assume it's a directory of dicoms
+            dcm = dicom.read_file(os.path.join(self.dcm_path, os.listdir(self.dcm_path)[0]), stop_before_pixels=True)
+            self.compressed = False
+        if dcm.Manufacturer != 'GE MEDICAL SYSTEMS':    # TODO: make code more general
+            raise DicomError
+        return dcm
 
     def load_all_dicoms(self):
         if os.path.isfile(self.dcm_path) and tarfile.is_tarfile(self.dcm_path):
