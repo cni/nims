@@ -85,8 +85,8 @@ class DicomAcquisition(object):
             self.timestamp = datetime.datetime.strptime(acq_date(dcm) + acq_time(dcm), '%Y%m%d%H%M%S')
 
             self.ti = float(getattr(dcm, 'InversionTime', 0.0)) / 1000.0
-            self.te = float(getattr(dcm, 'EchoTime', 0.0)) / 1000.0
-            self.tr = float(getattr(dcm, 'RepetitionTime', 0.0)) / 1000.0
+            self.te = float(getattr(dcm, 'EchoTime', '') or 0) / 1000.0
+            self.tr = float(getattr(dcm, 'RepetitionTime', '') or 0) / 1000.0
             self.flip_angle = float(getattr(dcm, 'FlipAngle', 0.0))
             self.pixel_bandwidth = float(getattr(dcm, 'PixelBandwidth', 0.0))
             self.phase_encode = 1 if 'InPlanePhaseEncodingDirection' in dcm and dcm.InPlanePhaseEncodingDirection == 'COL' else 0
