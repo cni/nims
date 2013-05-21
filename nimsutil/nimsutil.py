@@ -43,7 +43,7 @@ def get_logger(name, filepath=None, console=True, level='debug'):
 
     logger = logging.getLogger(name)
     logger.setLevel(getattr(logging, level.upper()))
-    formatter = logging.Formatter('%(asctime)s %(name)12.12s:%(levelname)s %(message)s')
+    formatter = logging.Formatter('%(asctime)s %(name)12.12s:%(levelname)s %(message)s', '%Y-%m-%d %H:%M:%S')
     if filepath:
         handler = logging.handlers.TimedRotatingFileHandler(filepath, when='W6')
         handler.setFormatter(formatter)
@@ -75,16 +75,13 @@ def parse_patient_id(patient_id, known_ids):
     do so with high confidence, the lab id is set to 'unknown'.
     """
     subj_code, dummy, lab_info = patient_id.lower().rpartition('@')
-    lab_info = lab_info.partition('/')
-    lab_id = clean_string(lab_info[0]) if lab_info[0] else 'nogroup'
-    exp_id = clean_string(lab_info[2]) if lab_info[2] else 'untitled'
-
+    lab_id, dummy, exp_id = (clean_string(z[0]) or z[1] for z in zip(lab_info.partition('/'), ('unknown', '', 'untitled')))
     lab_id_matches = difflib.get_close_matches(lab_id, known_ids, cutoff=0.8)
     if len(lab_id_matches) == 1:
         lab_id = lab_id_matches[0]
     else:
-        exp_id = lab_id + '/' + exp_id
         lab_id = 'unknown'
+        exp_id = patient_id
     return (unicode(subj_code), unicode(lab_id), unicode(exp_id))
 
 
