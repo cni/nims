@@ -422,10 +422,16 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    ni = nibabel.load(args.nifti_file)
-    tr = ni.get_header().get_zooms()[3]
-    nslices = ni.shape[2]
-    nframes = ni.shape[3]
+    if args.nifti_file:
+        ni = nibabel.load(args.nifti_file)
+        tr = ni.get_header().get_zooms()[3]
+        nslices = ni.shape[2]
+        nframes = ni.shape[3]
+    else:
+        print('WARNING: regressors will not be valid!')
+        tr = 2
+        nslices = 1
+        nframes = 100
     phys = PhysioData(args.physio_file, tr, nframes, nslices)
     if args.preprocess:
         np.savetxt(args.outbase + '_resp.txt', phys.resp_wave)
