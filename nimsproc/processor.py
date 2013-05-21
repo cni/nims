@@ -198,7 +198,7 @@ class DicomPipeline(Pipeline):
 
             if conv_type:
                 outputdir_list = os.listdir(outputdir)
-                self.job.activity = u'generated %s' % (', '.join([f for f in outputdir_list]))
+                self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 conv_ds = Dataset.at_path(self.nims_path, unicode(conv_type))
                 DBSession.add(self.job)
@@ -251,7 +251,7 @@ class PFilePipeline(Pipeline):
 
             if conv_file:
                 outputdir_list = os.listdir(outputdir)
-                self.job.activity = u'generated %s' % (', '.join([f for f in outputdir_list]))
+                self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 dataset = Dataset.at_path(self.nims_path, u'nifti')
                 DBSession.add(self.job)
