@@ -111,20 +111,6 @@ def make_joined_path(a, *p):
     return path
 
 
-def get_program_home(filename):
-    """
-    Given a filename, returns the original home of the file (i.e. after
-    following links).
-
-    For example:
-        ln -s /my/fav/program/source /some/new/place/a_link
-        get_program_home('/some/new/place/a_link') returns '/my/fav/program'
-    """
-    while os.path.islink(filename):
-        filename = os.path.join(os.path.dirname(filename), os.readlink(filename))
-    return os.path.abspath(os.path.dirname(filename))
-
-
 def get_reference_datetime(datetime_file):
     if os.access(datetime_file, os.R_OK):
         with open(datetime_file, 'r') as f:
