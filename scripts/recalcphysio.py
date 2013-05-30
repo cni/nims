@@ -10,8 +10,10 @@ from nimsgears.model import *
 data_path = '/nimsfs/nims'
 
 peripheral_datasets = Dataset.query.filter(Dataset.kind==u'peripheral' and Dataset.filetype==u'physio').all()
+pd_ids = [p.id for p in peripheral_datasets]
 
-for p in peripheral_datasets[:10]:
+for pid in pd_ids:
+    p = Dataset.query.filter(Dataset.id==pid).first()
     phys_filename = [f for f in p.filenames if f.endswith('_physio.tgz')]
     if len(phys_filename) == 1:
         print('%s: recomputing regressors...' % p.container)
@@ -22,8 +24,11 @@ for p in peripheral_datasets[:10]:
         for reg_file in [f for f in p.filenames if 'regressors' in f or 'rawdata' in f]:
             os.remove(os.path.join(data_path, p.relpath, reg_file))
         basename = os.path.join(data_path, p.relpath, '%s_physio_' % dc.name)
-        phys.write_regressors(basename + 'regressors.csv.gz')
-        phys.write_raw_data(basename + 'rawdata.json.gz')
+        try:
+            phys.write_regressors(basename + 'regressors.csv.gz')
+            phys.write_raw_data(basename + 'rawdata.json.gz')
+        except nimsutil.physio.PhysioDataError:
+            print('error generating regressors from physio data')
         p.filenames = os.listdir(os.path.join(data_path, p.relpath))
         transaction.commit()
     else:
