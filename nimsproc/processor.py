@@ -152,13 +152,21 @@ class Pipeline(threading.Thread):
                         with tarfile.open(os.path.join(self.nims_path, dataset.relpath, filename), 'w:gz', compresslevel=6) as archive:
                             archive.add(arcdir_path, arcname=os.path.basename(arcdir_path))
                         try:
-                            reg_filename = '%s_physio_regressors.csv' % self.job.data_container.name
+                            reg_filename = '%s_physio_regressors.csv.gz' % self.job.data_container.name
                             physio.write_regressors(os.path.join(self.nims_path, dataset.relpath, reg_filename))
                         except nimsutil.physio.PhysioDataError:
                             self.job.activity = u'error generating regressors from physio data'
                             self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                         else:
                             dataset.filenames += [reg_filename]
+                        try:
+                            raw_filename = '%s_physio_rawdata.json.gz' % self.job.data_container.name
+                            physio.write_raw_data(os.path.join(self.nims_path, dataset.relpath, reg_filename))
+                        except nimsutil.physio.PhysioDataError:
+                            self.job.activity = u'error generating raw data from physio data'
+                            self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                        else:
+                            dataset.filenames += [raw_filename]
                 else:
                     self.job.activity = u'invalid physio found and discarded'
                     self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
