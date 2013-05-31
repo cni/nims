@@ -20,6 +20,7 @@ import numpy as np
 import nibabel
 
 import nimsutil
+import nimsdata
 import pfheader
 
 
@@ -28,11 +29,11 @@ def unpack_uid(uid):
     return ''.join([str(i-1) if i < 11 else '.' for pair in [(ord(c) >> 4, ord(c) & 15) for c in uid] for i in pair if i > 0])
 
 
-class PFileError(Exception):
+class PFileError(nimsdata.NIMSDataError):
     pass
 
 
-class PFile(object):
+class PFile(nimsdata.NIMSData):
     """
     Read pfile data and/or header.
 
@@ -62,6 +63,8 @@ class PFile(object):
             self.basename = self.basename[:-3]
         self.filedir = os.path.dirname(self.filename)
         self.num_vcoils = num_virtual_coils
+
+        super(PFile, self).__init__()
 
     def get_metadata(self):
         """ Get useful metadata fields from the pfile header. These should be consistent with the fields that dicomutil yields. """
@@ -169,7 +172,7 @@ class PFile(object):
         self.phase_encode_undersample = 1. / self.header.rec.ileaves
         # TODO: Set this correctly! (it's in the dicom at (0x0043, 0x1083))
         self.slice_encode_undersample = 1.0
-        self.acquisition_matrix = [self.header.rec.rc_xres, self.header.rec.rc_yres]
+        self.acquisition_matrix = [self.size_x, self.size_y]
         # Diffusion params
         self.dwi_numdirs = self.header.rec.numdifdirs
         # You might think that the b-valuei for diffusion scans would be stored in self.header.image.b_value.
