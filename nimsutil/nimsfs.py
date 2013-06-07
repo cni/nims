@@ -237,7 +237,7 @@ if __name__ == '__main__':
     usage = ('nimsfs.py [mountpoint]\n'
             +'Mount the NIMS virtual filesystem tree at the specified mountpoint.\n'
             +'To unmount, use fusermount -u [mountpoint].\n\n'
-            +Fuse.fusage
+            +Fuse.fusage)
 
     server = Nimsfs(version='%prog ' + fuse.__version__,
                  usage=usage,
