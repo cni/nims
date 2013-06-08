@@ -14,36 +14,19 @@ is permitted on the system, then these requirements should be met.
 import os, sys
 import errno  # for error number codes (ENOENT, etc) - note: these must be returned as negatives
 import stat   # for file properties
-import fcntl
 import time
 import pwd    # to translate uid to username
 import grp    # to translate gid to groupname
 import fuse
 from fuse import Fuse
 
-DATAPATH = '/nimsfs/nims'
-
-#from paste.deploy import appconfig
-#from pylons import config
-#
-#from nimsgears.config.environment import load_environment
-#
-## Adjust the following as necessary so the ini file can be found
-#conf = appconfig('config:production.ini', relative_to='.')
-#load_environment(conf.global_conf, conf.local_conf)
 import sqlalchemy
 from nimsgears.model import *
 db_uri = 'postgresql://nims:nims@nimsfs.stanford.edu:5432/nims'
 init_model(sqlalchemy.create_engine(db_uri))
+DATAPATH = '/nimsfs/nims'
 
 fuse.fuse_python_api = (0, 2)
-
-def flag2mode(flags):
-    md = {os.O_RDONLY: 'r', os.O_WRONLY: 'w', os.O_RDWR: 'w+'}
-    m = md[flags & (os.O_RDONLY | os.O_WRONLY | os.O_RDWR)]
-    if flags | os.O_APPEND:
-        m = m.replace('w', 'a', 1)
-    return m
 
 def get_groups(user):
     experiments = (Experiment.query.join(Access)
@@ -120,18 +103,10 @@ def get_datasets(user, group_name, exp_name, session_name, epoch_name):
         datafiles = []
     return datafiles
 
-def flag2mode(flags):
-    md = {os.O_RDONLY: 'r', os.O_WRONLY: 'w', os.O_RDWR: 'w+'}
-    m = md[flags & (os.O_RDONLY | os.O_WRONLY | os.O_RDWR)]
-    if flags | os.O_APPEND:
-        m = m.replace('w', 'a', 1)
-    return m
 
 class NimsfsStat(fuse.Stat):
     """
-    Convenient class for Stat objects.
-    Set up the stat object with appropriate
-    values depending on constructor args.
+    Class for Stat objects.
     """
     def __init__(self, is_dir, size, uid, gid, timestamp=None):
         fuse.Stat.__init__(self)
@@ -149,6 +124,7 @@ class NimsfsStat(fuse.Stat):
         self.st_ctime = timestamp
         self.st_uid = uid
         self.st_gid = gid
+
 
 class Nimsfs(Fuse):
 
@@ -172,6 +148,8 @@ class Nimsfs(Fuse):
                 fname = next((f for f in files if f.endswith(cur_path[5])), None)
                 if fname:
                     size = os.path.getsize(fname)
+                else:
+                    return -errno.ENOENT
         return NimsfsStat(is_dir, size, 0, 0)
 
     def readdir(self, path, offset):
@@ -190,12 +168,12 @@ class Nimsfs(Fuse):
             dirs = get_epochs(user, cur_path[1], cur_path[2], cur_path[3])
         elif len(cur_path) == 5:
             dirs = [os.path.basename(d.encode()) for d in get_datasets(user, cur_path[1], cur_path[2], cur_path[3], cur_path[4])]
-        print 'READDIR: path=' + path + '; dirs=' + str(dirs)
+        else:
+            dirs = []
         for e in ['.','..'] + dirs:
             yield fuse.Direntry(e)
 
     def open(self, path, flags):
-        print 'OPEN ' + path
         # Only support for 'READ ONLY' flag
         access_flags = os.O_RDONLY | os.O_WRONLY | os.O_RDWR
         if flags & access_flags != os.O_RDONLY:
@@ -212,11 +190,9 @@ class Nimsfs(Fuse):
                 if fname:
                     self.file_size = os.path.getsize(fname)
                     self.fp = open(fname, 'rb')
-                    print 'OPEN: path=' + path + '; fname=' + fname
             return 0
 
     def read(self, path, size, offset):
-        print 'READ ' + path
         if self.fp:
             self.fp.seek(offset)
             buf = self.fp.read(size)
@@ -225,7 +201,6 @@ class Nimsfs(Fuse):
         return buf
 
     def flush(self, fh=None):
-        print 'FLUSH ' + str(fh)
         if self.fp:
             self.fp.close()
 
@@ -239,9 +214,7 @@ if __name__ == '__main__':
             +'To unmount, use fusermount -u [mountpoint].\n\n'
             +Fuse.fusage)
 
-    server = Nimsfs(version='%prog ' + fuse.__version__,
-                 usage=usage,
-                 dash_s_do='setsingle')
+    server = Nimsfs(version='%prog ' + fuse.__version__, usage=usage, dash_s_do='setsingle')
 
     # To use multithreading, we'd need to protect all methods of
     # NimsfsFile class with locks to prevent race conditions
