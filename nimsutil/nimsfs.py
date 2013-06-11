@@ -24,10 +24,42 @@ import sqlalchemy
 from nimsgears.model import *
 db_uri = 'postgresql://nims:nims@nimsfs.stanford.edu:5432/nims'
 init_model(sqlalchemy.create_engine(db_uri))
-DATAPATH = '/nimsfs/nims'
 
 fuse.fuse_python_api = (0, 2)
 
+
+import collections
+import functools
+
+class memoized(object):
+    '''Decorator to cache a function's return value each time it is called.
+    If called later with the same arguments, the cached value is returned.
+    '''
+    def __init__(self, func):
+       self.func = func
+       self.maxtime = 3
+       self.cache = {}
+       self.cachetime = {}
+    def __call__(self, *args):
+       if not isinstance(args, collections.Hashable):
+           # uncacheable. a list, for instance.
+           # better to not cache than blow up.
+           return self.func(*args)
+       if args in self.cache and time.time() - self.cachetime[args] < self.maxtime:
+           return self.cache[args]
+       else:
+           value = self.func(*args)
+           self.cache[args] = value
+           self.cachetime[args] = time.time()
+           return value
+    def __repr__(self):
+       '''Return the function's docstring.'''
+       return self.func.__doc__
+    def __get__(self, obj, objtype):
+       '''Support instance methods.'''
+       return functools.partial(self.__call__, obj)
+
+@memoized
 def get_groups(user):
     experiments = (Experiment.query.join(Access)
                    .filter(Access.user==user)
@@ -35,70 +67,91 @@ def get_groups(user):
                    .all())
     return sorted(set([e.owner.gid.encode() for e in experiments]))
 
+@memoized
 def get_experiments(user, group_name):
     experiments = (Experiment.query.join(Access)
                    .join(ResearchGroup, Experiment.owner)
-                   .filter(ResearchGroup.gid==unicode(group_name))
+                   .filter(ResearchGroup.gid.ilike(unicode(group_name)))
                    .filter(Access.user==user)
                    .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
                    .all())
     return sorted([e.name.encode() for e in experiments])
 
+@memoized
 def get_sessions(user, group_name, exp_name):
     sessions = (Session.query
                 .join(Subject, Session.subject)
                 .join(Experiment, Subject.experiment)
                 .join(ResearchGroup, Experiment.owner)
-                .filter(ResearchGroup.gid==unicode(group_name))
-                .filter(Experiment.name==unicode(exp_name))
+                .filter(ResearchGroup.gid.ilike(unicode(group_name)))
+                .filter(Experiment.name.ilike(unicode(exp_name)))
                 .filter(Access.user==user)
                 .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
                 .all())
     return sorted([s.name.encode() for s in sessions])
 
+@memoized
 def get_epochs(user, group_name, exp_name, session_name):
     # FIXME: we should explicitly set the session name so that we can be sure the exam is there.
     sp = session_name.split('_')
-    if len(sp)>2:
-        exam = int(sp[2])
-        epochs = (Epoch.query
-                  .join(Session, Epoch.session)
-                  .join(Subject, Session.subject)
-                  .join(Experiment, Subject.experiment)
-                  .join(ResearchGroup, Experiment.owner)
-                  .filter(ResearchGroup.gid==unicode(group_name))
-                  .filter(Experiment.name==unicode(exp_name))
-                  .filter(Session.exam==exam)
-                  .filter(Access.user==user)
-                  .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
-                  .all())
+    if len(sp)>2 or '%' in sp[0]:
+        q = (Epoch.query
+             .join(Session, Epoch.session)
+             .join(Subject, Session.subject)
+             .join(Experiment, Subject.experiment)
+             .join(ResearchGroup, Experiment.owner)
+             .filter(ResearchGroup.gid.ilike(unicode(group_name)))
+             .filter(Experiment.name.ilike(unicode(exp_name))))
+        if not '%' in sp[0]:
+            q = q.filter(Session.exam==int(sp[2]))
+        epochs = (q.filter(Access.user==user)
+                   .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
+                   .all())
         epoch_names = sorted([(e.name + '_' + e.description).encode() for e in epochs])
     else:
         epoch_names = []
     return epoch_names
 
+@memoized
 def get_datasets(user, group_name, exp_name, session_name, epoch_name):
-    # FIXME: we should explicitly set the epoch name.
-    sp = epoch_name.split('_')
-    if len(sp)>2:
-        exam,series,acq = [int(n) for n in sp[:3]]
-        datasets = (Dataset.query
-                   .join(Epoch, Dataset.container)
-                   .join(Session, Epoch.session)
-                   .join(Subject, Session.subject)
-                   .join(Experiment, Subject.experiment)
-                   .join(ResearchGroup, Experiment.owner)
-                   .join(Access)
-                   .join(User, Access.user)
-                   .filter(ResearchGroup.gid==unicode(group_name))
-                   .filter(Experiment.name==unicode(exp_name))
-                   .filter(Session.exam==exam)
-                   .filter(Epoch.series==series)
-                   .filter(Epoch.acq==acq)
-                   .filter(Access.user==user)
-                   .filter((Access.privilege >= AccessPrivilege.value(u'Read-Only')) | ((Dataset.kind != u'primary') & (Dataset.kind != u'secondary')))
-                   .all())
-        datafiles = [os.path.join(DATAPATH,d.relpath,f).encode() for d in datasets for f in d.filenames]
+    # FIXME: we should explicitly set the epoch name
+    ssp = session_name.split('_')
+    if len(ssp)>2:
+        exam = ssp[2]
+    else:
+        exam = ssp[0]
+    esp = epoch_name.split('_')
+    if len(esp)>2 or '%' in epoch_name:
+        q = (Dataset.query
+             .join(Epoch, Dataset.container)
+             .join(Session, Epoch.session)
+             .join(Subject, Session.subject)
+             .join(Experiment, Subject.experiment)
+             .join(ResearchGroup, Experiment.owner)
+             .join(Access)
+             .join(User, Access.user)
+             .filter(ResearchGroup.gid.ilike(unicode(group_name)))
+             .filter(Experiment.name.ilike(unicode(exp_name))))
+        if not '%' in exam:
+            q = q.filter(Session.exam==int(exam))
+        if len(esp)>1 and not '%' in esp[1]:
+            q = q.filter(Epoch.series==int(esp[1]))
+        if len(esp)>2 and not '%' in esp[2]:
+            q = q.filter(Epoch.acq==int(esp[2]))
+        datasets = (q.filter(Access.user==user)
+                     .filter((Access.privilege >= AccessPrivilege.value(u'Read-Only')) | ((Dataset.kind != u'primary') & (Dataset.kind != u'secondary')))
+                     .all())
+        if '%' in epoch_name:
+            print 'DATASETS: %d' % len(datasets)
+            # return a flat structure with legacy-style filenames
+            datafiles = []
+            for d in datasets:
+                for f in d.filenames:
+                    display_name = '%04d_%02d_%s.%s' % (d.container.series, d.container.acq, d.container.description, '.'.join(f.split('.')[1:]))
+                    datafiles.append((display_name.encode(), os.path.join(server.datapath,d.relpath,f).encode()))
+        else:
+            # Use the filename on disk
+            datafiles = [(f.encode(), os.path.join(server.datapath,d.relpath,f).encode()) for d in datasets for f in d.filenames]
     else:
         datafiles = []
     return datafiles
@@ -130,12 +183,14 @@ class Nimsfs(Fuse):
 
     def __init__(self, *args, **kw):
         Fuse.__init__(self, *args, **kw)
-        self.root = '/'
+        self.datapath = '/_nimsfs'
         self.fp = None
         self.file_size = 0
 
     def getattr(self, path):
-        is_dir = not bool(os.path.splitext(path)[1])
+        #print 'GETATTR: path=' + path
+        fn = path.split('/')[-1]
+        is_dir = '%' in fn or not bool(os.path.splitext(fn)[1])
         size = 0
         if not is_dir:
             context = self.GetContext()
@@ -145,7 +200,7 @@ class Nimsfs(Fuse):
             cur_path = path.split('/')
             if len(cur_path) == 6:
                 files = get_datasets(user, cur_path[1], cur_path[2], cur_path[3], cur_path[4])
-                fname = next((f for f in files if f.endswith(cur_path[5])), None)
+                fname = next((f[1] for f in files if f[0] == cur_path[5]), None)
                 if fname:
                     size = os.path.getsize(fname)
                 else:
@@ -153,6 +208,7 @@ class Nimsfs(Fuse):
         return NimsfsStat(is_dir, size, 0, 0)
 
     def readdir(self, path, offset):
+        #print 'READDIR: path=' + path
         context = self.GetContext()
         username = pwd.getpwuid(context['uid']).pw_name
         groupname = grp.getgrgid(context['gid']).gr_name
@@ -167,7 +223,7 @@ class Nimsfs(Fuse):
         elif len(cur_path) < 5:
             dirs = get_epochs(user, cur_path[1], cur_path[2], cur_path[3])
         elif len(cur_path) == 5:
-            dirs = [os.path.basename(d.encode()) for d in get_datasets(user, cur_path[1], cur_path[2], cur_path[3], cur_path[4])]
+            dirs = [d[0] for d in get_datasets(user, cur_path[1], cur_path[2], cur_path[3], cur_path[4])]
         else:
             dirs = []
         for e in ['.','..'] + dirs:
@@ -186,7 +242,7 @@ class Nimsfs(Fuse):
             cur_path = path.split('/')
             if len(cur_path) == 6:
                 files = get_datasets(user, cur_path[1], cur_path[2], cur_path[3], cur_path[4])
-                fname = next((f for f in files if f.endswith(cur_path[5])), None)
+                fname = next((f[1] for f in files if f[0] == cur_path[5]), None)
                 if fname:
                     self.file_size = os.path.getsize(fname)
                     self.fp = open(fname, 'rb')
@@ -220,12 +276,12 @@ if __name__ == '__main__':
     # NimsfsFile class with locks to prevent race conditions
     server.multithreaded = False
 
-    server.parser.add_option(mountopt='root', metavar='PATH', default='/', help=usage)
+    server.parser.add_option(mountopt='datapath', metavar='PATH', default=server.datapath,
+                             help="nims data path. [default=%default]")
     server.parse(values=server, errex=1)
 
     try:
-        if server.fuse_args.mount_expected():
-            os.chdir(server.root)
+        server.fuse_args.mount_expected()
     except OSError:
         print >> sys.stderr, 'Error mounting NIMS.'
         sys.exit(1)
