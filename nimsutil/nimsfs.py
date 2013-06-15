@@ -166,9 +166,18 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
             # return a flat structure with legacy-style filenames
             datafiles = []
             for d in datasets:
+                # The 'series_container_acq_description' name isn't guaranteed to be unique. Sometimes there are multiple
+                # files with different "extensions". We'll find the extensions here.
+                if len(d.filenames) > 1:
+                    ext_start_ind = max(0, len(os.path.commonprefix(d.filenames))-1)
+                else:
+                    ext_start_ind = len(d.filenames[0].split('.')[0])
+                print 'DATASET ' + str(d)
                 for f in d.filenames:
-                    display_name = '%04d_%02d_%s.%s' % (d.container.series, d.container.acq, d.container.description, '.'.join(f.split('.')[1:]))
+                    display_name = '%04d_%02d_%s%s' % (d.container.series, d.container.acq, d.container.description, f[ext_start_ind:])
                     datafiles.append((display_name.encode(), os.path.join(datapath,d.relpath,f).encode()))
+                    print '   FILENAME=' + f + ' DISPLAY_NAME=' + display_name
+
         else:
             # Use the filename on disk
             datafiles = [(f.encode(), os.path.join(datapath,d.relpath,f).encode()) for d in datasets for f in d.filenames]
@@ -200,7 +209,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
             mode = stat.S_IFDIR | 0555
             nlink = 2
         else:
-            mode = stat.S_IFREG | 0774
+            mode = stat.S_IFREG | 0444
             nlink = 1
             username = pwd.getpwuid(uid).pw_name
             groupname = grp.getgrgid(gid).gr_name
