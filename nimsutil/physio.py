@@ -344,7 +344,6 @@ class PhysioData(object):
                         else:
                             hr[tp] = hr[tp-1]
                     else:
-                        print tp
                         hr[tp] = (inds[-1] - inds[0]) * 60. / (card_trig[inds[-1]] - card_trig[inds[0]])  # bpm
             else:
                 # Bob's new version:
