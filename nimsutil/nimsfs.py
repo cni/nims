@@ -29,8 +29,11 @@ import functools
 
 
 class memoize(object):
-    '''Decorator to cache a function's return value each time it is called.
+    '''
+    Decorator to cache a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned.
+    Includes a garbage collector thread that purges the cache of old items.
+    and a lock to ensure that the cache isn't purged while values are read.
     '''
     def __init__(self, cachetime=5):
         # If there are decorator arguments, the decorated function is not passed to the constructor.
@@ -45,34 +48,46 @@ class memoize(object):
     def collect_garbage(self):
         while True:
             now = time.time()
-            with self.lock:
-                for key in self.cache.keys():
-                    if self.cache[key][1] + self.cachetime < now:
+            for key in self.cache.keys():
+                if self.cache[key][1] + self.cachetime < now:
+                    # We don't need to lock before the conditional because no other thread will delete.
+                    with self.lock:
                         del self.cache[key]
-            time.sleep(self.cachetime * 2)
+            time.sleep(self.cachetime * 1.1)
 
     def __call__(self, func):
+        self.func = func
+
         def wrapped_func(*args):
             # Ensure the args are hashable. If not, don't try to cache.
             if not isinstance(args, collections.Hashable):
                 return func(*args)
-            # Need to lock to keep the garbage collector from deleting something as we read it.
+            # Lock to keep the garbage collector from deleting something after found but before read.
             with self.lock:
                 if args in self.cache and self.cache[args][1] + self.cachetime > time.time():
+                    value_set = True
                     value = self.cache[args][0]
                 else:
-                    value = func(*args)
-                    self.cache[args] = (value,time.time())
+                    value_set = False
+            # This could have been implemented more simply as an else clause in the above conditional.
+            # However, in that case, the lock would have been held for the whole time that the
+            # value was computed, which could be significant for a large query. So for good
+            # concurrency performance the lock is kept only around what is absolutely necessary.
+            if not value_set:
+                value = func(*args)
+                # TODO: ensure that inserting in a dict is thread-safe. Otherwise, throw a lock around this.
+                self.cache[args] = (value,time.time())
             return value
         return wrapped_func
 
-    def __repr__(self):
-        '''Return the function's docstring.'''
-        return self.func.__doc__
+        # TODO: These don't work. Figure out how to pass-through the doc string.
+        def __repr__(self):
+            '''Return the function's docstring.'''
+            return self.func.__doc__
 
-    def __get__(self, obj, objtype):
-        '''Support instance methods.'''
-        return functools.partial(self.__call__, obj)
+        def __get__(self, obj, objtype):
+            '''Support instance methods.'''
+            return functools.partial(self.__call__, obj)
 
 @memoize()
 def get_groups(username):
@@ -190,14 +205,9 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
 
     def __init__(self, datapath, db_uri):
         self.datapath = datapath
+        self.db_uri = db_uri
         self.rwlock = threading.Lock()
-        self.db_uri = 'postgresql://nims:nims@nimsfs.stanford.edu:5432/nims'
         init_model(sqlalchemy.create_engine(self.db_uri))
-        # not sure if it's a good idea to store these here. Is there a separate instance of this object for each
-        # call to the fs? If so, then this is ok. But if this instance is shared, then we can't store specific info here.
-        self.fp = None
-        self.file_size = 0
-        self.file_ts = 0
 
     def getattr(self, path, fh=None):
         uid, gid, pid = fuse.fuse_get_context()
@@ -258,8 +268,6 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
                 files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath)
                 fname = next((f[1] for f in files if f[0] == cur_path[5]), None)
                 if fname:
-                    self.file_size = os.path.getsize(fname)
-                    self.file_ts = os.path.getmtime(fname)
                     fh = os.open(fname, flags)
                 else:
                     raise fuse.FuseOSError(errno.ENOENT)
@@ -272,8 +280,18 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
 
     def fgetattr(self, fh=None):
         uid, gid, pid = fuse.fuse_get_context()
+        # mode is always read-only
         mode = stat.S_IFREG | 0444
-        return {'st_atime':self.file_ts, 'st_ctime':self.file_ts, 'st_gid':gid, 'st_mode':mode, 'st_mtime':self.file_ts, 'st_nlink':1, 'st_size':self.file_size, 'st_uid':uid}
+        if fh:
+            fs = os.fstat(fh)
+            at = os.st_atime
+            ct = fs.st_ctime
+            mt = fs.st_mtime
+            sz = fs.st_size
+        else:
+            at,ct,mt = time.time()
+            sz = 0
+        return {'st_atime':at, 'st_ctime':ct, 'st_mtime':mt, 'st_gid':gid, 'st_mode':mode, 'st_nlink':1, 'st_size':sz, 'st_uid':uid}
 
     def flush(self, path, fh):
         os.fsync(fh)
