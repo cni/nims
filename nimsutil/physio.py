@@ -168,7 +168,7 @@ class PhysioData(object):
         start_ind = np.argmax(self.resp_time>0)
         return self.resp_wave[start_ind:]
 
-    def compute_regressors(self):
+    def compute_regressors(self, legacy_rvhr=True, hr_min=30, hr_max=180):
         """
 
          * catie chang,   catie.chang@nih.gov
@@ -189,6 +189,12 @@ class PhysioData(object):
          ---------------------------
          INPUTS:
          ---------------------------
+         legacy_rvhr: True to use Catie's original algorithm for computing heartrate,
+                      false to use Bob's algorithm, which should be more robust.
+         hr_min, hr_max: For Bob's heartrate algorithm, heartrate values outside this
+                         range will be discarded. (Has no effect if legacy_rvhr=True)
+
+         The following come are set as instance vars:
          * slice order:  vector indicating order of slice acquisition
              (e.g. [30 28 26, .... 29 27 ... 1] for 30 "interleaved down" slices)
          * tr: in seconds
@@ -327,17 +333,30 @@ class PhysioData(object):
             rv_rrf_d = np.concatenate(([rv_rrf_d[0]], rv_rrf_d))
 
             # make slice HR*CRF regressor
-            hr = np.zeros(self.nframes)
-            for tp in range(self.nframes):
-                inds = np.nonzero(np.logical_and(card_trig >= (slice_times[tp]-t_win), card_trig <= (slice_times[tp]+t_win)))[0]
-                if inds.size == 0:
-                    if tp > 0:
-                        # At the end of a run, the last pulse might be recorded before the last data frame.
-                        hr[tp] = hr[tp-1]
+            # Catie's original code:
+            if legacy_rvhr:
+                hr = np.zeros(self.nframes)
+                for tp in range(self.nframes):
+                    inds = np.nonzero(np.logical_and(card_trig >= (slice_times[tp]-t_win), card_trig <= (slice_times[tp]+t_win)))[0]
+                    if inds.size < 2:
+                        if tp==0:
+                            hr[tp] = 60
+                        else:
+                            hr[tp] = hr[tp-1]
                     else:
-                        raise PhysioDataError('Cardiac trigger times do not match scan duration.')
-                else:
-                    hr[tp] = (inds[-1] - inds[0]) * 60. / (card_trig[inds[-1]] - card_trig[inds[0]])  # bpm
+                        print tp
+                        hr[tp] = (inds[-1] - inds[0]) * 60. / (card_trig[inds[-1]] - card_trig[inds[0]])  # bpm
+            else:
+                # Bob's new version:
+                trig_time_delta = np.diff(card_trig)
+                hr_instant = 60. / trig_time_delta
+                hr_time = card_trig[:-1] + trig_time_delta / 2.
+                # Clean a bit. We interpolate below, so it's safe to just discard bad values.
+                keep_inds = np.logical_and(hr_instant>=hr_min, hr_instant<=hr_max)
+                hr_time = hr_time[keep_inds]
+                hr_instant = hr_instant[keep_inds]
+                hr = np.interp(slice_times, hr_time, hr_instant)
+
             # conv(hr, crf)
             self.heart_rate[:,sl] = hr
             hr -= hr.mean()
