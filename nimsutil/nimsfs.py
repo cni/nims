@@ -187,11 +187,11 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
                     ext_start_ind = max(0, len(os.path.commonprefix(d.filenames))-1)
                 else:
                     ext_start_ind = len(d.filenames[0].split('.')[0])
-                print 'DATASET ' + str(d)
+                #print 'DATASET ' + str(d)
                 for f in d.filenames:
                     display_name = '%04d_%02d_%s%s' % (d.container.series, d.container.acq, d.container.description, f[ext_start_ind:])
                     datafiles.append((display_name.encode(), os.path.join(datapath,d.relpath,f).encode()))
-                    print '   FILENAME=' + f + ' DISPLAY_NAME=' + display_name
+                    #print '   FILENAME=' + f + ' DISPLAY_NAME=' + display_name
 
         else:
             # Use the filename on disk
