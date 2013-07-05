@@ -216,6 +216,11 @@ class DicomAcquisition(object):
         images_per_volume = self.dcm_list[0][TAG_SLICES_PER_VOLUME].value
         bvals = np.array([dcm[TAG_BVALUE].value[0] for dcm in self.dcm_list[0::images_per_volume]], dtype=float)
         bvecs = np.array([(dcm[TAG_BVEC[0]].value, dcm[TAG_BVEC[1]].value, dcm[TAG_BVEC[2]].value) for dcm in self.dcm_list[0::images_per_volume]]).transpose()
+        # Adjust the bvals/bvecs to account for non-unit-length bvecs
+        sqmag = np.array([bv.dot(bv) for bv in bvecs]).reshape((-1,1))
+        bvals *= sqmag           # Scale each bval by the squared magnitude of the corresponding bvec
+        sqmag[sqmag==0] = np.inf # Avoid divide-by-zero
+        bvecs /= np.sqrt(sqmag)  # Normalize each bvec to unit length
         filename = outbase + '.bval'
         with open(filename, 'w') as bvals_file:
             bvals_file.write(' '.join(['%f' % value for value in bvals]))
