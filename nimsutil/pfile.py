@@ -196,13 +196,18 @@ class PFile(object):
         # TODO: confirm that the voxel reordering is necessary. Maybe lean on the recon folks to standardize their voxel order?
         mat = h5py.File(data_file, 'r')
         if 'd' in mat:
-            img = np.atleast_3d(mat['d'].items()[1][1].value)
-            img = img.transpose((3,2,1,0))[::-1,:,:,:]
+            sz = mat['d_size'].items()[1][1].value.flatten()
+            slice_locs = [int(s)-1 for s in mat['sl_loc'].items()[1][1].value]
+            img = np.zeros(sz)
+            raw = np.atleast_3d(mat['d'].items()[1][1].value)
+            raw = raw.transpose((3,2,1,0))[::-1,:,:,:]
+            img[:,:,slice_locs,...] = raw
         elif 'MIP_res' in mat:
             img = np.atleast_3d(mat['MIP_res'].items()[1][1].value)
             img = img.transpose((1,0,2,3))[::-1,::-1,:,:]
         if img.ndim == 3:
             img = img.reshape(img.shape + (1,))
+        mat.close()
         return img
 
     def update_image_data(self, img):
