@@ -15,7 +15,7 @@ import time
 import tempfile
 import subprocess as sp
 
-import h5py
+import scipy.io
 import numpy as np
 import nibabel
 
@@ -194,20 +194,19 @@ class PFile(object):
     def load_image_data(self, data_file):
         """ Load raw image data from a file and do some sanity checking on num slices, matrix size, etc. """
         # TODO: confirm that the voxel reordering is necessary. Maybe lean on the recon folks to standardize their voxel order?
-        mat = h5py.File(data_file, 'r')
+        mat = scipy.io.loadmat(data_file)
         if 'd' in mat:
-            sz = mat['d_size'].items()[1][1].value.flatten()
-            slice_locs = [int(s)-1 for s in mat['sl_loc'].items()[1][1].value]
+            sz = mat['d_size'].flatten().astype(int)
+            slice_locs = mat['sl_loc'].flatten().astype(int) - 1
             img = np.zeros(sz)
-            raw = np.atleast_3d(mat['d'].items()[1][1].value)
-            raw = raw.transpose((3,2,1,0))[::-1,:,:,:]
-            img[:,:,slice_locs,...] = raw
+            raw = np.atleast_3d(mat['d'])
+            #raw = raw.transpose((3,2,1,0))[::-1,:,:,:]
+            img[:,:,slice_locs,...] = raw[::-1,...]
         elif 'MIP_res' in mat:
-            img = np.atleast_3d(mat['MIP_res'].items()[1][1].value)
+            img = np.atleast_3d(mat['MIP_res'])
             img = img.transpose((1,0,2,3))[::-1,::-1,:,:]
         if img.ndim == 3:
             img = img.reshape(img.shape + (1,))
-        mat.close()
         return img
 
     def update_image_data(self, img):
@@ -422,9 +421,9 @@ class PFile(object):
                 num_running_jobs = sum([job.poll()==None for job in mux_recon_jobs])
                 if num_running_jobs < self.max_num_jobs:
                     # Recon each slice separately. Note the slice_num+1 to deal with matlab's 1-indexing.
-                    # Use 'str' on timepoints that an empty array will produce '[]'
+                    # Use 'str' on timepoints so that an empty array will produce '[]'
                     cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", [], %d, %s, %d);\''
-                            % (executable, recon_path, pfile_path, outname, slice_num, slice_num + 1, str(timepoints), self.num_vcoils))
+                            % (executable, recon_path, pfile_path, outname, slice_num, slice_num+1, str(timepoints), self.num_vcoils))
                     self.log and self.log.debug(cmd)
                     mux_recon_jobs.append(sp.Popen(args=shlex.split(cmd), stdout=open('/dev/null', 'w')))
                     slice_num += 1
