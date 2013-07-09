@@ -1,9 +1,5 @@
 .*.sw[op]
 *.py[co]
-*.egg-info
-*.sqlite
-cache
-production.ini
-nimsutil/pfheader*.*
-nims_stage
-nims_store
+*.datetime
+pfheader*
+webapp2*

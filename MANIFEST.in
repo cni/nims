@@ -1,4 +1,0 @@
-recursive-include nimsgears/public *
-include nimsgears/public/favicon.ico
-recursive-include nimsgears/i18n *
-recursive-include nimsgears/templates *

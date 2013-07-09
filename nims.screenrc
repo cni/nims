@@ -1,0 +1,28 @@
+# vim: filetype=screen :
+
+defscrollback 100000
+hardstatus alwayslastline "%{W} %w %= %D %d %M %y %c"
+bindkey -k kD stuff ^H
+
+sessionname nims
+
+screen -t bash          0
+
+screen -t mongodb       1
+stuff "/scratch/mongodb-osx-x86_64-2.4.5/bin/mongod --dbpath /scratch/mongodb"
+
+screen -t nimsapi       2
+stuff "webapp2 \015"
+stuff "nimsapi/nimsapi.py localhost nims /scratch/upload"
+
+screen -t dicomreaper   3
+stuff "webapp2 \015"
+stuff "nips/reaper.py -t /Volumes/ramdisk/reap -p physio /cnimr/physio DicomReaper cnimr:4006:4006:slice:cnimr http://slice.stanford.edu:8080/nimsapi/upload"
+
+screen -t pfilereaper   4
+stuff "webapp2 \015"
+stuff "nips/reaper.py -t /Volumes/ramdisk/reap -p physio /cnimr/physio PFileReaper /cnimr/pfiles http://slice.stanford.edu:8080/nimsapi/upload"
+
+screen -t sorter        5
+stuff "webapp2 \015"
+stuff "nips/sorter.py -t /Volumes/ramdisk localhost nims /scratch/upload /scratch/sorted"

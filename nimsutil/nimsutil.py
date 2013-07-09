@@ -4,33 +4,31 @@
 """A set of NIMS-related utility functions."""
 
 import os
-import re
-import glob
-import gzip
 import shutil
 import tarfile
 import difflib
 import hashlib
-import datetime
 import tempfile
 import logging, logging.handlers
 
 
-class TempDirectory(object):
+class TempDir(object):
 
     """Context managed temporary directory creation and automatic removal."""
-    def __init__(self, dir=None):
+
+    def __init__(self, suffix='', prefix='tmp', dir=None):
+        self.suffix = suffix
+        self.prefix = prefix
         self.dir = dir
-        super(TempDirectory, self).__init__()
 
     def __enter__(self):
         """Create temporary directory on context entry, returning the path."""
-        self.temp_dir = tempfile.mkdtemp(dir=self.dir)
-        return self.temp_dir
+        self.tempdir = tempfile.mkdtemp(suffix=self.suffix, prefix=self.prefix, dir=self.dir)
+        return self.tempdir
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Remove temporary directory tree."""
-        shutil.rmtree(self.temp_dir)
+        shutil.rmtree(self.tempdir)
 
 
 def get_logger(name, filepath=None, console=True, level='debug'):
@@ -56,74 +54,21 @@ def get_logger(name, filepath=None, console=True, level='debug'):
     return logger
 
 
-def parse_subject(name, dob):
-    lastname, firstname = name.split('^') if '^' in name else ('', '')
-    try:
-        dob = datetime.datetime.strptime(dob, '%Y%m%d').date()
-        if dob < datetime.date(1900, 1, 1):
-            raise ValueError
-    except ValueError:
-        dob = None
-    return (unicode(firstname.capitalize()), unicode(lastname.capitalize()), dob)
-
-
-def parse_patient_id(patient_id, known_ids):
+def parse_patient_id(patient_id, known_groups=[]):
     """
-    Accept a NIMS-formatted patient id and return lab id and experiment id.
+    Accept a NIMS-formatted patient id and return a subject code, group name, and experiment name.
 
-    We use fuzzy matching to find the best matching known lab id. If we can't
-    do so with high confidence, the lab id is set to 'unknown'.
+    Find the best fuzzy-matching group name. If this can't be done with high confidence, the group name is set to 'unknown'.
     """
     subj_code, dummy, lab_info = patient_id.lower().rpartition('@')
-    lab_id, dummy, exp_id = (clean_string(z[0]) or z[1] for z in zip(lab_info.partition('/'), ('unknown', '', 'untitled')))
-    lab_id_matches = difflib.get_close_matches(lab_id, known_ids, cutoff=0.8)
-    if len(lab_id_matches) == 1:
-        lab_id = lab_id_matches[0]
+    group_name, dummy, exp_name = (z[0] or z[1] for z in zip(lab_info.partition('/'), ('unknown', '', 'untitled')))
+    group_name_matches = difflib.get_close_matches(group_name, known_groups, cutoff=0.8)
+    if len(group_name_matches) == 1:
+        group_name = group_name_matches[0]
     else:
-        lab_id = 'unknown'
-        exp_id = patient_id
-    return (unicode(subj_code), unicode(lab_id), unicode(exp_id))
-
-
-def clean_string(string):
-    """
-    Nims standard string cleaning utility function.
-
-    Strip unwanted characters, and replace consecutive spaces, dashes, and
-    underscores with a single underscore.
-
-    For example:
-        '-__-&&&HELLO GOOD ((    SIR  )))___----   ' returns 'HELLO_GOOD_SIR'
-    """
-    string = re.sub(r'[^A-Za-z0-9 _-]', '', string)
-    string = re.sub(r'[ _-]+', '_', string).strip('_')
-    return unicode(string)
-
-
-def make_joined_path(a, *p):
-    """ Return joined path, creating necessary directories if they do not exist."""
-    path = os.path.join(a, *p)
-    try:
-        os.makedirs(path)
-    except OSError:
-        if not os.path.isdir(path):
-            raise
-    return path
-
-
-def get_reference_datetime(datetime_file):
-    if os.access(datetime_file, os.R_OK):
-        with open(datetime_file, 'r') as f:
-            this_datetime = datetime.datetime.strptime(f.readline(), '%c\n')
-    else:
-        this_datetime = datetime.datetime.now()
-        update_reference_datetime(datetime_file, this_datetime)
-    return this_datetime
-
-
-def update_reference_datetime(datetime_file, new_datetime):
-    with open(datetime_file, 'w') as f:
-        f.write(new_datetime.strftime('%c\n'))
+        group_name = 'unknown'
+        exp_name = patient_id
+    return subj_code, group_name, exp_name
 
 
 def ldap_query(uid):
@@ -146,23 +91,7 @@ def ldap_query(uid):
         email = res[0][1]['mail'][0]
     except:
         email = '%s@stanford.edu' % uid if lastname else ''
-    return unicode(firstname), unicode(lastname), unicode(email)
-
-
-def find_ge_physio(data_path, timestamp, psd_name):
-    physio_files = os.listdir(data_path)
-    if not physio_files:
-        raise Exception(msg='physio files unavailable')
-
-    physio_dict = {}
-    leadtime = datetime.timedelta(days=1)
-    regexp = '.+%s_((%s.+)|(%s.+))' % (psd_name, timestamp.strftime('%m%d%Y'), (timestamp+leadtime).strftime('%m%d%Y'))
-
-    physio_files = filter(lambda pf: re.match(regexp, pf), physio_files)
-    for pdt, pfn in [re.match(regexp, pf).group(1,0) for pf in physio_files]:
-        physio_dict.setdefault(datetime.datetime.strptime(pdt, '%m%d%Y%H_%M_%S_%f'), []).append(pfn)
-    valid_keys = filter(lambda pdt: pdt >= timestamp, physio_dict)
-    return [os.path.join(data_path, pf) for pf in physio_dict[min(valid_keys)]] if valid_keys else []
+    return firstname, lastname, email
 
 
 def pack_dicom_uid(uid):
@@ -185,16 +114,6 @@ def hrsize(size):
         if size < 1000.:
             return '%3.0f%s' % (size, suffix)
     return '%.0f%s' % (size, 'Y')
-
-
-def gzip_inplace(path, mode=None):
-    gzpath = path + '.gz'
-    with gzip.open(gzpath, 'wb', compresslevel=6) as gzfile:
-        with open(path) as pathfile:
-            gzfile.writelines(pathfile)
-    shutil.copystat(path, gzpath)
-    if mode: os.chmod(gzpath, mode)
-    os.remove(path)
 
 
 def redigest(path):
