@@ -170,8 +170,7 @@ class NIMSDicom(nimsimage.NIMSImage):
     def load_all_dicoms(self):
         if os.path.isfile(self.dcm_path) and tarfile.is_tarfile(self.dcm_path):
             with tarfile.open(self.dcm_path) as archive:
-                archive.next()  # skip over top-level directory
-                dcm_list = [dicom.read_file(cStringIO.StringIO(archive.extractfile(ti).read())) for ti in archive]  # dead-slow w/o StringIO
+                dcm_list = [dicom.read_file(cStringIO.StringIO(archive.extractfile(ti).read())) for ti in archive if ti.isreg()] # dead-slow w/o StringIO
         elif os.path.isfile(self.dcm_path):
             dcm_list = [dicom.read_file(self.dcm_path)]
         else:
