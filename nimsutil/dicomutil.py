@@ -215,21 +215,27 @@ class DicomAcquisition(object):
         """Create bval and bvec files from an ordered list of dicoms."""
         images_per_volume = self.dcm_list[0][TAG_SLICES_PER_VOLUME].value
         bvals = np.array([dcm[TAG_BVALUE].value[0] for dcm in self.dcm_list[0::images_per_volume]], dtype=float)
-        bvecs = np.array([(dcm[TAG_BVEC[0]].value, dcm[TAG_BVEC[1]].value, dcm[TAG_BVEC[2]].value) for dcm in self.dcm_list[0::images_per_volume]]).transpose()
+        bvecs = np.array([(dcm[TAG_BVEC[0]].value, dcm[TAG_BVEC[1]].value, dcm[TAG_BVEC[2]].value) for dcm in self.dcm_list[0::images_per_volume]], dtype=float).transpose()
         # Adjust the bvals/bvecs to account for non-unit-length bvecs
-        sqmag = np.array([bv.dot(bv) for bv in bvecs]).reshape((-1,1))
+        sqmag = np.array([bv.dot(bv) for bv in bvecs.T])
+        # GE stores the bvecs with only 3 decimal values. So, we get significant fluctuations in the
+        # sqmag due to rounding error. To avoid spurious adjustments to the bvals, we round the sqmag based
+        # on the number of decimal values.
+        # TODO: is there a more elegant way to determine the number of decimals used?
+        num_decimals = np.nonzero([np.max(np.abs(bvecs-bvecs.round(decimals=d))) for d in range(9)])[0][-1] + 1
+        sqmag = np.around(sqmag, decimals=num_decimals-1)
         bvals *= sqmag           # Scale each bval by the squared magnitude of the corresponding bvec
         sqmag[sqmag==0] = np.inf # Avoid divide-by-zero
         bvecs /= np.sqrt(sqmag)  # Normalize each bvec to unit length
         filename = outbase + '.bval'
         with open(filename, 'w') as bvals_file:
-            bvals_file.write(' '.join(['%f' % value for value in bvals]))
+            bvals_file.write(' '.join([('%.'+str(num_decimals)+'f') % value for value in bvals]))
         self.log and self.log.debug('generated %s' % os.path.basename(filename))
         filename = outbase + '.bvec'
         with open(filename, 'w') as bvecs_file:
-            bvecs_file.write(' '.join(['%f' % value for value in bvecs[0,:]]) + '\n')
-            bvecs_file.write(' '.join(['%f' % value for value in bvecs[1,:]]) + '\n')
-            bvecs_file.write(' '.join(['%f' % value for value in bvecs[2,:]]) + '\n')
+            bvecs_file.write(' '.join([('%.'+str(num_decimals)+'f') % value for value in bvecs[0,:]]) + '\n')
+            bvecs_file.write(' '.join([('%.'+str(num_decimals)+'f') % value for value in bvecs[1,:]]) + '\n')
+            bvecs_file.write(' '.join([('%.'+str(num_decimals)+'f') % value for value in bvecs[2,:]]) + '\n')
         self.log and self.log.debug('generated %s' % os.path.basename(filename))
 
     def _to_nii(self, outbase):
