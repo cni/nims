@@ -21,7 +21,7 @@ class PFileReaper(object):
         self.id_ = id_
         self.pat_id = pat_id
         self.discard_ids = discard_ids
-        self.data_glob = os.path.join(data_path, 'P?????.7')
+        self.data_glob = os.path.join(data_path, 'P*.7')
         self.reap_stage = nimsutil.make_joined_path(reap_path)
         self.sort_stage = nimsutil.make_joined_path(sort_path)
         self.datetime_file = datetime_file

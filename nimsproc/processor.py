@@ -240,13 +240,14 @@ class PFilePipeline(Pipeline):
         ds = self.job.data_container.primary_dataset
         with nimsutil.TempDirectory() as outputdir:
             for pfile in os.listdir(os.path.join(self.nims_path, ds.relpath)):
-                try:
-                    pf = nimsutil.pfile.PFile(os.path.join(self.nims_path, ds.relpath, pfile),
-                            log=self.log, tmpdir='/run/shm/', max_num_jobs=32)
-                except nimsutil.pfile.PFileError:
-                    pf = None
-                else:
-                    break
+                if 'refscan' not in pfile:
+                    try:
+                        pf = nimsutil.pfile.PFile(os.path.join(self.nims_path, ds.relpath, pfile),
+                                log=self.log, tmpdir='/run/shm', max_num_jobs=32)
+                    except nimsutil.pfile.PFileError:
+                        pf = None
+                    else:
+                        break
             conv_file = pf.to_nii(os.path.join(outputdir, ds.container.name))
 
             if conv_file:
