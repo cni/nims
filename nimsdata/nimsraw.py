@@ -3,25 +3,25 @@
 # @author:  Bob Dougherty
 #           Gunnar Schaefer
 
-from __future__ import print_function
-
 import os
 import abc
 import gzip
+#import h5py
+import time
 import shlex
 import shutil
+import logging
+import nibabel
 import argparse
 import datetime
-import time
-import subprocess as sp
-
-#import h5py
+import subprocess
 import numpy as np
-import nibabel
 
 import nimsutil
 import nimsimage
 import pfheader
+
+log = logging.getLogger('nimsraw')
 
 
 def unpack_uid(uid):
@@ -57,10 +57,9 @@ class NIMSPFile(NIMSRaw):
 
     filetype = u'pfile'
 
-    # TODO: Simplify init. E.g., it doesn't need logging, etc. just to parse the header.
-    def __init__(self, filename, log=None, tmpdir=None, max_num_jobs=8, num_virtual_coils=0):
+    # TODO: Simplify init, just to parse the header
+    def __init__(self, filename, tmpdir=None, max_num_jobs=8, num_virtual_coils=0):
         self.filename = filename
-        self.log = log
         self.max_num_jobs = max_num_jobs
         self.tmpdir = tmpdir
         self.image_data = None
@@ -185,8 +184,7 @@ class NIMSPFile(NIMSRaw):
         self.dwi_bvalue = self.header.rec.user22
         self.diffusion_flag = True if self.dwi_numdirs >= 6 else False
         if self.diffusion_flag and self.dwi_bvalue==0:
-            msg = 'the data appear to be diffusion-weighted, but image.b_value is 0!'
-            self.log.warning(msg) if self.log else print(msg)
+            log.warning('the data appear to be diffusion-weighted, but image.b_value is 0!')
 
         # if bit 4 of rhtype(int16) is set, then fractional NEX (i.e., partial ky acquisition) was used.
         self.partial_ky = self.header.rec.scan_type & np.uint16(16) > 0
@@ -217,20 +215,17 @@ class NIMSPFile(NIMSRaw):
     def update_image_data(self, img):
         self.image_data = img
         if self.image_data.shape[0] != self.size_x or self.image_data.shape[1] != self.size_y:
-            msg = 'Image matrix discrepancy. Fixing the header, assuming image_data is correct...'
-            self.log.warning(msg) if self.log else print(msg)
+            log.warning('Image matrix discrepancy. Fixing the header, assuming image_data is correct...')
             self.size_x = self.image_data.shape[0]
             self.size_y = self.image_data.shape[1]
             self.mm_per_vox[0] = float(self.fov[0] / self.size_x)
             self.mm_per_vox[1] = float(self.fov[1] / self.size_y)
         if self.image_data.shape[2] != self.num_slices:
-            msg = 'Image slice count discrepancy. Fixing the header, assuming image_data is correct...'
-            self.log.warning(msg) if self.log else print(msg)
+            log.warning('Image slice count discrepancy. Fixing the header, assuming image_data is correct...')
             self.num_slices = self.image_data.shape[2]
         if self.image_data.shape[3] != self.num_timepoints:
-            msg = 'Image time frame discrepancy (header=%d, array=%d). Fixing the header, assuming image_data is correct...' \
-                    % (self.num_timepoints, self.image_data.shape[3])
-            self.log.warning(msg) if self.log else print(msg)
+            log.warning('Image time frame discrepancy (header=%d, array=%d). Fixing the header, assuming image_data is correct...'
+                    % (self.num_timepoints, self.image_data.shape[3]))
             self.num_timepoints = self.image_data.shape[3]
         self.duration = self.num_timepoints * self.tr # FIXME: maybe need self.num_echoes?
 
@@ -392,7 +387,7 @@ class NIMSPFile(NIMSRaw):
                 pfile_path = os.path.abspath(self.filename)
             basepath = os.path.join(tmpdir, 'recon')
             cmd = '%s -l --rotate -90 --magfile --savefmap2 --b0navigator -r %s -t %s' % (executable, pfile_path, 'recon')
-            self.log and self.log.debug(cmd)
+            log.debug(cmd)
             sp.call(shlex.split(cmd), cwd=tmpdir, stdout=open('/dev/null', 'w'))    # run spirec to generate .mag and fieldmap files
 
             self.image_data = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echos,self.num_slices],order='F').transpose((0,1,4,2,3))
@@ -429,7 +424,7 @@ class NIMSPFile(NIMSRaw):
                     # Use 'str' on timepoints that an empty array will produce '[]'
                     cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", [], %d, %s, %d);\''
                             % (executable, recon_path, pfile_path, outname, slice_num, slice_num + 1, str(timepoints), self.num_vcoils))
-                    self.log and self.log.debug(cmd)
+                    log.debug(cmd)
                     mux_recon_jobs.append(sp.Popen(args=shlex.split(cmd), stdout=open('/dev/null', 'w')))
                     slice_num += 1
                 else:
@@ -465,10 +460,10 @@ class NIMSPFile(NIMSRaw):
             ndirs = int(fp.readline().rstrip())
             bvecs = np.fromfile(fp, sep=' ')
         if uid != self.header.series.series_uid:
-            self.log and self.log.debug('tensor file UID does not match PFile UID!')
+            log.debug('tensor file UID does not match PFile UID!')
             return
         if ndirs != self.dwi_numdirs or self.dwi_numdirs != bvecs.size / 3.:
-            self.log and self.log.debug('tensor file numdirs does not match PFile header numdirs!')
+            log.debug('tensor file numdirs does not match PFile header numdirs!')
             return
 
         # FIXME: Assumes that all the non-dwi images are acquired first. Getting explicit information about
@@ -479,17 +474,17 @@ class NIMSPFile(NIMSRaw):
         filename = outbase + '.bval'
         with open(filename, 'w') as bvals_file:
             bvals_file.write(' '.join(['%.1f' % value for value in bvals]))
-        self.log and self.log.debug('generated %s' % os.path.basename(filename))
+        log.debug('generated %s' % os.path.basename(filename))
         filename = outbase + '.bvec'
         with open(filename, 'w') as bvecs_file:
             bvecs_file.write(' '.join(['%.6f' % value for value in bvecs[0,:]]) + '\n')
             bvecs_file.write(' '.join(['%.6f' % value for value in bvecs[1,:]]) + '\n')
             bvecs_file.write(' '.join(['%.6f' % value for value in bvecs[2,:]]) + '\n')
-        self.log and self.log.debug('generated %s' % os.path.basename(filename))
+        log.debug('generated %s' % os.path.basename(filename))
 
 
     def recon_hoshim(self, executable=''):
-        self.log or print('Can\'t recon HO SHIM data')
+        log.debug('Cannot recon HO SHIM data')
 
     @property
     def recon_func(self):
@@ -581,6 +576,7 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
+    nimsutil.configure_log()
     pf = PFile(args.pfile, tmpdir=args.tmpdir, max_num_jobs=args.jobs)
     if args.matfile:
         pf.set_image_data(args.matfile)

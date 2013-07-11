@@ -8,15 +8,17 @@ The CNI pyramid viewer uses PanoJS for the front-end.
 See: http://www.dimin.net/software/panojs/
 """
 
-from __future__ import print_function
-
 import os
 import math
+import logging
 import sqlite3
 import argparse
 import cStringIO
 
 import nimsdata
+import nimsutil
+
+log = logging.getLogger('nimsmontage')
 
 
 def tile_from_db(dbfile, z, x, y):
@@ -37,8 +39,8 @@ def info_from_db(dbfile):
             cur = con.cursor()
             cur.execute('SELECT * FROM info')
             tile_size, x_size, y_size = cur.fetchone()
-    except ImagePyramidError as e:
-        self.log.warning(e.message) if self.log else print(e.message)
+    except NIMSMontageError as e:
+        log.warning(e.message)
     return tile_size, x_size, y_size
 
 
@@ -73,17 +75,16 @@ class NIMSMontage(nimsdata.NIMSData):
     You can pass in a filename (any type of file that nibabel can make sense of) or a np.ndarray of raw image data.
 
     Example:
-        import pyramid
-        pyr = pyramid.ImagePyramid('t1.nii.gz')
+        import nimsmontage
+        pyr = nimsmontage.NIMSMontage('t1.nii.gz')
         pyr.generate()
     """
 
     # TODO: add metadata necessary for sorting to the pyramid db.
-    def __init__(self, image, tile_size=512, log=None):
+    def __init__(self, image, tile_size=512):
         import nibabel
         import numpy as np
         self.tile_size = tile_size
-        self.log = log
         self.montage = None
         self.image_dir = 'pyramid'
         if isinstance(image, basestring):
@@ -120,8 +121,8 @@ class NIMSMontage(nimsdata.NIMSData):
                 # E.g., the montage might be cropped and the tile size adjusted in there.
                 x_size, y_size = self.montage.size
                 f.create_dataset('tile_x_y_size', (3,), dtype='i')[:] = (self.tile_size, x_size, y_size)
-        except ImagePyramidError as e:
-            self.log.warning(e.message) if self.log else print(e.message)
+        except NIMSMontageError as e:
+            log.warning(e.message)
 
     def generate_sqlite(self, dbfile):
         """Generate a multi-resolution image pyramid and save all the resulting jpeg files in an sqlite db."""
@@ -140,8 +141,8 @@ class NIMSMontage(nimsdata.NIMSData):
                 # E.g., the montage might be cropped and the tile size adjusted in there.
                 x_size, y_size = self.montage.size
                 cur.execute('INSERT INTO info(tile_size,x_size,y_size) VALUES (?,?,?)', (self.tile_size, x_size, y_size))
-        except ImagePyramidError as e:
-            self.log.warning(e.message) if self.log else print(e.message)
+        except NIMSMontageError as e:
+            log.warning(e.message)
 
     def generate_dir(self, outdir, panojs_url='https://cni.stanford.edu/js/panojs/'):
         """Generate a multi-resolution image pyramid and corresponding HTML viewer file."""
@@ -151,8 +152,8 @@ class NIMSMontage(nimsdata.NIMSData):
             image_dir = os.path.join(outdir, self.image_dir)
             os.makedirs(image_dir)
             self.generate_pyramid(outdir=image_dir)
-        except ImagePyramidError as e:
-            self.log.warning(e.message) if self.log else print(e.message)
+        except NIMSMontageError as e:
+            log.warning(e.message)
             with open(viewer_file, 'w') as f:
                 f.write('<body>\n<center>Image viewer could not be generated for this dataset. (' + e.message + ')</center>\n</body>\n')
         else:
@@ -190,7 +191,7 @@ class NIMSMontage(nimsdata.NIMSData):
             xsize = int(round(float(ysize)/sy*sx))
             xpieces = int(math.ceil(float(xsize)/self.tile_size))
             ypieces = int(math.ceil(float(ysize)/self.tile_size))
-            self.log or print('level %s, size %dx%d, splits %d,%d' % (z, xsize, ysize, xpieces, ypieces))
+            log.debug('level %s, size %dx%d, splits %d,%d' % (z, xsize, ysize, xpieces, ypieces))
             # TODO: we don't need to use 'thumbnail' here. This function always returns a square
             # image of the requested size, padding and scaling as needed. Instead, we should resize
             # and chop the image up, with no padding, ever. panojs can handle non-square images
@@ -295,8 +296,8 @@ class NIMSMontage(nimsdata.NIMSData):
         """
         Sometimes we just want to use this class as a convenient way to get a montage.
         E.g.,
-        from nimsutil import pyramid
-        pylab.imshow(pyramid.ImagePyramid('foo.nii.gz').get_montage(), figure=pylab.figure(figsize=(24,24)))
+        import nimsmontage
+        pylab.imshow(nimsmontage.NIMSMontage('foo.nii.gz').get_montage(), figure=pylab.figure(figsize=(24,24)))
         """
         self.generate_montage(bits16)
         return self.montage
@@ -318,7 +319,8 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    pyr = ImagePyramid(args.filename, tile_size = args.tilesize)
+    nimsutil.configure_log()
+    pyr = NIMSMontage(args.filename, tile_size = args.tilesize)
     if args.montage:
         outfile = (args.out or os.path.basename(os.path.splitext(os.path.splitext(args.filename)[0])[0])) + '.png'
         pyr.write_montage_as_png(outfile, bits16=False)
@@ -330,4 +332,3 @@ if __name__ == '__main__':
         if args.directory:
             outdir = args.out or os.path.basename(os.path.splitext(os.path.splitext(args.filename)[0])[0]) + '.pyr'
             pyr.generate_dir(outdir, args.panojs_url) if args.panojs_url else pyr.generate_dir(outdir)
-

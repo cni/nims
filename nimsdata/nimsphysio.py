@@ -18,9 +18,8 @@ See:
   10.1016/j.neuroimage.2008.09.029. Epub 2008 Oct 7. PubMed PMID: 18951982
 """
 
-from __future__ import print_function
-
 import json
+import logging
 import tarfile
 import zipfile
 import argparse
@@ -30,6 +29,9 @@ import bson.json_util
 import numpy as np
 
 import nimsdata
+import nimsutil
+
+log = logging.getLogger('nimsphysio')
 
 
 class NIMSPhysioError(nimsdata.NIMSDataError):
@@ -63,7 +65,7 @@ class NIMSPhysio(nimsdata.NIMSData):
     filetype = u'physio'
 
     # TODO: simplify init to take no args. We need to add the relevant info to the json file.
-    def __init__(self, filename, tr=2, nframes=100, nslices=1, slice_order=None, log=None, card_dt=0.01, resp_dt=0.04):
+    def __init__(self, filename, tr=2, nframes=100, nslices=1, slice_order=None, card_dt=0.01, resp_dt=0.04):
         # The is_valid method uses some crude heuristics to detect valid data.
         # To be valid, the number of temporal frames must be reasonable, and either the cardiac
         # standard deviation or the respiration low-frequency power meet the following criteria.
@@ -72,15 +74,13 @@ class NIMSPhysio(nimsdata.NIMSData):
         self.min_resp_lfp = 50.
         # FIXME: How to infer the file format automatically?
         self.format_str = 'ge'
-        self.log = log
         self.tr = tr
         self.nframes = nframes
         if slice_order == None:
             self.nslices = nslices
             # Infer a standard GE interleave slice order
             self.slice_order = np.array(range(0, self.nslices, 2) + range(1, self.nslices, 2))
-            # msg = 'No explicit slice order set; inferring interleaved.'
-            # self.log.warning(msg) if self.log else print(msg)
+            # log.warning('No explicit slice order set; inferring interleaved.')
         else:
             self.nslices = slice_order.size
             self.slice_order = np.array(slice_order)
@@ -206,8 +206,7 @@ class NIMSPhysio(nimsdata.NIMSData):
 
         if self.nframes < 3:
             self.regressors = None
-            msg = 'Need at least 3 temporal frames to compute regressors!'
-            self.log.warning(msg) if self.log else print(msg)
+            log.warning('Need at least 3 temporal frames to compute regressors!')
             return
 
         t_win = 6 * 0.5 # 6-sec window for computing RV & HR, default
@@ -426,11 +425,12 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
+    nimsutil.configure_log()
     if args.nifti_file:
         ni = nibabel.load(args.nifti_file)
         phys = PhysioData(args.physio_file, ni.get_header().get_zooms()[3], ni.shape[3], ni.shape[2])
     else:
-        print('WARNING: regressors will not be valid!')
+        log.warning('regressors will not be valid!')
         phys = PhysioData(args.physio_file)
     if args.preprocess:
         np.savetxt(args.outbase + '_resp.txt', phys.resp_wave)

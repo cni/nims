@@ -31,7 +31,7 @@ class TempDir(object):
         shutil.rmtree(self.tempdir)
 
 
-def get_logger(name, filepath=None, console=True, level='debug'):
+def configure_log(filepath=None, console=True, level='debug'):
     """Return a nims-configured logger."""
     logging._levelNames[10] = 'DBUG'
     logging._levelNames[20] = 'INFO'
@@ -39,7 +39,7 @@ def get_logger(name, filepath=None, console=True, level='debug'):
     logging._levelNames[40] = 'ERR '
     logging._levelNames[50] = 'CRIT'
 
-    logger = logging.getLogger(name)
+    logger = logging.getLogger()
     logger.setLevel(getattr(logging, level.upper()))
     formatter = logging.Formatter('%(asctime)s %(name)12.12s:%(levelname)s %(message)s', '%Y-%m-%d %H:%M:%S')
     if filepath:
@@ -51,7 +51,6 @@ def get_logger(name, filepath=None, console=True, level='debug'):
         handler.setFormatter(formatter)
         logger.addHandler(handler)
     logger.warning('********** Logging initialized **********')
-    return logger
 
 
 def parse_patient_id(patient_id, known_groups=[]):

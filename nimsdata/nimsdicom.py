@@ -4,10 +4,9 @@
 #           Gunnar Schaefer
 #           Bob Dougherty
 
-from __future__ import print_function
-
 import os
 import dicom
+import logging
 import nibabel
 import tarfile
 import argparse
@@ -17,7 +16,10 @@ import cStringIO
 import numpy as np
 
 import png
+import nimsutil
 import nimsimage
+
+log = logging.getLogger('nimsdicom')
 
 dicom.config.enforce_valid_values = False
 
@@ -52,7 +54,7 @@ class NIMSDicom(nimsimage.NIMSImage):
     filetype = u'dicom'
     priority = 0
 
-    def __init__(self, dcm_path, log=None):
+    def __init__(self, dcm_path):
 
         def acq_date(dcm):
             if 'AcquisitionDate' in dcm:    return dcm.AcquisitionDate
@@ -66,7 +68,6 @@ class NIMSDicom(nimsimage.NIMSImage):
 
         self.dcm_path = dcm_path
         self.dcm_list = None
-        self.log = log
         try:
             dcm = self.load_first_dicom()
         except Exception as e:
@@ -182,8 +183,7 @@ class NIMSDicom(nimsimage.NIMSImage):
         result = (None, None)
         if not self.image_type:
             # *** Should we raise an exception here? (Old code did) ***
-            msg = 'dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase)
-            self.log.warning(msg) if self.log else print(msg)
+            log.warning('dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase))
         else:
             if self.image_type == TYPE_SCREEN:
                 self._to_img(outbase)
@@ -194,8 +194,7 @@ class NIMSDicom(nimsimage.NIMSImage):
             if 'PRIMARY' in self.image_type:
                 result = ('nifti', self._to_nii(outbase))
             if result[0] is None:
-                msg = 'dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase)
-                self.log.warning(msg) if self.log else print(msg)
+                log.warning('dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase))
         return result
 
     def _to_img(self, outbase):
@@ -211,7 +210,7 @@ class NIMSDicom(nimsimage.NIMSImage):
                 elif pixels.ndim == 3:
                     pixels = pixels.flatten().reshape((pixels.shape[1], pixels.shape[0]*pixels.shape[2]))
                     png.Writer(pixels.shape[0], pixels.shape[1]/3).write(fd, pixels)
-            self.log and self.log.debug('generated %s' % os.path.basename(filename))
+            log.debug('generated %s' % os.path.basename(filename))
 
     def _to_dti(self, outbase):
         """Create bval and bvec files from an ordered list of dicoms."""
@@ -221,13 +220,13 @@ class NIMSDicom(nimsimage.NIMSImage):
         filename = outbase + '.bval'
         with open(filename, 'w') as bvals_file:
             bvals_file.write(' '.join(['%f' % value for value in bvals]))
-        self.log and self.log.debug('generated %s' % os.path.basename(filename))
+        log.debug('generated %s' % os.path.basename(filename))
         filename = outbase + '.bvec'
         with open(filename, 'w') as bvecs_file:
             bvecs_file.write(' '.join(['%f' % value for value in bvecs[0,:]]) + '\n')
             bvecs_file.write(' '.join(['%f' % value for value in bvecs[1,:]]) + '\n')
             bvecs_file.write(' '.join(['%f' % value for value in bvecs[2,:]]) + '\n')
-        self.log and self.log.debug('generated %s' % os.path.basename(filename))
+        log.debug('generated %s' % os.path.basename(filename))
 
     def _to_nii(self, outbase):
         """Create a single nifti file from an ordered list of dicoms."""
@@ -254,13 +253,12 @@ class NIMSDicom(nimsimage.NIMSImage):
         if np.prod(dims) == np.size(image_data):
             image_data = image_data.reshape(dims, order='F')
         else:
-            self.log and self.log.debug("dimensions inconsistent with size, attempting to construct volume")
+            log.debug('dimensions inconsistent with size, attempting to construct volume')
             # round up slices to nearest multiple of slices_per_volume
             slices_total_rounded_up = ((slices_total + slices_per_volume - 1) / slices_per_volume) * slices_per_volume
             slices_padding = slices_total_rounded_up - slices_total
             if slices_padding: #LOOK AT THIS MORE CLOSELY TODO
-                msg = "dimensions indicate missing slices from volume - zero padding with %d slices." % slices_padding
-                self.log.warning(msg) if self.log else print(msg)
+                log.warning('dimensions indicate missing slices from volume - zero padding with %d slices' % slices_padding)
                 with open(notes_filename, 'at') as fp:
                     fp.write('WARNING: ' + msg + '\n')
                 padding = np.zeros((self.size_y, self.size_x, slices_padding))
@@ -279,8 +277,7 @@ class NIMSDicom(nimsimage.NIMSImage):
             # volumes (num_volumes). We'll zero-pad in that case.
             if image_data.shape[3] < num_volumes:
                 pad_vols = num_volumes - image_data.shape[3]
-                msg = "dimensions indicate missing data - zero padding with %d volumes." % pad_vols
-                self.log.warning(msg) if self.log else print(msg)
+                log.warning('dimensions indicate missing data - zero padding with %d volumes' % pad_vols)
                 image_data = np.append(image_data, np.zeros(image_data.shape[0:3]+(pad_vols,), dtype=image_data.dtype), axis=3)
                 with open(notes_filename, 'at') as fp:
                     fp.write('WARNING: ' + msg + '\n')
@@ -307,7 +304,7 @@ class NIMSDicom(nimsimage.NIMSImage):
         qto_xyz[2,2] = slice_norm[2]
 
         if np.dot(slice_norm, image_position[0]) > np.dot(slice_norm, image_position[-1]):
-            self.log and self.log.debug('flipping image order')
+            log.debug('flipping image order')
             flipped = True
             slice_num = slice_num[::-1]
             slice_loc = slice_loc[::-1]
@@ -370,7 +367,7 @@ class NIMSDicom(nimsimage.NIMSImage):
         nifti = nibabel.Nifti1Image(image_data, None, nii_header)
         filename = outbase + '.nii.gz'
         nibabel.save(nifti, filename)
-        self.log and self.log.debug('generated %s' % os.path.basename(filename))
+        log.debug('generated %s' % os.path.basename(filename))
         return filename
 
 
@@ -385,5 +382,5 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    dcm_acq = DicomAcquisition(args.dcm_dir)
-    dcm_acq.convert(args.outbase or os.path.basename(args.dcm_dir.rstrip('/')))
+    nimsutil.configure_log()
+    NIMSDicom(args.dcm_dir).convert(args.outbase or os.path.basename(args.dcm_dir.rstrip('/')))
