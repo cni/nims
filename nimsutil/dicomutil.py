@@ -125,7 +125,7 @@ class DicomAcquisition(object):
                 if 'PercentPhaseFieldOfView' in dcm:
                     self.fov[0] = self.fov[0] / (float(dcm.PercentPhaseFieldOfView)/100.)
 
-            if 'ImageType' in dcm and dcm.ImageType==TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in dcm and dcm[TAG_DIFFUSION_DIRS].value >= 6:
+            if 'ImageType' in dcm and dcm.ImageType==TYPE_ORIGINAL and TAG_DIFFUSION_DIRS in dcm and int(dcm[TAG_DIFFUSION_DIRS].value) >= 6:
                 self.diffusion_flag = True
             else:
                 self.diffusion_flag = False
