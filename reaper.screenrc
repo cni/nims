@@ -33,7 +33,3 @@ stuff "nimsproc/processor.py -f log/processor.log -j8 -e\"~Epoch.psd.contains(u'
 screen -t mux_proc      6
 stuff "source ~/tg2env/bin/activate \015"
 stuff "nimsproc/processor.py -f log/mux_proc.log -j1 -e\"Epoch.psd.contains(u'mux')\" postgresql://nims:nims@nimsfs.stanford.edu:5432/nims /nimsfs/nims /cnimr/physio \015"
-
-screen -t mips7t        7
-stuff "source ~/tg2env/bin/activate \015"
-stuff "nimsproc/dicomreaper.py -f log/dicomreaper_mips7t.log -p \"yjliao*\" -s 300 /run/shm/dicomreaper_mips7t /scratch/nims_stage clark-con-shadow-mri:4006:4006 reaper mips7t \015"
