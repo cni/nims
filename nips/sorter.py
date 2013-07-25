@@ -100,6 +100,7 @@ class Sorter(object):
         return datasets
 
     def dirpath_and_subdoc_for_dataset(self, ds):
+        # FIXME update fields with information from new datasets
         subj_code, lab_name, exp_name = nimsutil.parse_patient_id(ds.patient_id, [g['_id'] for g in self.db.groups.find()])
         owner = self.db.groups.find_one({'_id': lab_name})
         experiment_spec = {'owner': owner['_id'], 'name': exp_name}
@@ -117,11 +118,11 @@ class Sorter(object):
             updates = dict([(subdoc, ds.epoch_info)] + ([('timestamp', ds.timestamp)] if session['timestamp'] > ds.timestamp else []))
             self.db.sessions.update(ds.session_spec, {'$set': updates})
             epoch = self.db.sessions.find_one(ds.session_spec)['epochs'][ds.db_acq_key]
-        dataset = epoch['datasets'].get(ds.filetype)
-        subdoc += '.datasets.' + ds.filetype
+        dataset = epoch['datasets'].get(ds.unique_id)
+        subdoc += '.datasets.' + ds.unique_id
         if not dataset:
-            self.db.sessions.update(ds.session_spec, {'$set': {subdoc: {'_id': bson.objectid.ObjectId()}}})
-            dataset = self.db.sessions.find_one(ds.session_spec)['epochs'][ds.db_acq_key]['datasets'][ds.filetype]
+            self.db.sessions.update(ds.session_spec, {'$set': {subdoc: ds.get_dataset_info(_id=bson.objectid.ObjectId())}})
+            dataset = self.db.sessions.find_one(ds.session_spec)['epochs'][ds.db_acq_key]['datasets'][ds.unique_id]
         path = self.sort_path + '/' + str(dataset['_id'])[-3:] + '/' + str(dataset['_id'])
         if not os.path.exists(path): os.makedirs(path)
         return path, subdoc

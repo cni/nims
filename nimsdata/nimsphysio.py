@@ -18,14 +18,17 @@ See:
   10.1016/j.neuroimage.2008.09.029. Epub 2008 Oct 7. PubMed PMID: 18951982
 """
 
+import os
+import gzip
 import json
 import logging
+import nibabel
 import tarfile
 import zipfile
 import argparse
 import warnings
+import itertools
 import bson.json_util
-
 import numpy as np
 
 import nimsdata
@@ -62,7 +65,9 @@ class NIMSPhysio(nimsdata.NIMSData):
         p.generate_regressors(outname='retroicor.csv')
     """
 
-    filetype = u'physio'
+    datakind = u'raw'
+    datatype = u'physio'
+    filetype = u'gephysio'
 
     # TODO: simplify init to take no args. We need to add the relevant info to the json file.
     def __init__(self, filename, tr=2, nframes=100, nslices=1, slice_order=None, card_dt=0.01, resp_dt=0.04):
@@ -106,6 +111,7 @@ class NIMSPhysio(nimsdata.NIMSData):
             raise NIMSPhysioError(e)
 
         super(NIMSPhysio, self).__init__()
+
 
     def read_ge_data(self, filename):
         archive = None
@@ -159,7 +165,18 @@ class NIMSPhysio(nimsdata.NIMSData):
         self.card_time = self.card_dt * np.arange(self.card_wave.size) - offset
         self.card_trig = self.card_trig * self.card_dt - offset
 
-    def compute_regressors(self):
+    @property
+    def card_trig_chopped(self):
+        # find the first trigger that is >0
+        start_ind = np.argmax(self.card_trig>0)
+        return self.card_trig[start_ind:]
+
+    @property
+    def resp_wave_chopped(self):
+        start_ind = np.argmax(self.resp_time>0)
+        return self.resp_wave[start_ind:]
+
+    def compute_regressors(self, legacy_rvhr=True, hr_min=30, hr_max=180):
         """
          * catie chang,   catie.chang@nih.gov
          * bob dougherty, bobd@stanford.edu
@@ -179,6 +196,12 @@ class NIMSPhysio(nimsdata.NIMSData):
          ---------------------------
          INPUTS:
          ---------------------------
+         legacy_rvhr: True to use Catie's original algorithm for computing heartrate,
+                      false to use Bob's algorithm, which should be more robust.
+         hr_min, hr_max: For Bob's heartrate algorithm, heartrate values outside this
+                         range will be discarded. (Has no effect if legacy_rvhr=True)
+
+         The following come are set as instance vars:
          * slice order:  vector indicating order of slice acquisition
              (e.g. [30 28 26, .... 29 27 ... 1] for 30 "interleaved down" slices)
          * tr: in seconds
@@ -209,14 +232,17 @@ class NIMSPhysio(nimsdata.NIMSData):
             log.warning('Need at least 3 temporal frames to compute regressors!')
             return
 
+        resp_wave = self.resp_wave_chopped
+        card_trig = self.card_trig_chopped
+
         t_win = 6 * 0.5 # 6-sec window for computing RV & HR, default
         nslc = self.slice_order.size
 
         # Find the derivative of the respiration waveform
         # shift to zero-min
-        self.resp_wave = self.resp_wave - self.resp_wave.min()
+        resp_wave = resp_wave - resp_wave.min()
         # bin respiration signal into 100 values
-        Hb,bins = np.histogram(self.resp_wave, 100)
+        Hb,bins = np.histogram(resp_wave, 100)
         # calculate the derivative
         # first, filter respiratory signal - just in case
         f_cutoff = 1. # max allowable freq
@@ -224,7 +250,7 @@ class NIMSPhysio(nimsdata.NIMSData):
         wn = f_cutoff / (fs / 2)
         ntaps = 20
         b = scipy.signal.firwin(ntaps, wn)
-        respfilt = scipy.signal.filtfilt(b, [1], self.resp_wave)
+        respfilt = scipy.signal.filtfilt(b, [1], resp_wave)
         drdt = np.diff(respfilt)
 
         # --------------------------------------------------------------
@@ -237,22 +263,22 @@ class NIMSPhysio(nimsdata.NIMSData):
             slice_times = np.arange((self.tr/nslc)*(cur_slice_acq+0.5), self.scan_duration, self.tr)
             for fr in range(self.nframes):
                 # cardiac
-                prev_trigs = np.nonzero(self.card_trig < slice_times[fr])[0]
+                prev_trigs = np.nonzero(card_trig < slice_times[fr])[0]
                 if prev_trigs.size == 0:
                     t1 = 0.
                 else:
-                    t1 = self.card_trig[prev_trigs[-1]]
-                next_trigs = np.nonzero(self.card_trig > slice_times[fr])[0]
+                    t1 = card_trig[prev_trigs[-1]]
+                next_trigs = np.nonzero(card_trig > slice_times[fr])[0]
                 if next_trigs.size == 0:
                     t2 = self.nframes*self.tr
                 else:
-                    t2 = self.card_trig[next_trigs[0]]
+                    t2 = card_trig[next_trigs[0]]
                 phi_cardiac = (slice_times[fr] - t1) * 2. * np.pi / (t2 - t1)
 
                 # respiration: (based on amplitude histogram)
                 # find the closest index in resp waveform
                 iphys = np.min((np.max((0, np.round(slice_times[fr] / self.resp_dt))), drdt.size-1))
-                amp = self.resp_wave[iphys]
+                amp = resp_wave[iphys]
                 dbins = np.abs(amp-bins)
                 thisBin = dbins.argmin()  #closest resp_wave histo bin
                 numer = Hb[0:thisBin].sum().astype(float)
@@ -298,10 +324,10 @@ class NIMSPhysio(nimsdata.NIMSData):
             rv = np.zeros(self.nframes)
             for tp in range(self.nframes):
                 i1 = max(0, np.floor((slice_times[tp] - t_win) / self.resp_dt))
-                i2 = min(self.resp_wave.size, np.floor((slice_times[tp] + t_win) / self.resp_dt))
+                i2 = min(resp_wave.size, np.floor((slice_times[tp] + t_win) / self.resp_dt))
                 if i2 < i1:
                     raise NIMSPhysioError('Respiration data is shorter than the scan duration.')
-                rv[tp] = np.std(self.resp_wave[i1:i2])
+                rv[tp] = np.std(resp_wave[i1:i2])
 
             # conv(rv, rrf)
             rv -= rv.mean()
@@ -313,17 +339,29 @@ class NIMSPhysio(nimsdata.NIMSData):
             rv_rrf_d = np.concatenate(([rv_rrf_d[0]], rv_rrf_d))
 
             # make slice HR*CRF regressor
-            hr = np.zeros(self.nframes)
-            for tp in range(self.nframes):
-                inds = np.nonzero(np.logical_and(self.card_trig >= (slice_times[tp]-t_win), self.card_trig <= (slice_times[tp]+t_win)))[0]
-                if inds.size == 0:
-                    if tp > 0:
-                        # At the end of a run, the last pulse might be recorded before the last data frame.
-                        hr[tp] = hr[tp-1]
+            # Catie's original code:
+            if legacy_rvhr:
+                hr = np.zeros(self.nframes)
+                for tp in range(self.nframes):
+                    inds = np.nonzero(np.logical_and(card_trig >= (slice_times[tp]-t_win), card_trig <= (slice_times[tp]+t_win)))[0]
+                    if inds.size < 2:
+                        if tp==0:
+                            hr[tp] = 60
+                        else:
+                            hr[tp] = hr[tp-1]
                     else:
-                        raise NIMSPhysioError('Cardiac trigger times do not match scan duration.')
-                else:
-                    hr[tp] = (inds[-1] - inds[0]) * 60. / (self.card_trig[inds[-1]] - self.card_trig[inds[0]])  # bpm
+                        hr[tp] = (inds[-1] - inds[0]) * 60. / (card_trig[inds[-1]] - card_trig[inds[0]])  # bpm
+            else:
+                # Bob's new version:
+                trig_time_delta = np.diff(card_trig)
+                hr_instant = 60. / trig_time_delta
+                hr_time = card_trig[:-1] + trig_time_delta / 2.
+                # Clean a bit. We interpolate below, so it's safe to just discard bad values.
+                keep_inds = np.logical_and(hr_instant>=hr_min, hr_instant<=hr_max)
+                hr_time = hr_time[keep_inds]
+                hr_instant = hr_instant[keep_inds]
+                hr = np.interp(slice_times, hr_time, hr_instant)
+
             # conv(hr, crf)
             self.heart_rate[:,sl] = hr
             hr -= hr.mean()
@@ -371,26 +409,64 @@ class NIMSPhysio(nimsdata.NIMSData):
             V_slice_corr = Y_slice_corr.transpose()
             for ii in range(self.nframes):
                 d_corrected[:,:,jj,ii] = V_slice_corr[:,ii].reshape((npix_x,npix_y))
-
         return d_corrected, PCT_VAR_REDUCED
 
-    def write_regressors(self, filename):
-        # FIXME: write out a more portable format. Maybe a simple 2-d csv, with time running
-        # down each row and column headings indicating the regressor and slice #.
+    def write_regressors_legacy(self, filename):
         self.compute_regressors()
         # Write the array to disk
         # Thanks to Joe Kington on StackOverflow (http://stackoverflow.com/questions/3685265/how-to-write-a-multidimensional-array-to-a-text-file)
         with file(filename, 'w') as outfile:
             # Write a little header behind comments
             # Any line starting with "#" will be ignored by numpy.loadtxt
-            outfile.write('# slice_order = [ ' + ','.join([str(d) for d in self.slice_order]) + ' ]\n')
+            outfile.write('# slice_order = [ %s ]\n' % ','.join([str(d) for d in self.slice_order]))
             outfile.write('# Full array shape: {0}\n'.format(self.regressors.shape))
             outfile.write('# time x regressor for each slice in the acquired volume\n')
-            outfile.write('# regressors: [c1_c, s1_c, c2_c, s2_c,c1_r, s1_r, c2_r, s2_r, rv_rrf, rv_rrf_d, hr_crf, hr_crf_d]\n')
+            outfile.write('# regressors: [ %s ]\n' % ','.join(self.regressor_names))
             for i in range(self.regressors.shape[2]):
                 outfile.write('# slice %d\n' % i)
                 # Format as left-justified columns 7 chars wide with 2 decimal places.
                 np.savetxt(outfile, self.regressors[:,:,i], fmt='%-7.6f')
+
+    def _write_regressors(self, fileobj):
+        # Write a little header behind comments
+        # Any line starting with "#" will be ignored by numpy.loadtxt
+        fileobj.write('# slice_order = [ %s ]\n' % ','.join([str(d) for d in self.slice_order]))
+        fileobj.write('# Full array shape: {0}\n'.format(self.regressors.shape))
+        fileobj.write('# time x regressor for each slice in the acquired volume\n')
+        fileobj.write('# regressors: [ %s ]\n' % ','.join(self.regressor_names))
+        # print out all the column headings:
+        fileobj.write('#' + ','.join([h[0]+h[1] for h in itertools.product(['slice'+str(s) for s in range(self.nslices)], self.regressor_names)]) + '\n')
+        new_shape = (self.regressors.shape[0], self.regressors.shape[1]*self.regressors.shape[2])
+        np.savetxt(fileobj, self.regressors.reshape(new_shape, order='F'), fmt='%0.5f', delimiter=',')
+        #d = {key: value for (key, value) in sequence}
+        #d['slice_order'] = self.slice_order
+        #with file(filename, 'w') as outfile:
+        #    json.dump(d, outfile)
+
+    def write_regressors(self, filename):
+        """ Save the regressors in a simple csv format file. If the filename ends with .gz, the file will be gzipped. """
+        self.compute_regressors()
+        if filename.endswith('.gz'):
+            with gzip.open(filename, 'wb') as fp:
+                self._write_regressors(fp)
+        else:
+            with file(filename, 'w') as fp:
+                self._write_regressors(fp)
+
+    def write_raw_data(self, filename):
+        """ Save the raw physio data in a json file. If the filename ends with .gz, the file will be gzipped. """
+        d = {'resp_time':self.resp_time.round(3).tolist(), 'resp_wave':self.resp_wave.astype(int).tolist(), 'resp_trig':self.resp_trig.round(3).tolist(),
+             'card_time':self.card_time.round(3).tolist(), 'card_wave':self.card_wave.astype(int).tolist(), 'card_trig':self.card_trig.round(3).tolist()}
+        if filename.endswith('.gz'):
+            with gzip.open(filename, 'wb') as fp:
+                json.dump(d, fp)
+        else:
+            with file(filename, 'w') as fp:
+                json.dump(d, fp)
+
+    @property
+    def regressor_names(self):
+        return ('c1_c', 's1_c', 'c2_c', 's2_c', 'c1_r', 's1_r', 'c2_r', 's2_r', 'rv_rrf', 'rv_rrf_d', 'hr_crf', 'hr_crf_d')
 
     def is_valid(self):
         if self.nframes < self.min_number_of_frames:

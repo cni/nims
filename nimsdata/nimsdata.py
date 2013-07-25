@@ -26,12 +26,14 @@ class NIMSData(object):
 
     @abc.abstractmethod
     def __init__(self):
+        self.unique_id = '%s_%s_%s' % (self.datakind, self.datatype, self.filetype)
         self.session_spec = { '_id': self.exam_uid}
         self.db_acq_key = '%s_%s' % (self.series_no, self.acq_no)
         self._db_info = None
         self._experiment_info = None
         self._session_info = None
         self._epoch_info = None
+        self._dataset_info = None
 
     @property
     def db_info(self):
@@ -59,9 +61,10 @@ class NIMSData(object):
                     '_id':              self.exam_uid,
                     'exam':             self.exam_no,
                     'patient_id':       self.patient_id,
-                    'firstname':        self.subj_fn,
-                    'lastname':         self.subj_ln,
+                    'firstname':        self.subj_firstname,
+                    'lastname':         self.subj_lastname,
                     'dob':              self.subj_dob,
+                    'sex':              self.subj_sex,
                     'epochs':           {},
                     }
         return self._session_info
@@ -83,3 +86,16 @@ class NIMSData(object):
 
     def get_epoch_info(self, **kwargs):
         return dict(self.epoch_info.items() + kwargs.items())
+
+    @property
+    def dataset_info(self):
+        if not self._dataset_info:
+            self._dataset_info = {
+                    'datakind': self.datakind,
+                    'datatype': self.datatype,
+                    'filetype': self.filetype,
+                    }
+        return self._dataset_info
+
+    def get_dataset_info(self, **kwargs):
+        return dict(self.dataset_info.items() + kwargs.items())

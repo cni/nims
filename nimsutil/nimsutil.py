@@ -46,11 +46,11 @@ def configure_log(filepath=None, console=True, level='debug'):
         handler = logging.handlers.TimedRotatingFileHandler(filepath, when='W6')
         handler.setFormatter(formatter)
         logger.addHandler(handler)
+        logger.warning('********** Logging initialized **********')
     if console:
         handler = logging.StreamHandler()
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-    logger.warning('********** Logging initialized **********')
 
 
 def parse_patient_id(patient_id, known_groups=[]):
