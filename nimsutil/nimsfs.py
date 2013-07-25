@@ -19,6 +19,8 @@ import argparse
 import pwd    # to translate uid to username
 import grp    # to translate gid to groupname
 import fuse
+import gzip
+import struct
 
 import sqlalchemy
 from nimsgears.model import *
@@ -61,7 +63,7 @@ class memoize(object):
         def wrapped_func(*args):
             # Ensure the args are hashable. If not, don't try to cache.
             if not isinstance(args, collections.Hashable):
-                return func(*args)
+                return self.func(*args)
             # Lock to keep the garbage collector from deleting something after found but before read.
             with self.lock:
                 if args in self.cache and self.cache[args][1] + self.cachetime > time.time():
@@ -74,10 +76,11 @@ class memoize(object):
             # value was computed, which could be significant for a large query. So for good
             # concurrency performance the lock is kept only around what is absolutely necessary.
             if not value_set:
-                value = func(*args)
+                value = self.func(*args)
                 # TODO: ensure that inserting in a dict is thread-safe. Otherwise, throw a lock around this.
                 self.cache[args] = (value,time.time())
             return value
+
         return wrapped_func
 
         # TODO: These don't work. Figure out how to pass-through the doc string.
@@ -97,7 +100,6 @@ def get_groups(username):
                    .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
                    .all())
     return sorted(set([e.owner.gid.encode() for e in experiments]))
-
 
 @memoize()
 def get_experiments(username, group_name):
@@ -192,7 +194,6 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
                     display_name = '%04d_%02d_%s%s' % (d.container.series, d.container.acq, d.container.description, f[ext_start_ind:])
                     datafiles.append((display_name.encode(), os.path.join(datapath,d.relpath,f).encode()))
                     #print '   FILENAME=' + f + ' DISPLAY_NAME=' + display_name
-
         else:
             # Use the filename on disk
             datafiles = [(f.encode(), os.path.join(datapath,d.relpath,f).encode()) for d in datasets for f in d.filenames]
@@ -207,6 +208,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         self.datapath = datapath
         self.db_uri = db_uri
         self.rwlock = threading.Lock()
+        self.gzfile = None
         init_model(sqlalchemy.create_engine(self.db_uri))
 
     def getattr(self, path, fh=None):
@@ -226,12 +228,22 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
             cur_path = path.split('/')
             if len(cur_path) == 6:
                 files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath)
-                fname = next((f[1] for f in files if f[0] == cur_path[5]), None)
+                fname = next((f[1] for f in files if f[0]==cur_path[5]), None)
                 if fname:
                     size = os.path.getsize(fname)
                     ts = os.path.getmtime(fname)
                 else:
-                    raise fuse.FuseOSError(errno.ENOENT)
+                    # Check to see if we're being asked about a gzipped file
+                    fname = next((f[1] for f in files if f[0]==cur_path[5]+'.gz'), None)
+                    if fname:
+                        ts = os.path.getmtime(fname)
+                        # Apparently there's no way to get the uncompressed size except by reading the last four bytes.
+                        # TODO: consider saving this (as well as the timestamp) in the db.
+                        with open(fname, 'r') as fp:
+                            fp.seek(-4,2)
+                            size = struct.unpack('<I',fp.read())[0]
+                    else:
+                        raise fuse.FuseOSError(errno.ENOENT)
         return {'st_atime':ts, 'st_ctime':ts, 'st_gid':gid, 'st_mode':mode, 'st_mtime':ts, 'st_nlink':nlink, 'st_size':size, 'st_uid':uid}
 
     def readdir(self, path, fh):
@@ -266,17 +278,32 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
                 username = pwd.getpwuid(uid).pw_name
                 groupname = grp.getgrgid(gid).gr_name
                 files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath)
-                fname = next((f[1] for f in files if f[0] == cur_path[5]), None)
+                fname = next((f[1] for f in files if f[0]==cur_path[5]), None)
                 if fname:
+                    self.gzipfile = None
                     fh = os.open(fname, flags)
                 else:
-                    raise fuse.FuseOSError(errno.ENOENT)
+                    # Check to see if we're being asked to gunzip on the fly
+                    fname = next((f[1] for f in files if f[0]==cur_path[5]+'.gz'), None)
+                    if fname:
+                        self.gzipfile = gzip.open(fname,'r')
+                        fh = self.gzipfile.fileno()
+                    else:
+                        raise fuse.FuseOSError(errno.ENOENT)
         return fh
+
+    def release(self, path, fh):
+        self.gzipfile = None
+        os.close(fh)
 
     def read(self, path, size, offset, fh):
         with self.rwlock:
-            os.lseek(fh, offset, 0)
-            return os.read(fh, size)
+            if self.gzipfile:
+                self.gzipfile.seek(offset, 0)
+                return self.gzipfile.read(size)
+            else:
+                os.lseek(fh, offset, 0)
+                return os.read(fh, size)
 
     def fgetattr(self, fh=None):
         uid, gid, pid = fuse.fuse_get_context()
@@ -294,7 +321,10 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         return {'st_atime':at, 'st_ctime':ct, 'st_mtime':mt, 'st_gid':gid, 'st_mode':mode, 'st_nlink':1, 'st_size':sz, 'st_uid':uid}
 
     def flush(self, path, fh):
-        os.fsync(fh)
+        if self.gzipfile:
+            self.gzipfile.flush()
+        else:
+            os.fsync(fh)
 
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):
