@@ -38,8 +38,6 @@ install_requires=[
     "sqlalchemy-migrate",
     "repoze.who",
     "repoze.who-friendlyform >= 1.0.4",
-    "repoze.what >= 1.0.8",
-    "repoze.what-quickstart",
     "tgext.admin >= 0.5.1",
     "repoze.who.plugins.sa",
     "tw2.forms",
