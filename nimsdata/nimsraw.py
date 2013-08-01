@@ -275,7 +275,7 @@ class NIMSPFile(NIMSRaw):
     def recon_func(self):
         if self.psd_type == 'siral':
             return self.recon_spirec
-        elif self.psd_type = 'mux':
+        elif self.psd_type == 'mux':
             return self.recon_mux_epi
         elif self.psd_type == 'mrs':
             return self.recon_mrs
