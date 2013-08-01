@@ -79,6 +79,20 @@ class NIMSPFile(NIMSRaw):
         self.fm_data = None
         self.num_vcoils = num_virtual_coils
 
+        self.psd_name = os.path.basename(self._hdr.image.psdname.partition('\x00')[0])
+        if self.psd_name == 'sprt':
+            self.psd_type = 'spiral'
+        elif self.psd_name == 'sprl_hos':
+            self.psd_type = 'hoshim'
+        elif self.psd_name == 'basic':
+            self.psd_type = 'basic'
+        elif 'mux' in self.psd_name.lower(): # multi-band EPI!
+            self.psd_type = 'mux'
+        elif self.psd_name == 'Probe-MEGA':
+            self.psd_type = 'mrs'
+        else:
+            self.psd_type = 'unknown'
+
         self.exam_no = self._hdr.exam.ex_no
         self.series_no = self._hdr.series.se_no
         self.acq_no = self._hdr.image.scanactno
@@ -89,7 +103,6 @@ class NIMSPFile(NIMSRaw):
         self.subj_firstname, self.subj_lastname = self.parse_subject_name(self._hdr.exam.patnameff.strip('\x00'))
         self.subj_dob = self.parse_subject_dob(self._hdr.exam.dateofbirth.strip('\x00'))
         self.subj_sex = (None, 'male', 'female')[self._hdr.exam.patsex]
-        self.psd_name = os.path.basename(self._hdr.image.psdname.partition('\x00')[0])
         if self._hdr.image.im_datetime > 0:
             self.timestamp = datetime.datetime.utcfromtimestamp(self._hdr.image.im_datetime)
         else:   # HOShims don't have self._hdr.image.im_datetime
@@ -133,7 +146,7 @@ class NIMSPFile(NIMSRaw):
         image_trhc = np.array([self._hdr.image.trhc_R, self._hdr.image.trhc_A, -self._hdr.image.trhc_S])
         image_brhc = np.array([self._hdr.image.brhc_R, self._hdr.image.brhc_A, -self._hdr.image.brhc_S])
 
-        if self.psd_name == 'sprt':
+        if self.psd_type == 'spiral':
             self.num_timepoints = int(self._hdr.rec.user0)    # not in self._hdr.rec.nframes for sprt
             self.deltaTE = self._hdr.rec.user15
             self.band_spacing = 0
@@ -146,19 +159,19 @@ class NIMSPFile(NIMSRaw):
             # damn well pleases. Maybe we could add a check to infer the image size,
             # assuming it's square?
             self.size_x = self.size_y = self._hdr.rec.im_size
-        elif self.psd_name == 'basic':
+        elif self.psd_type == 'basic':
             # first 6 are ref scans, so ignore those. Also, two acquired timepoints are used
             # to generate each reconned time point.
             self.num_timepoints = (self._hdr.rec.npasses * self._hdr.rec.nechoes - 6) / 2
             self.num_echoes = 1
-        elif 'mux' in self.psd_name.lower(): # multi-band EPI!
+        elif self.psd_type == 'mux':
             self.num_bands = int(self._hdr.rec.user6)
             self.num_mux_cal_cycle = int(self._hdr.rec.user7)
             self.band_spacing_mm = self._hdr.rec.user8
             self.num_slices = self._hdr.image.slquant * self.num_bands
             self.num_timepoints = self._hdr.rec.npasses - self.num_bands*self.num_mux_cal_cycle + self.num_mux_cal_cycle
             # TODO: adjust the image.tlhc... fields to match the correct geometry.
-        elif self.psd_name == 'Probe-MEGA':
+        elif self.psd_type == 'mrs':
             self._hdr.image.scanspacing = 0.
             self.fov = [self._hdr.rec.roilenx, self._hdr.rec.roileny]
             image_tlhc = np.array([self._hdr.rec.roilocx, self._hdr.rec.roilocy, self._hdr.rec.roilocz])
@@ -223,7 +236,7 @@ class NIMSPFile(NIMSRaw):
         # Everything seems reasonable, except the test for axial orientation (start_ras==S|I).
         # I have no idea why I need that! But the flipping only seems necessary for axials, not
         # coronals or the few obliques I've tested.
-        # FIXME: haven't tested sagittals! (to test for spiral: 'sprt' in self.psd_name.lower())
+        # FIXME: haven't tested sagittals!
         if (self._hdr.series.start_ras=='S' or self._hdr.series.start_ras=='I') and self._hdr.series.start_loc > self._hdr.series.end_loc:
             self.reverse_slice_order = True
             slice_fov = np.abs(self._hdr.series.start_loc - self._hdr.series.end_loc)
@@ -260,14 +273,16 @@ class NIMSPFile(NIMSRaw):
 
     @property
     def recon_func(self):
-        if self.psd_name == 'sprt':
+        if self.psd_type == 'siral':
             return self.recon_spirec
-        elif 'mux' in self.psd_name:
+        elif self.psd_type = 'mux':
             return self.recon_mux_epi
-        elif self.psd_name == 'sprl_hos':
-            return self.recon_hoshim
-        elif self.psd_name == 'Probe-MEGA':
+        elif self.psd_type == 'mrs':
             return self.recon_mrs
+        elif self.psd_type == 'hoshim':
+            return self.recon_hoshim
+        elif self.psd_type == 'basic':
+            return self.recon_basic
         else:
             return None
 
@@ -292,7 +307,7 @@ class NIMSPFile(NIMSRaw):
             self.bvecs, self.bvals = get_bvals_bvecs() if self.is_dwi else (None, None)
             if self.num_echos == 1:
                 result = ('nifti', nimsnifti.NIMSNifti.write(self, self.imagedata, outbase))
-            elif self.psd_name=='sprt' and self.num_echos == 2:
+            elif self.psd_type=='spiral' and self.num_echos == 2:
                 # Uncomment to save spiral in/out
                 #nimsnifti.NIMSNifti.write(self, self.imagedata[:,:,:,:,0], outbase + '_in')
                 #nimsnifti.NIMSNifti.write(self, self.imagedata[:,:,:,:,1], outbase + '_out')
@@ -348,6 +363,9 @@ class NIMSPFile(NIMSRaw):
 
     def recon_hoshim(self, tempdir=None, executable=None):
         log.debug('Cannot recon HO SHIM data')
+
+    def recon_basic(self, tempdir=None, executable=None):
+        log.debug('Cannot recon BASIC data')
 
     def recon_spirec(self, tempdir=None, executable='spirec'):
         """Do spiral image reconstruction and populate self.imagedata."""
@@ -416,7 +434,7 @@ class NIMSPFile(NIMSRaw):
                 img[...,0:new_img.shape[-1]] += new_img
             self.update_imagedata(img)
 
-    def recon_mrs(self):
+    def recon_mrs(self, tempdir=None, executable=None):
         """Currently just loads raw spectro data into self.imagedata so that we can save it in a nifti."""
         # Reorder the data to be in [frame, num_frames, slices, passes (repeats), echos, coils]
         # This roughly complies with the nifti standard of x,y,z,time,[then whatever].
