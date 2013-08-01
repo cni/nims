@@ -193,6 +193,7 @@ class NIMSPFile(NIMSRaw):
         si_diff = image_trhc - image_brhc
         if not np.all(lr_diff == 0):
             self.row_cosines = lr_diff / np.sqrt(lr_diff.dot(lr_diff))
+        else:
             self.col_cosines = si_diff / np.sqrt(si_diff.dot(si_diff))
         # The DICOM standard defines these two unit vectors in an LPS coordinate frame, but we'll
         # need RAS (+x is right, +y is anterior, +z is superior) for NIFTI. So, we compute them
@@ -273,9 +274,9 @@ class NIMSPFile(NIMSRaw):
 
     @property
     def recon_func(self):
-        if self.psd_type == 'siral':
+        if self.psd_type == 'spiral':
             return self.recon_spirec
-        elif self.psd_type = 'mux':
+        elif self.psd_type == 'mux':
             return self.recon_mux_epi
         elif self.psd_type == 'mrs':
             return self.recon_mrs

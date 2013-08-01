@@ -45,7 +45,7 @@ class NIMSNifti(nimsdata.NIMSData):
                 fp.write(notes)
             log.debug('generated %s' % os.path.basename(filepath))
 
-        if metadata.bvals and metadata.bvecs:
+        if metadata.bvals is not None and metadata.bvecs is not None:
             filepath = outbase + '.bval'
             with open(filepath, 'w') as bvals_file:
                 bvals_file.write(' '.join(['%f' % value for value in metadata.bvals]))
@@ -73,8 +73,12 @@ class NIMSNifti(nimsdata.NIMSData):
         nii_header['slice_end'] = metadata.num_slices - 1
         nii_header['slice_duration'] = metadata.slice_duration
         nii_header['slice_code'] = metadata.slice_order
-        nii_header.structarr['cal_max'] = np.abs(imagedata).max() if np.iscomplexobj(imagedata) else imagedata.max()
-        nii_header.structarr['cal_min'] = np.abs(imagedata).min() if np.iscomplexobj(imagedata) else imagedata.min()
+        if np.iscomplexobj(imagedata):
+            clip_vals = np.percentile(np.abs(imagedata), (10.0, 99.5))
+        else:
+            clip_vals = np.percentile(np.abs(imagedata), (10.0, 99.5))
+        nii_header.structarr['cal_min'] = clip_vals[0]
+        nii_header.structarr['cal_max'] = clip_vals[1]
         nii_header.structarr['pixdim'][4] = metadata.tr #FIXME cleaner way to set the TR???
 
         nii_header.set_data_dtype(imagedata.dtype)
