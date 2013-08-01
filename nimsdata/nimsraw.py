@@ -417,7 +417,7 @@ class NIMSPFile(NIMSRaw):
             self.update_imagedata(img)
 
     def recon_mrs(self):
-        """Load spectro data into self.imagedata."""
+        """Currently just loads raw spectro data into self.imagedata so that we can save it in a nifti."""
         # Reorder the data to be in [frame, num_frames, slices, passes (repeats), echos, coils]
         # This roughly complies with the nifti standard of x,y,z,time,[then whatever].
         # Note that the "frame" is the line of k-space and thus the FID timeseries.
@@ -466,7 +466,10 @@ class NIMSPFile(NIMSRaw):
                     for ei,echoidx in enumerate(echos):
                         for fi,frameidx in enumerate(frames):
                             fp.seek(passidx*passsz + coilidx*coilsz + sliceidx*slicesz + echoidx*echosz + (frameidx+1)*frame_bytes + offset)
-                            dr = np.fromfile(fp, data_type, frame_sz * 2)
+                            # Unfortunately, numpy fromfile doesn't like gzip file objects. But we can
+                            # safely load each chunk into RAM, since frame_sz is never very big.
+                            #dr = np.fromfile(fp, data_type, frame_sz * 2)
+                            dr = np.fromstring(fp.read(frame_bytes), data_type)
                             dr = np.reshape(dr, (-1, 2)).T
                             data[:, fi, ei, si, ci, pi] = dr[0] + dr[1]*1j
         fp.close()
