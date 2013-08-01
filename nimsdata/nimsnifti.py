@@ -73,12 +73,11 @@ class NIMSNifti(nimsdata.NIMSData):
         nii_header['slice_end'] = metadata.num_slices - 1
         nii_header['slice_duration'] = metadata.slice_duration
         nii_header['slice_code'] = metadata.slice_order
-        nii_header.structarr['cal_max'] = imagedata.max()
-        nii_header.structarr['cal_min'] = imagedata.min()
+        nii_header.structarr['cal_max'] = np.abs(imagedata).max() if np.iscomplexobj(imagedata) else imagedata.max()
+        nii_header.structarr['cal_min'] = np.abs(imagedata).min() if np.iscomplexobj(imagedata) else imagedata.min()
         nii_header.structarr['pixdim'][4] = metadata.tr #FIXME cleaner way to set the TR???
 
-        if imagedata.dtype == np.dtype('int16'):
-            nii_header.set_data_dtype(np.int16)
+        nii_header.set_data_dtype(imagedata.dtype)
 
         # Stuff some extra data into the description field (max of 80 chars)
         # Other unused fields: nii_header['data_type'] (10 chars), nii_header['db_name'] (18 chars),

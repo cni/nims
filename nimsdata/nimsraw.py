@@ -129,6 +129,10 @@ class NIMSPFile(NIMSRaw):
         self.deltaTE = 0.0
         self.scale_data = False
 
+        image_tlhc = np.array([self._hdr.image.tlhc_R, self._hdr.image.tlhc_A, -self._hdr.image.tlhc_S])
+        image_trhc = np.array([self._hdr.image.trhc_R, self._hdr.image.trhc_A, -self._hdr.image.trhc_S])
+        image_brhc = np.array([self._hdr.image.brhc_R, self._hdr.image.brhc_A, -self._hdr.image.brhc_S])
+
         if self.psd_name == 'sprt':
             self.num_timepoints = int(self._hdr.rec.user0)    # not in self._hdr.rec.nframes for sprt
             self.deltaTE = self._hdr.rec.user15
@@ -154,6 +158,12 @@ class NIMSPFile(NIMSRaw):
             self.num_slices = self._hdr.image.slquant * self.num_bands
             self.num_timepoints = self._hdr.rec.npasses - self.num_bands*self.num_mux_cal_cycle + self.num_mux_cal_cycle
             # TODO: adjust the image.tlhc... fields to match the correct geometry.
+        elif self.psd_name == 'Probe-MEGA':
+            self._hdr.image.scanspacing = 0.
+            self.fov = [self._hdr.rec.roilenx, self._hdr.rec.roileny]
+            image_tlhc = np.array([self._hdr.rec.roilocx, self._hdr.rec.roilocy, self._hdr.rec.roilocz])
+            image_trhc = np.array([self._hdr.rec.roilocx + self._hdr.rec.roilenx, self._hdr.rec.roilocy, self._hdr.rec.roilocz])
+            image_brhc = np.array([self._hdr.rec.roilocx + self._hdr.rec.roilenx, self._hdr.rec.roilocy + self._hdr.rec.roileny, self._hdr.rec.roilocz])
 
         self.total_num_slices = self.num_slices * self.num_timepoints
         # Note: the following is true for single-shot planar acquisitions (EPI and 1-shot spiral).
@@ -164,11 +174,7 @@ class NIMSPFile(NIMSRaw):
         # The actual duration can only be computed after the data are loaded. Settled for rx duration for now.
         self.duration = self.prescribed_duration
         # Compute the voxel size rather than use image.pixsize_X/Y
-        self.mm_per_vox = np.array([self.fov[0] / self.size_x, self.fov[1] / self.size_y, self._hdr.image.slthick + self._hdr.image.scanspacing])
-
-        image_tlhc = np.array([self._hdr.image.tlhc_R, self._hdr.image.tlhc_A, -self._hdr.image.tlhc_S])
-        image_trhc = np.array([self._hdr.image.trhc_R, self._hdr.image.trhc_A, -self._hdr.image.trhc_S])
-        image_brhc = np.array([self._hdr.image.brhc_R, self._hdr.image.brhc_A, -self._hdr.image.brhc_S])
+        self.mm_per_vox = np.array([self.fov[0] / self._hdr.image.dim_X, self.fov[1] / self._hdr.image.dim_Y, self._hdr.image.slthick + self._hdr.image.scanspacing])
 
         lr_diff = image_tlhc - image_trhc
         si_diff = image_trhc - image_brhc
@@ -260,6 +266,8 @@ class NIMSPFile(NIMSRaw):
             return self.recon_mux_epi
         elif self.psd_name == 'sprl_hos':
             return self.recon_hoshim
+        elif self.psd_name == 'Probe-MEGA':
+            return self.recon_mrs
         else:
             return None
 
@@ -284,10 +292,10 @@ class NIMSPFile(NIMSRaw):
             self.bvecs, self.bvals = get_bvals_bvecs() if self.is_dwi else (None, None)
             if self.num_echos == 1:
                 result = ('nifti', nimsnifti.NIMSNifti.write(self, self.imagedata, outbase))
-            elif self.num_echos == 2:
-                if saveInOut:
-                    nimsnifti.NIMSNifti.write(self, self.imagedata[:,:,:,:,0], outbase + '_in')
-                    nimsnifti.NIMSNifti.write(self, self.imagedata[:,:,:,:,1], outbase + '_out')
+            elif self.psd_name=='sprt' and self.num_echos == 2:
+                # Uncomment to save spiral in/out
+                #nimsnifti.NIMSNifti.write(self, self.imagedata[:,:,:,:,0], outbase + '_in')
+                #nimsnifti.NIMSNifti.write(self, self.imagedata[:,:,:,:,1], outbase + '_out')
                 # FIXME: Do a more robust test for spiralio!
                 # Assume spiralio, so do a weighted average of the two echos.
                 # FIXME: should do a quick motion correction here
@@ -303,7 +311,7 @@ class NIMSPFile(NIMSRaw):
             else:
                 main_file = None
                 for echo in range(self.num_echos):
-                    result = ('nifti', nimsnifti.NIMSNifti.write(self, self.image_data[:,:,:,:,echo], outbase + '_echo%02d' % (echo+1)))
+                    result = ('nifti', nimsnifti.NIMSNifti.write(self, self.imagedata[:,:,:,:,echo], outbase + '_echo%02d' % (echo+1)))
             if self.fm_data is not None:
                 nimsnifti.NIMSNifti.write(self, self.fm_data, outbase + '_B0')
         return result
@@ -408,6 +416,13 @@ class NIMSPFile(NIMSRaw):
                 img[...,0:new_img.shape[-1]] += new_img
             self.update_imagedata(img)
 
+    def recon_mrs(self):
+        """Load spectro data into self.imagedata."""
+        # Reorder the data to be in [frame, num_frames, slices, passes (repeats), echos, coils]
+        # This roughly complies with the nifti standard of x,y,z,time,[then whatever].
+        # Note that the "frame" is the line of k-space and thus the FID timeseries.
+        self.imagedata = self.get_rawdata().transpose([0,5,3,1,2,4])
+
     def get_rawdata(self, slices=None, passes=None, coils=None, echos=None, frames=None):
         """
         Reads and returns a chunck of data from the p-file. Specify the slices,
@@ -443,7 +458,7 @@ class NIMSPFile(NIMSRaw):
 
         # Byte-offset to get to the data:
         offset = self._hdr.rec.off_data
-        fp = gzip.open(filepath, 'rb') if self.compressed else open(filepath, 'rb')
+        fp = gzip.open(self.filepath, 'rb') if self.compressed else open(self.filepath, 'rb')
         data = np.zeros((frame_sz, len(frames), len(echos), len(slices), len(coils), len(passes)), dtype=np.complex)
         for pi,passidx in enumerate(passes):
             for ci,coilidx in enumerate(coils):
