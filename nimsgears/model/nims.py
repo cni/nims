@@ -152,7 +152,7 @@ class User(Entity):
 
     @property
     def unread_msg_cnt(self):
-        return len([msg for msg in self.messages if not msg.read]) if self.messages else 0
+        return 0 #len([msg for msg in self.messages if not msg.read]) if self.messages else 0
 
     @property
     def dataset_cnt(self):

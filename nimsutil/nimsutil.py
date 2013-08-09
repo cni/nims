@@ -128,24 +128,29 @@ def update_reference_datetime(datetime_file, new_datetime):
 
 def ldap_query(uid):
     ldap_uri = 'ldap://ldap.stanford.edu'
-    ldap_base = 'cn=people,dc=stanford,dc=edu'        # subtrees 'cn=people' and 'cn=accounts' exist (remove for searching all subtrees)
-    ldap_attrs = ['suDisplayNameFirst', 'suDisplayNameLast', 'mail']
+    ldap_base = 'dc=stanford,dc=edu'        # subtrees 'cn=people' and 'cn=accounts' exist
+    ldap_attrs = ['suDisplayNameFirst', 'suDisplayNameLast', 'mail', 'cn']
+    firstname = ''
+    lastname = ''
+    email = ''
     try:
-        import ldap
+        import ldap, ldap.sasl
         srv = ldap.initialize(ldap_uri)
-        res = srv.search_s(ldap_base, ldap.SCOPE_SUBTREE, '(uid=%s)' % uid, ldap_attrs)
+        srv.sasl_interactive_bind_s('', ldap.sasl.gssapi(''))
+        results = srv.search_s(ldap_base, ldap.SCOPE_SUBTREE, '(uid=%s)' % uid, ldap_attrs)
     except:
         pass
-    try:
-        firstname = res[0][1]['suDisplayNameFirst'][0]
-        lastname = res[0][1]['suDisplayNameLast'][0]
-    except:
-        firstname = ''
-        lastname = ''
-    try:
-        email = res[0][1]['mail'][0]
-    except:
-        email = '%s@stanford.edu' % uid if lastname else ''
+    else:
+        for subtree, res_dict in results:
+            if 'people' in subtree:
+                firstname = res_dict.get('suDisplayNameFirst', [''])[0]
+                lastname = res_dict.get('suDisplayNameLast', [''])[0]
+                email = res_dict.get('mail', [''])[0] or ('%s@stanford.edu' % uid if lastname else '')
+                break
+            if 'accounts' in subtree:
+                name_list = (res_dict.get('cn', [''])[0]).split(' ')
+                firstname = name_list[0]
+                lastname = name_list[-1]
     return unicode(firstname), unicode(lastname), unicode(email)
 
 

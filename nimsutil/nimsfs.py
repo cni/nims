@@ -102,32 +102,37 @@ def get_groups(username):
     return sorted(set([e.owner.gid.encode() for e in experiments]))
 
 @memoize()
-def get_experiments(username, group_name):
+def get_experiments(username, group_name, trash=False):
     user = User.get_by(uid=unicode(username))
-    experiments = (Experiment.query.join(Access)
-                   .join(ResearchGroup, Experiment.owner)
-                   .filter(ResearchGroup.gid.ilike(unicode(group_name)))
-                   .filter(Access.user==user)
-                   .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
-                   .all())
+    q = (Experiment.query.join(Access)
+         .join(ResearchGroup, Experiment.owner)
+         .filter(ResearchGroup.gid.ilike(unicode(group_name))))
+    if not trash:
+        q = q.filter(Experiment.trashtime == None)
+    experiments = (q.filter(Access.user==user)
+                    .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
+                    .all())
     return sorted([e.name.encode() for e in experiments])
 
 @memoize()
-def get_sessions(username, group_name, exp_name):
+def get_sessions(username, group_name, exp_name, trash=False):
     user = User.get_by(uid=unicode(username))
-    sessions = (Session.query
+
+    q = (Session.query
                 .join(Subject, Session.subject)
                 .join(Experiment, Subject.experiment)
                 .join(ResearchGroup, Experiment.owner)
                 .filter(ResearchGroup.gid.ilike(unicode(group_name)))
-                .filter(Experiment.name.ilike(unicode(exp_name)))
-                .filter(Access.user==user)
-                .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
-                .all())
+                .filter(Experiment.name.ilike(unicode(exp_name))))
+    if not trash:
+        q = q.filter(Session.trashtime == None)
+    sessions = (q.filter(Access.user==user)
+                  .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
+                  .all())
     return sorted([s.name.encode() for s in sessions])
 
 @memoize()
-def get_epochs(username, group_name, exp_name, session_name):
+def get_epochs(username, group_name, exp_name, session_name, trash=False):
     # FIXME: we should explicitly set the session name so that we can be sure the exam is there.
     user = User.get_by(uid=unicode(username))
     sp = session_name.split('_')
@@ -141,6 +146,8 @@ def get_epochs(username, group_name, exp_name, session_name):
              .filter(Experiment.name.ilike(unicode(exp_name))))
         if not '%' in sp[0]:
             q = q.filter(Session.exam==int(sp[2]))
+        if not trash:
+            q = q.filter(Epoch.trashtime == None)
         epochs = (q.filter(Access.user==user)
                    .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
                    .all())
@@ -150,7 +157,7 @@ def get_epochs(username, group_name, exp_name, session_name):
     return epoch_names
 
 @memoize()
-def get_datasets(username, group_name, exp_name, session_name, epoch_name, datapath):
+def get_datasets(username, group_name, exp_name, session_name, epoch_name, datapath, trash=False):
     user = User.get_by(uid=unicode(username))
     # FIXME: we should explicitly set the epoch name
     ssp = session_name.split('_')
@@ -176,6 +183,8 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
             q = q.filter(Epoch.series==int(esp[1]))
         if len(esp)>2 and not '%' in esp[2]:
             q = q.filter(Epoch.acq==int(esp[2]))
+        if not trash:
+            q = q.filter(Dataset.trashtime == None)
         datasets = (q.filter(Access.user==user)
                      .filter((Access.privilege >= AccessPrivilege.value(u'Read-Only')) | ((Dataset.kind != u'primary') & (Dataset.kind != u'secondary')))
                      .all())

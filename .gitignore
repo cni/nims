@@ -5,5 +5,4 @@
 cache
 production.ini
 nimsutil/pfheader*.*
-nims_stage
-nims_store
+tg2*
