@@ -28,29 +28,43 @@ class SearchController(NimsController):
     @expose()
     def query(self, **kwargs):
         # For more robust search query parsing, check out pyparsing.
-        result = {}
+        result = {'success': False}
         if 'search_param' in kwargs and 'search_query' in kwargs and 'date_from' in kwargs and 'date_to' in kwargs:
-            search_query = kwargs['search_query'].replace('*', '%')
-            if search_query==None:
-                search_query = "*"
-            db_query = (DBSession.query(Epoch, Session, Subject, Experiment)
-                        .join(Session, Epoch.session)
-                        .join(Subject, Session.subject)
-                        .join(Experiment, Subject.experiment))
-            if kwargs['search_param'] == 'PSD Name':
-                db_query = db_query.filter(Epoch.psd.ilike(search_query))
-            elif kwargs['search_param'] == 'Subject Name':
-                db_query = db_query.filter(Subject.lastname.ilike(search_query) | Subject.firstname.ilike(search_query))
-            elif kwargs['search_param'] == 'Exam':
-                db_query = db_query.filter(Session.exam == int(search_query))
-            elif kwargs['search_param'] == 'Operator':
+            search_query = kwargs['search_query']
+            search_param = kwargs['search_param']
+        else:
+            return result
+
+        if isinstance(search_query, basestring): search_query = [ search_query ]
+        if isinstance(search_param, basestring): search_param = [ search_param ]
+
+        #TODO: make sure that search_query has any parameter.
+
+        search_query = [x.replace('*','%') for x in search_query]
+
+        parameters = zip( search_param, search_query )
+
+        db_query = (DBSession.query(Epoch, Session, Subject, Experiment)
+                    .join(Session, Epoch.session)
+                    .join(Subject, Session.subject)
+                    .join(Experiment, Subject.experiment))
+
+        for param, query in parameters:
+            print param + ' = ' + query
+            if param == 'PSD Name':
+                db_query = db_query.filter(Epoch.psd.ilike( query ))
+            elif param == 'Subject Name':
+                db_query = db_query.filter(Subject.lastname.ilike( query ) | Subject.firstname.ilike( query ))
+            elif param == 'Exam':
+                db_query = db_query.filter(Session.exam == int( query ))
+            elif param == 'Operator':
                 db_query = (db_query.join(User)
-                    .filter(User.uid.ilike(search_query) | User.firstname.ilike(search_query) | User.lastname.ilike(search_query)))
-            elif kwargs['search_param'] == 'Subject Age':
-                # TODO: allow more flexibility in age searches. E.g., "34", "34y", "408m", "=34", ">30", "<40", ">30y and <450m", "30 to 40", etc.
+                    .filter(User.uid.ilike(query) | User.firstname.ilike( query ) | User.lastname.ilike( query )))
+            elif param == 'Subject Age':
+            # TODO: allow more flexibility in age searches. E.g., "34", "34y", "408m", "=34", ">30", "<40", ">30y and <450m", "30 to 40", etc.
                 min_age = None
                 max_age = None
-                a = re.match(r"\s*>(\d+)\s*<(\d+)|\s*>(\d+)|\s*(\d+)\s*to\s*(\d+)|\s*<(\d+)|\s*(\d+)", search_query)
+                a = re.match(r"\s*>(\d+)\s*<(\d+)|\s*>(\d+)|\s*(\d+)\s*to\s*(\d+)|\s*<(\d+)|\s*(\d+)", query )
                 if a != None:
                     min_age = max(a.groups()[0:1]+a.groups()[2:4])
                     max_age = max(a.groups()[1:2]+a.groups()[4:5])
@@ -70,13 +84,8 @@ class SearchController(NimsController):
             if kwargs['date_to'] != None and re.match(r'\s*\d+\d+',kwargs['date_to'])!=None:
                 db_query = db_query.filter(Session.timestamp <= kwargs['date_to'])
 
-            if db_query:
-                result['data'], result['attrs'] = self._process_result(db_query.all())
-                result['success'] = True
-            else:
-                result['success'] = False
-        else:
-            result['success'] = False
+            result['data'], result['attrs'] = self._process_result(db_query.all())
+            result['success'] = True
         return json.dumps(result)
 
     def _process_result(self, db_result):

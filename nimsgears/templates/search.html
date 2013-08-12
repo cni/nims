@@ -1,117 +1,264 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
                       "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml"
-      xmlns:py="http://genshi.edgewall.org/"
-      xmlns:xi="http://www.w3.org/2001/XInclude">
+	xmlns:py="http://genshi.edgewall.org/"
+	xmlns:xi="http://www.w3.org/2001/XInclude">
 
-  <xi:include href="master.html" />
+<xi:include href="master.html" />
 
 <head>
 <title>NIMS Search</title>
 
-<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False"/>
-<script data-main="${tg.url('/javascript/search')}" src="${tg.url('/javascript/require.js')}"></script>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type"
+	py:if="False" />
+<script data-main="${tg.url('/javascript/search')}"
+	src="${tg.url('/javascript/require.js')}"></script>
+<script
+	src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
 
 <style>
-    #query_table { width:150px; }
+.asterisk{
+	position:absolute;
+}
+#select_param{
+	padding-right:15px;
+}
+#criteriaBody{
+	padding-bottom:20px;
+}
+#submitDiv{
+	padding-top:20px;
+	padding-left:20px;
+}
 
-    #epochs { width:82%; }
-    #datasets { width:150px; }
+#dates{
+	top:200px;
+}
 
-    .col_access { width:10%; }
-    .col_sunet { width:12%; }
-    .col_exp { width:17%; }
-    .col_datetime { width:17%; }
-    .col_subj { width:12%; }
-    .col_desc { width:32%; }
-    #epochs_pop, #datasets_pop { padding:0px; margin:0px; overflow:hidden; }
+#query_table {
+
+}
+
+#epochs {
+	width: 82%;
+}
+
+#datasets {
+	width: 150px;
+}
+
+#newCriteria {
+	position: relative;
+}
+
+.hide {
+	display: none;
+}
+
+.col_access {
+	width: 10%;
+}
+
+.col_sunet {
+	width: 12%;
+}
+
+.col_exp {
+	width: 17%;
+}
+
+.col_datetime {
+	width: 17%;
+}
+
+.col_subj {
+	width: 12%;
+}
+
+.col_desc {
+	width: 32%;
+}
+
+#epochs_pop,#datasets_pop {
+	padding: 0px;
+	margin: 0px;
+	overflow: hidden;
+}
 </style>
 </head>
 
 <body>
-    <div id="epochs_pop" class="pop" style="display:none">
-        <iframe src="" frameborder="no"/>
-    </div>
-    <div id="datasets_pop" class="pop" style="display:none">
-        <iframe id="edit_dataset_iframe" src="" frameborder="no"/>
-    </div>
+	<div id="epochs_pop" class="pop" style="display: none">
+		<iframe src="" frameborder="no" />
+	</div>
+	<div id="datasets_pop" class="pop" style="display: none">
+		<iframe id="edit_dataset_iframe" src="" frameborder="no" />
+	</div>
 
-  <h2>Search</h2>
+	<h2>Search</h2>
 
-  <p>NIMS currently hosts ${dataset_cnt} datasets.</p>
+	<p>NIMS currently hosts ${dataset_cnt} datasets.</p>
 
-  <form id="search_form" accept-charset="UTF-8">
-    <table id="query_table" cellpadding="0" cellspacing="0">
-    <tr>
-        <td align="right">
-            <select id="search_param" name="search_param">
-                <option py:for="param in param_list">${param}</option>
-            </select>
-        </td>
-        <td>
-            <input id="search_query" name="search_query" type="text" size="30"></input>
-        </td>
-    </tr>
-    <tr>
-    <script>
-        $(function() {
-           $("#date_from").datepicker({
-                       defaultDate: "-1m",
-                       changeMonth: true,
-                       changeYear: true,
-                       numberOfMonths: 2,
-                       maxDate: "+1d",
-                       onSelect: function( selectedDate ) {$( "#date_to" ).datepicker("option", "minDate", selectedDate );}});
-           $("#date_to").datepicker({
-                       defaultDate: "+0d",
-                       changeMonth: true,
-                       changeYear: true,
-                       numberOfMonths: 2,
-                       maxDate: "+1d",
-                       onSelect: function( selectedDate ) {$( "#date_from" ).datepicker( "option", "maxDate", selectedDate );}});
-               });
-    </script>
-        <td>
-        <label for="date_from">From</label>
-        <input type="text" size="9" id="date_from" name="date_from"/>
-        </td>
-        <td>
-        <label for="date_to">to</label>
-        <input type="text" size="9" id="date_to" name="date_to"/>
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <input type="submit" id="submit" value="Search" />
-        </td>
-        <td>
-            <p id="n_results"></p>
-        </td>
-    </tr>
-    </table>
-  </form>
+	<form id="search_form" accept-charset="UTF-8">
+		<div id="query_table" cellpadding="0" cellspacing="0">
+					<div id="criteriaBody">
+						<div class='criteriaContainer' id="criteriaContainer">
+							<span id='select_param'> <select id="search_param" name="search_param">
+									<option py:for="param in param_list">${param}</option>
+							</select>
+							<img class='hide asterisk' src='../images/icon_RequiredField.png' />
+							</span>
+							<span>
+							<input class='required' id="search_query" name="search_query" type="text"
+								size="30"></input>
+							</span>
+							<img class='removeCriteria hide' id="remove"
+								src="../images/remove.png" title="Remove builder" />
+							<img class='addCriteria' id="newCriteria"
+								src="../images/add.png" title="Add new builder" />
+						</div>
+				</div>
 
-    <table id="epochs" class="scrolltable" style="visibility:hidden">
-        <thead>
-            <tr>
-                <py:for each="col in epoch_columns">
-                    <th py:with="name, cls = col" class="${cls}">${name}</th>
-                </py:for>
-            </tr>
-        </thead>
-        <tbody>
-        </tbody>
-    </table>
-    <table id="datasets" class="scrolltable" style="visibility:hidden">
-        <thead>
-            <tr>
-                <py:for each="col in dataset_columns">
-                    <th py:with="name, cls = col" class="${cls}">${name}</th>
-                </py:for>
-            </tr>
-        </thead>
-        <tbody>
-        </tbody>
-    </table>
+				<div id="dates">
+					<script>
+						$(function() {
+							$("#date_from").datepicker(
+									{
+										defaultDate : "-1m",
+										changeMonth : true,
+										changeYear : true,
+										numberOfMonths : 2,
+										maxDate : "+1d",
+										onSelect : function(selectedDate) {
+											$("#date_to").datepicker("option",
+													"minDate", selectedDate);
+										}
+									});
+							$("#date_to").datepicker(
+									{
+										defaultDate : "+0d",
+										changeMonth : true,
+										changeYear : true,
+										numberOfMonths : 2,
+										maxDate : "+1d",
+										onSelect : function(selectedDate) {
+											$("#date_from").datepicker(
+													"option", "maxDate",
+													selectedDate);
+										}
+									});
+						});
+					</script>
+					<span><label for="date_from">From</label> <input type="text"
+						size="9" id="date_from" name="date_from" /></span>
+					<span><label for="date_to">to</label> <input type="text"
+						size="9" id="date_to" name="date_to" /></span>
+				</div>
+				<div id='submitDiv'>
+					<span><input type="submit" id="submit" value="Search" /></span>
+					<span>
+						<p id="n_results"></p>
+					</span>
+				</div>
+			</div>
+	</form>
+
+	<table id="epochs" class="scrolltable" style="visibility: hidden">
+		<thead>
+			<tr>
+				<py:for each="col in epoch_columns">
+					<th py:with="name, cls = col" class="${cls}">${name}</th>
+				</py:for>
+			</tr>
+		</thead>
+		<tbody>
+		</tbody>
+	</table>
+	<table id="datasets" class="scrolltable" style="visibility: hidden">
+		<thead>
+			<tr>
+				<py:for each="col in dataset_columns">
+					<th py:with="name, cls = col" class="${cls}">${name}</th>
+				</py:for>
+			</tr>
+		</thead>
+		<tbody>
+		</tbody>
+	</table>
 </body>
+<script>
+
+
+	// Add  new criteria to the query
+
+	var criteriaCounter = 1;
+	var max = 1;
+
+	$('#newCriteria').live('click',
+		function() {
+
+		//Create new Fields
+		var clonedContainer = $('.criteriaContainer' ).last().clone()
+			.attr('id','criteriaContainer' + max );
+			max++;
+			criteriaCounter++;
+
+		//Clear data fields
+		$(clonedContainer).each(function() {
+			$('input', this).val('');
+			});
+
+		//Append to parent
+		clonedContainer.appendTo('#criteriaBody');
+
+		//Add the plus button to add criteria
+		$(this).addClass('hide');
+
+		//Show the remove button
+		$('.removeCriteria').removeClass('hide');
+	});
+
+
+	// Remove new criteria to the query
+
+	$('#remove').live('click', function(){
+
+		$(this).parents('.criteriaContainer').remove();
+		criteriaCounter--;
+
+		// In case last builder, not to show remove option
+		if (criteriaCounter == 1) {
+			$('.removeCriteria').addClass('hide');
+		}
+
+		// Make sure last container has the add button
+		 $(".criteriaContainer").last().find('#newCriteria').removeClass('hide');
+
+
+	});
+
+
+	// Validation of the fields
+
+	$('#submit').click( function(){
+
+		var validationError = false;
+
+		$('#criteriaBody div').each(function(){
+
+			var value = $('.required', this).val();
+			if( value === '' ){
+				$('.asterisk', this).removeClass('hide');
+				validationError = true;
+			}else{
+				$('.asterisk', this).addClass('hide');
+			}
+		});
+
+		if( validationError ){
+			return false;
+		}
+	});
+
+</script>
 </html>
