@@ -102,6 +102,9 @@ class NIMSPhysio(nimsdata.NIMSData):
         self.regressors = None
         self.phases = None
         self.scan_duration = self.nframes * self.tr
+        self.exam_uid = ''
+        self.series_no = ''
+        self.acq_no = ''
         try:
             if self.format_str=='ge':
                 self.read_ge_data(filename)
