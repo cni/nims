@@ -57,6 +57,7 @@ class NIMSPFile(NIMSRaw):
     """
 
     filetype = u'pfile'
+    parse_priority = 5
 
     # TODO: Simplify init, just to parse the header
     def __init__(self, filepath, tmpdir=None, max_num_jobs=8, num_virtual_coils=0):
@@ -289,7 +290,7 @@ class NIMSPFile(NIMSRaw):
 
     @property
     def priority(self):
-        return int(bool(self.recon_func)) * 2 - 1   # return >0 if we can recon, else 0
+        return int(bool(self.recon_func)) * 2 - 1   # return 1 if we can recon, else -1
 
     def convert(self, outbase, tempdir=None, jobs=8):
         if self.recon_func:

@@ -1,11 +1,11 @@
 # @author:  Gunnar Schaefer
 
-from nimsdata import *
+import os
+import glob
 
-import nimsraw
-import nimsdicom
-import nimsnifti
-import nimspng
-import nimsphysio
-import nimsmontage
-import nimsbehavior
+
+for mod in [os.path.basename(f)[:-3] for f in glob.glob(os.path.dirname(__file__) + '/nims*.py')]:
+    __import__(mod, globals())
+del f, mod
+
+parse = nimsdata.NIMSData.parse

@@ -68,6 +68,7 @@ class NIMSPhysio(nimsdata.NIMSData):
     datakind = u'raw'
     datatype = u'physio'
     filetype = u'gephysio'
+    parse_priority = 7
 
     # TODO: simplify init to take no args. We need to add the relevant info to the json file.
     def __init__(self, filename, tr=2, nframes=100, nslices=1, slice_order=None, card_dt=0.01, resp_dt=0.04):
@@ -142,18 +143,7 @@ class NIMSPhysio(nimsdata.NIMSData):
                     break
             else:
                 if fn.endswith('_physio.json'):
-                    session_info = json.load(fd, object_hook=bson.json_util.object_hook)
-                    epoch_info = session_info['epochs'].popitem()[1]
-                    self.exam_uid = session_info['_id']
-                    self.exam_no = session_info['exam']
-                    self.patient_id = session_info['patient_id']
-                    self.subj_fn = session_info['firstname']
-                    self.subj_ln = session_info['lastname']
-                    self.subj_dob = session_info['dob']
-                    self.timestamp = epoch_info['timestamp'].replace(tzinfo=None)
-                    self.series_no = epoch_info['series']
-                    self.acq_no = epoch_info['acquisition']
-                    self.series_desc = epoch_info['description']
+                    self.set_metadata_fields(json.load(fd, object_hook=bson.json_util.object_hook))
         if archive:
             archive.close()
 

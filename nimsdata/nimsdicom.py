@@ -54,8 +54,9 @@ class NIMSDicomError(nimsimage.NIMSImageError):
 
 class NIMSDicom(nimsimage.NIMSImage):
 
-    filetype = u'dicoms'
+    filetype = u'dicom'
     priority = 0
+    parse_priority = 9
 
     def __init__(self, dcm_path):
         self.dcm_path = dcm_path

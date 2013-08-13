@@ -30,7 +30,10 @@ class NIMSNifti(nimsdata.NIMSData):
     filetype = u'nifti'
 
     def __init__(self, filepath):
-        nifti = nibabel.load(filepath)
+        try:
+            nifti = nibabel.load(filepath)
+        except Exception as e:
+            raise NIMSNiftiError(e)
         # TODO: add metadata necessary for sorting to the NIfTI header.
         self.imagedata = nifti.get_data()
         self.metadata = self
