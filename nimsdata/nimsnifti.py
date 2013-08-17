@@ -30,11 +30,13 @@ class NIMSNifti(nimsdata.NIMSData):
     filetype = u'nifti'
 
     def __init__(self, filepath):
-        nifti = nibabel.load(filepath)
-        # TODO: add metadata necessary for sorting to the NIfTI header.
-        self.imagedata = nifti.get_data()
-        self.metadata = self
-        #super(NIMSNifti, self).__init__()
+        try:
+            nifti = nibabel.load(filepath)
+            # TODO: add metadata necessary for sorting to the NIfTI header.
+            self.imagedata = nifti.get_data()
+            #super(NIMSNifti, self).__init__()
+        except Exception as e:
+            raise NIMSNiftiError(e)
 
     @staticmethod
     def write(metadata, imagedata, outbase, notes=''):
@@ -58,9 +60,9 @@ class NIMSNifti(nimsdata.NIMSData):
             log.debug('generated %s' % os.path.basename(filepath))
 
         qto_xyz = np.zeros((4,4))
-        qto_xyz[0,0:3] = (-metadata.row_cosines[0], -metadata.col_cosines[0], -metadata.slice_norm[0])
-        qto_xyz[1,0:3] = (-metadata.row_cosines[1], -metadata.col_cosines[1], -metadata.slice_norm[1])
-        qto_xyz[2,0:3] = ( metadata.row_cosines[2],  metadata.col_cosines[2],  metadata.slice_norm[2])
+        qto_xyz[0,0:3] = (-metadata.row_cosines[0], -metadata.col_cosines[0], metadata.slice_norm[0])
+        qto_xyz[1,0:3] = (-metadata.row_cosines[1], -metadata.col_cosines[1], metadata.slice_norm[1])
+        qto_xyz[2,0:3] = ( metadata.row_cosines[2],  metadata.col_cosines[2], metadata.slice_norm[2])
         qto_xyz[:,3] = np.append(metadata.image_position, 1).T
         qto_xyz[0:3,0:3] = np.dot(qto_xyz[0:3,0:3], np.diag(metadata.mm_per_vox))
 
@@ -76,7 +78,7 @@ class NIMSNifti(nimsdata.NIMSData):
         if np.iscomplexobj(imagedata):
             clip_vals = np.percentile(np.abs(imagedata), (10.0, 99.5))
         else:
-            clip_vals = np.percentile(np.abs(imagedata), (10.0, 99.5))
+            clip_vals = np.percentile(imagedata, (10.0, 99.5))
         nii_header.structarr['cal_min'] = clip_vals[0]
         nii_header.structarr['cal_max'] = clip_vals[1]
         nii_header.structarr['pixdim'][4] = metadata.tr #FIXME cleaner way to set the TR???

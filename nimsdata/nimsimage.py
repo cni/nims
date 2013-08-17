@@ -31,7 +31,7 @@ class NIMSImage(nimsdata.NIMSData):
 
     def parse_subject_name(self, name):
         lastname, firstname = name.split('^') if '^' in name else ('', '')
-        return firstname.capitalize(), lastname.capitalize()
+        return firstname.title(), lastname.title()
 
     def parse_subject_dob(self, dob):
         try:
@@ -41,12 +41,3 @@ class NIMSImage(nimsdata.NIMSData):
         except ValueError:
             dob = None
         return dob
-
-    @property
-    def epoch_info(self):
-        if not self._epoch_info:
-            info = {
-                    'tr':               self.tr,
-                    }
-            self._epoch_info = dict(super(NIMSImage, self).epoch_info.items() + info.items())
-        return self._epoch_info

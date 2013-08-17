@@ -91,8 +91,8 @@ class Reaper(object):
             log.info('Periph data %s %s found' % (log_info, name))
             physio_reap_path = os.path.join(tempdir_path, name)
             os.mkdir(physio_reap_path)
-            with open(os.path.join(physio_reap_path, '%s_%s.json' % (reap_name, name)), 'w') as metadata:
-                json.dump(reap_data.db_info, metadata, default=bson.json_util.default)
+            with open(os.path.join(physio_reap_path, '%s_%s.json' % (reap_name, name)), 'w') as metadata_dump:
+                json.dump(reap_data.get_metadata(nimsdata.nimsphysio.NIMSPhysio), metadata_dump, default=bson.json_util.default)
             for pts, pfn in physio_tuples:
                 shutil.copy2(os.path.join(self.peripheral_data[name], pfn), physio_reap_path)
             with tarfile.open(os.path.join(reap_path, '%s_%s.tgz' % (reap_name, name)), 'w:gz', compresslevel=6) as archive:

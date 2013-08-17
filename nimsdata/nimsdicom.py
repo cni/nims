@@ -54,8 +54,9 @@ class NIMSDicomError(nimsimage.NIMSImageError):
 
 class NIMSDicom(nimsimage.NIMSImage):
 
-    filetype = u'dicoms'
+    filetype = u'dicom'
     priority = 0
+    parse_priority = 9
 
     def __init__(self, dcm_path):
         self.dcm_path = dcm_path
@@ -141,7 +142,13 @@ class NIMSDicom(nimsimage.NIMSImage):
         cosines = getelem(self._hdr, 'ImageOrientationPatient', None, 6 * [None])
         self.row_cosines = cosines[0:3]
         self.col_cosines = cosines[3:6]
-        self.slice_norm = np.cross(self.row_cosines, self.col_cosines) if any(cosines) else np.zeros(3)
+        # Not sure if we need to negate the slice_norm. From the NIFTI-1 header:
+        #     The third column of R will be either the cross-product of the first 2 columns or
+        #     its negative. It is possible to infer the sign of the 3rd column by examining
+        #     the coordinates in DICOM attribute (0020,0032) "Image Position (Patient)" for
+        #     successive slices. However, this method occasionally fails for reasons that I
+        #     (RW Cox) do not understand.
+        self.slice_norm = np.cross(self.row_cosines, self.col_cosines)
         self.image_type = getelem(self._hdr, 'ImageType', None, [])
         self.effective_echo_spacing = getelem(self._hdr, TAG_EPI_EFFECTIVE_ECHO_SPACING, float, 0.) / 1e6
         self.is_dwi = bool(self.image_type == TYPE_ORIGINAL and getelem(self._hdr, TAG_DIFFUSION_DIRS, int, 0) >= 6)
