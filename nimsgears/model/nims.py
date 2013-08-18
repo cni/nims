@@ -502,8 +502,8 @@ class Subject(DataContainer):
         query = query.join(ResearchGroup, Experiment.owner).filter(ResearchGroup.gid == group_name)
         if subj_code:
             subject = query.filter(cls.code==subj_code).first()
-        elif mrfile.subj_fn and mrfile.subj_ln:
-            subject = query.filter(cls.firstname==mrfile.subj_fn).filter(cls.lastname==mrfile.subj_ln).filter(cls.dob==mrfile.subj_dob).first()
+        elif mrfile.subj_firstname and mrfile.subj_lastname:
+            subject = query.filter(cls.firstname==mrfile.subj_firstname).filter(cls.lastname==mrfile.subj_lastname).filter(cls.dob==mrfile.subj_dob).first()
         else:
             subject = None
         if not subject:
@@ -513,8 +513,8 @@ class Subject(DataContainer):
                     experiment=experiment,
                     person=Person(),
                     code=subj_code[:31] or experiment.next_subject_code,
-                    firstname=mrfile.subj_fn[:63],
-                    lastname=mrfile.subj_ln[:63],
+                    firstname=mrfile.subj_firstname[:63],
+                    lastname=mrfile.subj_lastname[:63],
                     dob=mrfile.subj_dob,
                     )
         return subject
@@ -706,7 +706,7 @@ class Epoch(DataContainer):
                     acq = mrfile.acq_no,
                     description = nimsutil.clean_string(mrfile.series_desc),
                     psd = unicode(mrfile.psd_name),
-                    physio_recorded = mrfile.physio_flag,
+                    physio_recorded = True,
                     tr = mrfile.tr,
                     te = mrfile.te,
                     ti = mrfile.ti,

@@ -14,6 +14,7 @@ import sqlalchemy
 import transaction
 
 import nimsutil
+import nimsdata
 from nimsgears import model
 
 
@@ -59,7 +60,8 @@ class Sorter(object):
     def sort_files(self, dirpath, filenames, aux_paths):
         for filepath, filename in [(os.path.join(dirpath, fn), fn) for fn in filenames]:
             self.log.debug('Sorting %s' % filename)
-            dataset = self.get_dataset(filepath)
+            mrfile = nimsdata.parse(filepath)
+            dataset = model.Dataset.from_mrfile(mrfile, self.nims_path) if mrfile else None
             if dataset:
                 new_filenames = [filename]
                 shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
@@ -77,7 +79,8 @@ class Sorter(object):
 
     def sort_directory(self, dirpath, filenames, aux_paths):
         self.log.debug('Sorting %s in directory mode' % os.path.basename(dirpath))
-        dataset = self.get_dataset(os.path.join(dirpath, filenames[0]))
+        mrfile = nimsdata.NIMSData.parse(os.path.join(dirpath, filenames[0]))
+        dataset = model.Dataset.from_mrfile(mrfile, self.nims_path) if mrfile else None
         if dataset:
             for filepath, aux_paths in [(os.path.join(dirpath, filename), aux_paths.get(filename, [])) for filename in filenames]:
                 shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filepath)))
@@ -91,16 +94,6 @@ class Sorter(object):
             for filename in os.listdir(dirpath):
                 shutil.move(os.path.join(dirpath, filename), os.path.join(preserve_path, filename))
         shutil.rmtree(dirpath)
-
-    def get_dataset(self, filename):
-        for datatype in nimsutil.datatypes:
-            try:
-                mrfile = datatype(filename)
-            except:
-                mrfile = None
-            else:
-                break
-        return model.Dataset.from_mrfile(mrfile, self.nims_path) if mrfile else None
 
 
 class ArgumentParser(argparse.ArgumentParser):

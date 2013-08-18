@@ -12,6 +12,7 @@ import argparse
 import datetime
 
 import nimsutil
+import nimsdata
 
 
 class PFileReaper(object):
@@ -92,8 +93,8 @@ class ReapPFile(object):
 
     def reap(self):
         try:
-            pfile = nimsutil.pfile.PFile(self.path)
-        except nimsutil.pfile.PFileError as e:
+            pfile = nimsdata.nimsraw.NIMSPFile(self.path)
+        except nimsdata.nimsraw.NIMSPFileError as e:
             self.needs_reaping = False
             self.reaper.log.warning('Skipping    %s (%s)' % (self, str(e)))
             return
@@ -104,7 +105,7 @@ class ReapPFile(object):
             self.acq = pfile.acq_no
             stage_dir = '%s_%s' % (self.reaper.id_, datetime.datetime.now().strftime('%s.%f'))
             reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
-            aux_reap_files = [arf for arf in glob.glob(self.path + '_*') if open(arf).read(32) == pfile.header.series.series_uid]
+            aux_reap_files = [arf for arf in glob.glob(self.path + '_*') if open(arf).read(32) == pfile._hdr.series.series_uid]
         if self.pat_id.strip('/') in reaper.discard_ids:
             self.needs_reaping = False
             self.reaper.log.info('Discarding  %s' % self)

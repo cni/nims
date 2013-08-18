@@ -1,0 +1,132 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<head>
+<link type="text/css" rel="stylesheet" href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/themes/base/jquery-ui.css">
+<link type="text/css" rel="stylesheet" href="http://code.shutterstock.com/rickshaw/rickshaw.min.css">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.8.21/jquery-ui.min.js"></script>
+<script src="http://d3js.org/d3.v2.js"></script>
+<script src="${tg.url('/javascript/rickshaw.js"></script>
+<style type="text/css">
+    #content {
+        width: 1200px;
+    }
+    #main-container {
+        position: relative;
+        margin: auto;
+        margin-top: 20px;
+        margin-left: 20px;
+        width: 1000px;
+    }
+    #legend {
+        position: absolute;
+        top: 0;
+        left: 0;
+        margin-top: 50px;
+    }
+    #graph-container {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 800px;
+        margin-top: 20px;
+    }
+    #graph {
+        display: inline-block;
+    }
+    #slider {
+        margin-top: 40px;
+    }
+    #y_label {
+        position: absolute;
+        top: 0;
+        left: 0,
+        height: 40px;
+        margin: auto;
+        /* Rotate div */
+        transform:rotate(-90deg);
+        -ms-transform:rotate(-90deg); /* IE 9 */
+        -webkit-transform:rotate(-90deg); /* Safari and Chrome */
+    }
+    #x_label {
+        position: absolute;
+        margin: auto;
+        margin-top: 5px;
+        height: 40px;
+    }
+</style>
+
+<script>
+var graph;
+graph = new Rickshaw.Graph.Ajax( {
+  	element: document.querySelector("#graph"),
+  	width: 800, height: 200, renderer: "line", interpolation: "linear", min: "auto",
+  	dataURL: "data.json",
+    series: [{name:"Mean Displacement", color:"#707070"},
+             {name:"Translation_X", color:"#a04020"},
+             {name:"Translation_Y", color:"#c06030"},
+             {name:"Translation_Z", color:"#e08040"},
+             {name:"Rotation_X", color:"#2080c0", yFormatter: function(y) { return y + " deg" }},
+             {name:"Rotation_Y", color:"#20a0d0", yFormatter: function(y) { return y + " deg" }},
+             {name:"Rotation_Z", color:"#20c0e0", yFormatter: function(y) { return y + " deg" }}],
+    onComplete: function(transport) {
+        var graph = transport.graph;
+
+        var detail = new Rickshaw.Graph.HoverDetail({
+            graph: graph,
+            xFormatter: function(x) { return x + " seconds" },
+            yFormatter: function(y) { return y + " " },
+        });
+
+        var x_axis = new Rickshaw.Graph.Axis.X({
+            graph: graph,
+        });
+
+        var y_axis = new Rickshaw.Graph.Axis.Y({
+            graph: graph,
+            tickFormat: Rickshaw.Fixtures.Number.formatKMBT,
+        });
+
+        var legend = new Rickshaw.Graph.Legend({
+            graph: graph,
+            element: document.querySelector('#legend')
+        });
+
+        var shelving = new Rickshaw.Graph.Behavior.Series.Toggle({
+            graph: graph,
+            legend: legend
+        });
+
+        var highlighter = new Rickshaw.Graph.Behavior.Series.Highlight({
+            graph: graph,
+            legend: legend
+        });
+
+        var slider = new Rickshaw.Graph.RangeSlider({
+            graph: graph,
+            element: document.querySelector("#slider"),
+        });
+        graph.update();
+    },
+});
+
+</script>
+
+</head>
+
+<body>
+  <div id="content">
+      <div id="main-container">
+          <div id="legend"></div>
+          <div id="graph-container">
+              <div id="graph"></div>
+              <div id="x_label">Time (seconds)</div>
+              <div id="slider"></div>
+          </div>
+      </div>
+  </div>
+</body>
+
+</html>

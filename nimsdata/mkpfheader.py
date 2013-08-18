@@ -167,7 +167,6 @@ def print_parser(pool_header, object_dict):
     objects = list(object_dict.itervalues())
     structs = set(filter(lambda object_: isinstance(object_, StructType), objects))
     print '\n"""AUTO-GENERATED FILE. DO NOT EDIT. USE %s"""\n' % os.path.basename(__file__)
-    print 'import os'
     print 'import struct'
     print '\n'
     print 'class PFHeaderError(Exception):'

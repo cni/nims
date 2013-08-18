@@ -16,28 +16,32 @@ See:
 * Chang C, Cunningham JP, Glover GH. Influence of heart rate on the BOLD signal:
   the cardiac response function. Neuroimage. 2009 Feb 1;44(3):857-69. doi:
   10.1016/j.neuroimage.2008.09.029. Epub 2008 Oct 7. PubMed PMID: 18951982
-
 """
 
-from __future__ import print_function
-
 import os
-import zipfile
-import tarfile
-import argparse
-import nibabel
-import numpy as np
-import scipy
-from scipy import signal
-from scipy import stats
-import json
-import itertools
 import gzip
+import json
+import logging
+import nibabel
+import tarfile
+import zipfile
+import argparse
+import warnings
+import itertools
+import bson.json_util
+import numpy as np
 
-class PhysioDataError(Exception):
+import nimsdata
+import nimsutil
+
+log = logging.getLogger('nimsphysio')
+
+
+class NIMSPhysioError(nimsdata.NIMSDataError):
     pass
 
-class PhysioData(object):
+
+class NIMSPhysio(nimsdata.NIMSData):
     """
     Read and process physiological data recorded during an MR scan.
 
@@ -61,9 +65,13 @@ class PhysioData(object):
         p.generate_regressors(outname='retroicor.csv')
     """
 
-    filetype = u'physio'
+    datakind = u'raw'
+    datatype = u'physio'
+    filetype = u'gephysio'
+    parse_priority = 7
 
-    def __init__(self, filename, tr=2, nframes=100, nslices=1, slice_order=None, log=None, card_dt=0.01, resp_dt=0.04):
+    # TODO: simplify init to take no args. We need to add the relevant info to the json file.
+    def __init__(self, filename, tr=2, nframes=100, nslices=1, slice_order=None, card_dt=0.01, resp_dt=0.04):
         # The is_valid method uses some crude heuristics to detect valid data.
         # To be valid, the number of temporal frames must be reasonable, and either the cardiac
         # standard deviation or the respiration low-frequency power meet the following criteria.
@@ -72,15 +80,13 @@ class PhysioData(object):
         self.min_resp_lfp = 50.
         # FIXME: How to infer the file format automatically?
         self.format_str = 'ge'
-        self.log = log
         self.tr = tr
         self.nframes = nframes
         if slice_order == None:
             self.nslices = nslices
             # Infer a standard GE interleave slice order
             self.slice_order = np.array(range(0, self.nslices, 2) + range(1, self.nslices, 2))
-            # msg = 'No explicit slice order set; inferring interleaved.'
-            # self.log.warning(msg) if self.log else print(msg)
+            # log.warning('No explicit slice order set; inferring interleaved.')
         else:
             self.nslices = slice_order.size
             self.slice_order = np.array(slice_order)
@@ -96,57 +102,53 @@ class PhysioData(object):
         self.regressors = None
         self.phases = None
         self.scan_duration = self.nframes * self.tr
-        if self.format_str=='ge':
-            self.read_ge_data(filename)
-        else:
-            raise PhysioDataError('Only GE physio format is currently supported.')
-            # insert other vendor's read_data functions here
+        self.exam_uid = ''
+        self.series_no = ''
+        self.acq_no = ''
+        try:
+            if self.format_str=='ge':
+                self.read_ge_data(filename)
+            else:
+                raise NIMSPhysioError('only GE physio format is currently supported')
+                # insert other vendor's read_data functions here
+        except Exception as e:
+            raise NIMSPhysioError(e)
+
+        super(NIMSPhysio, self).__init__()
 
 
     def read_ge_data(self, filename):
-        # if we are passed a list, we assume it's a list of the files. Otherwise, it should be a string containing a filename.
-        if isinstance(filename, str) and os.path.isdir(filename):
-            # If it's a directory, then get a list of all the files in it
-            filename = [os.path.join(filename,f) for f in os.listdir(filename)]
-        if isinstance(filename, list):
-            for fn in filename:
-                if "RESPData" in fn:
-                    self.resp_wave  = np.loadtxt(fn)
-                if "RESPTrig" in fn:
-                    self.resp_trig  = np.loadtxt(fn)
-                if "PPGData" in fn:
-                    self.card_wave = np.loadtxt(fn)
-                if "PPGTrig" in fn:
-                    self.card_trig = np.loadtxt(fn)
-        else:
-            with open(filename,'rb') as fp:
+        archive = None
+        if isinstance(filename, basestring):
+            with open(filename, 'rb') as fp:
                 magic = fp.read(4)
-            if (magic == '\x50\x4b\x03\x04'):
-                with zipfile.ZipFile(filename) as zf:
-                    file_names = zf.namelist()
-                    for fn in file_names:
-                        if "RESPData" in fn:
-                            self.resp_wave  = np.loadtxt(zf.open(fn))
-                        if "RESPTrig" in fn:
-                            self.resp_trig  = np.loadtxt(zf.open(fn))
-                        if "PPGData" in fn:
-                            self.card_wave  = np.loadtxt(zf.open(fn))
-                        if "PPGTrig" in fn:
-                            self.card_trig  = np.loadtxt(zf.open(fn))
-            elif (magic[:2] == '\x1f\x8b'):
-                with tarfile.open(filename, "r:gz") as tf:
-                    file_names = tf.getnames()
-                    for fn in file_names:
-                        if "RESPData" in fn:
-                            self.resp_wave  = np.loadtxt(tf.extractfile(tf.getmember(fn)))
-                        if "RESPTrig" in fn:
-                            self.resp_trig  = np.loadtxt(tf.extractfile(tf.getmember(fn)))
-                        if "PPGData" in fn:
-                            self.card_wave = np.loadtxt(tf.extractfile(tf.getmember(fn)))
-                        if "PPGTrig" in fn:
-                            self.card_trig = np.loadtxt(tf.extractfile(tf.getmember(fn)))
+            if magic == '\x50\x4b\x03\x04':
+                archive = zipfile.ZipFile(filename)
+                files = [(fn, archive.open(fn)) for fn in archive.namelist()]
+            elif magic[:2] == '\x1f\x8b':
+                archive = tarfile.open(filename, 'r:*')
+                files = [(fn, archive.extractfile(archive.getmember(fn))) for fn in archive.getnames()]
             else:
-                raise PhysioDataError('Only tgz and zip files are supported.')
+                raise NIMSPhysioError('only tgz and zip files are supported')
+        else:
+            files = [(fn, open(fn)) for fn in filename] # assume that we were passed a list of filenames
+        for fn, fd in files:
+            for substr, attr in (
+                    ('RESPData', 'resp_wave'),
+                    ('RESPTrig', 'resp_trig'),
+                    ('PPGData', 'card_wave'),
+                    ('PPGTrig', 'card_trig'),
+                    ):
+                if substr in fn:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter('ignore')
+                        setattr(self, attr, np.loadtxt(fd))
+                    break
+            else:
+                if fn.endswith('_physio.json'):
+                    self.set_metadata_fields(json.load(fd, object_hook=bson.json_util.object_hook))
+        if archive:
+            archive.close()
 
         # move time zero to correspond to the start of the fMRI data
         offset = self.resp_dt * self.resp_wave.size - self.scan_duration
@@ -155,7 +157,6 @@ class PhysioData(object):
         offset = self.card_dt * self.card_wave.size - self.scan_duration
         self.card_time = self.card_dt * np.arange(self.card_wave.size) - offset
         self.card_trig = self.card_trig * self.card_dt - offset
-        return
 
     @property
     def card_trig_chopped(self):
@@ -170,7 +171,6 @@ class PhysioData(object):
 
     def compute_regressors(self, legacy_rvhr=True, hr_min=30, hr_max=180):
         """
-
          * catie chang,   catie.chang@nih.gov
          * bob dougherty, bobd@stanford.edu
 
@@ -207,7 +207,6 @@ class PhysioData(object):
           (** setting card_trig = [] will ignore cardiac in both corrections)
           (** setting resp_wave = [] will ignore respiration in both corrections)
 
-
          ---------------------------
          OUTPUTS:
          ---------------------------
@@ -217,13 +216,13 @@ class PhysioData(object):
          * self.regressors: retroicor & rvhrcor regressors as [#timepoints x #regressors x #slices].
               I.e., the regressors for slice "i" are the columns of REGRESSORS[:,:,i].
          *
-
         """
+        import scipy.stats
+        import scipy.signal
 
         if self.nframes < 3:
             self.regressors = None
-            msg = 'Need at least 3 temporal frames to compute regressors!'
-            self.log.warning(msg) if self.log else print(msg)
+            log.warning('Need at least 3 temporal frames to compute regressors!')
             return
 
         resp_wave = self.resp_wave_chopped
@@ -320,7 +319,7 @@ class PhysioData(object):
                 i1 = max(0, np.floor((slice_times[tp] - t_win) / self.resp_dt))
                 i2 = min(resp_wave.size, np.floor((slice_times[tp] + t_win) / self.resp_dt))
                 if i2 < i1:
-                    raise PhysioDataError('Respiration data is shorter than the scan duration.')
+                    raise NIMSPhysioError('Respiration data is shorter than the scan duration.')
                 rv[tp] = np.std(resp_wave[i1:i2])
 
             # conv(rv, rrf)
@@ -376,9 +375,6 @@ class PhysioData(object):
             for reg in range(self.regressors.shape[1]):
                 self.regressors[:,reg,sl] -= np.polyval(np.polyfit(x, self.regressors[:,reg,sl], 2), x)
 
-        return
-
-
     def denoise_image(self, regressors):
         """
         correct the image data: slice-wise
@@ -406,7 +402,6 @@ class PhysioData(object):
             V_slice_corr = Y_slice_corr.transpose()
             for ii in range(self.nframes):
                 d_corrected[:,:,jj,ii] = V_slice_corr[:,ii].reshape((npix_x,npix_y))
-
         return d_corrected, PCT_VAR_REDUCED
 
     def write_regressors_legacy(self, filename):
@@ -451,7 +446,6 @@ class PhysioData(object):
             with file(filename, 'w') as fp:
                 self._write_regressors(fp)
 
-
     def write_raw_data(self, filename):
         """ Save the raw physio data in a json file. If the filename ends with .gz, the file will be gzipped. """
         d = {'resp_time':self.resp_time.round(3).tolist(), 'resp_wave':self.resp_wave.astype(int).tolist(), 'resp_trig':self.resp_trig.round(3).tolist(),
@@ -462,7 +456,6 @@ class PhysioData(object):
         else:
             with file(filename, 'w') as fp:
                 json.dump(d, fp)
-
 
     @property
     def regressor_names(self):
@@ -487,6 +480,7 @@ class PhysioData(object):
 
 
 class ArgumentParser(argparse.ArgumentParser):
+
     def __init__(self):
         super(ArgumentParser, self).__init__()
         self.description = """ Processes physio data to make them amenable to retroicor."""
@@ -500,20 +494,15 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
+    nimsutil.configure_log()
     if args.nifti_file:
         ni = nibabel.load(args.nifti_file)
-        tr = ni.get_header().get_zooms()[3]
-        nslices = ni.shape[2]
-        nframes = ni.shape[3]
+        phys = PhysioData(args.physio_file, ni.get_header().get_zooms()[3], ni.shape[3], ni.shape[2])
     else:
-        print('WARNING: regressors will not be valid!')
-        tr = 2
-        nslices = 1
-        nframes = 100
-    phys = PhysioData(args.physio_file, tr, nframes, nslices)
+        log.warning('regressors will not be valid!')
+        phys = PhysioData(args.physio_file)
     if args.preprocess:
         np.savetxt(args.outbase + '_resp.txt', phys.resp_wave)
         np.savetxt(args.outbase + '_pulse.txt', phys.card_trig)
         np.savetxt(args.outbase + '_slice.txt', phys.slice_order)
     phys.write_regressors(args.outbase + '_reg.txt')
-

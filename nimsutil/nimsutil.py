@@ -16,12 +16,12 @@ import tempfile
 import logging, logging.handlers
 
 
-class TempDirectory(object):
+class TempDir(object):
 
     """Context managed temporary directory creation and automatic removal."""
     def __init__(self, dir=None):
         self.dir = dir
-        super(TempDirectory, self).__init__()
+        super(TempDir, self).__init__()
 
     def __enter__(self):
         """Create temporary directory on context entry, returning the path."""
@@ -55,6 +55,26 @@ def get_logger(name, filepath=None, console=True, level='debug'):
     logger.warning('********** Logging initialized **********')
     return logger
 
+def configure_log(filepath=None, console=True, level='debug'):
+    """Return a nims-configured logger."""
+    logging._levelNames[10] = 'DBUG'
+    logging._levelNames[20] = 'INFO'
+    logging._levelNames[30] = 'WARN'
+    logging._levelNames[40] = 'ERR '
+    logging._levelNames[50] = 'CRIT'
+
+    logger = logging.getLogger()
+    logger.setLevel(getattr(logging, level.upper()))
+    formatter = logging.Formatter('%(asctime)s %(name)12.12s:%(levelname)s %(message)s', '%Y-%m-%d %H:%M:%S')
+    if filepath:
+        handler = logging.handlers.TimedRotatingFileHandler(filepath, when='W6')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.warning('********** Logging initialized **********')
+    if console:
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
 
 def parse_subject(name, dob):
     lastname, firstname = name.split('^') if '^' in name else ('', '')

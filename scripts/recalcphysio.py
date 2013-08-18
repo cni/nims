@@ -41,6 +41,7 @@ for pid in pd_ids:
         dc = p.container
         phys = nimsutil.physio.PhysioData(physio_file, dc.tr, dc.num_timepoints, dc.num_slices/dc.num_bands)
         # Get rid of old regressor and rawdata files
+<<<<<<< Updated upstream
         cur_files = os.listdir(os.path.join(data_path, p.relpath))
         for reg_file in [f for f in cur_files if 'regressors' in f or 'rawdata' in f]:
             shutil.move(os.path.join(data_path, p.relpath, reg_file), tmpdir)
@@ -50,6 +51,16 @@ for pid in pd_ids:
             #phys.write_raw_data(basename + 'rawdata.json.gz')
         except nimsutil.physio.PhysioDataError:
             print('error generating regressors from physio data')
+=======
+        for reg_file in [f for f in p.filenames if 'regressors' in f or 'rawdata' in f]:
+            os.remove(os.path.join(data_path, p.relpath, reg_file))
+        #basename = os.path.join(data_path, p.relpath, '%s_physio_' % dc.name)
+        #try:
+        #    phys.write_regressors(basename + 'regressors.csv.gz')
+        #    phys.write_raw_data(basename + 'rawdata.json.gz')
+        #except nimsutil.physio.PhysioDataError:
+        #    print('error generating regressors from physio data')
+>>>>>>> Stashed changes
         p.filenames = os.listdir(os.path.join(data_path, p.relpath))
         transaction.commit()
     else:
