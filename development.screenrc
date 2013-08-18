@@ -1,0 +1,35 @@
+# vim: filetype=screen :
+
+defscrollback 100000
+hardstatus alwayslastline "%{W} %w %= %D %d %M %y %c"
+bindkey -k kD stuff ^H
+shell -bash
+
+sessionname nims-dev
+
+screen -t bash          0
+stuff "source ~/tg2env/bin/activate \015"
+
+screen -t dicomreaper   1
+stuff "source ~/tg2env/bin/activate \015"
+stuff "nimsproc/dicomreaper.py /run/shm/dicomreaper_cnimr /scratch/nims_sqlite/nims_stage cnimr:4006:4006 predator cnimr \015"
+
+screen -t pfilereaper   2
+stuff "source ~/tg2env/bin/activate \015"
+stuff "nimsproc/pfilereaper.py /run/shm/pfilereaper_cnimr /scratch/nims_sqlite/nims_stage /cnimr/pfiles \015"
+
+screen -t sorter        3
+stuff "source ~/tg2env/bin/activate \015"
+stuff "nimsproc/sorter.py -p /scratch/nims_unsortable sqlite:///nims.sqlite /scratch/nims_sqlite/nims_stage /scratch/nims_sqlite/nims \015"
+
+screen -t scheduler     4
+stuff "source ~/tg2env/bin/activate \015"
+stuff "nimsproc/scheduler.py sqlite:///nims.sqlite /scratch/nims_sqlite/nims \015"
+
+screen -t processor     5
+stuff "source ~/tg2env/bin/activate \015"
+stuff "nimsproc/processor.py -r -j2 -e\"~Epoch.psd.contains(u'mux')\" sqlite:///nims.sqlite /scratch/nims_sqlite/nims /cnimr/physio \015"
+
+screen -t mux_proc      6
+stuff "source ~/tg2env/bin/activate \015"
+stuff "nimsproc/processor.py -r -j1 -e\"Epoch.psd.contains(u'mux')\" sqlite:///nims.sqlite /scratch/nims_sqlite/nims /cnimr/physio \015"
