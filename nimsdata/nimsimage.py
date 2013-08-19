@@ -71,16 +71,31 @@ def rotate_bvecs(bvecs, bvals, rotation):
     return bvecs,bvals
 
 def infer_psd_type(psd_name):
-    if psd_name == 'sprt':
+    psd_name = psd_name.lower()
+    if 'service' in psd_name:
+        psd_type = 'service'
+    elif psd_name == 'sprt':
         psd_type = 'spiral'
     elif psd_name == 'sprl_hos':
         psd_type = 'hoshim'
     elif psd_name == 'basic':
         psd_type = 'basic'
-    elif 'mux' in psd_name.lower(): # multi-band EPI!
-        psd_type = 'mux'
-    elif psd_name == 'Probe-MEGA':
+    elif 'mux' in psd_name: # multi-band EPI!
+        psd_type = 'muxepi'
+    elif 'epi' in psd_name:
+        psd_type = 'epi'
+    elif psd_name == 'probe-mega':
         psd_type = 'mrs'
+    elif psd_name == 'asl':
+        psd_type = 'asl'
+    elif psd_name in ['bravo','3dgrass']:
+        psd_type = 'spgr'
+    elif psd_name == 'fgre':
+        psd_type = 'gre'
+    elif psd_name == 'ssfse':
+        psd_type = 'fse'
+    elif psd_name == 'cube':
+        psd_type = 'cube'
     else:
         psd_type = 'unknown'
     return psd_type
@@ -117,28 +132,32 @@ class NIMSImage(nimsdata.NIMSData):
         return dob
 
     def infer_scan_type(self):
+        fov = np.fromstring(self.fov[1:-1], sep=',')
+        mm_per_vox = np.fromstring(self.mm_per_vox[1:-1], sep=',')
         if self.psd_type == 'mrs':
             scan_type = 'spectroscopy'
+        elif self.psd_type == 'asl':
+            scan_type = 'perfusion'
         elif self.psd_type == 'hoshim':
             scan_type = 'shim'
         elif self.is_dwi:
             scan_type = 'diffusion'
         elif self.psd_type == 'spiral' and self.num_timepoints == 2 and self.te < .05:
             scan_type = 'fieldmap'
-        elif self.te>0.02 and self.te<0.05 and self.num_timepoints>10 and 'epi' in self.psd_name.lower():
+        elif self.psd_type=='epi' and self.te>0.02 and self.te<0.05 and self.num_timepoints>10:
             scan_type = 'functional'
-        elif ('fgre' in self.psd_name or 'ssfse' in self.psd_name) and self.fov[0]>=250. and self.fov[1]>=250. and self.mm_per_vox[2]>=5.:
+        elif (self.psd_type=='gre' or self.psd_type=='fse') and np.all(fov>=250.) and mm_per_vox[2]>=5.:
             # Could be either a low-res calibration scan (e.g., ASSET cal) or a localizer.
-            if self.mm_per_vox[0] > 2:
+            if mm_per_vox[0] > 2:
                 scan_type = 'calibration'
             else:
                 scan_type = 'localizer'
         else:
             # anything else will be an anatomical
-            if self.acquisition_type.lower() == '3d':
-                scan_type = '3D anatomy'
-            elif self.acquisition_type.lower() == '2d':
-                scan_type = '2D anatomy'
+            if self.psd_type == 'spgr':
+                scan_type = 'anatomy-t1w'
+            elif self.psd_type == 'cube':
+                scan_type = 'anatomy-t2w'
             else:
                 scan_type = 'anatomy'
         return scan_type
