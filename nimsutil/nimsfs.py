@@ -246,9 +246,10 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
                 if fname:
                     size = os.path.getsize(fname)
                     ts = os.path.getmtime(fname)
-                else:
+                elif cur_path[5].endswith('ugz'):
                     # Check to see if we're being asked about a gzipped file
-                    fname = next((f[1] for f in files if f[0]==cur_path[5]+'.gz'), None)
+                    fn = cur_path[5][:-3] +'gz'
+                    fname = next((f[1] for f in files if f[0]==fn), None)
                     if fname:
                         ts = os.path.getmtime(fname)
                         # Apparently there's no way to get the uncompressed size except by reading the last four bytes.
@@ -258,6 +259,8 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
                             size = struct.unpack('<I',fp.read())[0]
                     else:
                         raise fuse.FuseOSError(errno.ENOENT)
+                else:
+                    raise fuse.FuseOSError(errno.ENOENT)
         return {'st_atime':ts, 'st_ctime':ts, 'st_gid':gid, 'st_mode':mode, 'st_mtime':ts, 'st_nlink':nlink, 'st_size':size, 'st_uid':uid}
 
     def readdir(self, path, fh):
@@ -296,14 +299,17 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
                 if fname:
                     self.gzfile = None
                     fh = os.open(fname, flags)
-                else:
-                    # Check to see if we're being asked to gunzip on the fly
-                    fname = next((f[1] for f in files if f[0]==cur_path[5]+'.gz'), None)
+                elif cur_path[5].endswith('ugz'):
+                    # Check to see if we're being asked about a gzipped file
+                    fn = cur_path[5][:-3] +'gz'
+                    fname = next((f[1] for f in files if f[0]==fn), None)
                     if fname:
                         self.gzfile = gzip.open(fname,'r')
                         fh = self.gzfile.fileno()
                     else:
                         raise fuse.FuseOSError(errno.ENOENT)
+                else:
+                    raise fuse.FuseOSError(errno.ENOENT)
         return fh
 
     def release(self, path, fh):
