@@ -7,11 +7,11 @@ define([], function()
          * Enables sorting of table columns by text content, and enables
          * sort on header click.
          */
-        this.init_sortable = function(callback)
+        this.init_sortable = function(callback, sort_col, sort_dir)
         {
             this.sorted_markers = [];
-            this.sorted_column = 0;
-            this.sorted_direction = 1;
+            this.sorted_column = sort_col;
+            this.sorted_direction = sort_dir;
             this.setupSortedMarkers();
             this.enableHeaderClickSorting(callback);
         };
