@@ -65,12 +65,39 @@ define([], function()
             if (chunks.length && chunks[0] == this._drilldown_id)
             {
                 chunks = chunks.slice(1);
-                var i_chunk = 0;
-                var i_table = 0;
-                for (var i = 0, j = 0; i < chunks.length && j < this._tables.length; i++, j++)
+                for (var i = 0; i < chunks.length && i < this._tables.length; i++)
                 {
-                    this._tables[j]._selected_rows = [{'id': chunks[i]}];
+                    this._tables[i]._selected_rows = [{'id': chunks[i]}];
                 }
+                this._focus_index = chunks.length-1;
+            }
+            else
+            {
+                var exp_id;
+                var sess_id;
+                $.ajax({
+                    traditional: true,
+                    type: 'POST',
+                    url: "browse/default_session",
+                    dataType: "json",
+                    data: { },
+                    async: false,
+                    success: function(data)
+                    {
+                        if (data.success)
+                        {
+                            exp_id = data.exp;
+                            sess_id = data.sess;
+                        }
+                        else
+                        {
+                            alert('Failed');
+                        }
+                    },
+                });
+                this._tables[0]._selected_rows = [{'id': 'exp=' + exp_id}];
+                this._tables[1]._selected_rows = [{'id': 'sess=' + sess_id}];
+                this._focus_index = 1;
             }
         }
     };
