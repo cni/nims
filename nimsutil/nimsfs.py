@@ -94,30 +94,31 @@ class memoize(object):
 
 @memoize()
 def get_groups(username):
-    user = User.get_by(uid=unicode(username))
-    experiments = (Experiment.query.join(Access)
-                   .filter(Access.user==user)
-                   .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
-                   .all())
+    if username==None:
+        experiments = (Experiment.query.all())
+    else:
+        user = User.get_by(uid=unicode(username))
+        experiments = (Experiment.query.join(Access)
+                       .filter(Access.user==user)
+                       .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
+                       .all())
     return sorted(set([e.owner.gid.encode() for e in experiments]))
 
 @memoize()
 def get_experiments(username, group_name, trash=False):
-    user = User.get_by(uid=unicode(username))
     q = (Experiment.query.join(Access)
          .join(ResearchGroup, Experiment.owner)
          .filter(ResearchGroup.gid.ilike(unicode(group_name))))
     if not trash:
         q = q.filter(Experiment.trashtime == None)
-    experiments = (q.filter(Access.user==user)
-                    .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
-                    .all())
-    return sorted([e.name.encode() for e in experiments])
+    if username!=None:
+        user = User.get_by(uid=unicode(username))
+        q = (q.filter(Access.user==user)
+              .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read')))
+    return sorted([e.name.encode() for e in q.all()])
 
 @memoize()
 def get_sessions(username, group_name, exp_name, trash=False):
-    user = User.get_by(uid=unicode(username))
-
     q = (Session.query
                 .join(Subject, Session.subject)
                 .join(Experiment, Subject.experiment)
@@ -126,15 +127,15 @@ def get_sessions(username, group_name, exp_name, trash=False):
                 .filter(Experiment.name.ilike(unicode(exp_name))))
     if not trash:
         q = q.filter(Session.trashtime == None)
-    sessions = (q.filter(Access.user==user)
-                  .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
-                  .all())
-    return sorted([s.name.encode() for s in sessions])
+    if username!=None:
+        user = User.get_by(uid=unicode(username))
+        q = (q.filter(Access.user==user)
+              .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read')))
+    return sorted([s.name.encode() for s in q.all()])
 
 @memoize()
 def get_epochs(username, group_name, exp_name, session_name, trash=False):
     # FIXME: we should explicitly set the session name so that we can be sure the exam is there.
-    user = User.get_by(uid=unicode(username))
     sp = session_name.split('_')
     if len(sp)>2 or '%' in sp[0]:
         q = (Epoch.query
@@ -148,17 +149,17 @@ def get_epochs(username, group_name, exp_name, session_name, trash=False):
             q = q.filter(Session.exam==int(sp[2]))
         if not trash:
             q = q.filter(Epoch.trashtime == None)
-        epochs = (q.filter(Access.user==user)
-                   .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
-                   .all())
-        epoch_names = sorted([(e.name + '_' + e.description).encode() for e in epochs])
+        if username!=None:
+            user = User.get_by(uid=unicode(username))
+            q = (q.filter(Access.user==user)
+                  .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read')))
+        epoch_names = sorted([(e.name + '_' + e.description).encode() for e in q.all()])
     else:
         epoch_names = []
     return epoch_names
 
 @memoize()
 def get_datasets(username, group_name, exp_name, session_name, epoch_name, datapath, trash=False):
-    user = User.get_by(uid=unicode(username))
     # FIXME: we should explicitly set the epoch name
     ssp = session_name.split('_')
     if len(ssp)>2:
@@ -185,13 +186,15 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
             q = q.filter(Epoch.acq==int(esp[2]))
         if not trash:
             q = q.filter(Dataset.trashtime == None)
-        datasets = (q.filter(Access.user==user)
-                     .filter((Access.privilege >= AccessPrivilege.value(u'Read-Only')) | ((Dataset.kind != u'primary') & (Dataset.kind != u'secondary')))
-                     .all())
+        if username!=None:
+            user = User.get_by(uid=unicode(username))
+            q = (q.filter(Access.user==user)
+                  .filter((Access.privilege >= AccessPrivilege.value(u'Read-Only'))
+                       | ((Dataset.kind != u'primary') & (Dataset.kind != u'secondary'))))
         if '%' in epoch_name:
             # return a flat structure with legacy-style filenames
             datafiles = []
-            for d in datasets:
+            for d in q.all():
                 # The 'series_container_acq_description' name isn't guaranteed to be unique. Sometimes there are multiple
                 # files with different "extensions". We'll find the extensions here.
                 if len(d.filenames) > 1:
@@ -205,7 +208,7 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
                     #print '   FILENAME=' + f + ' DISPLAY_NAME=' + display_name
         else:
             # Use the filename on disk
-            datafiles = [(f.encode(), os.path.join(datapath,d.relpath,f).encode()) for d in datasets for f in d.filenames]
+            datafiles = [(f.encode(), os.path.join(datapath,d.relpath,f).encode()) for d in q.all() for f in d.filenames]
     else:
         datafiles = []
     return datafiles
@@ -213,9 +216,10 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
 
 class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
 
-    def __init__(self, datapath, db_uri):
+    def __init__(self, datapath, db_uri, god_mode=False):
         self.datapath = datapath
         self.db_uri = db_uri
+        self.god_mode = god_mode
         self.rwlock = threading.Lock()
         self.gzfile = None
         init_model(sqlalchemy.create_engine(self.db_uri))
@@ -232,9 +236,10 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         else:
             mode = stat.S_IFREG | 0444
             nlink = 1
-            username = pwd.getpwuid(uid).pw_name
+            username = pwd.getpwuid(uid).pw_name if not self.god_mode else None
             groupname = grp.getgrgid(gid).gr_name
             cur_path = path.split('/')
+            size = 1
             if len(cur_path) == 6:
                 files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath)
                 fname = next((f[1] for f in files if f[0]==cur_path[5]), None)
@@ -257,7 +262,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
 
     def readdir(self, path, fh):
         uid, gid, pid = fuse.fuse_get_context()
-        username = pwd.getpwuid(uid).pw_name
+        username = pwd.getpwuid(uid).pw_name if not self.god_mode else None
         groupname = grp.getgrgid(gid).gr_name
         cur_path = path.split('/')
         if len(cur_path) < 2 or not cur_path[1]:
@@ -284,32 +289,32 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
             cur_path = path.split('/')
             if len(cur_path) == 6:
                 uid, gid, pid = fuse.fuse_get_context()
-                username = pwd.getpwuid(uid).pw_name
+                username = pwd.getpwuid(uid).pw_name if not self.god_mode else None
                 groupname = grp.getgrgid(gid).gr_name
                 files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath)
                 fname = next((f[1] for f in files if f[0]==cur_path[5]), None)
                 if fname:
-                    self.gzipfile = None
+                    self.gzfile = None
                     fh = os.open(fname, flags)
                 else:
                     # Check to see if we're being asked to gunzip on the fly
                     fname = next((f[1] for f in files if f[0]==cur_path[5]+'.gz'), None)
                     if fname:
-                        self.gzipfile = gzip.open(fname,'r')
-                        fh = self.gzipfile.fileno()
+                        self.gzfile = gzip.open(fname,'r')
+                        fh = self.gzfile.fileno()
                     else:
                         raise fuse.FuseOSError(errno.ENOENT)
         return fh
 
     def release(self, path, fh):
-        self.gzipfile = None
+        self.gzfile = None
         os.close(fh)
 
     def read(self, path, size, offset, fh):
         with self.rwlock:
-            if self.gzipfile:
-                self.gzipfile.seek(offset, 0)
-                return self.gzipfile.read(size)
+            if self.gzfile:
+                self.gzfile.seek(offset, 0)
+                return self.gzfile.read(size)
             else:
                 os.lseek(fh, offset, 0)
                 return os.read(fh, size)
@@ -330,8 +335,8 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         return {'st_atime':at, 'st_ctime':ct, 'st_mtime':mt, 'st_gid':gid, 'st_mode':mode, 'st_nlink':1, 'st_size':sz, 'st_uid':uid}
 
     def flush(self, path, fh):
-        if self.gzipfile:
-            self.gzipfile.flush()
+        if self.gzfile:
+            self.gzfile.flush()
         else:
             os.fsync(fh)
 
@@ -341,6 +346,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.description = """Mount a NIMS filesystem. This exposes the NIMS file structure as a reqular filesystem using fuse."""
         self.add_argument('-n', '--no_allow_other', action='store_true', help='Use this flag to disable the "allow_other" option. (For normal use, be sure to enable allow_other in /etc/fuse.conf)')
         self.add_argument('-d', '--debug', action='store_true', help='Start the filesystem in debug mode')
+        self.add_argument('-g', '--god', action='store_true', help='God mode-- NO ACCESS CONTROL!')
         uri = 'postgresql://nims:nims@nimsfs.stanford.edu:5432/nims'
         self.add_argument('-u', '--uri', metavar='URI', default=uri, help='URI pointing to the NIMS database. (Default=%s)' % uri)
         self.add_argument('datapath', help='path to NIMS data')
@@ -349,7 +355,9 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    fuse = fuse.FUSE(Nimsfs(datapath=args.datapath, db_uri=args.uri),
+    if args.god:
+        print "WARNING: Starting god-mode. All access control disabled!"
+    fuse = fuse.FUSE(Nimsfs(datapath=args.datapath, db_uri=args.uri, god_mode=args.god),
                      args.mountpoint,
                      debug=args.debug,
                      big_writes=True, max_read=131072, max_write=131072,
