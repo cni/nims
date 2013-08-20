@@ -7,84 +7,16 @@
 <xi:include href="master.html" />
 
 <head>
-<title>NIMS Search</title>
+    <link rel="stylesheet" type="text/css" href="../css/search.css" />
+    <title>NIMS Search</title>
 
-<meta content="text/html; charset=UTF-8" http-equiv="Content-Type"
-	py:if="False" />
-<script data-main="${tg.url('/javascript/search')}"
-	src="${tg.url('/javascript/require.js')}"></script>
-<script
-	src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
-
-<style>
-.asterisk{
-	position:absolute;
-}
-#select_param{
-	padding-right:15px;
-}
-#criteriaBody{
-	padding-bottom:20px;
-}
-#submitDiv{
-	padding-top:20px;
-	padding-left:20px;
-}
-
-#dates{
-	top:200px;
-}
-
-#query_table {
-
-}
-
-#epochs {
-	width: 82%;
-}
-
-#datasets {
-	width: 150px;
-}
-
-#newCriteria {
-	position: relative;
-}
-
-.hide {
-	display: none;
-}
-
-.col_access {
-	width: 10%;
-}
-
-.col_sunet {
-	width: 12%;
-}
-
-.col_exp {
-	width: 17%;
-}
-
-.col_datetime {
-	width: 17%;
-}
-
-.col_subj {
-	width: 12%;
-}
-
-.col_desc {
-	width: 32%;
-}
-
-#epochs_pop,#datasets_pop {
-	padding: 0px;
-	margin: 0px;
-	overflow: hidden;
-}
-</style>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type"
+	    py:if="False" />
+    <script data-main="${tg.url('/javascript/search')}"
+	    src="${tg.url('/javascript/require.js')}"></script>
+    <script type="text/javascript" src="../javascript/jquery.qtip-1.0.0-rc3.min.js"></script>
+    <script
+	    src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
 </head>
 
 <body>
@@ -94,7 +26,21 @@
 	<div id="datasets_pop" class="pop" style="display: none">
 		<iframe id="edit_dataset_iframe" src="" frameborder="no" />
 	</div>
-
+    <!-- Banner used to show the error from js validation -->
+    <div id='bannerjs'>
+        <div class='hide' id="bannerjs-emptyfields">         
+        </div>
+        <div class='hide' id="bannerjs-errorstring">         
+        </div>
+        <div class='hide' id="bannerjs-errorints">         
+        </div>
+    </div>
+    <!-- Banner used to show the error from python validation-->
+    <div class='hide' id='bannerpy'>
+        <div id="bannerpy-content">
+            
+        </div>
+    </div>
 	<h2>Search</h2>
 
 	<p>NIMS currently hosts ${dataset_cnt} datasets.</p>
@@ -103,8 +49,8 @@
 		<div id="query_table" cellpadding="0" cellspacing="0">
 					<div id="criteriaBody">
 						<div class='criteriaContainer' id="criteriaContainer">
-							<span id='select_param'> <select id="search_param" name="search_param">
-									<option py:for="param in param_list">${param}</option>
+							<span id='select_param'> <select class="search_param" name="search_param">
+									<option py:for="param in param_list" >${param}</option>
 							</select>
 							<img class='hide asterisk' src='../images/icon_RequiredField.png' />
 							</span>
@@ -186,7 +132,7 @@
 		</tbody>
 	</table>
 </body>
-<script>
+<script type="text/javascript">
 
 
 	// Add  new criteria to the query
@@ -207,6 +153,9 @@
 		$(clonedContainer).each(function() {
 			$('input', this).val('');
 			});
+            
+        // Initialize the tooltip message 
+        setTooltip($(clonedContainer).find('#search_query'), tooltipMessages['Subject Name']);
 
 		//Append to parent
 		clonedContainer.appendTo('#criteriaBody');
@@ -233,32 +182,129 @@
 
 		// Make sure last container has the add button
 		 $(".criteriaContainer").last().find('#newCriteria').removeClass('hide');
-
+         
 
 	});
+    
+    // Map of parameter options and functions to validate fields
+    var validation_inputs = {
+        'Subject Name' : is_ascii,
+        'Subject Age' : is_otherfield,
+        'Exam' : is_integer,
+        'Operator' : is_ascii,
+        'PSD Name' : is_ascii,
+    };
+    
 
+    var error_ascii = [];
+    var error_int = [];
+    
+    // Validation functions
+    function is_ascii(value){
+       //var patt1=/^[a-zA-Z\s]*$/;
+       var pattascii=/^[\x00-\x7F]*$/;
+       if(!pattascii.test(value)){
+           error_ascii.push(value);
+       }
+       return pattascii.test(value);
+    }
+
+    function is_integer(value){
+        var patt2=/^\d+$/;
+        if(!patt2.test(value)){
+            error_int.push(value);
+        }
+        return patt2.test(value);
+    }
+    
+    function is_otherfield(value){
+        return true;
+    }
 
 	// Validation of the fields
 
 	$('#submit').click( function(){
+        error_ascii = [];
+        error_int = [];
 
 		var validationError = false;
 
 		$('#criteriaBody div').each(function(){
-
 			var value = $('.required', this).val();
+                 
 			if( value === '' ){
-				$('.asterisk', this).removeClass('hide');
-				validationError = true;
+				$('.asterisk', this).removeClass('hide');               
+                $('#bannerjs-emptyfields').html('Empty input fields must be completed or removed');
+                $('#bannerjs-emptyfields').removeClass('hide');
+                validationError = true;
 			}else{
 				$('.asterisk', this).addClass('hide');
+                $('#bannerjs-emptyfields').addClass('hide');
 			}
+            var option = $('.search_param', this).val();
+            
+            // Validation by functions described above
+            validation_inputs[option](value);
+            
+            if(error_ascii.length != 0 ){
+                $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
+                $('#bannerjs-errorstring').removeClass('hide');
+            }else{
+                $('#bannerjs-errorstring').addClass('hide');
+            }
+            if(error_int.length != 0 ){
+                $('#bannerjs-errorints').html("Fields <b>" + error_int.toString() + "</b> do not correspond to integer");
+                $('#bannerjs-errorints').removeClass('hide');
+            }else{
+                $('#bannerjs-errorints').addClass('hide');
+            }
 		});
-
+        
+        
+        
 		if( validationError ){
 			return false;
 		}
 	});
+    
+    var tooltipMessages = {
+        'Subject Name' : 'Only <b>First Name</b> or <b>Last Name</b>',
+        'Subject Age' : 'Some examples of valid inputs: <b>  &gt;10</b>, <b>&lt;50</b>, <b>10 to 30</b>',
+        'PSD Name' : 'Some examples of valid inputs: <b>cni_epi</b>, <b>BRAVO</b>',
+        'Exam' : 'Experiment should be a number between: <b>100</b>, <b>5000</b>',
+        'Operator' : '<b>SunID</b> of operator',
+    };
+    
+    // Tooltip to show the examples of how to enter the age, used qTip to do it.
+    $('.search_param').live('change', function(){
+        var option = this.value;
+        var tooltipText = tooltipMessages[option];
+        
+        var inputBox = $(this).parents('.criteriaContainer').find('#search_query');
+        setTooltip(inputBox, tooltipText);
+    });
+    
+    function setTooltip(inputBox, tooltipText) {
+        // Destroy currrent tooltip if present
+        if ($(inputBox).data("qtip")) $(inputBox).qtip("destroy");
+        
+        inputBox.qtip({ 
+                content: tooltipText,
+                style: {
+                  border: {
+                     width: 2,
+                     radius: 2
+                  },
+                  padding: 4, 
+                  textAlign: 'center',
+                  tip: true, 
+                  name: 'cream' 
+               }
+           });
+    }
+    
+    //Set tooltip to Subject Name when page loaded
+    setTooltip($('#search_query'), tooltipMessages['Subject Name']);
 
 </script>
 </html>

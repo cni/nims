@@ -27,6 +27,8 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
      */
     var refreshEpochs = function(table, selected_rows, is_instant, populateNextTableFn)
     {
+        // $('#bannerpy').addClass('hide');
+        
         $.ajax(
         {
             type: 'POST',
@@ -35,6 +37,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
             data: $("#search_form").serialize(),
             success: function(data)
             {
+                
                 if (data.success)
                 {
                     populateNextTableFn(table, data);
@@ -43,7 +46,8 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                 }
                 else
                 {
-                    alert('Failed'); // implement better alert
+                    // $('#bannerpy-content').text(data.error_message);
+//                     $('#bannerpy').removeClass('hide');
                 }
                 table.select(is_instant);
             },
