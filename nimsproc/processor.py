@@ -21,6 +21,8 @@ import nimsutil
 import nimsdata
 from nimsgears.model import *
 
+# TODO: pull this out to a command-line arg
+max_num_recon_jobs = 32
 
 class Processor(object):
 
@@ -249,7 +251,7 @@ class PFilePipeline(Pipeline):
                         pf = None
                     else:
                         break
-            conv_type, conv_file = pf.convert(os.path.join(outputdir, ds.container.name)) if pf else (None, None)
+            conv_type, conv_file = pf.convert(os.path.join(outputdir, ds.container.name), num_jobs=max_num_recon_jobs) if pf else (None, None)
 
             if conv_file:
                 outputdir_list = os.listdir(outputdir)
