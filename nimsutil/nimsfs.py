@@ -220,7 +220,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         self.datapath = datapath
         self.db_uri = db_uri
         self.god_mode = god_mode
-        self.rwlock = threading.Lock()
+        #self.rwlock = threading.Lock()
         self.gzfile = None
         init_model(sqlalchemy.create_engine(self.db_uri))
 
@@ -317,13 +317,13 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         os.close(fh)
 
     def read(self, path, size, offset, fh):
-        with self.rwlock:
-            if self.gzfile:
-                self.gzfile.seek(offset, 0)
-                return self.gzfile.read(size)
-            else:
-                os.lseek(fh, offset, 0)
-                return os.read(fh, size)
+        #with self.rwlock:
+        if self.gzfile:
+            self.gzfile.seek(offset, 0)
+            return self.gzfile.read(size)
+        else:
+            os.lseek(fh, offset, 0)
+            return os.read(fh, size)
 
     def fgetattr(self, fh=None):
         uid, gid, pid = fuse.fuse_get_context()
@@ -366,6 +366,6 @@ if __name__ == '__main__':
     fuse = fuse.FUSE(Nimsfs(datapath=args.datapath, db_uri=args.uri, god_mode=args.god),
                      args.mountpoint,
                      debug=args.debug,
-                     big_writes=True, max_read=131072, max_write=131072,
+                     big_writes=True, max_read=2**17, max_write=2**17, nothreads=True,
                      allow_other=(not args.no_allow_other))
 
