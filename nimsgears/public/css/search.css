@@ -1,3 +1,22 @@
+#db_wrapper{
+    width:100%;
+}
+#db_choice{
+    width:250px;
+    float:left;
+    padding-bottom:15px;
+}
+.first_name{
+    margin-left:10px;
+    float:left;
+    padding-bottom:15px;
+}
+.last_name{
+    padding-left:20px;
+    margin-left:350;
+    float:left;
+    padding-bottom:15px;
+}
 div#bannerjs { 
     position: relative; 
     top: 0; 
@@ -39,15 +58,30 @@ div#bannerpy-content {
 	padding-right:15px;
 }
 #criteriaBody{
-	padding-bottom:20px;
+	padding-bottom:5px;
+    width:100%;
+    overflow:hidden;   
 }
+#criteriaContainerA{
+    width:350px;
+    float:left;
+}
+#criteriaContainerB{
+    margin-left:380px;
+}
+.field_information{
+    margin-left:130px;
+}
+#newCriteria {
+	position: relative;
+}
+
 #submitDiv{
-	padding-top:20px;
-	padding-left:20px;
+	padding:5px;
 }
 
 #dates{
-	top:200px;
+	padding:5px;
 }
 
 #query_table {
@@ -60,10 +94,6 @@ div#bannerpy-content {
 
 #datasets {
 	width: 150px;
-}
-
-#newCriteria {
-	position: relative;
 }
 
 .hide {

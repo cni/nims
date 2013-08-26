@@ -47,8 +47,20 @@
 
 	<form id="search_form" accept-charset="UTF-8">
 		<div id="query_table" cellpadding="0" cellspacing="0">
-					<div id="criteriaBody">
-						<div class='criteriaContainer' id="criteriaContainer">
+            <div id='db_wrapper'>
+                <div id='db_choice'>
+                    <input id='data_checkBox' type="checkbox" name='choose_db' value='any_data'/>Include data I do not have access to
+                </div>
+                <div class='first_name'>
+                    First Name<input id='first_name' type='text' name='subject_name' value=''/>
+                </div>
+                <div class='last_name'>
+                    Last Name<input id='last_name' type='text' name='subject_name' value=''/>
+                </div>
+            </div>
+            <div id='upper_Body'>
+					<div class='criteriaBody' id="criteriaBody" >
+						<div class='criteriaContainer' id="criteriaContainerA">
 							<span id='select_param'> <select class="search_param" name="search_param">
 									<option py:for="param in param_list" >${param}</option>
 							</select>
@@ -57,15 +69,29 @@
 							<span>
 							<input class='required' id="search_query" name="search_query" type="text"
 								size="30"></input>
+                            <div class='field_information'></div>
 							</span>
-							<img class='removeCriteria hide' id="remove"
-								src="../images/remove.png" title="Remove builder" />
-							<img class='addCriteria' id="newCriteria"
-								src="../images/add.png" title="Add new builder" />
 						</div>
-				</div>
+						<div class='criteriaContainer' id="criteriaContainerB">
+							<span id='select_param'> <select class="search_param" name="search_param">
+									<option py:for="param in param_list" >${param}</option>
+							</select>
+							<img class='hide asterisk' src='../images/icon_RequiredField.png' />
+							</span>
+							<span>
+							<input class='required' id="search_query" name="search_query" type="text"
+								size="30"></input>
+    						<img class='removeCriteria hide' id="remove"
+                                    src="../images/remove.png" title="Remove builder" />
+                            <img class='addCriteria' id="newCriteria"
+                                    src="../images/add.png" title="Add new builder" /> 
+                            <div class='field_information'></div>
+							</span>
+						</div>
+				    </div>
+                </div>
 
-				<div id="dates">
+			<div id="dates">
 					<script>
 						$(function() {
 							$("#date_from").datepicker(
@@ -99,14 +125,14 @@
 						size="9" id="date_from" name="date_from" /></span>
 					<span><label for="date_to">to</label> <input type="text"
 						size="9" id="date_to" name="date_to" /></span>
-				</div>
-				<div id='submitDiv'>
-					<span><input type="submit" id="submit" value="Search" /></span>
-					<span>
-						<p id="n_results"></p>
-					</span>
-				</div>
 			</div>
+			<div id='submitDiv'>
+				<span><input type="submit" id="submit" value="Search" /></span>
+				<span>
+					<p id="n_results"></p>
+				</span>
+			</div>
+		</div>
 	</form>
 
 	<table id="epochs" class="scrolltable" style="visibility: hidden">
@@ -144,8 +170,8 @@
 		function() {
 
 		//Create new Fields
-		var clonedContainer = $('.criteriaContainer' ).last().clone()
-			.attr('id','criteriaContainer' + max );
+		var clonedContainer = $('.criteriaBody' ).last().clone()
+			.attr('id','criteriaBody' + max );
 			max++;
 			criteriaCounter++;
 
@@ -155,10 +181,10 @@
 			});
             
         // Initialize the tooltip message 
-        setTooltip($(clonedContainer).find('#search_query'), tooltipMessages['Subject Name']);
+        setInformation($(clonedContainer).find('.field_information'), tooltipMessages['Subject Name']);
 
 		//Append to parent
-		clonedContainer.appendTo('#criteriaBody');
+		clonedContainer.appendTo('#upper_Body');
 
 		//Add the plus button to add criteria
 		$(this).addClass('hide');
@@ -172,7 +198,7 @@
 
 	$('#remove').live('click', function(){
 
-		$(this).parents('.criteriaContainer').remove();
+		$(this).parents('.criteriaBody').remove();
 		criteriaCounter--;
 
 		// In case last builder, not to show remove option
@@ -181,7 +207,7 @@
 		}
 
 		// Make sure last container has the add button
-		 $(".criteriaContainer").last().find('#newCriteria').removeClass('hide');
+		 $(".criteriaBody").last().find('#newCriteria').removeClass('hide');
          
 
 	});
@@ -189,7 +215,7 @@
     // Map of parameter options and functions to validate fields
     var validation_inputs = {
         'Subject Name' : is_ascii,
-        'Subject Age' : is_otherfield,
+        'Subject Age' : is_ascii,
         'Exam' : is_integer,
         'Operator' : is_ascii,
         'PSD Name' : is_ascii,
@@ -205,16 +231,20 @@
        var pattascii=/^[\x00-\x7F]*$/;
        if(!pattascii.test(value)){
            error_ascii.push(value);
+           return false
        }
-       return pattascii.test(value);
+       return true;
     }
 
     function is_integer(value){
+        if(value == '')
+            return true
         var patt2=/^\d+$/;
         if(!patt2.test(value)){
             error_int.push(value);
+            return false;
         }
-        return patt2.test(value);
+        return true;
     }
     
     function is_otherfield(value){
@@ -229,22 +259,12 @@
 
 		var validationError = false;
 
-		$('#criteriaBody div').each(function(){
+		$('.criteriaContainer').each(function(){
 			var value = $('.required', this).val();
-                 
-			if( value === '' ){
-				$('.asterisk', this).removeClass('hide');               
-                $('#bannerjs-emptyfields').html('Empty input fields must be completed or removed');
-                $('#bannerjs-emptyfields').removeClass('hide');
-                validationError = true;
-			}else{
-				$('.asterisk', this).addClass('hide');
-                $('#bannerjs-emptyfields').addClass('hide');
-			}
             var option = $('.search_param', this).val();
             
             // Validation by functions described above
-            validation_inputs[option](value);
+            validationError = validation_inputs[option](value);
             
             if(error_ascii.length != 0 ){
                 $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
@@ -258,53 +278,52 @@
             }else{
                 $('#bannerjs-errorints').addClass('hide');
             }
-		});
-        
-        
-        
+		});      
 		if( validationError ){
 			return false;
 		}
 	});
     
     var tooltipMessages = {
-        'Subject Name' : 'Only <b>First Name</b> or <b>Last Name</b>',
-        'Subject Age' : 'Some examples of valid inputs: <b>  &gt;10</b>, <b>&lt;50</b>, <b>10 to 30</b>',
-        'PSD Name' : 'Some examples of valid inputs: <b>cni_epi</b>, <b>BRAVO</b>',
-        'Exam' : 'Experiment should be a number between: <b>100</b>, <b>5000</b>',
-        'Operator' : '<b>SunID</b> of operator',
+        'Subject Name' : 'Only First Name or Last Name',
+        'Subject Age' : 'Examples:  &gt;10, &lt;50, 10 to 30',
+        'PSD Name' : 'Examples: cni_epi, BRAVO',
+        'Exam' : 'Number between: 1, 99999',
+        'Operator' : 'SunID of operator',
     };
     
     // Tooltip to show the examples of how to enter the age, used qTip to do it.
     $('.search_param').live('change', function(){
         var option = this.value;
-        var tooltipText = tooltipMessages[option];
-        
-        var inputBox = $(this).parents('.criteriaContainer').find('#search_query');
-        setTooltip(inputBox, tooltipText);
+        var tooltipText = tooltipMessages[option];    
+        var information = $(this).parents('.criteriaContainer').find('.field_information');
+        information.html(tooltipText);
     });
     
-    function setTooltip(inputBox, tooltipText) {
-        // Destroy currrent tooltip if present
-        if ($(inputBox).data("qtip")) $(inputBox).qtip("destroy");
-        
-        inputBox.qtip({ 
-                content: tooltipText,
-                style: {
-                  border: {
-                     width: 2,
-                     radius: 2
-                  },
-                  padding: 4, 
-                  textAlign: 'center',
-                  tip: true, 
-                  name: 'cream' 
-               }
-           });
-    }
     
+    function setInformation(information, tooltipText){
+        information.html(tooltipText);
+    }
+  
     //Set tooltip to Subject Name when page loaded
-    setTooltip($('#search_query'), tooltipMessages['Subject Name']);
+     setInformation($('.field_information'), tooltipMessages['Subject Age']);
+    
+     //Show the First Name and Last Name only when search in your data:
+     var countCheck = 0;
+     $('#data_checkBox').live('click', function(){ 
+        if( countCheck%2 == 0 ){
+            $('#first_name, #last_name').attr('disabled', 'disabled');
+            $('.first_name, .last_name').css('color', '#E0E0E0');
+            $('#first_name, #last_name').css('color', '#E0E0E0');
+            countCheck++;
+        }else{
+            $('#first_name, #last_name').removeAttr('disabled');
+            $('.first_name, .last_name').css('color', '#000000 ');
+             $('#first_name, #last_name').css('color', '#000000 ');
+            countCheck++;
+        }
+     });
+    
 
 </script>
 </html>
