@@ -34,10 +34,14 @@ validation_functions = {
     'Operator' : is_ascii,
     'Subject Age' : is_ascii,
     'PSD Name' : is_ascii,
+    'Scan Type': is_ascii,
 }
 
 def query_psdname( db_query, query_value ):
     return db_query.filter(Epoch.psd.ilike( query_value ))
+    
+def query_scantype( db_query, query_value ):
+    return db_query.filter(Epoch.scan_type.ilike( query_value ))
             
 def query_subjectname( db_query, query_value ):
     return db_query.filter(Subject.lastname.ilike( query_value ) | Subject.firstname.ilike( query_value ))
@@ -73,6 +77,7 @@ query_functions = {
     'Operator' : query_operator,
     'Subject Age' : query_subjectage,
     'PSD Name' : query_psdname,
+    'Scan Type': query_scantype,
 }
 
 
@@ -81,14 +86,16 @@ class SearchController(NimsController):
     @expose('nimsgears.templates.search')
     def index(self):
         dataset_cnt = Session.query.count()
-        param_list = [ 'Subject Age', 'PSD Name', 'Exam', 'Operator']
-        epoch_columns = [('Access', 'col_access'), ('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Subj. Code', 'col_subj'), ('Description', 'col_desc')]
+        param_list = [ 'Subject Age', 'PSD Name', 'Exam', 'Operator', 'Scan Type']
+        epoch_columns = [('Access', 'col_access'), ('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Scan Type', 'col_typescan'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
+        scantype_values = ['','anatomy', 'functional', 'calibration', 'localizer']
         return dict(page='search',
                 dataset_cnt=dataset_cnt,
             param_list=param_list,
             epoch_columns=epoch_columns,
-            dataset_columns=dataset_columns)
+            dataset_columns=dataset_columns,
+            scantype_values=scantype_values)
                
                
                
@@ -96,6 +103,7 @@ class SearchController(NimsController):
     def query(self, **kwargs):
         # For more robust search query parsing, check out pyparsing.
         result = {'success': False}
+        print kwargs
         if 'search_param' in kwargs and 'search_query' in kwargs and 'date_from' in kwargs and 'date_to' in kwargs and 'subject_name' in kwargs:
             search_query = kwargs['search_query']
             search_param = kwargs['search_param']
@@ -121,17 +129,13 @@ class SearchController(NimsController):
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         
         
-        print '++++++++++++++++++++++++++ user', user
-        
         if 'choose_db' in kwargs:
-            print '++++++++++++++++++++++++++++++++++++ choose_db selection'
             parameters = [(x,y) for x,y in parameters if x != 'Subject Name']
             db_query = (DBSession.query(Epoch, Session, Subject, Experiment)
                         .join(Session, Epoch.session)
                         .join(Subject, Session.subject)
                         .join(Experiment, Subject.experiment))
         else:
-            print'+++++++++++++++++++++++++++++++++ NO choose_db selected'
             db_query = (DBSession.query(Epoch, Session, Subject, Experiment)
                         .join(Session, Epoch.session)
                         .join(Subject, Session.subject)
@@ -140,12 +144,9 @@ class SearchController(NimsController):
                         .filter(Access.user == user))
             for elem in parameters:
                 if 'Subject Name' in elem[0]:
-                    print '++++++++++++++++++++++++++++++++= Subject Name in parameters-----> read only'
                     db_query = db_query.filter(Access.privilege >= AccessPrivilege.value(u'Read-Only'))
                 else:
-                    print'++++++++++++++++++++++++++++++++++ No subject Name selected'
                     db_query = db_query.filter(Access.privilege >= AccessPrivilege.value(u'Anon-Read'))
-                    
             
         # TODO: when fields are all empty stop the search.
         if len(parameters)==0 and kwargs['date_from']=='' and kwargs['date_to']=='':
@@ -180,7 +181,7 @@ class SearchController(NimsController):
                               exp.owner.gid,
                               exp.name,
                               sess.timestamp.strftime('%Y-%m-%d %H:%M'),
-                              subject.code,
+                              epoch.scan_type,
                               epoch.description))
             attr_list.append({'id':'epoch=%d' % epoch.id})
         return data_list, attr_list
