@@ -128,6 +128,10 @@ var max = 1;
 
 $('#newCriteria').live('click',
 	function() {
+    
+    //Before cloning get fields of search_param   
+    var spa = $('.criteriaBody' ).last().children('#criteriaContainerA').find('.search_param').val();
+    var spb = $('.criteriaBody' ).last().children('#criteriaContainerB').find('.search_param').val();
 
 	//Create new Fields
 	var clonedContainer = $('.criteriaBody' ).last().clone()
@@ -151,9 +155,18 @@ $('#newCriteria').live('click',
 	//Show the remove button
 	$('.removeCriteria').removeClass('hide');
     
-    //Set dropdown boxes to Scan Type and Exam:
-    clonedContainer.children('#criteriaContainerA').find('.search_param').val('Scan Type');
-    clonedContainer.children('#criteriaContainerB').find('.search_param').val('Exam');
+    //Set dropdown boxes and tooltips to cloned box values
+    clonedContainer.children('#criteriaContainerA').find('.search_param').val(spa);
+    clonedContainer.children('#criteriaContainerB').find('.search_param').val(spb);
+    var tta = clonedContainer.children('#criteriaContainerA').find('.field_information');
+    var ttb = clonedContainer.children('#criteriaContainerB').find('.field_information');
+    if( spa != 'Scan Type'){ 
+        setInformation(tta, tooltipMessages[spa]);
+    }
+    if( spb != 'Scan Type'){ 
+        setInformation(ttb, tooltipMessages[spb]);
+    }
+    
 });
 
 
@@ -219,15 +232,17 @@ function is_otherfield(value){
 $('#submit').click( function(){
     error_ascii = [];
     error_int = [];
-
 	var validationError = false;
 
-	$('.criteriaContainer').each(function(){
-		var value = $('.required', this).val();
-        var option = $('.search_param', this).val();
+	$('.criteriaBody').each(function(){
+		var valueA = $(this).children('#criteriaContainerA').find('.required').val();
+        var valueB = $(this).children('#criteriaContainerB').find('.required').val();
+        var optionA = $(this).children('#criteriaContainerA').find('.search_param').val();
+        var optionB = $(this).children('#criteriaContainerB').find('.search_param').val();
         
         // Validation by functions described above
-        validation_inputs[option](value);
+        validation_inputs[optionA](valueA);
+        validation_inputs[optionB](valueB);
         
         if(error_ascii.length != 0 ){
             $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
