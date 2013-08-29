@@ -878,6 +878,28 @@ class Dataset(Entity):
     filenames = property(_get_filenames, _set_filenames)
 
     @property
+    def primary_file_relpath(self):
+        fn = self._get_filenames()
+        if len(fn)<=1:
+            primary_file = fn[0] if len(fn)==1 else []
+        else:
+            if self.filetype==u'pfile':
+                primary_file = next((f for f in fn if f.startswith('P') and f.endswith('.7.gz') and len(f)==11), [])
+            elif self.filetype==u'dicom':
+                primary_file = next((f for f in fn if f.endswith('_dicoms.tgz')), [])
+            elif self.filetype==u'nifti':
+                primary_file = next((f for f in fn if f.endswith('.nii.gz')), [])
+            elif self.filetype==u'bitmap':
+                primary_file = next((f for f in fn if f.endswith('.png')), [])
+            elif self.filetype==u'img_pyr':
+                primary_file = next((f for f in fn if f.endswith('.pyrdb')), [])
+            elif self.filetype==u'physio':
+                primary_file = next((f for f in fn if f.endswith('.physio.tgz')), [])
+            else:
+                primary_file = fn[0]
+        return os.path.join(self.relpath, primary_file)
+
+    @property
     def is_trash(self):
         return bool(self.trashtime)
 
