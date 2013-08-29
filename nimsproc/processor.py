@@ -135,11 +135,14 @@ class Pipeline(threading.Thread):
         if dc.physio_recorded:
             physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.prescribed_duration, dc.psd.encode('utf-8'))
             if physio_files:
-                # For multiband sequences, we want a regressor for each *muxed* slice, so pass num_slices/num_bands
-                physio = nimsdata.nimsphysio.NIMSPhysio(physio_files, dc.tr, dc.num_timepoints, dc.num_slices/dc.num_bands)
+                physio = nimsdata.nimsphysio.NIMSPhysio(physio_files, dc.tr, dc.num_timepoints)
                 if physio.is_valid():
                     self.job.activity = u'valid physio found'
                     self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                    # Computing the slice-order can be expensive, so we didn't do it when we instantiated.
+                    # But now that we know physio is valid, we need to do it.
+                    ni = nimsdata.parse(os.path.join(self.nims_path, ds.primary_file_relpath))
+                    physio.slice_order = ni.get_slice_order() # TODO: should probably write a set method
                     dataset = Dataset.at_path(self.nims_path, u'physio')
                     DBSession.add(self.job)
                     DBSession.add(self.job.data_container)
