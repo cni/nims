@@ -50,7 +50,7 @@ class NIMSNifti(nimsdata.NIMSData):
         if metadata.bvals is not None and metadata.bvecs is not None:
             filepath = outbase + '.bval'
             with open(filepath, 'w') as bvals_file:
-                bvals_file.write(' '.join(['%f' % value for value in metadata.bvals]))
+                bvals_file.write(' '.join(['%0.1f' % value for value in metadata.bvals]))
             log.debug('generated %s' % os.path.basename(filepath))
             filepath = outbase + '.bvec'
             with open(filepath, 'w') as bvecs_file:
@@ -59,13 +59,15 @@ class NIMSNifti(nimsdata.NIMSData):
                 bvecs_file.write(' '.join(['%0.4f' % value for value in metadata.bvecs[2,:]]) + '\n')
             log.debug('generated %s' % os.path.basename(filepath))
 
+        # Don't trust metatdata.num_slices, since the # of resulting slices might not match the # acquired.
+        num_slices = imagedata.shape[2]
         nii_header = nibabel.Nifti1Header()
         nii_header.set_xyzt_units('mm', 'sec')
         nii_header.set_qform(metadata.qto_xyz, 'scanner')
         nii_header.set_sform(metadata.qto_xyz, 'scanner')
         nii_header.set_dim_info(*([1, 0, 2] if metadata.phase_encode == 0 else [0, 1, 2]))
         nii_header['slice_start'] = 0
-        nii_header['slice_end'] = metadata.num_slices - 1
+        nii_header['slice_end'] = num_slices - 1
         nii_header['slice_duration'] = metadata.slice_duration
         nii_header['slice_code'] = metadata.slice_order
         if np.iscomplexobj(imagedata):

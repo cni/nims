@@ -62,8 +62,7 @@ class NIMSDicom(nimsimage.NIMSImage):
     parse_priority = 9
 
     def __init__(self, dcm_path):
-        self.dcm_path = dcm_path
-
+        self.filepath = dcm_path
         def acq_date(hdr):
             if 'AcquisitionDate' in hdr:    return hdr.AcquisitionDate
             elif 'StudyDate' in hdr:        return hdr.StudyDate
@@ -75,15 +74,16 @@ class NIMSDicom(nimsimage.NIMSImage):
             else:                           return '000000'
 
         try:
-            if os.path.isfile(self.dcm_path) and tarfile.is_tarfile(self.dcm_path):     # compressed tarball
+            if os.path.isfile(self.filepath) and tarfile.is_tarfile(self.filepath):
+                # compressed tarball
                 self.compressed = True
-                with tarfile.open(self.dcm_path) as archive:
+                with tarfile.open(self.filepath) as archive:
                     archive.next()  # skip over top-level directory
                     self._hdr = dicom.read_file(cStringIO.StringIO(archive.extractfile(archive.next()).read()), stop_before_pixels=True)
-
-            else:                                                                       # directory of dicoms or single file
+            else:
+                # directory of dicoms or single file
                 self.compressed = False
-                dcm_path = self.dcm_path if os.path.isfile(self.dcm_path) else os.path.join(self.dcm_path, os.listdir(self.dcm_path)[0])
+                dcm_path = self.filepath if os.path.isfile(self.filepath) else os.path.join(self.filepath, os.listdir(self.filepath)[0])
                 self._hdr = dicom.read_file(dcm_path, stop_before_pixels=True)
             if self._hdr.Manufacturer != 'GE MEDICAL SYSTEMS':    # TODO: make code more general
                 raise NIMSDicomError('we can only handle data from GE MEDICAL SYSTEMS')
@@ -151,34 +151,21 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.is_dwi = bool(self.image_type == TYPE_ORIGINAL and getelem(self._hdr, TAG_DIFFUSION_DIRS, int, 0) >= 6)
         self.bvals = None
         self.bvecs = None
+        self.slice_order = None
+        self.slice_duration = None
+        self.reverse_slice_order = None
         self.notes = ''
         self.scan_type = self.infer_scan_type()
+        self.dcm_list = None
         super(NIMSDicom, self).__init__()
 
-    def parse_all_dicoms(self, dcm_list=None):
-        if dcm_list == None:
-            dcm_list = self.load_all_dicoms()
-
-        if self.is_dwi:
-            self.bvals = np.array([getelem(dcm, TAG_BVALUE, float)[0] for dcm in dcm_list[0::self.num_slices]])
-            self.bvecs = np.array([[getelem(dcm, TAG_BVEC[i], float) for i in range(3)] for dcm in dcm_list[0::self.num_slices]]).transpose()
-
-        slice_loc = [getelem(dcm, 'SliceLocation') for dcm in dcm_list]
-        slice_num = [getelem(dcm, 'InstanceNumber') for dcm in dcm_list]
-        image_position = [tuple(getelem(dcm, 'ImagePositionPatient', float, [0., 0., 0.])) for dcm in dcm_list]
-        imagedata = np.dstack([np.swapaxes(dcm.pixel_array, 0, 1) for dcm in dcm_list])
-
-        unique_slice_pos = np.unique(image_position).astype(np.float)
-        if self.num_timepoints == 1:
-            # crude check for a 3-plane localizer. When we get one of these, we actually
-            # want each plane to be a different time point.
-            d = np.sqrt((np.diff(unique_slice_pos,axis=0)**2).sum(1))
-            self.num_timepoints = np.sum((d - np.median(d)) > 10) + 1
-            self.num_slices = self.total_num_slices / self.num_timepoints
-
+    def get_imagedata(self):
+        if self.dcm_list == None:
+            self.load_dicoms()
+        slice_loc = [getelem(dcm, 'SliceLocation') for dcm in self.dcm_list]
+        imagedata = np.dstack([np.swapaxes(dcm.pixel_array, 0, 1) for dcm in self.dcm_list])
         dims = np.array((self.size_y, self.size_x, self.num_slices, self.num_timepoints))
-        slices_total = len(dcm_list)
-
+        slices_total = len(self.dcm_list)
         # If we can figure the dimensions out, reshape the matrix
         if np.prod(dims) == np.size(imagedata):
             imagedata = imagedata.reshape(dims, order='F')
@@ -195,7 +182,6 @@ class NIMSDicom(nimsimage.NIMSImage):
                 imagedata = np.dstack([imagedata, padding])
             volume_start_indices = range(0, slices_total_rounded_up, self.num_slices)
             imagedata = np.concatenate([imagedata[:,:,index:(index + self.num_slices),np.newaxis] for index in volume_start_indices], axis=3)
-
         # Check for multi-echo data where duplicate slices might be interleaved
         # TODO: we only handle the 4d case here, but this could in theory happen with others.
         # TODO: it's inefficient to reshape the array above and *then* check to see if
@@ -216,28 +202,35 @@ class NIMSDicom(nimsimage.NIMSImage):
             tmp = imagedata.copy().reshape([imagedata.shape[0], imagedata.shape[1], nvols], order='F')
             for vol_num in range(self.num_timepoints):
                 imagedata[:,:,:,vol_num] = tmp[:,:,vol_num::self.num_timepoints]
+        if self.reverse_slice_order:
+            log.debug('flipping slice order')
+            imagedata = imagedata[:,:,::-1,:]
+        return imagedata
 
-        self.slice_order = nimsimage.SLICE_ORDER_UNKNOWN
-        if slices_total >= self.num_slices and getelem(dcm_list[0], 'TriggerTime', float) is not None:
-            trigger_times = np.array([getelem(dcm, 'TriggerTime', float) for dcm in dcm_list[0:self.num_slices]])
-            trigger_times_from_first_slice = trigger_times[0] - trigger_times
-            if self.num_slices > 2:
-                self.slice_duration = float(min(abs(trigger_times_from_first_slice[1:]))) / 1000.  # msec to sec
-                if trigger_times_from_first_slice[1] < 0:
-                    self.slice_order = nimsimage.SLICE_ORDER_SEQ_INC if trigger_times[2] > trigger_times[1] else nimsimage.SLICE_ORDER_ALT_INC
-                else:
-                    self.slice_order = nimsimage.SLICE_ORDER_ALT_DEC if trigger_times[2] > trigger_times[1] else nimsimage.SLICE_ORDER_SEQ_DEC
+    def load_all_metadata(self):
+        # TODO: make this less expensive. We can probably get away with a much more selective
+        # loading of dicoms. E.g, maybe just the first volume and then the first slice of each subsequent vol?
+        if self.dcm_list == None:
+            self.load_dicoms()
+        if self.is_dwi:
+            self.bvals = np.array([getelem(dcm, TAG_BVALUE, float)[0] for dcm in self.dcm_list[0::self.num_slices]])
+            self.bvecs = np.array([[getelem(dcm, TAG_BVEC[i], float) for i in range(3)] for dcm in self.dcm_list[0::self.num_slices]]).transpose()
 
-            else:
-                self.slice_duration = trigger_times[0]
-                self.slice_order = nimsimage.SLICE_ORDER_SEQ_INC
+        image_position = [tuple(getelem(dcm, 'ImagePositionPatient', float, [0., 0., 0.])) for dcm in self.dcm_list]
 
-        else:
-            self.slice_duration = None
+        if self.num_timepoints == 1:
+            unique_slice_pos = np.unique(image_position).astype(np.float)
+            # crude check for a 3-plane localizer. When we get one of these, we actually
+            # want each plane to be a different time point.
+            slice_distance = np.sqrt((np.diff(unique_slice_pos,axis=0)**2).sum(1))
+            # ugly hack! The number of time points is the number of big (>10mm) jumps in slice-to-slice distance.
+            self.num_timepoints = np.sum((slice_distance - np.median(slice_distance)) > 10) + 1
+            self.num_slices = self.total_num_slices / self.num_timepoints
 
         cosines = getelem(self._hdr, 'ImageOrientationPatient', float, 6 * [np.nan])
         row_cosines = np.array(cosines[0:3])
         col_cosines = np.array(cosines[3:6])
+
         # Compute the slice_norm. From the NIFTI-1 header:
         #     The third column of R will be either the cross-product of the first 2 columns or
         #     its negative. It is possible to infer the sign of the 3rd column by examining
@@ -252,33 +245,51 @@ class NIMSDicom(nimsimage.NIMSImage):
         # the slice-to-slice position deltas.
         slice_norm = np.cross(row_cosines, col_cosines)
 
-        if np.dot(slice_norm, image_position[0]) > np.dot(slice_norm, image_position[-1]):
-            log.debug('flipping slice norm')
-            slice_norm = -slice_norm
-            # We could choose to flip the image order:
-            #slice_num = slice_num[::-1]
-            #slice_loc = slice_loc[::-1]
-            #image_position = image_position[::-1]
-            #imagedata = imagedata[:,:,::-1,:]
-            # But we would also have to change the slice order flag to get the correct slice timing.
+        # FIXME: the following could fail if the acquisition was before a full volume was aquired.
+        if np.dot(slice_norm, image_position[0]) > np.dot(slice_norm, image_position[self.num_slices]):
+            log.debug('flipping slice order')
+            #slice_norm = -slice_norm
+            self.reverse_slice_order = True
+            self.origin = image_position[self.num_slices] * np.array([-1, -1, 1])
+        else:
+            self.origin = image_position[0] * np.array([-1, -1, 1])
 
-        origin = image_position[0] * np.array([-1, -1, 1])
+        self.slice_order = nimsimage.SLICE_ORDER_UNKNOWN
+        if self.total_num_slices >= self.num_slices and getelem(self.dcm_list[0], 'TriggerTime', float) is not None:
+            trigger_times = np.array([getelem(dcm, 'TriggerTime', float) for dcm in self.dcm_list[0:self.num_slices]])
+            if self.reverse_slice_order:
+                # the slice order will be flipped when the image is saved, so flip the trigger times
+                trigger_times = trigger_times[::-1]
+            trigger_times_from_first_slice = trigger_times[0] - trigger_times
+            if self.num_slices > 2:
+                self.slice_duration = float(min(abs(trigger_times_from_first_slice[1:]))) / 1000.  # msec to sec
+                if trigger_times_from_first_slice[1] < 0:
+                    # slice 1 happened after slice 0, so this must be either SEQ_INC or ALT_INC
+                    self.slice_order = nimsimage.SLICE_ORDER_SEQ_INC if trigger_times[2] > trigger_times[1] else nimsimage.SLICE_ORDER_ALT_INC
+                else:
+                    # slice 1 before slice 0, so must be ALT_DEC or SEQ_DEC
+                    self.slice_order = nimsimage.SLICE_ORDER_ALT_DEC if trigger_times[2] > trigger_times[1] else nimsimage.SLICE_ORDER_SEQ_DEC
+            else:
+                self.slice_duration = trigger_times[0]
+                self.slice_order = nimsimage.SLICE_ORDER_SEQ_INC
+
         rot = nimsimage.compute_rotation(row_cosines, col_cosines, slice_norm)
         if self.is_dwi:
             self.bvecs,self.bvals = nimsimage.adjust_bvecs(self.bvecs, self.bvals, self.scanner_type, rot)
-        self.qto_xyz = nimsimage.build_affine(rot, self.mm_per_vox, origin)
+        self.qto_xyz = nimsimage.build_affine(rot, self.mm_per_vox, self.origin)
+        super(NIMSDicom, self).load_all_metadata()
+        return
 
-        return imagedata
-
-    def load_all_dicoms(self):
-        if os.path.isfile(self.dcm_path) and tarfile.is_tarfile(self.dcm_path):     # compressed tarball
-            with tarfile.open(self.dcm_path) as archive:
-                dcm_list = [dicom.read_file(cStringIO.StringIO(archive.extractfile(ti).read())) for ti in archive if ti.isreg()]
-        elif os.path.isfile(self.dcm_path):                                         # single file
-            dcm_list = [dicom.read_file(self.dcm_path)]
+    def load_dicoms(self):
+        if os.path.isfile(self.filepath) and tarfile.is_tarfile(self.filepath):     # compressed tarball
+            with tarfile.open(self.filepath) as archive:
+                self.dcm_list = [dicom.read_file(cStringIO.StringIO(archive.extractfile(ti).read())) for ti in archive if ti.isreg()]
+        elif os.path.isfile(self.filepath):                                         # single file
+            self.dcm_list = [dicom.read_file(self.filepath)]
         else:                                                                       # directory of dicoms
-            dcm_list = [dicom.read_file(os.path.join(self.dcm_path, f)) for f in os.listdir(self.dcm_path)]
-        return sorted(dcm_list, key=lambda dcm: dcm.InstanceNumber)
+            self.dcm_list = [dicom.read_file(os.path.join(self.filepath, f)) for f in os.listdir(self.filepath)]
+        self.dcm_list.sort(key=lambda dcm: dcm.InstanceNumber)
+        return
 
     def convert(self, outbase, *args, **kwargs):
         if not self.image_type:
@@ -289,7 +300,7 @@ class NIMSDicom(nimsimage.NIMSImage):
             for i, dcm in enumerate(self.load_all_dicoms()):
                 result = ('bitmap', nimspng.NIMSPNG.write(self, dcm.pixel_array, outbase + '_%d' % (i+1)))
         elif 'PRIMARY' in self.image_type:
-            imagedata = self.parse_all_dicoms(self.load_all_dicoms())
+            imagedata = self.get_imagedata()
             result = ('nifti', nimsnifti.NIMSNifti.write(self, imagedata, outbase, self.notes))
         if result[0] is None:
             log.warning('dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase))

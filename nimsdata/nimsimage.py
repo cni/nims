@@ -9,8 +9,24 @@ import numpy as np
 
 import nimsdata
 
+scan_type_list = ['spectroscopy',
+                  'perfusion',
+                  'shim',
+                  'diffusion',
+                  'fieldmap',
+                  'functional',
+                  'calibration',
+                  'localizer',
+                  'anatomy_t1w',
+                  'anatomy_t2w',
+                  'anatomy',
+                  ]
+scan_types = type('Enum', (object,), dict(zip(scan_type_list, scan_type_list)))
+
+
 log = logging.getLogger('nimsimage')
 
+# NIFTI1-stype slice order codes:
 SLICE_ORDER_UNKNOWN = 0
 SLICE_ORDER_SEQ_INC = 1
 SLICE_ORDER_SEQ_DEC = 2
@@ -23,6 +39,29 @@ def compute_rotation(row_cos, col_cos, slice_norm):
                      (-row_cos[1], -col_cos[1], -slice_norm[1]),
                      (row_cos[2], col_cos[2], slice_norm[2])), dtype=float)
     return rot
+
+def compute_slice_norm(self, row_cosines, col_cosines, pos_first, pos_last, imagedata=None):
+    """
+    Computes the slice normal from the x/y cosines and the position of the first and last slice.
+    Returns the slice normal vector and a flag indicating if it was flipped.
+    """
+    # Compute the slice_norm. From the NIFTI-1 header:
+    #     The third column of R will be either the cross-product of the first 2 columns or
+    #     its negative. It is possible to infer the sign of the 3rd column by examining
+    #     the coordinates in DICOM attribute (0020,0032) "Image Position (Patient)" for
+    #     successive slices. However, this method occasionally fails for reasons that I
+    #     (RW Cox) do not understand.
+    # For Siemens data, it seems that looking at 'SliceNormalVector' can help resolve this.
+    #    dicom_slice_norm = getelem(self._hdr, 'SliceNormalVector', float, None)
+    #    if dicom_slice_norm != None and np.dot(self.slice_norm, dicom_slice_norm) < 0.:
+    #        self.slice_norm = -self.slice_norm
+    slice_norm = np.cross(row_cosines, col_cosines)
+    if np.dot(slice_norm, pos_first) > np.dot(slice_norm, pos_last):
+        slice_norm = -slice_norm
+        flipped = True
+    else:
+        flipped = False
+    return slice_norm,flipped
 
 def build_affine(rotation, scale, origin):
     aff = np.zeros((4,4))
@@ -98,8 +137,8 @@ def infer_psd_type(psd_name):
         psd_type = 'cube'
     else:
         psd_type = 'unknown'
+    #psd_dict = {'ge':{'cube':'cube','ssfse':'fse'}, 'siemens':{}, 'philips':{}}
     return psd_type
-
 
 
 class NIMSImageError(nimsdata.NIMSDataError):
@@ -118,6 +157,18 @@ class NIMSImage(nimsdata.NIMSData):
     def __init__(self):
         super(NIMSImage, self).__init__()
 
+    @abc.abstractmethod
+    def load_all_metadata(self):
+        pass
+
+    @abc.abstractmethod
+    def get_imagedata(self):
+        pass
+
+    @abc.abstractmethod
+    def convert(self, outbase, *args, **kwargs):
+        pass
+
     def parse_subject_name(self, name):
         lastname, firstname = name.split('^') if '^' in name else ('', '')
         return firstname.title(), lastname.title()
@@ -132,33 +183,45 @@ class NIMSImage(nimsdata.NIMSData):
         return dob
 
     def infer_scan_type(self):
-        fov = np.fromstring(self.fov[1:-1], sep=',')
-        mm_per_vox = np.fromstring(self.mm_per_vox[1:-1], sep=',')
         if self.psd_type == 'mrs':
-            scan_type = 'spectroscopy'
+            scan_type = scan_types.spectroscopy
         elif self.psd_type == 'asl':
-            scan_type = 'perfusion'
+            scan_type = scan_types.perfusion
         elif self.psd_type == 'hoshim':
-            scan_type = 'shim'
+            scan_type = scan_types.shim
         elif self.is_dwi:
-            scan_type = 'diffusion'
+            scan_type = scan_types.diffusion
         elif self.psd_type == 'spiral' and self.num_timepoints == 2 and self.te < .05:
-            scan_type = 'fieldmap'
-        elif self.psd_type=='epi' and self.te>0.02 and self.te<0.05 and self.num_timepoints>10:
-            scan_type = 'functional'
-        elif (self.psd_type=='gre' or self.psd_type=='fse') and np.all(fov>=250.) and mm_per_vox[2]>=5.:
+            scan_type = scan_types.fieldmap
+        elif 'epi' in self.psd_type and self.te>0.02 and self.te<0.05 and self.num_timepoints>2:
+            scan_type = scan_types.functional
+        elif (self.psd_type=='gre' or self.psd_type=='fse') and self.fov[0]>=250. and self.fov[1]>=250. and self.mm_per_vox[2]>=5.:
             # Could be either a low-res calibration scan (e.g., ASSET cal) or a localizer.
-            if mm_per_vox[0] > 2:
-                scan_type = 'calibration'
+            if self.mm_per_vox[0] > 2:
+                scan_type = scan_types.calibration
             else:
-                scan_type = 'localizer'
+                scan_type = scan_types.localizer
         else:
             # anything else will be an anatomical
             if self.psd_type == 'spgr':
-                scan_type = 'anatomy-t1w'
+                scan_type = scan_types.anatomy_t1w
             elif self.psd_type == 'cube':
-                scan_type = 'anatomy-t2w'
+                scan_type = scan_types.anatomy_t2w
             else:
-                scan_type = 'anatomy'
+                scan_type = scan_types.anatomy
         return scan_type
 
+    def get_slice_order(self):
+        if self.slice_order==None:
+            self.load_all_metadata()
+        if self.slice_order==SLICE_ORDER_ALT_INC:
+            slice_order = np.hstack((np.arange(0,self.num_slices,2), np.arange(1,self.num_slices,2)))
+        elif self.slice_order==SLICE_ORDER_ALT_DEC:
+            slice_order = np.hstack((np.arange(0,self.num_slices,2), np.arange(1,self.num_slices,2)))[::-1]
+        elif self.slice_order==SLICE_ORDER_SEQ_INC:
+            slice_order = np.arange(0, self.num_slices)
+        elif self.slice_order==SLICE_ORDER_SEQ_DEC:
+            slice_order = np.arange(0, self.num_slices)[::-1]
+        elif self.slice_order==SLICE_ORDER_UNKNOWN or self.slice_order==None:
+            slice_order = None
+        return slice_order

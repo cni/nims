@@ -71,7 +71,7 @@ class NIMSPhysio(nimsdata.NIMSData):
     parse_priority = 7
 
     # TODO: simplify init to take no args. We need to add the relevant info to the json file.
-    def __init__(self, filename, tr=2, nframes=100, nslices=1, slice_order=None, card_dt=0.01, resp_dt=0.04):
+    def __init__(self, filename, tr=2, nframes=100, slice_order=None, nslices=1, card_dt=0.01, resp_dt=0.04):
         # The is_valid method uses some crude heuristics to detect valid data.
         # To be valid, the number of temporal frames must be reasonable, and either the cardiac
         # standard deviation or the respiration low-frequency power meet the following criteria.
@@ -497,7 +497,8 @@ if __name__ == '__main__':
     nimsutil.configure_log()
     if args.nifti_file:
         ni = nibabel.load(args.nifti_file)
-        phys = PhysioData(args.physio_file, ni.get_header().get_zooms()[3], ni.shape[3], ni.shape[2])
+        slice_order = np.argsort(ni.get_header().get_slice_times())
+        phys = PhysioData(args.physio_file, tr=ni.get_header().get_zooms()[3], nframes=ni.shape[3], slice_order=slice_order)
     else:
         log.warning('regressors will not be valid!')
         phys = PhysioData(args.physio_file)

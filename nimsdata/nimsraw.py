@@ -73,14 +73,11 @@ class NIMSPFile(NIMSRaw):
         self.dirpath = os.path.dirname(self.filepath)
         self.filename = os.path.basename(self.filepath)
         self.basename = self.filename[:-3] if self.compressed else self.filename
-
         self.imagedata = None
         self.fm_data = None
         self.num_vcoils = num_virtual_coils
-
         self.psd_name = os.path.basename(self._hdr.image.psdname.partition('\x00')[0])
         self.psd_type = nimsimage.infer_psd_type(self.psd_name)
-
         self.exam_no = self._hdr.exam.ex_no
         self.series_no = self._hdr.series.se_no
         self.acq_no = self._hdr.image.scanactno
@@ -90,7 +87,8 @@ class NIMSPFile(NIMSRaw):
         self.patient_id = self._hdr.exam.patidff.strip('\x00')
         self.subj_firstname, self.subj_lastname = self.parse_subject_name(self._hdr.exam.patnameff.strip('\x00'))
         self.subj_dob = self.parse_subject_dob(self._hdr.exam.dateofbirth.strip('\x00'))
-        self.subj_sex = (None, 'male', 'female')[self._hdr.exam.patsex]
+        # Had to make this robust to unusual values in patsex.
+        self.subj_sex = ('male', 'female')[self._hdr.exam.patsex-1] if self._hdr.exam.patsex in [1,2] else None
         if self._hdr.image.im_datetime > 0:
             self.timestamp = datetime.datetime.utcfromtimestamp(self._hdr.image.im_datetime)
         else:   # HOShims don't have self._hdr.image.im_datetime
@@ -106,7 +104,6 @@ class NIMSPFile(NIMSRaw):
         # Note: the freq/phase dir isn't meaningful for spiral trajectories.
         self.phase_encode = 1 if self._hdr.image.freq_dir == 0 else 0
         self.mt_offset_hz = self._hdr.image.offsetfreq
-
         self.num_slices = self._hdr.rec.nslices
         self.num_averages = self._hdr.image.averages
         self.num_echos = self._hdr.rec.nechoes
@@ -117,27 +114,27 @@ class NIMSPFile(NIMSRaw):
         self.scanner_name = self._hdr.exam.hospname.strip('\x00') + ' ' + self._hdr.exam.ex_sysid.strip('\x00')
         self.scanner_type = 'GE MEDICAL' # FIXME
         self.acquisition_type = ''
-
         self.size_x = self._hdr.image.dim_X  # imatrix_X
         self.size_y = self._hdr.image.dim_Y  # imatrix_Y
         self.fov = [self._hdr.image.dfov, self._hdr.image.dfov_rect]
         self.scan_type = self._hdr.image.psd_iname.strip('\x00')
         self.num_bands = 1
         self.num_mux_cal_cycle = 0
-
         self.num_timepoints = self._hdr.rec.npasses
+        # Some sequences (e.g., muxepi) acuire more timepoints that will be available in the resulting data file.
+        # The following will indicate how many to expect in the final image.
+        self.num_timepoints_available = self.num_timepoints
         self.deltaTE = 0.0
         self.scale_data = False
-
         # Compute the voxel size rather than use image.pixsize_X/Y
         self.mm_per_vox = np.array([self.fov[0] / self.size_y, self.fov[1] / self.size_y, self._hdr.image.slthick + self._hdr.image.scanspacing])
-
         image_tlhc = np.array([self._hdr.image.tlhc_R, self._hdr.image.tlhc_A, self._hdr.image.tlhc_S])
         image_trhc = np.array([self._hdr.image.trhc_R, self._hdr.image.trhc_A, self._hdr.image.trhc_S])
         image_brhc = np.array([self._hdr.image.brhc_R, self._hdr.image.brhc_A, self._hdr.image.brhc_S])
-
+        # psd-specific params get set here
         if self.psd_type == 'spiral':
             self.num_timepoints = int(self._hdr.rec.user0)    # not in self._hdr.rec.nframes for sprt
+            self.num_timepoints_available = self.num_timepoints
             self.deltaTE = self._hdr.rec.user15
             self.band_spacing = 0
             self.scale_data = True
@@ -153,13 +150,14 @@ class NIMSPFile(NIMSRaw):
             # first 6 are ref scans, so ignore those. Also, two acquired timepoints are used
             # to generate each reconned time point.
             self.num_timepoints = (self._hdr.rec.npasses * self._hdr.rec.nechoes - 6) / 2
+            self.num_timepoints_available = self.num_timepoints
             self.num_echoes = 1
-        elif self.psd_type == 'mux':
+        elif self.psd_type == 'muxepi':
             self.num_bands = int(self._hdr.rec.user6)
             self.num_mux_cal_cycle = int(self._hdr.rec.user7)
             self.band_spacing_mm = self._hdr.rec.user8
-            self.num_slices = self._hdr.image.slquant * self.num_bands
             self.num_timepoints = self._hdr.rec.npasses + self.num_bands * self._hdr.rec.ileaves * (self.num_mux_cal_cycle-1)
+            self.num_timepoints_available = self._hdr.rec.npasses - self.num_bands * self._hdr.rec.ileaves * (self.num_mux_cal_cycle-1) + self.num_mux_cal_cycle
             # TODO: adjust the image.tlhc... fields to match the correct geometry.
         elif self.psd_type == 'mrs':
             self._hdr.image.scanspacing = 0.
@@ -167,7 +165,6 @@ class NIMSPFile(NIMSRaw):
             image_tlhc = np.array([self._hdr.image.ctr_R, self._hdr.image.ctr_A, self._hdr.image.ctr_S])
             image_trhc = image_tlhc + [self.mm_per_vox[0], 0., 0.]
             image_brhc = image_trhc + [0., self.mm_per_vox[2], 0.]
-
         # Tread carefully! Most of the stuff down here depends on various field being corrected in the
         # sequence-specific set of hacks just above. So, move things with care!
 
@@ -176,11 +173,9 @@ class NIMSPFile(NIMSRaw):
         # we'd need to multiply by the # of phase encodes (accounting for any acceleration factors).
         # Even for planar sequences, this will be wrong (under-estimate) in case of cardiac-gating.
         self.prescribed_duration = datetime.timedelta(seconds=(self.num_timepoints * self.tr))
-
         self.total_num_slices = self.num_slices * self.num_timepoints
         # The actual duration can only be computed after the data are loaded. Settled for rx duration for now.
         self.duration = self.prescribed_duration
-
         self.effective_echo_spacing = self._hdr.image.effechospace / 1e6
         self.phase_encode_undersample = 1. / self._hdr.rec.ileaves
         # TODO: Set this correctly! (it's in the dicom at (0x0043, 0x1083))
@@ -193,13 +188,9 @@ class NIMSPFile(NIMSRaw):
         # usually a non-dwi. So, we had to modify the PSD and stick the b-value into an rhuser CV. Sigh.
         self.dwi_bvalue = self._hdr.rec.user22
         self.is_dwi = True if self.dwi_numdirs >= 6 else False
-        if self.is_dwi and self.dwi_bvalue==0:
-            log.warning('the data appear to be diffusion-weighted, but image.b_value is 0!')
-        self.bvecs, self.bvals = get_bvals_bvecs() if self.is_dwi else (None, None)
-
         # if bit 4 of rhtype(int16) is set, then fractional NEX (i.e., partial ky acquisition) was used.
         self.partial_ky = self._hdr.rec.scan_type & np.uint16(16) > 0
-        self.caipi = self._hdr.rec.user13   # true: CAIPIRINHA-type acquisition; false: Direct aliasing of all simultaneous slices.
+        self.caipi = self._hdr.rec.user13   # true: CAIPIRINHA-type acquisition; false: Direct aliasing of simultaneous slices.
         self.cap_blip_start = self._hdr.rec.user14   # Starting index of the kz blips. 0~(mux-1) correspond to -kmax~kmax.
         self.cap_blip_inc = self._hdr.rec.user15   # Increment of the kz blip index for adjacent acquired ky lines.
         self.slice_duration = self.tr * 1000 / self.num_slices
@@ -211,14 +202,12 @@ class NIMSPFile(NIMSRaw):
         else:
             row_cosines = np.array([1.,0,0])
             col_cosines = np.array([0,-1.,0])
-
         self.slice_order = nimsimage.SLICE_ORDER_UNKNOWN
         # FIXME: check that this is correct.
         if self._hdr.series.se_sortorder == 0:
             self.slice_order = nimsimage.SLICE_ORDER_SEQ_INC
         elif self._hdr.series.se_sortorder == 1:
             self.slice_order = nimsimage.SLICE_ORDER_ALT_INC
-
         slice_norm = np.array([self._hdr.image.norm_R, self._hdr.image.norm_A, self._hdr.image.norm_S])
         # This is either the first slice tlhc (image_tlhc) or the last slice tlhc. How to decide?
         # And is it related to wheather I have to negate the slice_norm?
@@ -235,24 +224,24 @@ class NIMSPFile(NIMSRaw):
         else:
             image_position = image_tlhc
             self.reverse_slice_order = False
-
         if self.num_bands > 1:
             image_position = image_position - slice_norm * self.band_spacing_mm * (self.num_bands - 1.0) / 2.0
-
         # The DICOM standard defines these two unit vectors in an LPS coordinate frame, but we'll
         # need RAS (+x is right, +y is anterior, +z is superior) for NIFTI. So, we compute them
         # such that self.row_cosines points to the right and self.col_cosines points up.
         row_cosines[0:2] = -row_cosines[0:2]
         col_cosines[0:2] = -col_cosines[0:2]
         origin = image_position[0] * np.array([-1, -1, 1])
-        rot = nimsimage.compute_rotation(row_cosines, col_cosines, slice_norm)
-        if self.is_dwi:
-            self.bvecs,self.bvals = nimsimage.adjust_bvecs(self.bvecs, self.bvals, self.scanner_type, rot)
-        self.qto_xyz = nimsimage.build_affine(rot, self.mm_per_vox, origin)
+        if self.is_dwi and self.dwi_bvalue==0:
+            log.warning('the data appear to be diffusion-weighted, but image.b_value is 0!')
+        # The bvals/bvecs will get set later
+        self.bvecs,self.bvals = (None,None)
+        self.image_rotation = nimsimage.compute_rotation(row_cosines, col_cosines, slice_norm)
+        self.qto_xyz = nimsimage.build_affine(self.image_rotation, self.mm_per_vox, origin)
         self.scan_type = self.infer_scan_type()
         super(NIMSPFile, self).__init__()
 
-    def get_bvals_bvecs(self):
+    def get_bvecs_bvals(self):
         tensor_file = os.path.join(self.dirpath, '_'+self.basename+'_tensor.dat')
         with open(tensor_file) as fp:
             uid = fp.readline().rstrip()
@@ -262,16 +251,17 @@ class NIMSPFile(NIMSRaw):
             raise NIMSPFileError('tensor file UID does not match PFile UID!')
         if ndirs != self.dwi_numdirs or self.dwi_numdirs != bvecs.size / 3.:
             raise NIMSPFileError('tensor file numdirs does not match PFile header numdirs!')
-        num_nondwi = self.num_timepoints - self.dwi_numdirs # FIXME: assumes that all the non-dwi images are acquired first.
+        num_nondwi = self.num_timepoints_available - self.dwi_numdirs # FIXME: assumes that all the non-dwi images are acquired first.
         bvals = np.concatenate((np.zeros(num_nondwi, dtype=float), np.tile(self.dwi_bvalue, self.dwi_numdirs)))
         bvecs = np.hstack((np.zeros((3,num_nondwi), dtype=float), bvecs.reshape(self.dwi_numdirs, 3).T))
-        return bvals, bvecs
+        self.bvecs,self.bvals = nimsimage.adjust_bvecs(bvecs, bvals, self.scanner_type, self.image_rotation)
+        return bvecs, bvals
 
     @property
     def recon_func(self):
         if self.psd_type == 'spiral':
             return self.recon_spirec
-        elif self.psd_type == 'mux':
+        elif self.psd_type == 'muxepi':
             return self.recon_mux_epi
         elif self.psd_type == 'mrs':
             return self.recon_mrs
@@ -286,20 +276,20 @@ class NIMSPFile(NIMSRaw):
     def priority(self):
         return int(bool(self.recon_func)) * 2 - 1   # return 1 if we can recon, else -1
 
-    def convert(self, outbase, tempdir=None, num_jobs=8):
-        if self.recon_func:
-            self.recon_func(tempdir=tempdir, num_jobs=num_jobs)
-        else:
-            raise NIMSPFileError('Recon not implemented for this type of data')
+    def load_all_metadata(self):
+        if self.is_dwi:
+            self.bvecs,self.bvals = self.get_bvecs_bvals()
+        super(NIMSPFile, self).load_all_metadata()
 
+    def convert(self, outbase, tempdir=None, num_jobs=8):
+        self.load_all_metadata()
+        self.get_imagedata()
         result = (None, None)
         if self.imagedata is not None:  # catches, for example, HO Shims
-
             if self.reverse_slice_order:
                 self.imagedata = self.imagedata[:,:,::-1,]
                 if self.fm_data is not None:
                     self.fm_data = self.fm_data[:,:,::-1,]
-
             if self.psd_type=='spiral' and self.num_echos == 2:
                 # Uncomment to save spiral in/out
                 #nimsnifti.NIMSNifti.write(self, self.imagedata[:,:,:,:,0], outbase + '_in')
@@ -322,7 +312,13 @@ class NIMSPFile(NIMSRaw):
                 nimsnifti.NIMSNifti.write(self, self.fm_data, outbase + '_B0')
         return result
 
-    def load_imagedata(self, filepath):
+    def get_imagedata(self):
+        if self.recon_func:
+            self.recon_func(tempdir=tempdir, num_jobs=num_jobs)
+        else:
+            raise NIMSPFileError('Recon not implemented for this type of data')
+
+    def load_imagedata_from_file(self, filepath):
         """ Load raw image data from a file and do some sanity checking on num slices, matrix size, etc. """
         # TODO: confirm that the voxel reordering is necessary. Maybe lean on the recon folks to standardize their voxel order?
         mat = scipy.io.loadmat(filepath)
@@ -347,7 +343,7 @@ class NIMSPFile(NIMSRaw):
             self.size_y = self.imagedata.shape[1]
             self.mm_per_vox[0] = float(self.fov[0] / self.size_x)
             self.mm_per_vox[1] = float(self.fov[1] / self.size_y)
-        if self.imagedata.shape[2] != self.num_slices:
+        if self.imagedata.shape[2] != self.num_slices * self.num_bands:
             log.warning('Image slice count discrepancy. Fixing the header, assuming imagedata is correct...')
             self.num_slices = self.imagedata.shape[2]
         if self.imagedata.shape[3] != self.num_timepoints:
@@ -402,10 +398,9 @@ class NIMSPFile(NIMSRaw):
             outname = os.path.join(temp_dirpath, 'sl')
 
             # Spawn the desired number of subprocesses until all slices have been spawned
-            num_muxed_slices = self.num_slices / self.num_bands
             mux_recon_jobs = []
             slice_num = 0
-            while slice_num < num_muxed_slices:
+            while slice_num < self.num_slices:
                 num_running_jobs = sum([job.poll()==None for job in mux_recon_jobs])
                 if num_running_jobs < num_jobs:
                     # Recon each slice separately. Note the slice_num+1 to deal with matlab's 1-indexing.
@@ -423,9 +418,9 @@ class NIMSPFile(NIMSRaw):
                 job.wait()
 
             # Load the first slice to initialize the image array
-            img = self.load_imagedata("%s_%03d.mat" % (outname, 0))
-            for slice_num in range(1, num_muxed_slices):
-                new_img = self.load_imagedata("%s_%03d.mat" % (outname, slice_num))
+            img = self.load_imagedata_from_file("%s_%03d.mat" % (outname, 0))
+            for slice_num in range(1, self.num_slices):
+                new_img = self.load_imagedata_from_file("%s_%03d.mat" % (outname, slice_num))
                 # Allow for a partial last timepoint. This sometimes happens when the user aborts.
                 img[...,0:new_img.shape[-1]] += new_img
             self.update_imagedata(img)
@@ -509,6 +504,6 @@ if __name__ == '__main__':
     nimsutil.configure_log()
     pf = NIMSPFile(args.pfile, num_virtual_coils=args.vcoils)
     if args.matfile:
-        pf.update_imagedata(pf.load_imagedata(args.matfile))
+        pf.update_imagedata(pf.load_imagedata_from_file(args.matfile))
     pf.convert(args.outbase or os.path.basename(args.pfile), tempdir=args.tempdir, num_jobs=args.jobs)
 
