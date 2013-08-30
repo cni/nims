@@ -36,16 +36,27 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
             dataType: "json",
             data: $("#search_form").serialize(),
             success: function(data)
-            {
-                
+            {                
                 if (data.success)
                 {
+                    if (data.data.length == 0) {
+                        // Show "no results" error message
+                        $('#bannerpy-content').html('Your search did not give any result');
+                        $('#bannerpy').removeClass('hide');
+                    } else {
+                        $('#bannerpy').addClass('hide');
+                    }
+                    
                     populateNextTableFn(table, data);
                     table.synchronizeSelections();
                     epochs.onDoubleClick(function() { Dialog.showDialog(epochs_popup, "epoch", "../epoch/edit?id="+getId(this.id)); });
                 }
                 else
                 {
+                    window.alert("algo ha fallado / parametros incorrectos / ... ");
+                    
+                    data.data = [];
+                    populateNextTableFn(table, data);
                     // $('#bannerpy-content').text(data.error_message);
 //                     $('#bannerpy').removeClass('hide');
                 }
@@ -235,15 +246,17 @@ $('#submit').click( function(){
 	var validationError = false;
 
 	$('.criteriaBody').each(function(){
-		var valueA = $(this).children('#criteriaContainerA').find('.required').val();
-        var valueB = $(this).children('#criteriaContainerB').find('.required').val();
         var optionA = $(this).children('#criteriaContainerA').find('.search_param').val();
         var optionB = $(this).children('#criteriaContainerB').find('.search_param').val();
-        
-        // Validation by functions described above
-        validation_inputs[optionA](valueA);
-        validation_inputs[optionB](valueB);
-        
+        if (optionA != 'Scan Type'){
+            var valueA = $(this).children('#criteriaContainerA').find('.required').val();
+            validation_inputs[optionA](valueA);
+        }
+        if (optionB != 'Scan Type'){
+            var valueB = $(this).children('#criteriaContainerB').find('.required').val();
+            validation_inputs[optionB](valueB);
+        }
+
         if(error_ascii.length != 0 ){
             $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
             $('#bannerjs-errorstring').removeClass('hide');

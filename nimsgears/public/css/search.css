@@ -43,13 +43,13 @@ div#bannerpy {
     position: relative; 
     top: 0; 
     left: 0; 
-    background-color: #FFCCCC; 
+    background-color: #FFFFCC; 
     width: 100%; 
 }
 div#bannerpy-content {  
     margin: 0 auto; 
     padding: 5px; 
-    border: 1px solid #FF0033;
+    border: 1px solid #FFCCCC;
 }
 .asterisk{
 	position:absolute;
