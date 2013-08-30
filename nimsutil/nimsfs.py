@@ -352,5 +352,6 @@ if __name__ == '__main__':
     fuse = fuse.FUSE(Nimsfs(datapath=args.datapath, db_uri=args.uri),
                      args.mountpoint,
                      debug=args.debug,
+                     big_writes=True, max_read=131072, max_write=131072,
                      allow_other=(not args.no_allow_other))
 

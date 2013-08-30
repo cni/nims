@@ -239,6 +239,7 @@ class PFilePipeline(Pipeline):
 
         ds = self.job.data_container.primary_dataset
         with nimsutil.TempDirectory() as outputdir:
+            pf = None
             for pfile in os.listdir(os.path.join(self.nims_path, ds.relpath)):
                 if 'refscan' not in pfile:
                     try:
@@ -248,7 +249,7 @@ class PFilePipeline(Pipeline):
                         pf = None
                     else:
                         break
-            conv_file = pf.to_nii(os.path.join(outputdir, ds.container.name))
+            conv_file = pf.to_nii(os.path.join(outputdir, ds.container.name)) if pf else None
 
             if conv_file:
                 outputdir_list = os.listdir(outputdir)

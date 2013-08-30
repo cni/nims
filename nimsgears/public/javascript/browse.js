@@ -442,8 +442,8 @@ require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/m
 
     var init = function()
     {
-        experiments = new Drilldown("experiments", "Experiments");
-        sessions = new Drilldown("sessions", "Sessions");
+        experiments = new Drilldown("experiments", "Experiments", 1, 1);
+        sessions = new Drilldown("sessions", "Sessions", 0, -1);
         epochs = new Drilldown("epochs", "Epochs");
         datasets = new Drilldown("datasets", "Datasets");
         manager = new DrilldownManager([experiments, sessions, epochs, datasets], [refreshExperiments, refreshSessions, refreshEpochs, refreshDatasets], true, "main");

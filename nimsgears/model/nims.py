@@ -244,6 +244,16 @@ class User(Entity):
             query = query.filter(Dataset.trashtime != None)
         return query.all()
 
+    def latest_exp_session(self, min_access_level=u'Anon-Read'):
+        query = DBSession.query(Experiment, Session).join(Subject, Experiment.subjects).join(Session, Subject.sessions)
+        if not self.is_superuser:
+            query = self._filter_access(query, min_access_level)
+        if self.trash_flag == 0:
+            query = query.filter(Session.trashtime == None)
+        elif self.trash_flag == 2:
+            query = query.filter(Session.trashtime != None)
+        return query.order_by(Session.timestamp.desc()).first()
+
 
 class Permission(Entity):
 

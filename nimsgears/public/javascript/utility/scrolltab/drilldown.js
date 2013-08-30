@@ -11,10 +11,12 @@ function (Scrolltable, asSortable, asLoadable, asSelectable, withKbSupport) {
      * table_id - id of the table to convert into a drilldown table
      * title - string name you'd like placed at the top of the table
      */
-    function Drilldown(table_id, title)
+    function Drilldown(table_id, title, sort_col, sort_dir)
     {
+        sort_col = typeof sort_col !== 'undefined' ? sort_col : 0;
+        sort_dir = typeof sort_dir !== 'undefined' ? sort_dir : 1;
         Scrolltable.call(this, table_id, title);
-        this.init_drilldown();
+        this.init_drilldown(sort_col, sort_dir);
     };
 
     // Initialize parent type functionality
@@ -24,9 +26,9 @@ function (Scrolltable, asSortable, asLoadable, asSelectable, withKbSupport) {
      * Initialize drilldown functionality (includes everything tacked on,
      * including sortable, loadable, and keyboard support.
      */
-    Drilldown.prototype.init_drilldown = function()
+    Drilldown.prototype.init_drilldown = function(sort_col, sort_dir)
     {
-        this.init_sortable(function(obj) { obj.synchronizeSelections(); });
+        this.init_sortable(function(obj) { obj.synchronizeSelections(); }, sort_col, sort_dir);
         this.init_loadable();
         this.init_kbsupport();
     };
