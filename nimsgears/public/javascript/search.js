@@ -53,7 +53,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                 }
                 else
                 {
-                    window.alert("algo ha fallado / parametros incorrectos / ... ");
+                    //window.alert("algo ha fallado / parametros incorrectos / ... ");
                     
                     data.data = [];
                     populateNextTableFn(table, data);
@@ -118,7 +118,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
         Dialog.bindSizeChange(epochs_popup);
         Dialog.bindSizeChange(datasets_popup, 'dataset');
 
-        epochs = new Drilldown("epochs", "Results");
+        epochs = new Drilldown("epochs", "Results", 2, -1);
         datasets = new Drilldown("datasets", "Datasets");
         manager = new DrilldownManager([epochs, datasets], [refreshEpochs, refreshDatasets], true);
 

@@ -87,16 +87,16 @@ class SearchController(NimsController):
     def index(self):
         dataset_cnt = Session.query.count()
         param_list = [ 'Subject Age', 'PSD Name', 'Exam', 'Operator', 'Scan Type']
-        epoch_columns = [('Access', 'col_access'), ('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Scan Type', 'col_typescan'), ('Description', 'col_desc')]
+        epoch_columns = [ ('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Scan Type', 'col_typescan'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
-        scantype_values = ['','anatomy', 'functional', 'calibration', 'localizer']
+        scantype_values = ['','spectroscopy','perfusion','shim','diffusion','fieldmap','functional','calibration','localizer','anatomy_t1w','anatomy_t2w','anatomy',]
         return dict(page='search',
                 dataset_cnt=dataset_cnt,
             param_list=param_list,
             epoch_columns=epoch_columns,
             dataset_columns=dataset_columns,
             scantype_values=scantype_values)
-               
+          
                
                
     @expose()
@@ -177,8 +177,7 @@ class SearchController(NimsController):
             sess = value.Session
             subject = value.Subject
             epoch = value.Epoch
-            data_list.append(('',
-                              exp.owner.gid,
+            data_list.append((exp.owner.gid,
                               exp.name,
                               sess.timestamp.strftime('%Y-%m-%d %H:%M'),
                               epoch.scan_type,
