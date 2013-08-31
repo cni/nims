@@ -47,7 +47,7 @@ class PFile(object):
 
     filetype = u'pfile'
 
-    def __init__(self, filename, log=None, tmpdir=None, max_num_jobs=8, num_virtual_coils=0):
+    def __init__(self, filename, log=None, tmpdir=None, max_num_jobs=8, num_virtual_coils=16):
         self.filename = filename
         self.log = log
         self.max_num_jobs = max_num_jobs
