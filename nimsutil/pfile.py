@@ -15,12 +15,10 @@ import time
 import tempfile
 import subprocess as sp
 
-import scipy.io
 import numpy as np
 import nibabel
 
 import nimsutil
-import pfheader
 
 
 def unpack_uid(uid):
@@ -70,6 +68,14 @@ class PFile(object):
                 fp = gzip.open(self.filename)
             else:
                 fp = open(self.filename)
+            version = fp.read(4)
+            fp.seek(0)
+            if version == 'J\x0c\xa0A':
+                import pfheader22 as pfheader
+            elif version == 'V\x0e\xa0A':
+                import pfheader23 as pfheader
+            else:
+                raise PFileError('not a pfile or unsupported pfile version')
             self.header = pfheader.get_header(fp)
             fp.close()
         except (IOError, pfheader.PFHeaderError) as e:
@@ -194,6 +200,7 @@ class PFile(object):
     def load_image_data(self, data_file):
         """ Load raw image data from a file and do some sanity checking on num slices, matrix size, etc. """
         # TODO: confirm that the voxel reordering is necessary. Maybe lean on the recon folks to standardize their voxel order?
+        import scipy.io
         mat = scipy.io.loadmat(data_file)
         if 'd' in mat:
             sz = mat['d_size'].flatten().astype(int)
