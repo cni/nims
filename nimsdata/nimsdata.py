@@ -2,6 +2,7 @@
 #           Bob Dougherty
 
 import abc
+import datetime
 
 
 class NIMSDataError(Exception):
@@ -15,7 +16,6 @@ class NIMSData(object):
     parse_priority = 0
 
     session_fields = [
-            ('timestamp', 'timestamp'),
             ('exam', 'exam_no'),
             ('patient_id', 'patient_id'),
             ('firstname', 'subj_firstname'),
@@ -29,12 +29,12 @@ class NIMSData(object):
             ('acquisition', 'acq_no'),
             ('description', 'series_desc'),
             ]
-
     dataset_fields = [
             ('datakind', 'datakind'),
             ('datatype', 'datatype'),
             ('filetype', 'filetype'),
             ]
+    file_fields = []
 
     @classmethod
     def parse(cls, filepath):
@@ -67,10 +67,11 @@ class NIMSData(object):
         self._session_info = None
         self._epoch_info = None
         self._dataset_info = None
+        self._file_info = None
 
     @property
     def canonical_filename(self):
-        return '%s_%s_%s' % (self.exam_uid.replace('.', '_'), self.series_no, self.acq_no)
+        return '%s_%s_%s_%s' % (self.exam_uid.replace('.', '_'), self.series_no, self.acq_no, self.filetype)
 
     @property
     def deep_session_info(self):
@@ -90,6 +91,8 @@ class NIMSData(object):
 
     def set_metadata_fields(self, metadata_fields):
         for field_name, value in metadata_fields.iteritems():
+            if isinstance(value, datetime.datetime):
+                value = value.replace(tzinfo=None)
             setattr(self, field_name, value)
 
     def get_session_info(self, **kwargs):
@@ -106,3 +109,8 @@ class NIMSData(object):
         if self._dataset_info is None:
             self._dataset_info = filter(lambda t: t[1], [(field, getattr(self, field_name, None)) for field, field_name in self.dataset_fields])
         return self._dataset_info + kwargs.items()
+
+    def get_file_info(self, **kwargs):
+        if self._file_info is None:
+            self._file_info = filter(lambda t: t[1], [(field, getattr(self, field_name, None)) for field, field_name in self.file_fields])
+        return self._file_info + kwargs.items()

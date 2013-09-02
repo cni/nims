@@ -23,7 +23,6 @@ scan_type_list = ['spectroscopy',
                   ]
 scan_types = type('Enum', (object,), dict(zip(scan_type_list, scan_type_list)))
 
-
 log = logging.getLogger('nimsimage')
 
 # NIFTI1-stype slice order codes:
@@ -152,6 +151,34 @@ class NIMSImage(nimsdata.NIMSData):
 
     datakind = u'raw'
     datatype = u'mri'
+
+    epoch_fields = nimsdata.NIMSData.epoch_fields + [
+            ('psd', 'psd'),
+            ('tr', 'tr'),
+            ('te', 'te'),
+            ('ti', 'ti'),
+            ('flip_angle', 'flip_angle'),
+            ('pixel_bandwidth', 'pixel_bandwidth'),
+            ('num_slices', 'num_slices'),
+            ('num_timepoints', 'num_timepoints'),
+            ('num_averages', 'num_averages'),
+            ('num_echos', 'num_echos'),
+            ('receive_coil', 'receive_coil_name'),
+            ('num_receivers', 'num_receivers'),
+            ('protocol', 'protocol_name'),
+            ('scanner', 'scanner_name'),
+            ('size_x', 'size_x'),
+            ('size_y', 'size_y'),
+            ('fov', 'fov'),
+            ('scan_type', 'scan_type'),
+            ('num_bands', 'num_bands'),
+            #('prescribed_duration', 'prescribed_duration'), #FIXME: mongo can't serialize datetime.timedelta
+            ('mm_per_voxel', 'mm_per_vox'),
+            ('effective_echo_spacing', 'effective_echo_spacing'),
+            ('phase_encode_undersample', 'phase_encode_undersample'),
+            ('slice_encode_undersample', 'slice_encode_undersample'),
+            ('acquisition_matrix', 'acquisition_matrix'),
+            ]
 
     @abc.abstractmethod
     def __init__(self):

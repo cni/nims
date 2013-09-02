@@ -20,7 +20,7 @@ class NIMSPNG(nimsdata.NIMSData):
     datatype = u'bitmap'
     filetype = u'png'
 
-    def __init__(self):
+    def __init__(self, filepath):
         # TODO: add metadata to PNG header
         raise NIMSPNGError('NIMSPNG class not yet implemented')
         super(NIMSPNG, self).__init__()

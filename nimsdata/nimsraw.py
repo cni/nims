@@ -6,7 +6,6 @@
 import os
 import abc
 import gzip
-import scipy.io
 import time
 import shlex
 import shutil
@@ -59,6 +58,10 @@ class NIMSPFile(NIMSRaw):
     filetype = u'pfile'
     parse_priority = 5
 
+    file_fields = NIMSRaw.file_fields + [
+            ('canonical_name', 'pfilename'),
+            ]
+
     # TODO: Simplify init, just to parse the header
     def __init__(self, filepath, num_virtual_coils=16):
         try:
@@ -78,6 +81,7 @@ class NIMSPFile(NIMSRaw):
         self.num_vcoils = num_virtual_coils
         self.psd_name = os.path.basename(self._hdr.image.psdname.partition('\x00')[0])
         self.psd_type = nimsimage.infer_psd_type(self.psd_name)
+        self.pfilename = 'P%05d' % self._hdr.rec.run_int
         self.exam_no = self._hdr.exam.ex_no
         self.series_no = self._hdr.series.se_no
         self.acq_no = self._hdr.image.scanactno
@@ -321,6 +325,7 @@ class NIMSPFile(NIMSRaw):
     def load_imagedata_from_file(self, filepath):
         """ Load raw image data from a file and do some sanity checking on num slices, matrix size, etc. """
         # TODO: confirm that the voxel reordering is necessary. Maybe lean on the recon folks to standardize their voxel order?
+        import scipy.io
         mat = scipy.io.loadmat(filepath)
         if 'd' in mat:
             sz = mat['d_size'].flatten().astype(int)

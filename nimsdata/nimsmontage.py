@@ -94,9 +94,9 @@ class NIMSMontage(nimsdata.NIMSData):
     def __init__(self, filepath=None, montage=None, metadata=None):
         # TODO: add metadata necessary for sorting to the pyramid db.
         self.pyramid = None
-        if filepath:
-            # parse montage
-            pass
+        if filepath is not None:
+            # FIXME: parse montage
+            raise NIMSMontageError('not implemented')
         elif montage is not None and metadata is not None:
             self.montage = montage
             self.metadata = metadata

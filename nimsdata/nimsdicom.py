@@ -278,7 +278,6 @@ class NIMSDicom(nimsimage.NIMSImage):
             self.bvecs,self.bvals = nimsimage.adjust_bvecs(self.bvecs, self.bvals, self.scanner_type, rot)
         self.qto_xyz = nimsimage.build_affine(rot, self.mm_per_vox, self.origin)
         super(NIMSDicom, self).load_all_metadata()
-        return
 
     def load_dicoms(self):
         if os.path.isfile(self.filepath) and tarfile.is_tarfile(self.filepath):     # compressed tarball
