@@ -13,6 +13,7 @@ from nimsgears.model import *
 from nimsgears.lib.base import BaseController
 from nimsgears.controllers.browse import BrowseController
 from nimsgears.controllers.search import SearchController
+from nimsgears.controllers.upload import UploadController
 from nimsgears.controllers.experiments import ExperimentsController
 from nimsgears.controllers.groups import GroupsController
 
@@ -25,6 +26,7 @@ class AuthController(BaseController):
 
     browse = BrowseController()
     search = SearchController()
+    upload = UploadController()
     experiments = ExperimentsController()
     groups = GroupsController()
 
