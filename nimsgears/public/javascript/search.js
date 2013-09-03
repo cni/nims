@@ -301,12 +301,15 @@ function setInformation(information, tooltipText){
  //Show the First Name and Last Name only when search in your data:
  var countCheck = 0;
  $('#data_checkBox').live('click', function(){ 
-    if( countCheck%2 == 0 ){
+     if($('#data_checkBox').is(':checked')){
+    // if( countCheck%2 == 0 ){
+        $('#restricted_datasets').hide();
         $('#first_name, #last_name').attr('disabled', 'disabled');
         $('.first_name, .last_name').css('color', '#E0E0E0');
         $('#first_name, #last_name').css('color', '#E0E0E0');
         countCheck++;
     }else{
+        $('#restricted_datasets').show();
         $('#first_name, #last_name').removeAttr('disabled');
         $('.first_name, .last_name').css('color', '#000000 ');
          $('#first_name, #last_name').css('color', '#000000 ');

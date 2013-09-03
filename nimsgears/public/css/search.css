@@ -1,10 +1,8 @@
-#db_wrapper{
-    width:100%;
+#dataset_div{
+    font-weight:500;
 }
 #db_choice{
-    width:250px;
-    float:left;
-    padding-bottom:15px;
+    padding:15px;
 }
 .first_name{
     margin-left:10px;

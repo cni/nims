@@ -41,15 +41,18 @@
     
             </div>
         </div>
-    
-   
-	<h2>Search</h2>
 
-	<p>NIMS currently hosts ${dataset_cnt} datasets.</p>
+        <div id='dataset_div'>
+            NIMS Search, you are currently searching <b><span id="restricted_datasets">${userdataset_cnt} /</span>${dataset_cnt}</b  > datasets.
+        <span id='db_choice'>
+            <input id='data_checkBox' type="checkbox" name='choose_db' value='any_data'/> Search all datasets
+        </span>
+        </div>
+
 
 	<form id="search_form" accept-charset="UTF-8">
 		<div id="query_table" cellpadding="0" cellspacing="0">
-            <div id='db_wrapper'>
+            <!-- <div id='db_wrapper'>
                 <div id='db_choice'>
                     <input id='data_checkBox' type="checkbox" name='choose_db' value='any_data'/>Include data I do not have access to
                 </div>
@@ -59,85 +62,85 @@
                 <div class='last_name'>
                     Last Name&nbsp;<input id='last_name' type='text' name='subject_name' value=''/>
                 </div>
-            </div>
-            <div id='upper_Body'>
-					<div class='criteriaBody' id="criteriaBody" >
-						<div class='criteriaContainer' id="criteriaContainerA">
-							<span id='select_param'> <select class="search_param" name="search_param">
-									<option py:for="param in param_list" >${param}</option>
-							</select>
-							</span>
-							<span class='variable_field'>
-							<input class='required' id="search_query" name="search_query" type="text"
-								size="30"></input>
+            </div> -->
+            <!-- <div id='upper_Body'>
+                    <div class='criteriaBody' id="criteriaBody" >
+                        <div class='criteriaContainer' id="criteriaContainerA">
+                            <span id='select_param'> <select class="search_param" name="search_param">
+                                    <option py:for="param in param_list" >${param}</option>
+                            </select>
+                            </span>
+                            <span class='variable_field'>
+                            <input class='required' id="search_query" name="search_query" type="text"
+                                size="30"></input>
                              <select class="scantype hide">
                                 <option py:for="value in scantype_values" >${value}</option>
                             </select> 
                             <div class='field_information'></div>
-							</span>
-						</div>
-						<div class='criteriaContainer' id="criteriaContainerB">
-							<span id='select_param'> <select class="search_param" name="search_param">
-									<option py:for="param in param_list" >${param}</option>
-							</select>
-							</span>
-							<span>
+                            </span>
+                        </div>
+                        <div class='criteriaContainer' id="criteriaContainerB">
+                            <span id='select_param'> <select class="search_param" name="search_param">
+                                    <option py:for="param in param_list" >${param}</option>
+                            </select>
+                            </span>
+                            <span>
                             <select class="scantype hide">
                                    <option py:for="value in scantype_values" >${value}</option>
                             </select> 
-							<input class='required' id="search_query" name="search_query" type="text"
-								size="30"></input>
-    						<img class='removeCriteria hide' id="remove"
+                            <input class='required' id="search_query" name="search_query" type="text"
+                                size="30"></input>
+                            <img class='removeCriteria hide' id="remove"
                                     src="../images/remove.png" title="Remove builder" />
                             <img class='addCriteria' id="newCriteria"
                                     src="../images/add.png" title="Add new builder" /> 
                             <div class='field_information'></div>
-							</span>
-						</div>
-				    </div>
-                </div>
+                            </span>
+                        </div>
+                    </div>
+                </div> -->
 
-			<div id="dates">
-					<script>
-						$(function() {
-							$("#date_from").datepicker(
-									{
-										defaultDate : "-1m",
-										changeMonth : true,
-										changeYear : true,
-										numberOfMonths : 2,
-										maxDate : "+1d",
-										onSelect : function(selectedDate) {
-											$("#date_to").datepicker("option",
-													"minDate", selectedDate);
-										}
-									});
-							$("#date_to").datepicker(
-									{
-										defaultDate : "+0d",
-										changeMonth : true,
-										changeYear : true,
-										numberOfMonths : 2,
-										maxDate : "+1d",
-										onSelect : function(selectedDate) {
-											$("#date_from").datepicker(
-													"option", "maxDate",
-													selectedDate);
-										}
-									});
-						});
-					</script>
-					<span><label for="date_from">From&nbsp;</label> <input type="text"
-						size="10" id="date_from" name="date_from" /></span>
-					<span><label for="date_to">to&nbsp;</label> <input type="text"
-						size="10" id="date_to" name="date_to" /></span>
-			</div>
-			<div id='submitDiv'>
-				<span><input type="submit" id="submit" value="Search" /></span>
-				<span>
-					<p id="n_results"></p>
-				</span>
-			</div>
+			<!-- <div id="dates">
+                    <script>
+                        $(function() {
+                            $("#date_from").datepicker(
+                                    {
+                                        defaultDate : "-1m",
+                                        changeMonth : true,
+                                        changeYear : true,
+                                        numberOfMonths : 2,
+                                        maxDate : "+1d",
+                                        onSelect : function(selectedDate) {
+                                            $("#date_to").datepicker("option",
+                                                    "minDate", selectedDate);
+                                        }
+                                    });
+                            $("#date_to").datepicker(
+                                    {
+                                        defaultDate : "+0d",
+                                        changeMonth : true,
+                                        changeYear : true,
+                                        numberOfMonths : 2,
+                                        maxDate : "+1d",
+                                        onSelect : function(selectedDate) {
+                                            $("#date_from").datepicker(
+                                                    "option", "maxDate",
+                                                    selectedDate);
+                                        }
+                                    });
+                        });
+                    </script>
+                    <span><label for="date_from">From&nbsp;</label> <input type="text"
+                        size="10" id="date_from" name="date_from" /></span>
+                    <span><label for="date_to">to&nbsp;</label> <input type="text"
+                        size="10" id="date_to" name="date_to" /></span>
+            </div>
+            <div id='submitDiv'>
+                <span><input type="submit" id="submit" value="Search" /></span>
+                <span>
+                    <p id="n_results"></p>
+                </span>
+            </div> -->
 		</div>
 	</form>
 	<table id="epochs" class="scrolltable" style="visibility: hidden">

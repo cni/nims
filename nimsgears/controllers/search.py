@@ -85,12 +85,25 @@ class SearchController(NimsController):
 
     @expose('nimsgears.templates.search')
     def index(self):
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
+        print '+++++++++++++++++++++++++++++++++++++++++', user
         dataset_cnt = Session.query.count()
+    
+        db_query = (DBSession.query(Epoch, Session, Subject, Experiment)
+                    .join(Session, Epoch.session)
+                    .join(Subject, Session.subject)
+                    .join(Experiment, Subject.experiment)
+                    .join(Access,Experiment.accesses)
+                    .filter(Access.user == user))
+        userdataset_cnt = db_query.count()
+        print '+++++++++++++++++++++++++++++++++++++++++', userdataset_cnt
+        
         param_list = [ 'Subject Age', 'PSD Name', 'Exam', 'Operator', 'Scan Type']
         epoch_columns = [ ('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Scan Type', 'col_typescan'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
         scantype_values = ['','spectroscopy','perfusion','shim','diffusion','fieldmap','functional','calibration','localizer','anatomy_t1w','anatomy_t2w','anatomy',]
         return dict(page='search',
+            userdataset_cnt=userdataset_cnt,
                 dataset_cnt=dataset_cnt,
             param_list=param_list,
             epoch_columns=epoch_columns,
