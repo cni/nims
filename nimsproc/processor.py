@@ -241,7 +241,7 @@ class PFilePipeline(Pipeline):
         with nimsutil.TempDirectory() as outputdir:
             pf = None
             for pfile in os.listdir(os.path.join(self.nims_path, ds.relpath)):
-                if 'refscan' not in pfile:
+                if not pfile.startswith('_') and 'refscan' not in pfile:
                     try:
                         pf = nimsutil.pfile.PFile(os.path.join(self.nims_path, ds.relpath, pfile),
                                 log=self.log, tmpdir='/run/shm', max_num_jobs=32)

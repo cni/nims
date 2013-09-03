@@ -75,6 +75,7 @@ class PFile(object):
             elif version == 'V\x0e\xa0A':
                 import pfheader23 as pfheader
             else:
+                import pfheader23 as pfheader
                 raise PFileError('not a pfile or unsupported pfile version')
             self.header = pfheader.get_header(fp)
             fp.close()
