@@ -23,18 +23,27 @@ def is_a_number(n):
         return True
     except ValueError:
         return False
-        
+
+def is_date(s):
+    if bool(re.compile(r'\s*\d+\d+').match(s)):
+        return True
+    else:
+        return False        
+
 def is_other_field(n):
     return True
     
             
 validation_functions = {
-    'Subject Name' : is_ascii,
-    'Exam' : is_a_number,
-    'Operator' : is_ascii,
-    'Subject Age' : is_ascii,
-    'PSD Name' : is_ascii,
-    'Scan Type': is_ascii,
+    'subject_last_name' : is_ascii,
+    'subject_name' : is_ascii,
+    'search_exam' : is_a_number,
+    'search_operator' : is_ascii,
+    'search_age' : is_ascii,
+    'search_psdName' : is_ascii,
+    'search_typescan': is_ascii,
+    'date_from': is_date,
+    'date_to': is_date,
 }
 
 def query_psdname( db_query, query_value ):
@@ -52,6 +61,12 @@ def query_exam( db_query, query_value ):
 def query_operator( db_query, query_value ):
     return (db_query.join(User)
                     .filter(User.uid.ilike(query_value) | User.firstname.ilike( query_value ) | User.lastname.ilike( query_value )))
+                    
+def query_date_from( db_query, query_value ):
+    return db_query.filter(Session.timestamp >= query_value)
+    
+def query_date_to( db_query, query_value ):
+    return db_query.filter(Session.timestamp <= query_value)
                     
 def query_subjectage( db_query, query_value ):
     min_age = None
@@ -72,12 +87,15 @@ def query_subjectage( db_query, query_value ):
             .filter(Session.timestamp - Subject.dob <= datetime.timedelta(days=float(max_age)*365.25)))
             
 query_functions = {
-    'Subject Name' : query_subjectname,
-    'Exam' : query_exam,
-    'Operator' : query_operator,
-    'Subject Age' : query_subjectage,
-    'PSD Name' : query_psdname,
-    'Scan Type': query_scantype,
+    'subject_name' : query_subjectname,
+    'subject_last_name' : query_subjectname,
+    'search_exam' : query_exam,
+    'search_operator' : query_operator,
+    'search_age' : query_subjectage,
+    'search_psdName' : query_psdname,
+    'search_typescan': query_scantype,
+    'date_from': query_date_from,
+    'date_to': query_date_to,
 }
 
 
@@ -86,7 +104,6 @@ class SearchController(NimsController):
     @expose('nimsgears.templates.search')
     def index(self):
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
-        print '+++++++++++++++++++++++++++++++++++++++++', user
         dataset_cnt = Session.query.count()
     
         db_query = (DBSession.query(Epoch, Session, Subject, Experiment)
@@ -96,16 +113,12 @@ class SearchController(NimsController):
                     .join(Access,Experiment.accesses)
                     .filter(Access.user == user))
         userdataset_cnt = db_query.count()
-        print '+++++++++++++++++++++++++++++++++++++++++', userdataset_cnt
-        
-        param_list = [ 'Subject Age', 'PSD Name', 'Exam', 'Operator', 'Scan Type']
         epoch_columns = [ ('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Scan Type', 'col_typescan'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
-        scantype_values = ['','spectroscopy','perfusion','shim','diffusion','fieldmap','functional','calibration','localizer','anatomy_t1w','anatomy_t2w','anatomy',]
+        scantype_values = ['', 'anatomy', 'anatomy_t1w', 'anatomy_t2w', 'calibration', 'diffusion', 'fieldmap', 'functional', 'localizer', 'perfusion', 'shim', 'spectroscopy']
         return dict(page='search',
             userdataset_cnt=userdataset_cnt,
                 dataset_cnt=dataset_cnt,
-            param_list=param_list,
             epoch_columns=epoch_columns,
             dataset_columns=dataset_columns,
             scantype_values=scantype_values)
@@ -115,35 +128,29 @@ class SearchController(NimsController):
     @expose()
     def query(self, **kwargs):
         # For more robust search query parsing, check out pyparsing.
-        result = {'success': False}
         print kwargs
-        if 'search_param' in kwargs and 'search_query' in kwargs and 'date_from' in kwargs and 'date_to' in kwargs and 'subject_name' in kwargs:
-            search_query = kwargs['search_query']
-            search_param = kwargs['search_param']
-            search_name = kwargs['subject_name']         
-            for sn in search_name:
-                search_query.append(sn)
-                search_param.append('Subject Name')
-        elif 'search_param' in kwargs and 'search_query' in kwargs and 'date_from' in kwargs and 'date_to' in kwargs and 'choose_db' in kwargs:
-            search_query = kwargs['search_query']
-            search_param = kwargs['search_param']
+        result = {'success': False}
+        if 'search_age' in kwargs and 'search_exam' in kwargs and 'search_typescan' in kwargs and 'search_operator' in kwargs and 'search_psdName' in kwargs and 'date_from' in kwargs and 'date_to' in kwargs and 'subject_name' in kwargs and 'subject_last_name' in kwargs:
+            search_query = kwargs.values()
+            search_param = kwargs.keys()
+        elif 'search_age' in kwargs and 'search_exam' in kwargs and 'search_typescan' in kwargs and 'search_operator' in kwargs and 'search_psdName' in kwargs and 'date_from' in kwargs and 'date_to' in kwargs and 'choose_db' in kwargs:
+            search_query = kwargs.values()
+            search_param = kwargs.keys()
         else:
             return json.dumps(result)
-
-        if isinstance(search_query, basestring): search_query = [ search_query ]
-        if isinstance(search_param, basestring): search_param = [ search_param ]
         
+        print search_query
         
         search_query = [x.replace('*','%') for x in search_query]
         
         #Zip fields and if any field is empty remove it from parameters
         parameters = [(x,y) for x,y in zip(search_param, search_query) if y]
         
+        parameters = [(x,y) for x,y in parameters if x != 'choose_db']
+        
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         
-        
         if 'choose_db' in kwargs:
-            parameters = [(x,y) for x,y in parameters if x != 'Subject Name']
             db_query = (DBSession.query(Epoch, Session, Subject, Experiment)
                         .join(Session, Epoch.session)
                         .join(Subject, Session.subject)
@@ -156,12 +163,11 @@ class SearchController(NimsController):
                         .join(Access,Experiment.accesses)
                         .filter(Access.user == user))
             for elem in parameters:
-                if 'Subject Name' in elem[0]:
+                if 'subject_name' in elem[0] or 'subject_last_name' in elem[0]:
                     db_query = db_query.filter(Access.privilege >= AccessPrivilege.value(u'Read-Only'))
                 else:
                     db_query = db_query.filter(Access.privilege >= AccessPrivilege.value(u'Anon-Read'))
             
-        # TODO: when fields are all empty stop the search.
         if len(parameters)==0 and kwargs['date_from']=='' and kwargs['date_to']=='':
             return json.dumps(result)
 
@@ -172,11 +178,6 @@ class SearchController(NimsController):
                 result = {'success': False, 'error_message' : 'Field ' + query + 'could not be processed'}
                 return json.dumps(result)
             db_query = query_functions[param](db_query, query)
-        
-        if kwargs['date_from'] != None and re.match(r'\s*\d+\d+',kwargs['date_from'])!=None:
-            db_query = db_query.filter(Session.timestamp >= kwargs['date_from'])
-        if kwargs['date_to'] != None and re.match(r'\s*\d+\d+',kwargs['date_to'])!=None:
-            db_query = db_query.filter(Session.timestamp <= kwargs['date_to'])
 
         result['data'], result['attrs'] = self._process_result(db_query.all())
         result['success'] = True

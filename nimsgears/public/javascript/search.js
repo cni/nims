@@ -111,6 +111,36 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
         }
     };
 
+
+    $(function() {
+        $("#date_from").datepicker(
+                {
+                    defaultDate : "-1m",
+                    changeMonth : true,
+                    changeYear : true,
+                    numberOfMonths : 2,
+                    maxDate : "+1d",
+                    onSelect : function(selectedDate) {
+                        $("#date_to").datepicker("option",
+                                "minDate", selectedDate);
+                    }
+                });
+        $("#date_to").datepicker(
+                {
+                    defaultDate : "+0d",
+                    changeMonth : true,
+                    changeYear : true,
+                    numberOfMonths : 2,
+                    maxDate : "+1d",
+                    onSelect : function(selectedDate) {
+                        $("#date_from").datepicker(
+                                "option", "maxDate",
+                                selectedDate);
+                    }
+                });
+    });
+    
+    
     var init = function()
     {
         epochs_popup = $("#epochs_pop");
@@ -132,72 +162,8 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
     $(document).ready(function() { init(); });
 });
 
-// Add  new criteria to the query
-
-var criteriaCounter = 1;
-var max = 1;
-
-$('#newCriteria').live('click',
-	function() {
-    
-    //Before cloning get fields of search_param   
-    var spa = $('.criteriaBody' ).last().children('#criteriaContainerA').find('.search_param').val();
-    var spb = $('.criteriaBody' ).last().children('#criteriaContainerB').find('.search_param').val();
-
-	//Create new Fields
-	var clonedContainer = $('.criteriaBody' ).last().clone()
-		.attr('id','criteriaBody' + max );
-		max++;
-		criteriaCounter++;
-	//Clear data fields
-	$(clonedContainer).each(function() {
-		$('input', this).val('');
-		});
-        
-    // Initialize the tooltip message 
-    setInformation($(clonedContainer).find('.field_information'), tooltipMessages['Exam']);
-
-	//Append to parent
-	clonedContainer.appendTo('#upper_Body');
-
-	//Add the plus button to add criteria
-	$(this).addClass('hide');
-
-	//Show the remove button
-	$('.removeCriteria').removeClass('hide');
-    
-    //Set dropdown boxes and tooltips to cloned box values
-    clonedContainer.children('#criteriaContainerA').find('.search_param').val(spa);
-    clonedContainer.children('#criteriaContainerB').find('.search_param').val(spb);
-    var tta = clonedContainer.children('#criteriaContainerA').find('.field_information');
-    var ttb = clonedContainer.children('#criteriaContainerB').find('.field_information');
-    if( spa != 'Scan Type'){ 
-        setInformation(tta, tooltipMessages[spa]);
-    }
-    if( spb != 'Scan Type'){ 
-        setInformation(ttb, tooltipMessages[spb]);
-    }
-    
-});
 
 
-// Remove new criteria to the query
-
-$('#remove').live('click', function(){
-
-	$(this).parents('.criteriaBody').remove();
-	criteriaCounter--;
-
-	// In case last builder, not to show remove option
-	if (criteriaCounter == 1) {
-		$('.removeCriteria').addClass('hide');
-	}
-
-	// Make sure last container has the add button
-	 $(".criteriaBody").last().find('#newCriteria').removeClass('hide');
-     
-
-});
 
 // Map of parameter options and functions to validate fields
 var validation_inputs = {
@@ -256,7 +222,6 @@ $('#submit').click( function(){
             var valueB = $(this).children('#criteriaContainerB').find('.required').val();
             validation_inputs[optionB](valueB);
         }
-
         if(error_ascii.length != 0 ){
             $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
             $('#bannerjs-errorstring').removeClass('hide');
@@ -275,86 +240,20 @@ $('#submit').click( function(){
 	}
 });
 
-var tooltipMessages = {
-    'Subject Age' : 'Examples:  &gt;10, &lt;50, 10 to 30',
-    'PSD Name' : 'Examples: cni_epi, BRAVO',
-    'Exam' : 'Number between: 1, 99999',
-    'Operator' : 'SunID of operator',
-};
-
-// Tooltip to show the examples of how to enter the age, used qTip to do it.
-$('.search_param').live('change', function(){
-    var option = this.value;
-    var tooltipText = tooltipMessages[option];    
-    var information = $(this).parents('.criteriaContainer').find('.field_information');
-    information.html(tooltipText);
-});
-
-
-function setInformation(information, tooltipText){
-    information.html(tooltipText);
-}
-
-//Set tooltip to Subject Name when page loaded
- setInformation($('.field_information'), tooltipMessages['Subject Age']);
 
  //Show the First Name and Last Name only when search in your data:
- var countCheck = 0;
  $('#data_checkBox').live('click', function(){ 
      if($('#data_checkBox').is(':checked')){
-    // if( countCheck%2 == 0 ){
         $('#restricted_datasets').hide();
         $('#first_name, #last_name').attr('disabled', 'disabled');
         $('.first_name, .last_name').css('color', '#E0E0E0');
         $('#first_name, #last_name').css('color', '#E0E0E0');
-        countCheck++;
     }else{
         $('#restricted_datasets').show();
         $('#first_name, #last_name').removeAttr('disabled');
         $('.first_name, .last_name').css('color', '#000000 ');
          $('#first_name, #last_name').css('color', '#000000 ');
-        countCheck++;
     }
  });
-
- //If scan_type is selected, show the list of options
- $('.search_param').live('change',function(){  
-     var option = this.value;
-     var inputBox = $(this).parents('.criteriaContainer').find('#search_query');
-     var tooltip = $(this).parents('.criteriaContainer').find('.field_information');
-     var scantype = $(this).parents('.criteriaContainer').find('.scantype');
-     if (option == 'Scan Type'){
-         inputBox.addClass('hide');
-         inputBox.removeAttr('name');
-         tooltip.addClass('hide');
-         scantype.removeClass('hide');
-         scantype.attr('name', 'search_query');
-     }else{
-         inputBox.removeClass('hide');
-         inputBox.attr('name', 'search_query');
-         tooltip.removeClass('hide');
-         scantype.removeAttr('name');
-         scantype.addClass('hide');
-     }       
- });  
  
- //When loaded the page, set elements in Containers to 'Scan Type' and 'Exam'
- $(document).ready(function(){
-     $('#criteriaContainerA').find('.search_param').val('Scan Type');
-     var optionA = $('#criteriaContainerA').find('.search_param');
-     var inputBox = optionA.parents('.criteriaContainer').find('#search_query');
-     var tooltip = optionA.parents('.criteriaContainer').find('.field_information');
-     var scantype = optionA.parents('.criteriaContainer').find('.scantype');
-     inputBox.addClass('hide');
-     inputBox.removeAttr('name');
-     tooltip.addClass('hide');
-     scantype.removeClass('hide');
-     scantype.attr('name', 'search_query');
-     
-     $('#criteriaContainerB').find('.search_param').val('Exam');
-     var optionB = $('#criteriaContainerB').find('.search_param');
-     var inputBox = optionB.parents('.criteriaContainer').find('#search_query');
-     var tooltip = optionB.parents('.criteriaContainer').find('.field_information');
-     setInformation(tooltip, tooltipMessages['Exam']);
-     
- });        
+   

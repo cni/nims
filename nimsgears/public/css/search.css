@@ -1,19 +1,43 @@
-#dataset_div{
-    font-weight:500;
+#psd{
 }
+
+.first_row td{
+    padding-bottom:10px;
+}
+
+#exam_information{
+    font-size:90%;
+    margin-left: 50px;
+}
+#psdName_information{
+    font-size:90%;
+    margin-left:80px;
+}
+ #operator_information,#age_information{
+    font-size:90%;
+    margin-left:80px;
+}
+#query_table{
+    display:table;
+}
+#dataset_div{
+    display:table-row;
+}
+
+#container_names, #container_scanType{
+    display:table-cell;
+}
+
 #db_choice{
     padding:15px;
 }
 .first_name{
-    margin-left:10px;
     float:left;
-    padding-bottom:15px;
 }
 .last_name{
-    padding-left:20px;
+
     margin-left:350;
     float:left;
-    padding-bottom:15px;
 }
 div#bannerjs { 
     position: relative; 
@@ -73,6 +97,7 @@ div#bannerpy-content {
 }
 .field_information{
     margin-left:130px;
+    color:#888888;
 }
 #newCriteria {
     position: relative;
@@ -83,8 +108,8 @@ div#bannerpy-content {
 }
 
 #submitDiv{
-    width:100%;
-    float:left;
+    margin:auto;
+    width:70%;
 	padding:5px;
 }
 
