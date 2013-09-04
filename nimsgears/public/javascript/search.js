@@ -206,39 +206,70 @@ function is_otherfield(value){
 
 // Validation of the fields
 
-$('#submit').click( function(){
-    error_ascii = [];
-    error_int = [];
-	var validationError = false;
-
-	$('.criteriaBody').each(function(){
-        var optionA = $(this).children('#criteriaContainerA').find('.search_param').val();
-        var optionB = $(this).children('#criteriaContainerB').find('.search_param').val();
-        if (optionA != 'Scan Type'){
-            var valueA = $(this).children('#criteriaContainerA').find('.required').val();
-            validation_inputs[optionA](valueA);
-        }
-        if (optionB != 'Scan Type'){
-            var valueB = $(this).children('#criteriaContainerB').find('.required').val();
-            validation_inputs[optionB](valueB);
-        }
-        if(error_ascii.length != 0 ){
-            $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
-            $('#bannerjs-errorstring').removeClass('hide');
-        }else{
-            $('#bannerjs-errorstring').addClass('hide');
-        }
-        if(error_int.length != 0 ){
+$('#submit').click(function(){
+   error_ascii = [];
+   error_int = [];
+   var validationError = false;
+   
+   $('.required').each(function(){
+       var value = $(this).val();
+       if( $(this).parent().attr('value') == 'Exam'){
+           is_integer(value);
+       }else{
+           is_ascii(value);
+       }
+       if(error_ascii.length != 0 ){
+           $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
+           $('#bannerjs-errorstring').removeClass('hide');
+       }else{
+           $('#bannerjs-errorstring').addClass('hide');
+       }       
+       if(error_int.length != 0 ){
             $('#bannerjs-errorints').html("Fields <b>" + error_int.toString() + "</b> do not correspond to integer");
             $('#bannerjs-errorints').removeClass('hide');
         }else{
             $('#bannerjs-errorints').addClass('hide');
         }
-	});      
-	if( validationError ){
-		return false;
-	}
+   });
+   if( validationError ){
+            return false;
+        }
 });
+
+// $('#submit').click( function(){
+//     error_ascii = [];
+//     error_int = [];
+//     var validationError = false;
+// 
+//     $('.query_table').each(function(){
+//         var optionA = $(this).children('#criteriaContainerA').find('.search_param').val();
+//         var optionB = $(this).children('#criteriaContainerB').find('.search_param').val();
+//         if (optionA != 'Scan Type'){
+//             var valueA = $(this).children('#criteriaContainerA').find('.required').val();
+//             validation_inputs[optionA](valueA);
+//         }
+//         if (optionB != 'Scan Type'){
+//             var valueB = $(this).children('#criteriaContainerB').find('.required').val();
+//             alert(valueB)
+//             validation_inputs[optionB](valueB);
+//         }
+//         if(error_ascii.length != 0 ){
+//             $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
+//             $('#bannerjs-errorstring').removeClass('hide');
+//         }else{
+//             $('#bannerjs-errorstring').addClass('hide');
+//         }
+//         if(error_int.length != 0 ){
+//             $('#bannerjs-errorints').html("Fields <b>" + error_int.toString() + "</b> do not correspond to integer");
+//             $('#bannerjs-errorints').removeClass('hide');
+//         }else{
+//             $('#bannerjs-errorints').addClass('hide');
+//         }
+//     });      
+//     if( validationError ){
+//         return false;
+//     }
+// });
 
 
  //Show the First Name and Last Name only when search in your data:

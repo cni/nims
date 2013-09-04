@@ -54,15 +54,15 @@
              </tr>
             <tr class='first_row'>
                 <td>
-                    <span class='first_name'>
+                    <span class='first_name' value='first_name'>
                         Subject Name&nbsp;<input id='first_name' type='text' name='subject_name' placeholder='First Name' size='15'/>
                     </span>
-                    <span class='last_name'>
-                        <input id='last_name' type='text' name='subject_last_name' placeholder='Last Name' size='15'/>
+                    <span class='last_name' value='last_name'>
+                        <input class='required' id='last_name' type='text' name='subject_last_name' placeholder='Last Name' size='15'/>
                     </span>
                 </td>
                 <td>
-                    <span id='scan_type' name="search_param">
+                    <span id='scan_type' name="search_param" value='scan_type'>
                         Type Scan &nbsp;
                         <select class="scantype" name='search_typescan'>
                             <option py:for="value in scantype_values" >${value}</option>
@@ -71,9 +71,9 @@
                 </td>
                     <td>
                         <span id="dates">
-                            <span><label for="date_from">From&nbsp;</label> <input type="text"
+                            <span value='date_from'><label for="date_from">From&nbsp;</label> <input class='required' type="text"
                                 size="10" id="date_from" name="date_from" /></span>
-                            <span><label for="date_to">to&nbsp;</label> <input type="text"
+                            <span value='date_to'><label for="date_to">to&nbsp;</label> <input class='required' type="text"
                                 size="10" id="date_to" name="date_to" /></span>
                         </span>
                     </td> 
@@ -82,7 +82,7 @@
         <table>
             <tr>
                 <td>
-                    <span id='psd' name="search_param">
+                    <span id='psd' name="search_param" value='psd_name'>
                         PSD Name &nbsp;
                         <input class='required' name='search_psdName' type='text' size='20'>                     
                         </input>
@@ -90,7 +90,7 @@
                     </span>
                 </td>
                 <td>
-                    <span id='operator' name="search_param">
+                    <span id='operator' name="search_param" value='operator'>
                         Operator &nbsp;
                         <input class='required' name='search_operator' type='text' size='20'>                     
                         </input>
@@ -98,7 +98,7 @@
                     </span>
                 </td>
                     <td>
-                        <span id='age' name="search_param">
+                        <span id='age' name="search_param" value='age'>
                             Subject Age &nbsp;
                             <input class='required' name='search_age' type='text' size='20'>                     
                             </input>
