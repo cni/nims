@@ -105,14 +105,7 @@ class SearchController(NimsController):
     def index(self):
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         dataset_cnt = Session.query.count()
-    
-        db_query = (DBSession.query(Epoch, Session, Subject, Experiment)
-                    .join(Session, Epoch.session)
-                    .join(Subject, Session.subject)
-                    .join(Experiment, Subject.experiment)
-                    .join(Access,Experiment.accesses)
-                    .filter(Access.user == user))
-        userdataset_cnt = db_query.count()
+        userdataset_cnt = user.dataset_cnt
         epoch_columns = [ ('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Scan Type', 'col_typescan'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
         scantype_values = ['', 'anatomy', 'anatomy_t1w', 'anatomy_t2w', 'calibration', 'diffusion', 'fieldmap', 'functional', 'localizer', 'perfusion', 'shim', 'spectroscopy']
