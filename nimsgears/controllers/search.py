@@ -43,7 +43,7 @@ validation_functions = {
     'search_operator' : is_ascii,
     'search_age' : is_ascii,
     'search_psdName' : is_ascii,
-    'search_typescan': is_ascii,
+    'search_typescan': is_other_field,
     'date_from': is_date,
     'date_to': is_date,
 }
