@@ -14,7 +14,7 @@ from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
 
 def is_ascii(s):
-    if bool(re.match(r'^[a-zA-Z0-9-_]+$', s)):
+    if bool(re.match(r'^[a-zA-Z0-9-_<>\%]+$', s)):
         return True
     else:
         return False
@@ -41,7 +41,7 @@ validation_functions = {
     'subject_name' : is_ascii,
     'search_exam' : is_a_number,
     'search_operator' : is_ascii,
-    'search_age' : is_other_field,
+    'search_age' : is_ascii,
     'search_psdName' : is_ascii,
     'search_typescan': is_other_field,
     'date_from': is_date,
