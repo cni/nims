@@ -8,7 +8,7 @@
 
 <head>
     <link rel="stylesheet" type="text/css" href="../css/search.css" />
-    <h2>NIMS Search</h2>
+    <title>NIMS Search</title>
 
     <meta content="text/html; charset=UTF-8" http-equiv="Content-Type"
 	    py:if="False" />
@@ -47,7 +47,7 @@
 
 
             <tr id='dataset_div'>
-               <h3> NIMS Search</h3> You are currently searching <b><span id="restricted_datasets">${userdataset_cnt} / </span>${dataset_cnt}</b  > datasets.
+               <h2> NIMS Search</h2> You are currently searching <b><span id="restricted_datasets">${userdataset_cnt} / </span>${dataset_cnt}</b  > datasets.
                    <span id='db_choice'>
                        <input id='data_checkBox' type="checkbox" name='choose_db' value='any_data'/> Search all datasets
                    </span>
@@ -71,7 +71,7 @@
                 </td>
                     <td>
                         <span id="dates">
-                            <span value='date_from'><label for="date_from">From&nbsp;</label> <input class='required' type="text"
+                            <span value='date_from'><label for="date_from">Date from&nbsp;</label> <input class='required' type="text"
                                 size="10" id="date_from" name="date_from" /></span>
                             <span value='date_to'><label for="date_to">to&nbsp;</label> <input class='required' type="text"
                                 size="10" id="date_to" name="date_to" /></span>
