@@ -8,7 +8,7 @@
 
 <head>
     <link rel="stylesheet" type="text/css" href="../css/search.css" />
-    <title>NIMS Search</title>
+    <h2>NIMS Search</h2>
 
     <meta content="text/html; charset=UTF-8" http-equiv="Content-Type"
 	    py:if="False" />
@@ -28,24 +28,24 @@
 	</div>
     <!-- Banner used to show the error from js validation -->
     <div id='bannerjs'>
-        <div class='hide' id="bannerjs-emptyfields">         
+        <div class='hide' id="bannerjs-emptyfields">
         </div>
-        <div class='hide' id="bannerjs-errorstring">         
+        <div class='hide' id="bannerjs-errorstring">
         </div>
-        <div class='hide' id="bannerjs-errorints">         
+        <div class='hide' id="bannerjs-errorints">
         </div>
     </div>
         <!-- Banner used to show no results  -->
         <div class='hide' id='bannerpy'>
             <div id="bannerpy-content">
-    
+
             </div>
         </div>
 
 	<form id="search_form" accept-charset="UTF-8">
 		<table id="query_table" cellpadding="0" cellspacing="0">
-            
-            
+
+
             <tr id='dataset_div'>
                <h3> NIMS Search</h3> You are currently searching <b><span id="restricted_datasets">${userdataset_cnt} / </span>${dataset_cnt}</b  > datasets.
                    <span id='db_choice'>
@@ -76,7 +76,7 @@
                             <span value='date_to'><label for="date_to">to&nbsp;</label> <input class='required' type="text"
                                 size="10" id="date_to" name="date_to" /></span>
                         </span>
-                    </td> 
+                    </td>
             </tr>
         </table>
         <table>
@@ -84,7 +84,7 @@
                 <td>
                     <span id='psd' name="search_param" value='psd_name'>
                         PSD Name &nbsp;
-                        <input class='required' name='search_psdName' type='text' size='20'>                     
+                        <input class='required' name='search_psdName' type='text' size='20'>
                         </input>
                         <div class='field_information' id='psdName_information'>e.g.= cni_epi, BRAVO</div>
                     </span>
@@ -92,7 +92,7 @@
                 <td>
                     <span id='operator' name="search_param" value='operator'>
                         Operator &nbsp;
-                        <input class='required' name='search_operator' type='text' size='20'>                     
+                        <input class='required' name='search_operator' type='text' size='20'>
                         </input>
                         <div class='field_information' id='operator_information'>SUNetID of operator</div>
                     </span>
@@ -100,7 +100,7 @@
                     <td>
                         <span id='age' name="search_param" value='age'>
                             Subject Age &nbsp;
-                            <input class='required' name='search_age' type='text' size='20'>                     
+                            <input class='required' name='search_age' type='text' size='20'>
                             </input>
                             <div class='field_information' id='age_information'>e.g.= &gt;10, &lt;50, 10 to 30</div>
                         </span>
@@ -120,7 +120,7 @@
                 <span>
                     <p id="n_results"></p>
                 </span>
-            </div> 
+            </div>
 	</form>
 	<table id="epochs" class="scrolltable" style="visibility: hidden">
 		<thead>

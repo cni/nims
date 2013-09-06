@@ -7,6 +7,7 @@ import json
 import re
 import datetime
 import sys
+import nimsdata
 
 from nimsgears.model import *; import transaction
 from nimsgears.controllers.nims import NimsController
@@ -16,7 +17,7 @@ def is_ascii(s):
         return True
     else:
         return False
-    
+
 def is_a_number(n):
     try:
         int(n)
@@ -28,12 +29,12 @@ def is_date(s):
     if bool(re.compile(r'\s*\d+\d+').match(s)):
         return True
     else:
-        return False        
+        return False
 
 def is_other_field(n):
     return True
-    
-            
+
+
 validation_functions = {
     'subject_last_name' : is_ascii,
     'subject_name' : is_ascii,
@@ -48,26 +49,26 @@ validation_functions = {
 
 def query_psdname( db_query, query_value ):
     return db_query.filter(Epoch.psd.ilike( query_value ))
-    
+
 def query_scantype( db_query, query_value ):
     return db_query.filter(Epoch.scan_type.ilike( query_value ))
-            
+
 def query_subjectname( db_query, query_value ):
     return db_query.filter(Subject.lastname.ilike( query_value ) | Subject.firstname.ilike( query_value ))
-        
+
 def query_exam( db_query, query_value ):
     return db_query.filter(Session.exam == int( query_value ))
-            
+
 def query_operator( db_query, query_value ):
     return (db_query.join(User)
                     .filter(User.uid.ilike(query_value) | User.firstname.ilike( query_value ) | User.lastname.ilike( query_value )))
-                    
+
 def query_date_from( db_query, query_value ):
     return db_query.filter(Session.timestamp >= query_value)
-    
+
 def query_date_to( db_query, query_value ):
     return db_query.filter(Session.timestamp <= query_value)
-                    
+
 def query_subjectage( db_query, query_value ):
     min_age = None
     max_age = None
@@ -85,7 +86,7 @@ def query_subjectage( db_query, query_value ):
     return (db_query
             .filter(Session.timestamp - Subject.dob >= datetime.timedelta(days=float(min_age)*365.25))
             .filter(Session.timestamp - Subject.dob <= datetime.timedelta(days=float(max_age)*365.25)))
-            
+
 query_functions = {
     'subject_name' : query_subjectname,
     'subject_last_name' : query_subjectname,
@@ -108,16 +109,16 @@ class SearchController(NimsController):
         userdataset_cnt = user.dataset_cnt
         epoch_columns = [ ('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Scan Type', 'col_typescan'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
-        scantype_values = ['', 'anatomy', 'anatomy_t1w', 'anatomy_t2w', 'calibration', 'diffusion', 'fieldmap', 'functional', 'localizer', 'perfusion', 'shim', 'spectroscopy']
+        scantype_values = [''] + sorted(nimsdata.nimsimage.scan_types.all)
         return dict(page='search',
             userdataset_cnt=userdataset_cnt,
                 dataset_cnt=dataset_cnt,
             epoch_columns=epoch_columns,
             dataset_columns=dataset_columns,
             scantype_values=scantype_values)
-          
-               
-               
+
+
+
     @expose()
     def query(self, **kwargs):
         # For more robust search query parsing, check out pyparsing.
@@ -131,18 +132,18 @@ class SearchController(NimsController):
             search_param = kwargs.keys()
         else:
             return json.dumps(result)
-        
+
         print search_query
-        
+
         search_query = [x.replace('*','%') for x in search_query]
-        
+
         #Zip fields and if any field is empty remove it from parameters
         parameters = [(x,y) for x,y in zip(search_param, search_query) if y]
-        
+
         parameters = [(x,y) for x,y in parameters if x != 'choose_db']
-        
+
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
-        
+
         if 'choose_db' in kwargs:
             db_query = (DBSession.query(Epoch, Session, Subject, Experiment)
                         .join(Session, Epoch.session)
@@ -160,11 +161,11 @@ class SearchController(NimsController):
                     db_query = db_query.filter(Access.privilege >= AccessPrivilege.value(u'Read-Only'))
                 else:
                     db_query = db_query.filter(Access.privilege >= AccessPrivilege.value(u'Anon-Read'))
-            
+
         if len(parameters)==0 and kwargs['date_from']=='' and kwargs['date_to']=='':
             return json.dumps(result)
 
-        
+
         for param, query in parameters:
             if not validation_functions[param](query):
                 # The query value is not valid
@@ -175,7 +176,7 @@ class SearchController(NimsController):
         result['data'], result['attrs'] = self._process_result(db_query.all())
         result['success'] = True
         return json.dumps(result)
-                
+
     def _process_result(self, db_result):
         data_list = []
         attr_list = []
