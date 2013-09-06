@@ -8,6 +8,7 @@ import re
 import datetime
 import sys
 import nimsdata
+import numpy
 
 from nimsgears.model import *; import transaction
 from nimsgears.controllers.nims import NimsController
