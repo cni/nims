@@ -7,68 +7,50 @@
 <xi:include href="master.html" />
 
 <head>
-    <style>
-      #progress_bar {
-        margin: 10px 0;
-        padding: 3px;
-        border: 1px solid #000;
-        font-size: 14px;
-        clear: both;
-        opacity: 0;
-        -moz-transition: opacity 1s linear;
-        -o-transition: opacity 1s linear;
-        -webkit-transition: opacity 1s linear;
-      }
-      #progress_bar.loading {
-        opacity: 1.0;
-      }
-      #progress_bar .percent {
-        background-color: #99ccff;
-        height: auto;
-        width: 0;
-      }
-    </style>
     <link rel="stylesheet" type="text/css" href="../css/upload.css" />
     <title>NIMS Upload</title>
-    
+
     <!-- Force latest IE rendering engine or ChromeFrame if installed -->
     <!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"><![endif]-->
 
-    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type"
-	    py:if="False" />
-        
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" py:if="False" />
+
     <script type="text/javascript">
-            
+        // Check for the various File API support.
+        if (!window.File || !window.FileReader || !window.FileList || !window.Blob) {
+            alert('The File APIs are not fully supported in this browser.');
+        }
     </script>
+
+    <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
 </head>
 <body>
     <h2>Upload</h2>
     <form>
         <div>Group <select name='group'>
-            <option name='group1' value='1'>1</option>
-            <option name='group2' value='3'>3</option>
-            <option name='group3' value='5'>5</option>
+            <option value='1'>group 1</option>
+            <option value='3' >group 3</option>
+            <option value='5'>group 5</option>
         </select>
         </div>
+
         <div>Experiment
-            <input type="text" name='experiment'></input>
+            <input type="text" name='balbal'></input>
         </div>
+
+        <input type="file" id="files" name="files[]" multiple="multiple" />
+        <button onclick="abortRead();">Cancel read</button>
+        <div id="drop_zone">Drop files here</div>
+
+        <ul id="file_list" />
+
+        <div id="progress_bar"><div class="percent">0%</div></div>
+
         <div>
-            <input type='submit' value='Submit'></input>
+            <input type='submit' value="Submit"></input>
         </div>
     </form>
-    
-    <input type="file" id="files" name="file" />
-    <button onclick="abortRead();">Cancel read</button>
-    <div id="progress_bar"><div class="percent">0%</div></div>
-    
-    <script type='text/javascript'>
-    
-    $('form').submit(function(){
-       console.log($(this).serializeArray());
-       return false; 
-    });
-  
-    </script>
+    <pre id="result"></pre>
+    <script src="${tg.url('/javascript/upload.js')}"></script>
 </body>
 </html>
