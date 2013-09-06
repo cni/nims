@@ -10,11 +10,11 @@ import sys
 import nimsdata
 import numpy
 
-from nimsgears.model import *; import transaction
+from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
 
 def is_ascii(s):
-    if bool(re.compile(r'^[\w\W\b\B\d\D\s\S]+$').match(s)):
+    if bool(re.match(r'^[a-zA-Z0-9-_]+$', s)):
         return True
     else:
         return False
@@ -41,7 +41,7 @@ validation_functions = {
     'subject_name' : is_ascii,
     'search_exam' : is_a_number,
     'search_operator' : is_ascii,
-    'search_age' : is_ascii,
+    'search_age' : is_other_field,
     'search_psdName' : is_ascii,
     'search_typescan': is_other_field,
     'date_from': is_date,
@@ -133,8 +133,6 @@ class SearchController(NimsController):
             search_param = kwargs.keys()
         else:
             return json.dumps(result)
-
-        print search_query
 
         search_query = [x.replace('*','%') for x in search_query]
 
