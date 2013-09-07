@@ -111,7 +111,10 @@ class SearchController(NimsController):
         epoch_columns = [ ('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Scan Type', 'col_typescan'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
         scantype_values = [''] + sorted(nimsdata.nimsimage.scan_types.all)
+        psd_names_tuples = DBSession.query(Epoch.psd).distinct(Epoch.psd)
+        psd_values = [''] + sorted([elem[0] for elem in psd_names_tuples])
         return dict(page='search',
+            psd_values=psd_values,
             userdataset_cnt=userdataset_cnt,
                 dataset_cnt=dataset_cnt,
             epoch_columns=epoch_columns,
@@ -138,8 +141,9 @@ class SearchController(NimsController):
 
         #Zip fields and if any field is empty remove it from parameters
         parameters = [(x,y) for x,y in zip(search_param, search_query) if y]
-
         parameters = [(x,y) for x,y in parameters if x != 'choose_db']
+
+        print '+++++++++++++++++++++++++++++++++++++++++++', parameters
 
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
 

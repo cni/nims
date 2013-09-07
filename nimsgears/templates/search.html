@@ -84,9 +84,9 @@
                 <td>
                     <span id='psd' name="search_param" value='psd_name'>
                         PSD Name &nbsp;
-                        <input class='required' name='search_psdName' type='text' size='20'>
-                        </input>
-                        <div class='field_information' id='psdName_information'>e.g.= cni_epi, BRAVO</div>
+                        <select class="psd_values" name='search_psdName'>
+                            <option py:for="value in psd_values" >${value}</option>
+                        </select>
                     </span>
                 </td>
                 <td>
