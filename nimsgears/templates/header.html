@@ -51,7 +51,6 @@
       </py:if>
 
       <py:if test="tg.identity">
-        <li><a href="${tg.url('/auth/status')}" class="${('', 'current')[defined('page') and page=='status']}">Status</a></li>
         <li><a href="${tg.url('/auth/browse')}" class="${('', 'current')[defined('page') and page=='browse']}">My Data</a></li>
         <li><a href="${tg.url('/auth/search')}" class="${('', 'current')[defined('page') and page=='search']}">Search</a></li>
         <li class="right">
