@@ -252,7 +252,7 @@ class User(Entity):
             query = query.filter(Session.trashtime == None)
         elif self.trash_flag == 2:
             query = query.filter(Session.trashtime != None)
-        return query.order_by(Session.timestamp.desc()).first()
+        return query.order_by(Session.timestamp.desc()).first() or (None, None)
 
 
 class Permission(Entity):
