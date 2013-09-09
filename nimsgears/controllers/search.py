@@ -143,8 +143,6 @@ class SearchController(NimsController):
         parameters = [(x,y) for x,y in zip(search_param, search_query) if y]
         parameters = [(x,y) for x,y in parameters if x != 'choose_db']
 
-        print '+++++++++++++++++++++++++++++++++++++++++++', parameters
-
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
 
         if 'choose_db' in kwargs:
