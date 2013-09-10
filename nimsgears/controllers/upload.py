@@ -15,6 +15,7 @@ class UploadController(NimsController):
 
     @expose()
     def submit(self, **kwargs):
+        print kwargs
         # This method will be called when a file is being uploaded
         return dict()
 
