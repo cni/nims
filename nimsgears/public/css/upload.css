@@ -1,3 +1,7 @@
+#group_select{
+    padding:10px;
+}
+
 #uid-wrapper {
     padding:10px;
 }
@@ -14,9 +18,9 @@
 }
 
 #drop_zone.over {
-    border:2px dashed #4B8A08;
-    color: #4B8A08;
-    background-color: #D8F6CE;
+    border:2px dashed #989898;
+    color: #989898;
+    background-color: #F8F8F8;
 }
 
 #progress_bar {

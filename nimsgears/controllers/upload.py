@@ -9,10 +9,15 @@ class UploadController(NimsController):
         return dict(page='upload')
 
     @expose()
-    def submit(self):
+    def query(self, **kwargs):
+        result = {'success': False}
+        return json.dumps(result)
+
+    @expose()
+    def submit(self, **kwargs):
         # This method will be called when a file is being uploaded
         return dict()
-        
 
-               
+
+
 
