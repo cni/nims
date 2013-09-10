@@ -1,38 +1,30 @@
-//Make a JSON out of the form
-
-// $('form').submit(function(){
-//     console.log($(this).serializeArray());
+// //Make a JSON out of the form
+// $.fn.serializeObject = function()
+// {
+//     var o = {};
+//     var a = this.serializeArray();
+//     $.each(a, function(){
+//         if(o[this.name] !== undefined ){
+//             if( !o[this.name].push ){
+//                 o[this.name] = [o[this.name]];
+//             }
+//             o[this.name].push(this.value || '');
+//         }else{
+//             o[this.name] = this.value || '';
+//         }
+//     });
+//     return o;
+// };
+//
+// $('#submit_form').on('click', function(evt) {
+//     evt.stopPropagation();
+//     evt.preventDefault();
+//
+//     $('#result').text(JSON.stringify($('form').serializeObject()));
 //     return false;
 // });
 
-
-
-
-$.fn.serializeObject = function()
-{
-    var o = {};
-    var a = this.serializeArray();
-    $.each(a, function(){
-        if(o[this.name] !== undefined ){
-            if( !o[this.name].push ){
-                o[this.name] = [o[this.name]];
-            }
-            o[this.name].push(this.value || '');
-        }else{
-            o[this.name] = this.value || '';
-        }
-    });
-    return o;
-};
-
-$('#submit_form').on('click', function(evt) {
-    evt.stopPropagation();
-    evt.preventDefault();
-
-    $('#result').text(JSON.stringify($('form').serializeObject()));
-    return false;
-});
-
+alert(files[]);
 
 function addSelectedFiles(files) {
     // files is a FileList of File objects. List some properties.
