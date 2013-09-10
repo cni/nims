@@ -26,18 +26,24 @@
 </head>
 <body>
     <h2>Upload</h2>
-    <form>
-        <div>Group <select name='group'>
-            <option value='1'>group 1</option>
-            <option value='3' >group 3</option>
-            <option value='5'>group 5</option>
-        </select>
-        </div>
-
-        <div>Experiment
-            <input type="text" name='balbal'></input>
-        </div>
-
+    <form action="upload/submit" method="POST">
+        <table>
+            <tr>
+                <td>
+                    <div id='group_select'>Group <select name='group'>
+                        <option value='1'>group 1</option>
+                        <option value='3' >group 3</option>
+                        <option value='5'>group 5</option>
+                        </select>
+                    </div>
+                </td>
+                <td>
+                    <div id='experiment_input'>Experiment
+                        <input type="text" name="experiment"></input>
+                    </div>
+                </td>
+            </tr>
+       </table>
         <input type="file" id="files" name="files[]" multiple="multiple" />
         <button onclick="abortRead();">Cancel read</button>
         <div id="drop_zone">Drop files here</div>
@@ -47,7 +53,7 @@
         <div id="progress_bar"><div class="percent">0%</div></div>
 
         <div>
-            <input type='submit' value="Submit"></input>
+            <input id="submit_form" type='submit' value="Submit"></input>
         </div>
     </form>
     <pre id="result"></pre>
