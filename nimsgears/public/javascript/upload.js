@@ -1,30 +1,41 @@
-// //Make a JSON out of the form
-// $.fn.serializeObject = function()
-// {
-//     var o = {};
-//     var a = this.serializeArray();
-//     $.each(a, function(){
-//         if(o[this.name] !== undefined ){
-//             if( !o[this.name].push ){
-//                 o[this.name] = [o[this.name]];
-//             }
-//             o[this.name].push(this.value || '');
-//         }else{
-//             o[this.name] = this.value || '';
-//         }
-//     });
-//     return o;
-// };
-//
-// $('#submit_form').on('click', function(evt) {
-//     evt.stopPropagation();
-//     evt.preventDefault();
-//
-//     $('#result').text(JSON.stringify($('form').serializeObject()));
-//     return false;
-// });
 
-alert(files[]);
+// Prevent from submit for ajax call. If fields are empty, show error banner. Send data to upload.py.
+$('#submit_form').on('click', function(evt) {
+     evt.stopPropagation();
+     evt.preventDefault();
+
+     // $('#result').text(JSON.stringify($('form').serializeObject()));
+
+     var data = new FormData();
+
+     if (!$('#experiment').val() || !$('#group_value').val()){
+         $('#bannerjs-emptyfields').removeClass('hide');
+         $('#bannerjs-emptyfields').html("Fields in the form should be completed");
+     }else{
+         data.append('experiment', $('#experiment').val());
+         data.append('group_value', $('#group_value').val());
+         $('#bannerjs-emptyfields').addClass('hide');
+
+         $.each($('#files')[0].files, function(i, file) {
+             data.append('files[]', file);
+         });
+
+         $.ajax('upload/submit', {
+             data: data,
+             cache: false,
+             contentType: false,
+             processData: false,
+             type: 'POST'})
+             .done( function(data){
+                 var response = JSON.parse(data);
+                 $('#result').text('Completed: ' + response.message);
+             })
+             .fail( function(data){
+                 $('#result').text('Error: ' + data);
+             });
+     }
+
+});
 
 function addSelectedFiles(files) {
     // files is a FileList of File objects. List some properties.
@@ -33,6 +44,7 @@ function addSelectedFiles(files) {
       output.push('<li><strong>', escape(f.name), '</strong> (', f.type || 'n/a', ') - ',
                   f.size, ' bytes, last modified: ',
                   f.lastModifiedDate ? f.lastModifiedDate.toLocaleDateString() : 'n/a',
+                  f.path,
                   '</li>');
     }
 
@@ -49,11 +61,14 @@ function handleFileSelect(evt) {
       output.push('<li><strong>', escape(f.name), '</strong> (', f.type || 'n/a', ') - ',
                   f.size, ' bytes, last modified: ',
                   f.lastModifiedDate ? f.lastModifiedDate.toLocaleDateString() : 'n/a',
+                  f.path,
                   '</li>');
     }
 
     $('#file_list').html(output.join(''));
 }
+
+
 
 function handleDnDSelect(evt) {
     evt.stopPropagation();
@@ -69,6 +84,7 @@ function handleDnDSelect(evt) {
       output.push('<li><strong>', escape(f.name), '</strong> (', f.type || 'n/a', ') - ',
                   f.size, ' bytes, last modified: ',
                   f.lastModifiedDate ? f.lastModifiedDate.toLocaleDateString() : 'n/a',
+                  f.path,
                   '</li>');
     }
 
@@ -91,7 +107,7 @@ function handleDragLeave(evt) {
     $("#drop_zone").removeClass("over");
 }
 
-$('#files').on('change', handleFileSelect);
+// $('#files').on('change', handleFileSelect);
 
 // Setup the dnd listeners.
 $('#drop_zone').on('dragenter', handleDragEnter);
@@ -102,7 +118,7 @@ $('#drop_zone').on('drop', handleDnDSelect);
 
 // Progress bar related
 var reader;
- var progress = document.querySelector('.percent');
+var progress = document.querySelector('.percent');
 
  function abortRead() {
    reader.abort();
