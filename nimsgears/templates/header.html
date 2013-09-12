@@ -44,7 +44,7 @@
     <ul>
       <py:if test="not tg.identity">
         <li><a href="${tg.url('/')}" class="${('', 'current')[defined('page') and page=='index']}">Home</a></li>
-        <li><a href="${tg.url('/pub/browse')}" class="${('', 'current')[defined('page') and page=='browse']}">Public My Data</a></li>
+        <li><a href="${tg.url('/pub/browse')}" class="${('', 'current')[defined('page') and page=='browse']}">Public Data</a></li>
         <li><a href="${tg.url('/pub/search')}" class="${('', 'current')[defined('page') and page=='search']}">Public Search</a></li>
         <li class="right">
             <a href="${tg.url('/auth')}">Login</a></li>
