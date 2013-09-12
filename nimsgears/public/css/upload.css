@@ -1,5 +1,21 @@
-#group_select{
-
+.hide {
+	display: none;
+}
+#table_form{
+    width:60%;
+    text-align:right;
+}
+div#bannerjs {
+    position: relative;
+    top: 0;
+    left: 0;
+    background-color: #FFCCCC;
+    width: 100%;
+    }
+#bannerjs-emptyfields {
+    margin: 0 auto;
+    padding: 5px;
+    border: 1px solid #FF0033;
 }
 
 #uid-wrapper {

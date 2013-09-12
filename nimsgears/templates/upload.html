@@ -25,12 +25,17 @@
     <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
 </head>
 <body>
+    <div id='bannerjs'>
+        <div class='hide' id="bannerjs-emptyfields">
+        </div>
+    </div>
     <h2>Upload</h2>
-    <form action="upload/submit" method="POST">
-        <table>
+    <form action="upload/submit" method="POST" enctype="multipart/form-data">
+        <table id='table_form'>
             <tr>
                 <td>
-                    <div id='group_select'>Group <select name='group'>
+                    <div id='group_select'>Group <select id='group_value' name='group'>
+                        <option value=''></option>
                         <option value='1'>group 1</option>
                         <option value='3' >group 3</option>
                         <option value='5'>group 5</option>
@@ -39,14 +44,21 @@
                 </td>
                 <td>
                     <div id='experiment_input'>Experiment
-                        <input type="text" name="experiment"></input>
+                        <input type="text" id="experiment" name="experiment"></input>
                     </div>
                 </td>
             </tr>
+            <tr>
+                <td>
+                    <input type="file" id="files" name="files[]" multiple="multiple" />
+                </td>
+                <td>
+                     <button onclick="abortRead();">Cancel read</button>
+                </td>
+            </tr>
        </table>
-        <input type="file" id="files" name="files[]" multiple="multiple" />
-        <button onclick="abortRead();">Cancel read</button>
-        <div id="drop_zone">Drop files here</div>
+
+        <div id="drop_zone" name='drop_files'>Drop files for upload</div>
 
         <ul id="file_list" />
 
@@ -56,7 +68,10 @@
             <input id="submit_form" type='submit' value="Submit"></input>
         </div>
     </form>
+
+
     <pre id="result"></pre>
     <script src="${tg.url('/javascript/upload.js')}"></script>
 </body>
 </html>
+
