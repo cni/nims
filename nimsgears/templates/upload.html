@@ -33,12 +33,14 @@
     <form action="upload/submit" method="POST" enctype="multipart/form-data">
         <table id='table_form'>
             <tr>
+                Fill in the form and select the files to upload.
+            </tr>
+            <tr>
                 <td>
-                    <div id='group_select'>Group <select id='group_value' name='group'>
-                        <option value=''></option>
-                        <option value='1'>group 1</option>
-                        <option value='3' >group 3</option>
-                        <option value='5'>group 5</option>
+                    <div id='group_select'>Group
+                        <select id='group_value' name='group'>
+                            <option value=''></option>
+                            <option py:for="group in research_groups" >${group}</option>
                         </select>
                     </div>
                 </td>
@@ -52,25 +54,38 @@
                 <td>
                     <input type="file" id="files" name="files[]" multiple="multiple" />
                 </td>
-                <td>
-                     <button onclick="abortRead();">Cancel read</button>
-                </td>
+                <td></td>
             </tr>
        </table>
 
         <div id="drop_zone" name='drop_files'>Drop files for upload</div>
+        <output id="list"></output>
 
-        <ul id="file_list" />
-
-        <div id="progress_bar"><div class="percent">0%</div></div>
+        <table>
+            <thead id='file_list_header' class='hide'>
+                <tr>
+                    <th></th>
+                    <th>File name</th>
+                    <th>Type</th>
+                    <th>Size (bytes)</th>
+                    <th>Last Modified</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id='file_list'>
+            </tbody>
+        </table>
 
         <div>
             <input id="submit_form" type='submit' value="Submit"></input>
+            <!-- <input id="clear_form" type='button' value="Clear all"></input> -->
+            <input id="clear_form" type='reset' value='Clear Fields'></input>
         </div>
     </form>
 
 
-    <pre id="result"></pre>
+    <pre id="result_error" class='hide'></pre>
+    <pre id="result_ok" class='hide'></pre>
     <script src="${tg.url('/javascript/upload.js')}"></script>
 </body>
 </html>
