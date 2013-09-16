@@ -168,9 +168,6 @@ def print_parser(pool_header, object_dict):
     structs = set(filter(lambda object_: isinstance(object_, StructType), objects))
     print '\n"""AUTO-GENERATED FILE. DO NOT EDIT. USE %s"""\n' % os.path.basename(__file__)
     print 'import struct'
-    print '\n'
-    print 'class PFHeaderError(Exception):'
-    print '    pass'
 
     for struct in structs:
         print '\n'
@@ -178,28 +175,6 @@ def print_parser(pool_header, object_dict):
         print '    def __init__(self, fp):'
         for member in struct.members:
             print '        %s' % member.instantiation_str()
-
-    print '\n'
-    print 'def get_header(file_object):'
-    print '    if isinstance(file_object, basestring):'
-    print '        close_file_on_exit = True'
-    print '        file_object = open(file_object, "rb")'
-    print '    else:'
-    print '        close_file_on_exit = False'
-    print ''
-    print '    try:'
-    print '        pool_header = POOL_HEADER(file_object)'
-    print '    except struct.error:'
-    print '        pool_header = None'
-    print '        raise PFHeaderError, "Error reading header field in pfile %s" % file_object.name'
-    print '    else:'
-    print '        logo = pool_header.rec.logo.strip("\\x00")'
-    print '        if logo != "GE_MED_NMR" and logo != "INVALIDNMR":'
-    print '            raise PFHeaderError, "%s is not a valid pfile" % file_object.name'
-    print '    finally:'
-    print '        if close_file_on_exit:'
-    print '            file_object.close()'
-    print '    return pool_header'
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -209,8 +184,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.description  = 'Emits Python code to access pfile header information. The code is generated from XML,\n'
         self.description += 'which is the result of gccxml compilation of a proprietary GE C program.\n\n'
         self.description += 'To generate XML, run:\n'
-        self.description += '    gccxml -fxml=pfheader.xml -include unistd.h -I../../include -DREVxx writeathdr23.c\n'
-        self.description += 'where REVxx is, e.g., REV12 or REV22.'
+        self.description += '  gccxml -fxml=/tmp/pfile.xml -Iinclude RDSClient.cpp'
         self.add_argument('xml_file', help='path to xml file')
 
     def error(self, message):

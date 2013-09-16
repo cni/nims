@@ -5,5 +5,5 @@
 *.datetime
 cache
 production.ini
-nimsutil/pfheader*.*
+pfile?*.*
 tg2*

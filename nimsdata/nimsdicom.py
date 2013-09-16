@@ -161,7 +161,7 @@ class NIMSDicom(nimsimage.NIMSImage):
 
     def get_imagedata(self):
         if self.dcm_list == None:
-            self.load_dicoms()
+            self.load_all_metadata()
         slice_loc = [getelem(dcm, 'SliceLocation') for dcm in self.dcm_list]
         imagedata = np.dstack([np.swapaxes(dcm.pixel_array, 0, 1) for dcm in self.dcm_list])
         dims = np.array((self.size_y, self.size_x, self.num_slices, self.num_timepoints))
@@ -296,7 +296,7 @@ class NIMSDicom(nimsimage.NIMSImage):
             return
         result = (None, None)
         if self.image_type == TYPE_SCREEN:
-            for i, dcm in enumerate(self.load_all_dicoms()):
+            for i, dcm in enumerate(self.load_dicoms()):
                 result = ('bitmap', nimspng.NIMSPNG.write(self, dcm.pixel_array, outbase + '_%d' % (i+1)))
         elif 'PRIMARY' in self.image_type:
             imagedata = self.get_imagedata()

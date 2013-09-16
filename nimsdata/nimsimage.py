@@ -9,19 +9,20 @@ import numpy as np
 
 import nimsdata
 
-scan_type_list = ['spectroscopy',
-                  'perfusion',
-                  'shim',
-                  'diffusion',
-                  'fieldmap',
-                  'functional',
-                  'calibration',
-                  'localizer',
-                  'anatomy_t1w',
-                  'anatomy_t2w',
-                  'anatomy',
-                  ]
-scan_types = type('Enum', (object,), dict(zip(scan_type_list, scan_type_list)))
+scan_types = [
+        'spectroscopy',
+        'perfusion',
+        'shim',
+        'diffusion',
+        'fieldmap',
+        'functional',
+        'calibration',
+        'localizer',
+        'anatomy_t1w',
+        'anatomy_t2w',
+        'anatomy',
+        ]
+scan_types = type('Enum', (object,), dict(zip(scan_types, scan_types), all=scan_types))
 
 log = logging.getLogger('nimsimage')
 

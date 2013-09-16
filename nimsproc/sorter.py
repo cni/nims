@@ -60,9 +60,14 @@ class Sorter(object):
     def sort_files(self, dirpath, filenames, aux_paths):
         for filepath, filename in [(os.path.join(dirpath, fn), fn) for fn in filenames]:
             self.log.debug('Sorting %s' % filename)
-            mrfile = nimsdata.parse(filepath)
-            dataset = model.Dataset.from_mrfile(mrfile, self.nims_path) if mrfile else None
-            if dataset:
+            try:
+                mrfile = nimsdata.parse(filepath)
+            except nimsdata.NIMSDataError:
+                if self.preserve_path:
+                    preserve_path = nimsutil.make_joined_path(self.preserve_path, os.path.dirname(os.path.relpath(filepath, self.sort_path)))
+                    shutil.move(filepath, os.path.join(preserve_path, filename))
+            else:
+                dataset = model.Dataset.from_mrfile(mrfile, self.nims_path)
                 new_filenames = [filename]
                 shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
                 for aux_path in aux_paths.get(os.path.splitext(filename)[0] if dataset.compressed else filename, []):
@@ -72,16 +77,19 @@ class Sorter(object):
                 dataset.updatetime = datetime.datetime.now()
                 dataset.untrash()
                 transaction.commit()
-            elif self.preserve_path:
-                preserve_path = nimsutil.make_joined_path(self.preserve_path, os.path.dirname(os.path.relpath(filepath, self.sort_path)))
-                shutil.move(filepath, os.path.join(preserve_path, filename))
         shutil.rmtree(dirpath)
 
     def sort_directory(self, dirpath, filenames, aux_paths):
         self.log.debug('Sorting %s in directory mode' % os.path.basename(dirpath))
-        mrfile = nimsdata.NIMSData.parse(os.path.join(dirpath, filenames[0]))
-        dataset = model.Dataset.from_mrfile(mrfile, self.nims_path) if mrfile else None
-        if dataset:
+        try:
+            mrfile = nimsdata.NIMSData.parse(os.path.join(dirpath, filenames[0]))
+        except nimsdata.NIMSDataError:
+            if self.preserve_path:
+                preserve_path = nimsutil.make_joined_path(self.preserve_path, os.path.relpath(dirpath, self.sort_path))
+                for filename in os.listdir(dirpath):
+                    shutil.move(os.path.join(dirpath, filename), os.path.join(preserve_path, filename))
+        else:
+            dataset = model.Dataset.from_mrfile(mrfile, self.nims_path)
             for filepath, aux_paths in [(os.path.join(dirpath, filename), aux_paths.get(filename, [])) for filename in filenames]:
                 shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filepath)))
                 for aux_path in aux_paths:
@@ -89,10 +97,6 @@ class Sorter(object):
             dataset.updatetime = datetime.datetime.now()
             dataset.untrash()
             transaction.commit()
-        elif self.preserve_path:
-            preserve_path = nimsutil.make_joined_path(self.preserve_path, os.path.relpath(dirpath, self.sort_path))
-            for filename in os.listdir(dirpath):
-                shutil.move(os.path.join(dirpath, filename), os.path.join(preserve_path, filename))
         shutil.rmtree(dirpath)
 
 

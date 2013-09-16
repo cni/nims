@@ -247,7 +247,7 @@ class PFilePipeline(Pipeline):
         with nimsutil.TempDir() as outputdir:
             pf = None
             for pfile in os.listdir(os.path.join(self.nims_path, ds.relpath)):
-                if 'refscan' not in pfile:
+                if not pfile.startswith('_') and 'refscan' not in pfile:
                     try:
                         pf = nimsdata.nimsraw.NIMSPFile(os.path.join(self.nims_path, ds.relpath, pfile))
                     except nimsdata.nimsraw.NIMSPFileError:
