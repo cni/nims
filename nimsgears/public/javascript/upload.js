@@ -1,4 +1,46 @@
 
+function findOffset(data, seq) {
+    var array = new Int8Array(data);
+
+    for (var i = 0; i < (array.length - seq.length); i++) {
+        var j;
+        for (j = 0; j < seq.length; j++) {
+            if (array[i+j] != seq[j]) {
+                break;
+            }
+        }
+
+        if (j == seq.length) {
+            // We've reached the end of the seq array without break,
+            // I have found a match
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+function redactPatientName(fileContent) {
+    var dataView = new DataView(fileContent);
+    dataView.setUint8(0, 0xBE);
+    dataView.setUint8(1, 0xEF);
+
+    var offset = findOffset(fileContent, [0x10, 0x00, 0x10, 0x00, 0x50, 0x4e]);
+    if (offset < 0) {
+        console.log('Could not find patient name in file');
+    } else {
+        console.log('Found patient name at offset:', offset);
+        var len1 = dataView.getUint8(offset + 6);
+        var len2 = dataView.getUint8(offset + 7);
+        var len = (len2 * 256) + len1;
+        console.log('Name length: ', len);
+
+        for (var i = 0; i < len; i++) {
+            dataView.setUint8(offset + 8 + i, 0x58);
+        }
+    }
+}
+
 
 var files_to_upload = [];
 var id_generator = 0;
@@ -7,8 +49,6 @@ var id_generator = 0;
 $('#submit_form').on('click', function(evt) {
      evt.stopPropagation();
      evt.preventDefault();
-
-
 
      $('#bannerjs-emptyfields').addClass('hide');
 
@@ -23,37 +63,54 @@ $('#submit_form').on('click', function(evt) {
          data.append('experiment', $('#experiment').val());
          data.append('group_value', $('#group_value').val());
 
-         $.each(files_to_upload, function(i, file) {
-             data.append('files[]', file);
-         });
+         var filesToRead = files_to_upload.length;
+         var form = new FormData();
 
          // Also pass a map (filename, Id) to the server
          $.each(files_to_upload, function(i, file) {
              data.append('filename_' + file.name, file.id);
+
+             var fileReader = new FileReader();
+             fileReader.onload = function(evt){
+                 console.log('Finished to load file: ', file.name);
+
+                 var fileContent = evt.target.result;
+                 redactPatientName(fileContent);
+
+                 var blob = new Blob([fileContent]);
+                 data.append('files[]', blob, file.name );
+
+                 --filesToRead;
+                 if( filesToRead == 0 ){
+                     console.log("Uploading files: ", files_to_upload.join(', '));
+
+                     $.ajax('upload/submit', {
+                         data: data,
+                         cache: false,
+                         contentType: false,
+                         processData: false,
+                         type: 'POST'})
+                         .done( function(data){
+                             var response = JSON.parse(data);
+                             console.log("Received upload response: ");
+                             console.dir(response);
+
+                             $.each(response.files, updateFileStatus);
+                         })
+                         .fail( function(data){
+                             $('#result_error').text('Error: ' + data);
+                             $('#result_error').removeClass('hide');
+                         });
+                 }
+             }
+
+             fileReader.readAsArrayBuffer(file);
          });
 
-         console.log("Uploading files: ", files_to_upload.join(', '));
-
-         $.ajax('upload/submit', {
-             data: data,
-             cache: false,
-             contentType: false,
-             processData: false,
-             type: 'POST'})
-             .done( function(data){
-                 var response = JSON.parse(data);
-                 console.log("Received upload response: ");
-                 console.dir(response);
-
-                 $.each(response.files, updateFileStatus);
-             })
-             .fail( function(data){
-                 $('#result_error').text('Error: ' + data);
-                 $('#result_error').removeClass('hide');
-             });
      }
 
 });
+
 
 // Add a file to the bottom list of file in the page
 function addFileToList(idx, file) {
