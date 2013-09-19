@@ -468,7 +468,7 @@ class PFile(object):
             outbase = os.path.join(self.filedir, self.basename)
         with open(tensor_file) as fp:
             uid = fp.readline().rstrip()
-            ndirs = int(fp.readline().rstrip())
+            ndirs = int('0'+fp.readline().rstrip())
             bvecs = np.fromfile(fp, sep=' ')
         if uid != self.header.series.series_uid:
             self.log and self.log.debug('tensor file UID does not match PFile UID!')
