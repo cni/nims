@@ -445,10 +445,13 @@ class PFile(object):
             #try:
             # Load the first slice to initialize the image array
             img = self.load_image_data("%s_%03d.mat" % (outname, 0))
+            self.log and self.log.debug("img.shape = %s" % (str(img.shape)))
             for slice_num in range(1, num_muxed_slices):
                 new_img = self.load_image_data("%s_%03d.mat" % (outname, slice_num))
                 # Allow for a partial last timepoint. This sometimes happens when the user aborts.
-                img[...,0:new_img.shape[-1]] += new_img
+                t = min(img.shape[-1], new_img.shape[-1])
+                img[...,0:t] += new_img[...,0:t]
+                self.log and self.log.debug("slice %d shape = %s" % (slice_num, str(img.shape)))
             self.update_image_data(img)
             #except:
             #    raise PFileError('recon failed!')
@@ -581,10 +584,11 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-m', '--matfile', help='path to reconstructed data in .mat format')
         self.add_argument('-t', '--tmpdir', help='directory to use for scratch files. (Must exist and have lots of space!)')
         self.add_argument('-j', '--jobs', default=8, type=int, help='maximum number of processes to spawn')
+        self.add_argument('-c', '--vcoils', default=16, type=int, help='number of virtual coils for recon')
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    pf = PFile(args.pfile, tmpdir=args.tmpdir, max_num_jobs=args.jobs)
+    pf = PFile(args.pfile, tmpdir=args.tmpdir, max_num_jobs=args.jobs, num_virtual_coils=args.vcoils)
     if args.matfile:
         pf.set_image_data(args.matfile)
     pf.to_nii(args.outbase or os.path.basename(args.pfile))
