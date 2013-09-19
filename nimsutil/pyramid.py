@@ -15,6 +15,8 @@ import math
 import sqlite3
 import argparse
 import cStringIO
+import Image
+import numpy as np
 
 
 def tile_from_db(dbfile, z, x, y):
@@ -76,7 +78,7 @@ class ImagePyramid(object):
         pyr.generate()
     """
 
-    def __init__(self, image, tile_size=512, log=None):
+    def __init__(self, image, tile_size=512, num_timepoints=0, log=None):
         import nibabel
         import numpy as np
         self.tile_size = tile_size
@@ -89,16 +91,20 @@ class ImagePyramid(object):
             self.data = image
         else:
             raise ImagePyramidError('argument must be a filename or a numpy ndarray.')
-
-    def write_montage_as_png(self, filename, bits16=True):
+        if num_timepoints>0 and len(self.data.shape)>3:
+            self.data = self.data[:,:,:,0:num_timepoints,...]
+    def write_montage_as_png(self, filename, bits16=True, scale=1.0):
         import png
         if self.montage==None:
             self.generate_montage(bits16=bits16)
-        with open(filename, 'wb') as fd:
-            if bits16:
-                png.Writer(size=self.montage.shape[::-1], greyscale=True, bitdepth=16).write(fd, self.montage)
-            else:
-                png.Writer(size=self.montage.shape[::-1], greyscale=True, bitdepth=8).write(fd, self.montage)
+        im = Image.fromarray(self.montage)
+        sz = [int(round(s*scale)) for s in im.size]
+        im.resize(sz, Image.ANTIALIAS).convert('L').save(filename, 'PNG', optimize=True)
+        #with open(filename, 'wb') as fd:
+        #    if bits16:
+        #        png.Writer(size=self.montage.shape[::-1], greyscale=True, bitdepth=16).write(fd, self.montage)
+        #    else:
+        #        png.Writer(size=self.montage.shape[::-1], greyscale=True, bitdepth=8).write(fd, self.montage)
 
     def generate_hdf5(self, hdf5file):
         """Generate a multi-resolution image pyramid and save all the resulting jpeg files in an hdf5 file."""
@@ -158,8 +164,6 @@ class ImagePyramid(object):
         The zoom level (z) is an integer between 0 and n, where 0 is fully zoomed in and n is zoomed out.
         E.g., z=n is for 1 tile covering the whole world, z=n-1 is for 2x2=4 tiles, ... z=0 is the original resolution.
         """
-        import Image
-        import numpy as np
         if not outdir and not dbcur and not h5py_tiles:
             raise Exception('at least one of outdir, dbcur, and h5py_tiles must be supplied')
         if outdir and not os.path.exists(outdir): os.makedirs(outdir)
@@ -300,21 +304,22 @@ class ArgumentParser(argparse.ArgumentParser):
         super(ArgumentParser, self).__init__()
         self.description = """Create a panojs-style image pyramid from a NIfTI file."""
         self.add_argument('-p', '--panojs_url', metavar='URL', help='URL for the panojs javascript.')
-        self.add_argument('-t', '--tilesize', default = 256, type=int, help='tile size (default is 256)')
-        self.add_argument('-m', '--montage', action='store_true', help='Save the full-size montage image (full pyramid will not be generated)')
+        self.add_argument('-t', '--tilesize', default=256, type=int, help='tile size (default is 256)')
+        self.add_argument('-m', '--montage',default=0, type=float, help='Save only a the montage image at the specified scale, in percent')
         self.add_argument('-d', '--directory', action='store_true', help='Store image tiles in a directory')
         self.add_argument('-s', '--sqlite', action='store_true', help='Store image tiles in an sqlite db')
         self.add_argument('-f', '--hdf5', action='store_true', help='Store image tiles in an hdf5 file')
+        self.add_argument('-n', '--numtimepoints', default=0, type=int, help='Number of timepoints to include (default is 0, which means all)')
         self.add_argument('filename', help='path to NIfTI file')
         self.add_argument('out', nargs='?', help='output directory name or sqlite db filename')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    pyr = ImagePyramid(args.filename, tile_size = args.tilesize)
-    if args.montage:
+    pyr = ImagePyramid(args.filename, tile_size=args.tilesize, num_timepoints=args.numtimepoints)
+    if args.montage > 0:
         outfile = (args.out or os.path.basename(os.path.splitext(os.path.splitext(args.filename)[0])[0])) + '.png'
-        pyr.write_montage_as_png(outfile, bits16=False)
+        pyr.write_montage_as_png(outfile, bits16=False, scale=args.montage/100.)
     else:
         if args.sqlite:
             pyr.generate_sqlite(args.out)
