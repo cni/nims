@@ -3,10 +3,12 @@ from tg import expose, redirect
 from nimsgears.controllers.nims import NimsController
 from nimsgears.model.nims import ResearchGroup
 
+import dicom
 from nimsdata.nimsdata import NIMSData
 from nimsdata.nimsdata import NIMSDataError
 from nimsdata.nimsdicom import NIMSDicom
 import json
+import unittest
 
 class UploadController(NimsController):
 
@@ -19,11 +21,9 @@ class UploadController(NimsController):
     @expose()
     def submit(self, **kwargs):
         result = { 'processed': False }
-        print '+++++++++++++++++++++++++++++++ args: ', kwargs
 
         if 'files[]' in kwargs and 'experiment' in kwargs and 'group_value' in kwargs:
             files = kwargs['files[]']
-            print '++++++++++++++++++++++++++', files
             result['experiment'] = kwargs['experiment']
             result['group_value'] = kwargs['group_value']
             if not type(files) is list:
@@ -35,12 +35,15 @@ class UploadController(NimsController):
             for file in files:
                 content = file.file.read()
                 name = '/tmp/test-%d.data' % i
+                parse_file = '/tmp/test-%d.parse_file' % i
                 out = open(name, 'w')
+                out_parse_file = open(parse_file, 'a')
                 i += 1
                 out.write(content)
                 out.close()
 
                 file_result = {}
+
 
                 # Extract the request id associated with this file
                 file_result['id'] = kwargs.get('filename_' + file.filename, '')
@@ -49,11 +52,16 @@ class UploadController(NimsController):
                 try:
                     data = NIMSDicom(name)
                     file_result['exam_uid'] = data.exam_uid
-                    print data.get_metadata()
+
 
                     file_result['status'] = True
                     file_result['message'] = "OK"
-                    # print '+++++++++++ result_ok: ', file_result
+
+                    pat_name = data._hdr.PatientName
+
+                    out_parse_file.write(str('\nPatient Name: %s \n\n' % data._hdr.PatientName))
+                    out_parse_file.write(str(data._hdr))
+                    out_parse_file.close()
 
                 except NIMSDataError:
                     print "Couldn't understand the file", file.filename
@@ -72,6 +80,5 @@ class UploadController(NimsController):
             result['processed'] = False
             result['message'] = 'One or more fields missing, make sure your submit is complete'
             return json.dumps(result)
-
 
 

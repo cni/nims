@@ -25,6 +25,7 @@ function redactPatientName(fileContent) {
     dataView.setUint8(0, 0xBE);
     dataView.setUint8(1, 0xEF);
 
+    //Search for the sequence ( 0010 0010 PN ) that corresponds to the tag and initials of Patient Name
     var offset = findOffset(fileContent, [0x10, 0x00, 0x10, 0x00, 0x50, 0x4e]);
     if (offset < 0) {
         console.log('Could not find patient name in file');
@@ -177,6 +178,7 @@ function clearFileList() {
     files_to_upload = [];
     $('#file_list').html('');
     $('#file_list_header').addClass('hide');
+    $('#result_error').addClass('hide');
 }
 
 $('#clear_form').on('click', clearFileList);
