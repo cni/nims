@@ -12,6 +12,7 @@ import argparse
 import datetime
 
 import nimsutil
+import nimsdata
 
 
 class PFileReaper(object):
@@ -21,7 +22,7 @@ class PFileReaper(object):
         self.id_ = id_
         self.pat_id = pat_id
         self.discard_ids = discard_ids
-        self.data_glob = os.path.join(data_path, 'P*.7')
+        self.data_glob = os.path.join(data_path, 'P?????.7')
         self.reap_stage = nimsutil.make_joined_path(reap_path)
         self.sort_stage = nimsutil.make_joined_path(sort_path)
         self.datetime_file = datetime_file
@@ -82,6 +83,7 @@ class ReapPFile(object):
         self.size = os.path.getsize(path)
         self.mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(path))
         self.needs_reaping = True
+        self.pfile = None
 
     def __repr__(self):
         return '<ReapPFile %s, %d, %s, %s>' % (self.basename, self.size, self.mod_time, self.needs_reaping)
@@ -92,19 +94,20 @@ class ReapPFile(object):
 
     def reap(self):
         try:
-            pfile = nimsutil.pfile.PFile(self.path)
-        except nimsutil.pfile.PFileError as e:
+            self.reaper.log.info('Inspecting  %s' % self)
+            self.pfile = nimsdata.nimsraw.NIMSPFile(self.path)
+        except nimsdata.nimsraw.NIMSPFileError as e:
             self.needs_reaping = False
             self.reaper.log.warning('Skipping    %s (%s)' % (self, str(e)))
             return
         else:
-            self.pat_id = pfile.patient_id
-            self.exam = pfile.exam_no
-            self.series = pfile.series_no
-            self.acq = pfile.acq_no
+            self.pat_id = self.pfile.patient_id
+            self.exam = self.pfile.exam_no
+            self.series = self.pfile.series_no
+            self.acq = self.pfile.acq_no
             stage_dir = '%s_%s' % (self.reaper.id_, datetime.datetime.now().strftime('%s.%f'))
             reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
-            aux_reap_files = [arf for arf in glob.glob(self.path + '_*') if open(arf).read(32) == pfile.header.series.series_uid]
+            aux_reap_files = [arf for arf in glob.glob(self.path + '_*') if self.is_aux_file(arf)]
         if self.pat_id.strip('/') in reaper.discard_ids:
             self.needs_reaping = False
             self.reaper.log.info('Discarding  %s' % self)
@@ -133,6 +136,13 @@ class ReapPFile(object):
             self.needs_reaping = False
             self.reaper.log.info('Reaped      %s' % self)
 
+    def is_aux_file(self, filepath):
+        if open(filepath).read(32) == self.pfile._hdr.series.series_uid:
+            return True
+        try:
+            return (nimsdata.nimsraw.NIMSPFile(filepath)._hdr.series.series_uid == self.pfile._hdr.series.series_uid)
+        except nimsdata.nimsraw.NIMSPFileError:
+            return False
 
 class ArgumentParser(argparse.ArgumentParser):
 

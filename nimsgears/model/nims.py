@@ -512,8 +512,8 @@ class Subject(DataContainer):
         query = query.join(ResearchGroup, Experiment.owner).filter(ResearchGroup.gid == group_name)
         if subj_code:
             subject = query.filter(cls.code==subj_code).first()
-        elif mrfile.subj_fn and mrfile.subj_ln:
-            subject = query.filter(cls.firstname==mrfile.subj_fn).filter(cls.lastname==mrfile.subj_ln).filter(cls.dob==mrfile.subj_dob).first()
+        elif mrfile.subj_firstname and mrfile.subj_lastname:
+            subject = query.filter(cls.firstname==mrfile.subj_firstname).filter(cls.lastname==mrfile.subj_lastname).filter(cls.dob==mrfile.subj_dob).first()
         else:
             subject = None
         if not subject:
@@ -523,8 +523,8 @@ class Subject(DataContainer):
                     experiment=experiment,
                     person=Person(),
                     code=subj_code[:31] or experiment.next_subject_code,
-                    firstname=mrfile.subj_fn[:63],
-                    lastname=mrfile.subj_ln[:63],
+                    firstname=mrfile.subj_firstname[:63],
+                    lastname=mrfile.subj_lastname[:63],
                     dob=mrfile.subj_dob,
                     )
         return subject
@@ -716,7 +716,7 @@ class Epoch(DataContainer):
                     acq = mrfile.acq_no,
                     description = nimsutil.clean_string(mrfile.series_desc),
                     psd = unicode(mrfile.psd_name),
-                    physio_recorded = mrfile.physio_flag,
+                    physio_recorded = True,
                     tr = mrfile.tr,
                     te = mrfile.te,
                     ti = mrfile.ti,
@@ -886,6 +886,28 @@ class Dataset(Entity):
     def _set_filenames(self, filenames):
         self._filenames = ', '.join(filenames)
     filenames = property(_get_filenames, _set_filenames)
+
+    @property
+    def primary_file_relpath(self):
+        fn = self._get_filenames()
+        if len(fn)<=1:
+            primary_file = fn[0] if len(fn)==1 else []
+        else:
+            if self.filetype==u'pfile':
+                primary_file = next((f for f in fn if f.startswith('P') and f.endswith('.7.gz') and len(f)==11), [])
+            elif self.filetype==u'dicom':
+                primary_file = next((f for f in fn if f.endswith('_dicoms.tgz')), [])
+            elif self.filetype==u'nifti':
+                primary_file = next((f for f in fn if f.endswith('.nii.gz')), [])
+            elif self.filetype==u'bitmap':
+                primary_file = next((f for f in fn if f.endswith('.png')), [])
+            elif self.filetype==u'img_pyr':
+                primary_file = next((f for f in fn if f.endswith('.pyrdb')), [])
+            elif self.filetype==u'physio':
+                primary_file = next((f for f in fn if f.endswith('.physio.tgz')), [])
+            else:
+                primary_file = fn[0]
+        return os.path.join(self.relpath, primary_file)
 
     @property
     def is_trash(self):

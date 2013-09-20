@@ -18,8 +18,11 @@ import sqlalchemy
 import transaction
 
 import nimsutil
+import nimsdata
 from nimsgears.model import *
 
+# TODO: pull this out to a command-line arg
+max_num_recon_jobs = 32
 
 class Processor(object):
 
@@ -53,9 +56,9 @@ class Processor(object):
                 if job:
                     if isinstance(job.data_container, Epoch):
                         ds = job.data_container.primary_dataset
-                        if ds.filetype == nimsutil.dicomutil.DicomAcquisition.filetype:
+                        if ds.filetype == nimsdata.nimsdicom.NIMSDicom.filetype:
                             pipeline_class = DicomPipeline
-                        elif ds.filetype == nimsutil.pfile.PFile.filetype:
+                        elif ds.filetype == nimsdata.nimsraw.NIMSPFile.filetype:
                             pipeline_class = PFilePipeline
 
                     pipeline = pipeline_class(job, self.nims_path, self.physio_path, self.log)
@@ -132,17 +135,20 @@ class Pipeline(threading.Thread):
         if dc.physio_recorded:
             physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.prescribed_duration, dc.psd.encode('utf-8'))
             if physio_files:
-                # For multiband sequences, we want a regressor for each *muxed* slice, so pass num_slices/num_bands
-                physio = nimsutil.physio.PhysioData(physio_files, dc.tr, dc.num_timepoints, dc.num_slices/dc.num_bands)
+                physio = nimsdata.nimsphysio.NIMSPhysio(physio_files, dc.tr, dc.num_timepoints)
                 if physio.is_valid():
                     self.job.activity = u'valid physio found'
                     self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                    # Computing the slice-order can be expensive, so we didn't do it when we instantiated.
+                    # But now that we know physio is valid, we need to do it.
+                    ni = nimsdata.parse(os.path.join(self.nims_path, ds.primary_file_relpath))
+                    physio.slice_order = ni.get_slice_order() # TODO: should probably write a set method
                     dataset = Dataset.at_path(self.nims_path, u'physio')
                     DBSession.add(self.job)
                     DBSession.add(self.job.data_container)
                     dataset.kind = u'peripheral'
                     dataset.container = self.job.data_container
-                    with nimsutil.TempDirectory() as tempdir:
+                    with nimsutil.TempDir() as tempdir:
                         arcdir_path = os.path.join(tempdir, '%s_physio' % self.job.data_container.name)
                         os.mkdir(arcdir_path)
                         for f in physio_files:
@@ -154,7 +160,7 @@ class Pipeline(threading.Thread):
                         try:
                             reg_filename = '%s_physio_regressors.csv.gz' % self.job.data_container.name
                             physio.write_regressors(os.path.join(self.nims_path, dataset.relpath, reg_filename))
-                        except nimsutil.physio.PhysioDataError:
+                        except nimsdata.nimsphysio.NIMSPhysioError:
                             self.job.activity = u'error generating regressors from physio data'
                             self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                         else:
@@ -190,10 +196,10 @@ class DicomPipeline(Pipeline):
         super(DicomPipeline, self).process()
 
         ds = self.job.data_container.primary_dataset
-        with nimsutil.TempDirectory() as outputdir:
+        with nimsutil.TempDir() as outputdir:
             outbase = os.path.join(outputdir, ds.container.name)
             dcm_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
-            dcm_acq = nimsutil.dicomutil.DicomAcquisition(dcm_tgz, self.log)
+            dcm_acq = nimsdata.nimsdicom.NIMSDicom(dcm_tgz)
             conv_type, conv_file = dcm_acq.convert(outbase)
 
             if conv_type:
@@ -217,8 +223,8 @@ class DicomPipeline(Pipeline):
                 pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                pyr = nimsutil.pyramid.ImagePyramid(conv_file, log=self.log)
-                pyr.generate_sqlite(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
+                nims_montage = nimsdata.nimsmontage.generate_montage(conv_file)
+                nims_montage.write_sqlite_pyramid(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
                 self.job.activity = u'image pyramid generated'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'web'
@@ -238,18 +244,17 @@ class PFilePipeline(Pipeline):
         super(PFilePipeline, self).process()
 
         ds = self.job.data_container.primary_dataset
-        with nimsutil.TempDirectory() as outputdir:
+        with nimsutil.TempDir() as outputdir:
             pf = None
             for pfile in os.listdir(os.path.join(self.nims_path, ds.relpath)):
                 if not pfile.startswith('_') and 'refscan' not in pfile:
                     try:
-                        pf = nimsutil.pfile.PFile(os.path.join(self.nims_path, ds.relpath, pfile),
-                                log=self.log, tmpdir='/run/shm', max_num_jobs=32)
-                    except nimsutil.pfile.PFileError:
+                        pf = nimsdata.nimsraw.NIMSPFile(os.path.join(self.nims_path, ds.relpath, pfile))
+                    except nimsdata.nimsraw.NIMSPFileError:
                         pf = None
                     else:
                         break
-            conv_file = pf.to_nii(os.path.join(outputdir, ds.container.name)) if pf else None
+            conv_type, conv_file = pf.convert(os.path.join(outputdir, ds.container.name), num_jobs=max_num_recon_jobs) if pf else (None, None)
 
             if conv_file:
                 outputdir_list = os.listdir(outputdir)
@@ -270,8 +275,8 @@ class PFilePipeline(Pipeline):
                 pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                pyr = nimsutil.pyramid.ImagePyramid(conv_file, log=self.log)
-                pyr.generate_sqlite(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
+                nims_montage = nimsdata.nimsmontage.generate_montage(conv_file)
+                nims_montage.write_sqlite_pyramid(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
                 self.job.activity = u'image pyramid generated'
                 self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'web'

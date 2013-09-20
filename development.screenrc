@@ -33,3 +33,11 @@ stuff "nimsproc/processor.py -r -j2 -e\"~Epoch.psd.contains(u'mux')\" sqlite:///
 screen -t mux_proc      6
 stuff "source ~/tg2env/bin/activate \015"
 stuff "nimsproc/processor.py -r -j1 -e\"Epoch.psd.contains(u'mux')\" sqlite:///nims.sqlite /scratch/nims_sqlite/nims /cnimr/physio \015"
+
+screen -t server        7
+stuff "source ~/tg2env/bin/activate \015"
+stuff "paster serve development.ini \015"
+
+screen -t nimsfs        8
+stuff "source ~/tg2env/bin/activate \015"
+stuff "nimsutil/nimsfs.py /net/nimsfs/nimsfs/nims/ /nimsfs \015"
