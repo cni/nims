@@ -106,7 +106,7 @@ class NIMSPFile(NIMSRaw):
         # Note: the freq/phase dir isn't meaningful for spiral trajectories.
         self.phase_encode = 1 if self._hdr.image.freq_dir == 0 else 0
         self.mt_offset_hz = self._hdr.image.offsetfreq
-        self.num_slices = self._hdr.rec.nslices
+        self.num_slices = self._hdr.image.slquant
         self.num_averages = self._hdr.image.averages
         self.num_echos = self._hdr.rec.nechoes
         self.receive_coil_name = self._hdr.image.cname.strip('\x00')
@@ -247,17 +247,19 @@ class NIMSPFile(NIMSRaw):
         tensor_file = os.path.join(self.dirpath, '_'+self.basename+'_tensor.dat')
         with open(tensor_file) as fp:
             uid = fp.readline().rstrip()
-            ndirs = int(fp.readline().rstrip())
+            ndirs = int('0'+fp.readline().rstrip())
             bvecs = np.fromfile(fp, sep=' ')
         if uid != self._hdr.series.series_uid:
             raise NIMSPFileError('tensor file UID does not match PFile UID!')
         if ndirs != self.dwi_numdirs or self.dwi_numdirs != bvecs.size / 3.:
-            raise NIMSPFileError('tensor file numdirs does not match PFile header numdirs!')
-        num_nondwi = self.num_timepoints_available - self.dwi_numdirs # FIXME: assumes that all the non-dwi images are acquired first.
-        bvals = np.concatenate((np.zeros(num_nondwi, dtype=float), np.tile(self.dwi_bvalue, self.dwi_numdirs)))
-        bvecs = np.hstack((np.zeros((3,num_nondwi), dtype=float), bvecs.reshape(self.dwi_numdirs, 3).T))
-        self.bvecs,self.bvals = nimsimage.adjust_bvecs(bvecs, bvals, self.scanner_type, self.image_rotation)
-        return bvecs, bvals
+            log.warning('tensor file numdirs does not match PFile header numdirs!')
+            self.bvecs = None
+            self.bvals = None
+        else:
+            num_nondwi = self.num_timepoints_available - self.dwi_numdirs # FIXME: assumes that all the non-dwi images are acquired first.
+            bvals = np.concatenate((np.zeros(num_nondwi, dtype=float), np.tile(self.dwi_bvalue, self.dwi_numdirs)))
+            bvecs = np.hstack((np.zeros((3,num_nondwi), dtype=float), bvecs.reshape(self.dwi_numdirs, 3).T))
+            self.bvecs,self.bvals = nimsimage.adjust_bvecs(bvecs, bvals, self.scanner_type, self.image_rotation)
 
     @property
     def recon_func(self):
@@ -280,7 +282,7 @@ class NIMSPFile(NIMSRaw):
 
     def load_all_metadata(self):
         if self.is_dwi:
-            self.bvecs,self.bvals = self.get_bvecs_bvals()
+            self.get_bvecs_bvals()
         super(NIMSPFile, self).load_all_metadata()
 
     def convert(self, outbase, tempdir=None, num_jobs=8):
@@ -425,7 +427,9 @@ class NIMSPFile(NIMSRaw):
             for slice_num in range(1, self.num_slices):
                 new_img = self.load_imagedata_from_file("%s_%03d.mat" % (outname, slice_num))
                 # Allow for a partial last timepoint. This sometimes happens when the user aborts.
-                img[...,0:new_img.shape[-1]] += new_img
+                t = min(img.shape[-1], new_img.shape[-1])
+                img[...,0:t] += new_img[...,0:t]
+
             self.update_imagedata(img)
 
     def recon_mrs(self, tempdir, num_jobs):
