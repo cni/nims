@@ -25,7 +25,10 @@ class BrowseController(NimsController):
     def default_session(self, **kwargs):
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         exp, sess = user.latest_exp_session()
-        return json.dumps({'success': True, 'exp': exp.id, 'sess': sess.id})
+        if exp is None or sess is None:
+            return json.dumps({'success': False})
+        else:
+            return json.dumps({'success': True, 'exp': exp.id, 'sess': sess.id})
 
     @expose()
     def trash_flag(self, **kwargs):

@@ -84,20 +84,21 @@ define([], function()
                     async: false,
                     success: function(data)
                     {
+                        success = data.success;
                         if (data.success)
                         {
+                            success = data.success;
                             exp_id = data.exp;
                             sess_id = data.sess;
                         }
-                        else
-                        {
-                            alert('Failed');
-                        }
                     },
                 });
-                this._tables[0]._selected_rows = [{'id': 'exp=' + exp_id}];
-                this._tables[1]._selected_rows = [{'id': 'sess=' + sess_id}];
-                this._focus_index = 1;
+                if (success)
+                {
+                    this._tables[0]._selected_rows = [{'id': 'exp=' + exp_id}];
+                    this._tables[1]._selected_rows = [{'id': 'sess=' + sess_id}];
+                    this._focus_index = 1;
+                }
             }
         }
     };
