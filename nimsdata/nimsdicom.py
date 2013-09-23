@@ -246,11 +246,11 @@ class NIMSDicom(nimsimage.NIMSImage):
         slice_norm = np.cross(row_cosines, col_cosines)
 
         # FIXME: the following could fail if the acquisition was before a full volume was aquired.
-        if np.dot(slice_norm, image_position[0]) > np.dot(slice_norm, image_position[self.num_slices]):
+        if np.dot(slice_norm, image_position[0]) > np.dot(slice_norm, image_position[self.num_slices-1]):
             log.debug('flipping slice order')
             #slice_norm = -slice_norm
             self.reverse_slice_order = True
-            self.origin = image_position[self.num_slices] * np.array([-1, -1, 1])
+            self.origin = image_position[self.num_slices-1] * np.array([-1, -1, 1])
         else:
             self.origin = image_position[0] * np.array([-1, -1, 1])
 
