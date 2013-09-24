@@ -288,7 +288,6 @@ class NIMSDicom(nimsimage.NIMSImage):
         else:                                                                       # directory of dicoms
             self.dcm_list = [dicom.read_file(os.path.join(self.filepath, f)) for f in os.listdir(self.filepath)]
         self.dcm_list.sort(key=lambda dcm: dcm.InstanceNumber)
-        return
 
     def convert(self, outbase, *args, **kwargs):
         if not self.image_type:
@@ -296,7 +295,8 @@ class NIMSDicom(nimsimage.NIMSImage):
             return
         result = (None, None)
         if self.image_type == TYPE_SCREEN:
-            for i, dcm in enumerate(self.load_dicoms()):
+            self.load_dicoms()
+            for i, dcm in enumerate(self.dcm_list):
                 result = ('bitmap', nimspng.NIMSPNG.write(self, dcm.pixel_array, outbase + '_%d' % (i+1)))
         elif 'PRIMARY' in self.image_type:
             imagedata = self.get_imagedata()
