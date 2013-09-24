@@ -1,5 +1,5 @@
 import os
-from tg import expose, redirect
+from tg import expose, redirect, request
 from nimsgears.controllers.nims import NimsController
 from nimsgears.model.nims import ResearchGroup
 
@@ -14,8 +14,9 @@ class UploadController(NimsController):
 
     @expose('nimsgears.templates.upload')
     def index(self):
-        groups = sorted( x.gid for x in ResearchGroup.query.all() )
-        groups.remove('unknown')
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
+        groups = user.member_group_names
+        if 'unknown' in groups: groups.remove('unknown')
         return dict(page='upload', research_groups=groups)
 
     @expose()

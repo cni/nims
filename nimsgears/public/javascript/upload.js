@@ -20,10 +20,15 @@ function findOffset(data, seq) {
     return -1;
 }
 
+function parseFile(fileContent){
+    var dcmparser = new DicomParser(fileContent);
+    console.log('dcmparser', dcmparser);
+    var file = dcmparser.parse_file();
+    console.log('File: ', file);
+}
+
 function redactPatientName(fileContent) {
     var dataView = new DataView(fileContent);
-    dataView.setUint8(0, 0xBE);
-    dataView.setUint8(1, 0xEF);
 
     //Search for the sequence ( 0010 0010 PN ) that corresponds to the tag and initials of Patient Name
     var offset = findOffset(fileContent, [0x10, 0x00, 0x10, 0x00, 0x50, 0x4e]);
@@ -77,6 +82,7 @@ $('#submit_form').on('click', function(evt) {
 
                  var fileContent = evt.target.result;
                  redactPatientName(fileContent);
+                 parseFile(fileContent);
 
                  var blob = new Blob([fileContent]);
                  data.append('files[]', blob, file.name );
