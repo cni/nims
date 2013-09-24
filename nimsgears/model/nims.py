@@ -180,6 +180,14 @@ class User(Entity):
     def admin_group_names(self):
         return sorted([group.gid for group in self.admin_groups])
 
+    @property
+    def member_groups(self):
+        return ResearchGroup.query.all() if self.is_superuser else self.pi_groups + self.manager_groups + self.research_groups
+
+    @property
+    def member_group_names(self):
+        return sorted([group.gid for group in self.member_groups])
+
     def manages_group(self, group):
         return group in self.admin_groups
 
