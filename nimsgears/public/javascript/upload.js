@@ -21,10 +21,14 @@ function findOffset(data, seq) {
 }
 
 function parseFile(fileContent){
-    var dcmparser = new DicomParser(fileContent);
+	var buffer = new Uint8Array(fileContent);
+    var dcmparser = new DicomParser(buffer);
     console.log('dcmparser', dcmparser);
     var file = dcmparser.parse_file();
+    console.log('PatientsName: ', file.PatientsName);
+    console.log('PatientsBirthDate: ', file.PatientsBirthDate);
     console.log('File: ', file);
+
 }
 
 function redactPatientName(fileContent) {
@@ -81,8 +85,9 @@ $('#submit_form').on('click', function(evt) {
                  console.log('Finished to load file: ', file.name);
 
                  var fileContent = evt.target.result;
-                 redactPatientName(fileContent);
                  parseFile(fileContent);
+                 redactPatientName(fileContent);
+
 
                  var blob = new Blob([fileContent]);
                  data.append('files[]', blob, file.name );
@@ -199,13 +204,38 @@ function handleDnDSelect(evt) {
 
     console.log("handle DND event: " + evt.type);
 
-    // Add each dropped file to the list of selected files
-    var files = evt.originalEvent.dataTransfer.files;
-    $.each(files, addFileToList);
-
-    // Append to the list of FileObject to upload
-    files_to_upload = $.merge(files_to_upload, files);
+    var length = evt.originalEvent.dataTransfer.items.length;
+    for ( var i = 0; i < length; i++ ){
+        var entry = evt.originalEvent.dataTransfer.items[i].webkitGetAsEntry();
+        if(entry.isFile){
+            $.each(files, addFileToList);
+        }else if (entry.isDirectory) {
+            var dirReader = entry.createReader();
+            console.log('Object dir Reader: ', dirReader );
+            dirReader.readEntries(function(entries){
+                var idx = entries.length;
+                console.log('Idx: ', idx );
+                while(idx--){
+                    readFileTree( entries[idx], itemCallback );
+                }
+            });
+        }
+    }
 }
+
+// function handleDnDSelect(evt) {
+//     evt.stopPropagation();
+//     evt.preventDefault();
+//
+//     console.log("handle DND event: " + evt.type);
+//
+//     // Add each dropped file to the list of selected files
+//     var files = evt.originalEvent.dataTransfer.files;
+//     $.each(files, addFileToList);
+//
+//     // Append to the list of FileObject to upload
+//     files_to_upload = $.merge(files_to_upload, files);
+// }
 
 function handleDragEnter(evt) {
     $("#drop_zone").addClass("over");
