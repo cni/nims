@@ -124,7 +124,7 @@ def infer_psd_type(psd_name):
         psd_type = 'muxepi'
     elif 'epi' in psd_name:
         psd_type = 'epi'
-    elif psd_name == 'probe-mega':
+    elif psd_name in ['probe-mega','gaba_ss_cni']:
         psd_type = 'mrs'
     elif psd_name == 'asl':
         psd_type = 'asl'
