@@ -383,7 +383,7 @@ class NIMSPFile(NIMSRaw):
                 self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echos,self.num_slices],order='F').transpose((0,1,3,2))
 
     def recon_mux_epi(self, tempdir, num_jobs, timepoints=[]):
-        start_secs = time.time()
+        start_sec = time.time()
         """Do mux_epi image reconstruction and populate self.imagedata."""
         ref_file  = os.path.join(self.dirpath, '_'+self.basename+'_ref.dat')
         vrgf_file = os.path.join(self.dirpath, '_'+self.basename+'_vrgf.dat')
@@ -440,7 +440,7 @@ class NIMSPFile(NIMSRaw):
 
             self.update_imagedata(img)
             elapsed = time.time() - start_sec
-            log.debug('Mux recon of %s with %d v-coils finished in %0.2f minutes using %d jobs.'
+            log.info('Mux recon of %s with %d v-coils finished in %0.2f minutes using %d jobs.'
                       % (self.filepath, self.num_vcoils,  elapsed/60., min(num_jobs, self.num_slices)))
 
 
