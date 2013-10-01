@@ -18,7 +18,6 @@ See:
   10.1016/j.neuroimage.2008.09.029. Epub 2008 Oct 7. PubMed PMID: 18951982
 """
 
-import os
 import gzip
 import json
 import logging

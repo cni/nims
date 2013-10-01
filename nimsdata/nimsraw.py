@@ -10,7 +10,6 @@ import time
 import shlex
 import shutil
 import logging
-import nibabel
 import argparse
 import datetime
 import subprocess
@@ -346,8 +345,8 @@ class NIMSPFile(NIMSRaw):
             log.warning('Image matrix discrepancy. Fixing the header, assuming imagedata is correct...')
             self.size_x = self.imagedata.shape[0]
             self.size_y = self.imagedata.shape[1]
-            self.mm_per_vox[0] = float(self.fov[0] / self.size_x)
-            self.mm_per_vox[1] = float(self.fov[1] / self.size_y)
+            self.mm_per_vox[0] = self.fov[0] / self.size_x
+            self.mm_per_vox[1] = self.fov[1] / self.size_y
         if self.imagedata.shape[2] != self.num_slices * self.num_bands:
             log.warning('Image slice count discrepancy. Fixing the header, assuming imagedata is correct...')
             self.num_slices = self.imagedata.shape[2]
