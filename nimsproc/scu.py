@@ -16,6 +16,8 @@ import shlex
 import logging
 import subprocess
 
+log = logging.getLogger('dicomreaper.scu')
+
 RESPONSE_RE = re.compile("""
 W: # Dicom-Data-Set
 W: # Used TransferSyntax: (?P<transfer_syntax>.+)
@@ -33,39 +35,38 @@ class SCU(object):
     is optional (default=port).
     """
 
-    def __init__(self, host, port, return_port, aet, aec, log=None):
+    def __init__(self, host, port, return_port, aet, aec):
         self.host = host
         self.port = port
         self.return_port = return_port
         self.aet = aet
         self.aec = aec
-        self.log = log if log else logging.getLogger('scu')
 
     def find(self, query):
         """ Construct a findscu query. Return a list of Response objects. """
         cmd = 'findscu --verbose %s' % self.query_string(query)
-        self.log.debug(cmd)
+        log.debug(cmd)
         output = ''
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
         except Exception as ex:
-            self.log.debug(ex)
-            output and self.log.debug(output)
+            log.debug(ex)
+            output and log.debug(output)
         if output and re.search('DIMSE Status .* Success', output):
-            return [Response(match_obj.groupdict(), self.log) for match_obj in RESPONSE_RE.finditer(output)]
+            return [Response(match_obj.groupdict()) for match_obj in RESPONSE_RE.finditer(output)]
         else:
             return []
 
     def move(self, query, dest_path='.'):
         """Construct a movescu query. Return the count of images successfully transferred."""
         cmd = 'movescu --verbose -od %s +P %s %s' % (dest_path, self.return_port, self.query_string(query))
-        self.log.debug(cmd)
+        log.debug(cmd)
         output = ''
         try:
             output = subprocess.check_output(shlex.split(cmd), stderr=subprocess.STDOUT)
         except Exception as ex:
-            self.log.debug(ex)
-            output and self.log.debug(output)
+            log.debug(ex)
+            output and log.debug(output)
         try:
             img_cnt = int(MOVE_OUTPUT_RE.match(output).group(1))
         except (ValueError, AttributeError):
@@ -133,9 +134,8 @@ class Response(dict):
     completion of dictionary elements as members.
     """
 
-    def __init__(self, response_dict, log):
+    def __init__(self, response_dict):
         dict.__init__(self)
-        self.log = log
         self.transfer_syntax = response_dict['transfer_syntax']
         self.dicom_cv_list = [DicomCV(match_obj.groupdict()) for match_obj in DICOM_CV_RE.finditer(response_dict['dicom_cvs'])]
         for cv in self.dicom_cv_list:
@@ -150,5 +150,5 @@ class Response(dict):
         if name in self:
             return self[name]
         else:
-            self.log.debug('Response: %s' % self)
+            log.debug('Response: %s' % self)
             raise AttributeError, name

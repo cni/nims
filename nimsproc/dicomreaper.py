@@ -4,10 +4,10 @@
 #           Reno Bowen
 
 import os
-import sys
 import time
 import shutil
 import signal
+import logging
 import tarfile
 import argparse
 import datetime
@@ -17,10 +17,12 @@ import scu
 import nimsutil
 import nimsdata
 
+log = logging.getLogger('dicomreaper')
+
 
 class DicomReaper(object):
 
-    def __init__(self, id_, scu, pat_id, discard_ids, reap_path, sort_path, datetime_file, sleep_time, log):
+    def __init__(self, id_, scu, pat_id, discard_ids, reap_path, sort_path, datetime_file, sleep_time):
         self.id_ = id_
         self.scu = scu
         self.pat_id = pat_id
@@ -29,7 +31,6 @@ class DicomReaper(object):
         self.sort_stage = nimsutil.make_joined_path(sort_path)
         self.datetime_file = datetime_file
         self.sleep_time = sleep_time
-        self.log = log
 
         self.current_exam_datetime = nimsutil.get_reference_datetime(self.datetime_file)
         self.monitored_exams = collections.deque()
@@ -54,12 +55,12 @@ class DicomReaper(object):
 
             if n_monitored_exams > 0 and n_outstanding_exams > 0 and self.monitored_exams[0].id_ != outstanding_exams[0].id_:
                 vanished_exam = self.monitored_exams.popleft()
-                self.log.warning('Dropping    %s (assumed deleted from scanner)' % vanished_exam)
+                log.warning('Dropping    %s (assumed deleted from scanner)' % vanished_exam)
                 continue
 
             if n_monitored_exams > 1 and n_outstanding_exams > 1 and self.monitored_exams[1].id_ != outstanding_exams[1].id_:
                 vanished_exam = self.monitored_exams.pop()
-                self.log.warning('Dropping    %s (assumed deleted from scanner)' % vanished_exam)
+                log.warning('Dropping    %s (assumed deleted from scanner)' % vanished_exam)
                 continue
 
             next_exam = None
@@ -75,7 +76,7 @@ class DicomReaper(object):
                     nimsutil.update_reference_datetime(self.datetime_file, self.current_exam_datetime)
 
             if next_exam:
-                self.log.info('New         %s' % self.monitored_exams[-1])
+                log.info('New         %s' % self.monitored_exams[-1])
 
             for exam in self.monitored_exams:
                 if not self.alive: return
@@ -110,14 +111,14 @@ class Exam(object):
 
     def reap(self):
         """An exam must be reaped at least twice, since newly encountered series are not immediately reaped."""
-        self.reaper.log.debug('Monitoring  %s' % self)
+        log.debug('Monitoring  %s' % self)
         updated_series_list = self.get_series_list() if self.pat_id.strip('/') not in reaper.discard_ids else []
         for updated_series in updated_series_list:
             if not self.reaper.alive: break
             if updated_series.id_ in self.series_dict:
                 self.series_dict[updated_series.id_].reap(updated_series.image_count)
             else:
-                self.reaper.log.info('New         %s' % updated_series)
+                log.info('New         %s' % updated_series)
                 self.series_dict[updated_series.id_] = updated_series
 
     def get_series_list(self):
@@ -145,9 +146,9 @@ class Series(object):
         if new_image_count > self.image_count:
             self.image_count = new_image_count
             self.needs_reaping = True
-            self.reaper.log.info('Monitoring  %s' % self)
+            log.info('Monitoring  %s' % self)
         elif self.needs_reaping: # image count has stopped increasing
-            self.reaper.log.info('Reaping     %s' % self)
+            log.info('Reaping     %s' % self)
             stage_dir = '%s_%s_%s_%s' % (self.reaper.id_, self.exam.id_, self.id_, datetime.datetime.now().strftime('%s'))
             reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
             reap_count = self.reaper.scu.move(scu.SeriesQuery(SeriesInstanceUID=self.uid), reap_path)
@@ -156,14 +157,14 @@ class Series(object):
                 shutil.move(reap_path, os.path.join(self.reaper.sort_stage, '.' + stage_dir))
                 os.rename(os.path.join(self.reaper.sort_stage, '.' + stage_dir), os.path.join(self.reaper.sort_stage, stage_dir))
                 self.needs_reaping = False
-                self.reaper.log.info('Reaped      %s' % self)
+                log.info('Reaped      %s' % self)
             else:
                 shutil.rmtree(reap_path)
-                self.reaper.log.warning('Incomplete  %s, %d reaped' % (self, reap_count))
+                log.warning('Incomplete  %s, %d reaped' % (self, reap_count))
 
     def tar_into_acquisitions(self, series_path):
         dcm_dict = {}
-        self.reaper.log.info('Compressing %s' % self)
+        log.info('Compressing %s' % self)
         for filepath in [os.path.join(series_path, filename) for filename in os.listdir(series_path)]:
             #dcm = nimsutil.dicomutil.DicomAcquisition(filepath)
             dcm = nimsdata.nimsdicom.NIMSDicom(filepath)
@@ -191,9 +192,8 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-d', '--discard', default='discard', help='space-separated list of Patient IDs to discard')
         self.add_argument('-p', '--patid', help='glob for Patient IDs to reap (default: "*")')
         self.add_argument('-s', '--sleeptime', type=int, default=30, help='time to sleep before checking for new data')
-        self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
-        self.add_argument('-l', '--loglevel', default='info', help='path to log file')
+        self.add_argument('-l', '--loglevel', default='info', help='log level (default: info)')
         self.add_argument('-q', '--quiet', action='store_true', default=False, help='disable console logging')
 
 
@@ -201,11 +201,11 @@ if __name__ == '__main__':
     args = ArgumentParser().parse_args()
     host, port, return_port = args.dicomserver.split(':')
 
-    log = nimsutil.get_logger(args.logname, args.logfile, not args.quiet, args.loglevel)
-    scu_ = scu.SCU(host, port, return_port, args.aet, args.aec, log=log)
+    nimsutil.configure_log(args.logfile, not args.quiet, args.loglevel)
+    scu_ = scu.SCU(host, port, return_port, args.aet, args.aec)
     datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % args.aec)
 
-    reaper = DicomReaper(args.aec, scu_, args.patid, args.discard.split(), args.reap_path, args.sort_path, datetime_file, args.sleeptime, log)
+    reaper = DicomReaper(args.aec, scu_, args.patid, args.discard.split(), args.reap_path, args.sort_path, datetime_file, args.sleeptime)
 
     def term_handler(signum, stack):
         reaper.halt()

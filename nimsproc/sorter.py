@@ -7,6 +7,7 @@ import os
 import time
 import shutil
 import signal
+import logging
 import argparse
 import datetime
 
@@ -17,17 +18,18 @@ import nimsutil
 import nimsdata
 from nimsgears import model
 
+log = logging.getLogger('sorter')
+
 
 class Sorter(object):
 
-    def __init__(self, db_uri, sort_path, preserve_path, nims_path, dir_mode, sleep_time, log):
+    def __init__(self, db_uri, sort_path, preserve_path, nims_path, dir_mode, sleep_time):
         super(Sorter, self).__init__()
         self.sort_path = nimsutil.make_joined_path(sort_path)
         self.preserve_path = nimsutil.make_joined_path(preserve_path) if preserve_path else None
         self.nims_path = nimsutil.make_joined_path(nims_path)
         self.dir_mode = dir_mode
         self.sleep_time = sleep_time
-        self.log = log
         self.alive = True
         model.init_model(sqlalchemy.create_engine(db_uri))
 
@@ -41,7 +43,7 @@ class Sorter(object):
             stage_contents = [sc for sc in stage_contents if os.path.isdir(sc)] # ignore toplevel files
             if stage_contents:
                 sort_path = min(stage_contents, key=os.path.getmtime)   # oldest first
-                self.log.info('Sorting %s' % os.path.basename(sort_path))
+                log.info('Sorting %s' % os.path.basename(sort_path))
                 for dirpath, dirnames, filenames in os.walk(sort_path, topdown=False):
                     aux_paths = {}
                     for aux_file in filter(lambda fn: fn.startswith('_'), filenames):
@@ -52,14 +54,14 @@ class Sorter(object):
                         self.sort_directory(dirpath, filenames, aux_paths)
                     else:
                         self.sort_files(dirpath, filenames, aux_paths)
-                self.log.info('Sorted  %s' % os.path.basename(sort_path))
+                log.info('Sorted  %s' % os.path.basename(sort_path))
             else:
-                self.log.debug('Waiting for work...')
+                log.debug('Waiting for work...')
                 time.sleep(self.sleep_time)
 
     def sort_files(self, dirpath, filenames, aux_paths):
         for filepath, filename in [(os.path.join(dirpath, fn), fn) for fn in filenames]:
-            self.log.debug('Sorting %s' % filename)
+            log.debug('Sorting %s' % filename)
             try:
                 mrfile = nimsdata.parse(filepath)
             except nimsdata.NIMSDataError:
@@ -80,7 +82,7 @@ class Sorter(object):
         shutil.rmtree(dirpath)
 
     def sort_directory(self, dirpath, filenames, aux_paths):
-        self.log.debug('Sorting %s in directory mode' % os.path.basename(dirpath))
+        log.debug('Sorting %s in directory mode' % os.path.basename(dirpath))
         try:
             mrfile = nimsdata.NIMSData.parse(os.path.join(dirpath, filenames[0]))
         except nimsdata.NIMSDataError:
@@ -111,16 +113,15 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-t', '--toplevel', action='store_true', help='handle toplevel files')
         self.add_argument('-p', '--preserve_path', help='preserve unsortable files here')
         self.add_argument('-s', '--sleeptime', type=int, default=10, help='time to sleep before checking for new files')
-        self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
-        self.add_argument('-l', '--loglevel', default='info', help='path to log file')
+        self.add_argument('-l', '--loglevel', default='info', help='log level (default: info)')
         self.add_argument('-q', '--quiet', action='store_true', default=False, help='disable console logging')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
-    log = nimsutil.get_logger(args.logname, args.logfile, not args.quiet, args.loglevel)
-    sorter = Sorter(args.db_uri, args.sort_path, args.preserve_path, args.nims_path, args.dirmode, args.sleeptime, log)
+    nimsutil.configure_log(args.logfile, not args.quiet, args.loglevel)
+    sorter = Sorter(args.db_uri, args.sort_path, args.preserve_path, args.nims_path, args.dirmode, args.sleeptime)
 
     def term_handler(signum, stack):
         sorter.halt()

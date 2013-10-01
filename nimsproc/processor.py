@@ -5,10 +5,10 @@
 
 import os
 import abc
-import glob
 import time
 import shutil
 import signal
+import logging
 import tarfile
 import argparse
 import datetime
@@ -21,18 +21,20 @@ import nimsutil
 import nimsdata
 from nimsgears.model import *
 
+log = logging.getLogger('processor')
+
 # TODO: pull this out to a command-line arg
 max_num_recon_jobs = 32
 
+
 class Processor(object):
 
-    def __init__(self, db_uri, nims_path, physio_path, task, filters, log, max_jobs, reset, sleeptime):
+    def __init__(self, db_uri, nims_path, physio_path, task, filters, max_jobs, reset, sleeptime):
         super(Processor, self).__init__()
         self.nims_path = nims_path
         self.physio_path = physio_path
         self.task = unicode(task) if task else None
         self.filters = filters
-        self.log = log
         self.max_jobs = max_jobs
         self.sleeptime = sleeptime
 
@@ -61,15 +63,15 @@ class Processor(object):
                         elif ds.filetype == nimsdata.nimsraw.NIMSPFile.filetype:
                             pipeline_class = PFilePipeline
 
-                    pipeline = pipeline_class(job, self.nims_path, self.physio_path, self.log)
+                    pipeline = pipeline_class(job, self.nims_path, self.physio_path)
                     job.status = u'running'
                     transaction.commit()
                     pipeline.start()
                 else:
-                    self.log.debug('Waiting for work...')
+                    log.debug('Waiting for work...')
                     time.sleep(self.sleeptime)
             else:
-                self.log.debug('Waiting for jobs to finish...')
+                log.debug('Waiting for jobs to finish...')
                 time.sleep(self.sleeptime)
 
     def reset_all(self):
@@ -80,7 +82,7 @@ class Processor(object):
         for job in job_query.all():
             job.status = u'pending'
             job.activity = u'reset to pending'
-            self.log.info(u'%d %s %s' % (job.id, job, job.activity))
+            log.info(u'%d %s %s' % (job.id, job, job.activity))
         transaction.commit()
 
 
@@ -88,17 +90,16 @@ class Pipeline(threading.Thread):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, job, nims_path, physio_path, log):
+    def __init__(self, job, nims_path, physio_path):
         super(Pipeline, self).__init__()
         self.job = job
         self.nims_path = nims_path
         self.physio_path = physio_path
-        self.log = log
 
     def run(self):
         DBSession.add(self.job)
         self.job.activity = u'started'
-        self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+        log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
         DBSession.add(self.job)
         try:
@@ -112,11 +113,11 @@ class Pipeline(threading.Thread):
         except Exception as ex:
             self.job.status = u'failed'
             self.job.activity = u'failed: %s' % ex
-            self.log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+            log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         else:
             self.job.status = u'done'
             self.job.activity = u'done'
-            self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+            log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
 
     def clean(self, data_container, kind):
@@ -138,7 +139,7 @@ class Pipeline(threading.Thread):
                 physio = nimsdata.nimsphysio.NIMSPhysio(physio_files, dc.tr, dc.num_timepoints)
                 if physio.is_valid():
                     self.job.activity = u'valid physio found'
-                    self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                    log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                     # Computing the slice-order can be expensive, so we didn't do it when we instantiated.
                     # But now that we know physio is valid, we need to do it.
                     ni = nimsdata.parse(os.path.join(self.nims_path, ds.primary_file_relpath))
@@ -162,18 +163,18 @@ class Pipeline(threading.Thread):
                             physio.write_regressors(os.path.join(self.nims_path, dataset.relpath, reg_filename))
                         except nimsdata.nimsphysio.NIMSPhysioError:
                             self.job.activity = u'error generating regressors from physio data'
-                            self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                            log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                         else:
                             dataset.filenames += [reg_filename]
                 else:
                     self.job.activity = u'invalid physio found and discarded'
-                    self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                    log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
             else:
                 self.job.activity = u'no physio files found'
-                self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         else:
             self.job.activity = u'physio not recorded'
-            self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+            log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
         DBSession.add(self.job)
 
@@ -182,7 +183,7 @@ class Pipeline(threading.Thread):
         self.clean(self.job.data_container, u'derived')
         self.clean(self.job.data_container, u'web')
         self.job.activity = u'generating NIfTI / running recon'
-        self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+        log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
         DBSession.add(self.job)
 
@@ -205,7 +206,7 @@ class DicomPipeline(Pipeline):
             if conv_type:
                 outputdir_list = os.listdir(outputdir)
                 self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
-                self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 conv_ds = Dataset.at_path(self.nims_path, unicode(conv_type))
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
@@ -226,7 +227,7 @@ class DicomPipeline(Pipeline):
                 nims_montage = nimsdata.nimsmontage.generate_montage(conv_file)
                 nims_montage.write_sqlite_pyramid(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
                 self.job.activity = u'image pyramid generated'
-                self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'web'
                 pyramid_ds.container = self.job.data_container
                 pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
@@ -259,7 +260,7 @@ class PFilePipeline(Pipeline):
             if conv_file:
                 outputdir_list = os.listdir(outputdir)
                 self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
-                self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 dataset = Dataset.at_path(self.nims_path, u'nifti')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
@@ -278,7 +279,7 @@ class PFilePipeline(Pipeline):
                 nims_montage = nimsdata.nimsmontage.generate_montage(conv_file)
                 nims_montage.write_sqlite_pyramid(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
                 self.job.activity = u'image pyramid generated'
-                self.log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'web'
                 pyramid_ds.container = self.job.data_container
                 pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
@@ -299,9 +300,8 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-j', '--jobs', type=int, default=1, help='maximum number of concurrent threads')
         self.add_argument('-r', '--reset', action='store_true', help='reset currently active (crashed) jobs')
         self.add_argument('-s', '--sleeptime', type=int, default=10, help='time to sleep between db queries')
-        self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
-        self.add_argument('-l', '--loglevel', default='info', help='path to log file')
+        self.add_argument('-l', '--loglevel', default='info', help='log level (default: info)')
         self.add_argument('-q', '--quiet', action='store_true', default=False, help='disable console logging')
 
 
@@ -311,8 +311,8 @@ if __name__ == '__main__':
     datetime.datetime.strptime('0', '%S')
 
     args = ArgumentParser().parse_args()
-    log = nimsutil.get_logger(args.logname, args.logfile, not args.quiet, args.loglevel)
-    processor = Processor(args.db_uri, args.nims_path, args.physio_path, args.task, args.filter, log, args.jobs, args.reset, args.sleeptime)
+    nimsutil.configure_log(args.logfile, not args.quiet, args.loglevel)
+    processor = Processor(args.db_uri, args.nims_path, args.physio_path, args.task, args.filter, args.jobs, args.reset, args.sleeptime)
 
     def term_handler(signum, stack):
         processor.halt()

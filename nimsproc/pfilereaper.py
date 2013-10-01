@@ -8,16 +8,19 @@ import glob
 import time
 import shutil
 import signal
+import logging
 import argparse
 import datetime
 
 import nimsutil
 import nimsdata
 
+log = logging.getLogger('pfilereaper')
+
 
 class PFileReaper(object):
 
-    def __init__(self, id_, pat_id, discard_ids, data_path, reap_path, sort_path, datetime_file, sleep_time, log):
+    def __init__(self, id_, pat_id, discard_ids, data_path, reap_path, sort_path, datetime_file, sleep_time):
         super(PFileReaper, self).__init__()
         self.id_ = id_
         self.pat_id = pat_id
@@ -27,7 +30,6 @@ class PFileReaper(object):
         self.sort_stage = nimsutil.make_joined_path(sort_path)
         self.datetime_file = datetime_file
         self.sleep_time = sleep_time
-        self.log = log
 
         self.current_file_timestamp = nimsutil.get_reference_datetime(self.datetime_file)
         self.monitored_files = {}
@@ -51,7 +53,7 @@ class PFileReaper(object):
                 if not reap_files:
                     raise Warning('No matching files found (or error while checking for files)')
             except (OSError, Warning) as e:
-                self.log.warning(e)
+                log.warning(e)
             else:
                 reap_files = sorted(filter(lambda f: f.mod_time >= self.current_file_timestamp, reap_files), key=lambda f: f.mod_time)
                 for rf in reap_files:
@@ -63,11 +65,11 @@ class PFileReaper(object):
                                 nimsutil.update_reference_datetime(self.datetime_file, rf.mod_time)
                                 self.current_file_timestamp = rf.mod_time
                         elif mf.needs_reaping:
-                            self.log.info('Monitoring  %s' % rf)
+                            log.info('Monitoring  %s' % rf)
                         elif rf.size == mf.size:
                             rf.needs_reaping = False
                     else:
-                        self.log.info('Discovered  %s' % rf)
+                        log.info('Discovered  %s' % rf)
                 self.monitored_files = dict(zip([rf.path for rf in reap_files], reap_files))
             finally:
                 time.sleep(self.sleep_time)
@@ -94,11 +96,11 @@ class ReapPFile(object):
 
     def reap(self):
         try:
-            self.reaper.log.info('Inspecting  %s' % self)
+            log.info('Inspecting  %s' % self)
             self.pfile = nimsdata.nimsraw.NIMSPFile(self.path)
         except nimsdata.nimsraw.NIMSPFileError as e:
             self.needs_reaping = False
-            self.reaper.log.warning('Skipping    %s (%s)' % (self, str(e)))
+            log.warning('Skipping    %s (%s)' % (self, str(e)))
             return
         else:
             self.pat_id = self.pfile.patient_id
@@ -110,31 +112,31 @@ class ReapPFile(object):
             aux_reap_files = [arf for arf in glob.glob(self.path + '_*') if self.is_aux_file(arf)]
         if self.pat_id.strip('/') in reaper.discard_ids:
             self.needs_reaping = False
-            self.reaper.log.info('Discarding  %s' % self)
+            log.info('Discarding  %s' % self)
             return
         if self.reaper.pat_id and not re.match(self.reaper.pat_id.replace('*','.*'), self.pat_id):
             self.needs_reaping = False
-            self.reaper.log.info('Ignoring    %s' % self)
+            log.info('Ignoring    %s' % self)
             return
 
         try:
-            self.reaper.log.info('Reaping     %s' % self)
+            log.info('Reaping     %s' % self)
             shutil.copy2(self.path, reap_path)
             for arf in aux_reap_files:
                 shutil.copy2(arf, os.path.join(reap_path, '_' + os.path.basename(arf)))
-                self.reaper.log.info('Reaping     %s' % '_' + os.path.basename(arf))
+                log.info('Reaping     %s' % '_' + os.path.basename(arf))
         except KeyboardInterrupt:
             shutil.rmtree(reap_path)
             raise
         except (shutil.Error, IOError):
-            self.reaper.log.warning('Error while reaping %s' % self)
+            log.warning('Error while reaping %s' % self)
         else:
-            self.reaper.log.info('Compressing %s' % self)
+            log.info('Compressing %s' % self)
             nimsutil.gzip_inplace(os.path.join(reap_path, self.basename), 0o644)
             shutil.move(reap_path, os.path.join(self.reaper.sort_stage, '.' + stage_dir))
             os.rename(os.path.join(self.reaper.sort_stage, '.' + stage_dir), os.path.join(self.reaper.sort_stage, stage_dir))
             self.needs_reaping = False
-            self.reaper.log.info('Reaped      %s' % self)
+            log.info('Reaped      %s' % self)
 
     def is_aux_file(self, filepath):
         if open(filepath).read(32) == self.pfile._hdr.series.series_uid:
@@ -154,9 +156,8 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-p', '--patid', help='glob for patient IDs to reap (default: "*")')
         self.add_argument('-d', '--discard', default='discard', help='space-separated list of Patient IDs to discard')
         self.add_argument('-s', '--sleeptime', type=int, default=30, help='time to sleep before checking for new data')
-        self.add_argument('-n', '--logname', default=os.path.splitext(os.path.basename(__file__))[0], help='process name for log')
         self.add_argument('-f', '--logfile', help='path to log file')
-        self.add_argument('-l', '--loglevel', default='info', help='path to log file')
+        self.add_argument('-l', '--loglevel', default='info', help='log level (default: info)')
         self.add_argument('-q', '--quiet', action='store_true', default=False, help='disable console logging')
 
 
@@ -164,10 +165,10 @@ if __name__ == '__main__':
     args = ArgumentParser().parse_args()
 
     reaper_id = args.data_path.strip('/').replace('/', '_')
-    log = nimsutil.get_logger(args.logname, args.logfile, not args.quiet, args.loglevel)
+    nimsutil.configure_log(args.logfile, not args.quiet, args.loglevel)
     datetime_file = os.path.join(os.path.dirname(__file__), '.%s.datetime' % reaper_id)
 
-    reaper = PFileReaper(reaper_id, args.patid, args.discard.split(), args.data_path, args.reap_path, args.sort_path, datetime_file, args.sleeptime, log)
+    reaper = PFileReaper(reaper_id, args.patid, args.discard.split(), args.data_path, args.reap_path, args.sort_path, datetime_file, args.sleeptime)
 
     def term_handler(signum, stack):
         reaper.halt()
