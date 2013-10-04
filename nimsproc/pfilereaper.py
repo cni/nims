@@ -110,7 +110,7 @@ class ReapPFile(object):
             stage_dir = '%s_%s' % (self.reaper.id_, datetime.datetime.now().strftime('%s.%f'))
             reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
             aux_reap_files = [arf for arf in glob.glob(self.path + '_*') if self.is_aux_file(arf)]
-        if self.pat_id.strip('/') in reaper.discard_ids:
+        if self.pat_id.strip('/').lower() in reaper.discard_ids:
             self.needs_reaping = False
             log.info('Discarding  %s' % self)
             return

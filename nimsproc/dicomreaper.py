@@ -112,7 +112,7 @@ class Exam(object):
     def reap(self):
         """An exam must be reaped at least twice, since newly encountered series are not immediately reaped."""
         log.debug('Monitoring  %s' % self)
-        updated_series_list = self.get_series_list() if self.pat_id.strip('/') not in reaper.discard_ids else []
+        updated_series_list = self.get_series_list() if self.pat_id.strip('/').lower() not in reaper.discard_ids else []
         for updated_series in updated_series_list:
             if not self.reaper.alive: break
             if updated_series.id_ in self.series_dict:
