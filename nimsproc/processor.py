@@ -23,20 +23,19 @@ from nimsgears.model import *
 
 log = logging.getLogger('processor')
 
-# TODO: pull this out to a command-line arg
-max_num_recon_jobs = 32
-
 
 class Processor(object):
 
-    def __init__(self, db_uri, nims_path, physio_path, task, filters, max_jobs, reset, sleeptime):
+    def __init__(self, db_uri, nims_path, physio_path, task, filters, max_jobs, max_recon_jobs, reset, sleeptime, tempdir):
         super(Processor, self).__init__()
         self.nims_path = nims_path
         self.physio_path = physio_path
         self.task = unicode(task) if task else None
         self.filters = filters
         self.max_jobs = max_jobs
+        self.max_recon_jobs = max_recon_jobs
         self.sleeptime = sleeptime
+        self.tempdir = tempdir
 
         self.alive = True
         init_model(sqlalchemy.create_engine(db_uri))
@@ -63,7 +62,7 @@ class Processor(object):
                         elif ds.filetype == nimsdata.nimsraw.NIMSPFile.filetype:
                             pipeline_class = PFilePipeline
 
-                    pipeline = pipeline_class(job, self.nims_path, self.physio_path)
+                    pipeline = pipeline_class(job, self.nims_path, self.physio_path, self.tempdir, self.max_recon_jobs)
                     job.status = u'running'
                     transaction.commit()
                     pipeline.start()
@@ -90,11 +89,13 @@ class Pipeline(threading.Thread):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, job, nims_path, physio_path):
+    def __init__(self, job, nims_path, physio_path, tempdir, max_recon_jobs):
         super(Pipeline, self).__init__()
         self.job = job
         self.nims_path = nims_path
         self.physio_path = physio_path
+        self.tempdir = tempdir
+        self.max_recon_jobs = max_recon_jobs
 
     def run(self):
         DBSession.add(self.job)
@@ -149,8 +150,8 @@ class Pipeline(threading.Thread):
                     DBSession.add(self.job.data_container)
                     dataset.kind = u'peripheral'
                     dataset.container = self.job.data_container
-                    with nimsutil.TempDir() as tempdir:
-                        arcdir_path = os.path.join(tempdir, '%s_physio' % self.job.data_container.name)
+                    with nimsutil.TempDir(dir=self.tempdir) as tempdir_path:
+                        arcdir_path = os.path.join(tempdir_path, '%s_physio' % self.job.data_container.name)
                         os.mkdir(arcdir_path)
                         for f in physio_files:
                             shutil.copy2(f, arcdir_path)
@@ -197,7 +198,7 @@ class DicomPipeline(Pipeline):
         super(DicomPipeline, self).process()
 
         ds = self.job.data_container.primary_dataset
-        with nimsutil.TempDir() as outputdir:
+        with nimsutil.TempDir(dir=self.tempdir) as outputdir:
             outbase = os.path.join(outputdir, ds.container.name)
             dcm_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
             dcm_acq = nimsdata.nimsdicom.NIMSDicom(dcm_tgz)
@@ -245,7 +246,7 @@ class PFilePipeline(Pipeline):
         super(PFilePipeline, self).process()
 
         ds = self.job.data_container.primary_dataset
-        with nimsutil.TempDir() as outputdir:
+        with nimsutil.TempDir(dir=self.tempdir) as outputdir:
             pf = None
             for pfile in os.listdir(os.path.join(self.nims_path, ds.relpath)):
                 if not pfile.startswith('_') and 'refscan' not in pfile:
@@ -255,7 +256,7 @@ class PFilePipeline(Pipeline):
                         pf = None
                     else:
                         break
-            conv_type, conv_file = pf.convert(os.path.join(outputdir, ds.container.name), num_jobs=max_num_recon_jobs) if pf else (None, None)
+            conv_type, conv_file = pf.convert(os.path.join(outputdir, ds.container.name), self.tempdir, self.max_recon_jobs) if pf else (None, None)
 
             if conv_file:
                 outputdir_list = os.listdir(outputdir)
@@ -295,11 +296,13 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('db_uri', metavar='URI', help='database URI')
         self.add_argument('nims_path', metavar='DATA_PATH', help='data location')
         self.add_argument('physio_path', metavar='PHYSIO_PATH', help='path to physio data')
-        self.add_argument('-t', '--task', help='find|proc  (default is all)')
+        self.add_argument('-T', '--task', help='find|proc  (default is all)')
         self.add_argument('-e', '--filter', default=[], action='append', help='sqlalchemy filter expression')
         self.add_argument('-j', '--jobs', type=int, default=1, help='maximum number of concurrent threads')
+        self.add_argument('-k', '--reconjobs', type=int, default=8, help='maximum number of concurrent recon jobs')
         self.add_argument('-r', '--reset', action='store_true', help='reset currently active (crashed) jobs')
         self.add_argument('-s', '--sleeptime', type=int, default=10, help='time to sleep between db queries')
+        self.add_argument('-t', '--tempdir', help='directory to use for temporary files')
         self.add_argument('-f', '--logfile', help='path to log file')
         self.add_argument('-l', '--loglevel', default='info', help='log level (default: info)')
         self.add_argument('-q', '--quiet', action='store_true', default=False, help='disable console logging')
@@ -312,7 +315,7 @@ if __name__ == '__main__':
 
     args = ArgumentParser().parse_args()
     nimsutil.configure_log(args.logfile, not args.quiet, args.loglevel)
-    processor = Processor(args.db_uri, args.nims_path, args.physio_path, args.task, args.filter, args.jobs, args.reset, args.sleeptime)
+    processor = Processor(args.db_uri, args.nims_path, args.physio_path, args.task, args.filter, args.jobs, args.reconjobs, args.reset, args.sleeptime, args.tempdir)
 
     def term_handler(signum, stack):
         processor.halt()
