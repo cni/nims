@@ -54,7 +54,6 @@ class UploadController(NimsController):
                     data = NIMSDicom(name)
                     file_result['exam_uid'] = data.exam_uid
 
-
                     file_result['status'] = True
                     file_result['message'] = "OK"
 
@@ -65,9 +64,10 @@ class UploadController(NimsController):
                     out_parse_file.close()
 
                 except NIMSDataError:
+                    fname = file.filename
                     print "Couldn't understand the file", file.filename
                     file_result['status'] = False
-                    file_result['message'] = "File %s could not be parsed" % file.filename
+                    file_result['message'] = "File %s is not a Dicom" % file.filename
                     # print '++++++++++++ result_error: ', result
                 except:
                     file_result['status'] = False
@@ -75,7 +75,7 @@ class UploadController(NimsController):
 
                 result['files'].append(file_result)
 
-            print '\nResult: ' + str(result)
+            #print '\nResult: ' + str(result)
             return json.dumps(result)
         else:
             result['processed'] = False
