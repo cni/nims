@@ -20,39 +20,49 @@ function findOffset(data, seq) {
     return -1;
 }
 
-function parseFile(fileContent){
-	var buffer = new Uint8Array(fileContent);
-    var dcmparser = new DicomParser(buffer);
-    console.log('dcmparser', dcmparser);
-    var file = dcmparser.parse_file();
-    console.log('PatientsName: ', file.PatientsName);
-    console.log('PatientsBirthDate: ', file.PatientsBirthDate);
-    console.log('File: ', file);
-
-}
-
-function redactPatientName(fileContent) {
+function redactPatientName(fileContent, dcmFile) {
     var dataView = new DataView(fileContent);
 
     //Search for the sequence ( 0010 0010 PN ) that corresponds to the tag and initials of Patient Name
-    var offset = findOffset(fileContent, [0x10, 0x00, 0x10, 0x00, 0x50, 0x4e]);
+    offset = findOffset(fileContent, [0x10, 0x00, 0x10, 0x00, 0x50, 0x4e]);
     if (offset < 0) {
         console.log('Could not find patient name in file');
     } else {
         console.log('Found patient name at offset:', offset);
         var len1 = dataView.getUint8(offset + 6);
         var len2 = dataView.getUint8(offset + 7);
-        var len = (len2 * 256) + len1;
-        console.log('Name length: ', len);
+        lenPatientsName = (len2 * 256) + len1;
 
-        for (var i = 0; i < len; i++) {
+        var patientName = '';
+        for (var idx = 0; idx < lenPatientsName; idx++) {
+            patientName += String.fromCharCode(dataView.getUint8(offset + 8 + idx));
+        }
+
+        console.log('Name length: ', lenPatientsName, 'Name:', patientName);
+
+        // Verify that the patient name is the same found by the dicomparser js library
+        if (patientName != dcmFile.PatientsName) {
+            console.error('Could not redact the patient name. Found:', patientName,
+                ' dicomParser:', dcmFile.PatientsName);
+            return;
+        }
+
+        for (var i = 0; i < lenPatientsName; i++) {
             dataView.setUint8(offset + 8 + i, 0x58);
         }
     }
 }
 
+function parseFile(fileContent){
+	var buffer = new Uint8Array(fileContent);
+    var dcmparser = new DicomParser(buffer);
+    var file = dcmparser.parse_file();
+    console.log('File: ', file);
 
-var files_to_upload = [];
+    return file;
+}
+
+var files_to_upload = {};
 var id_generator = 0;
 
 // Prevent from submit for ajax call. If fields are empty, show error banner. Send data to upload.py.
@@ -73,100 +83,89 @@ $('#submit_form').on('click', function(evt) {
          data.append('experiment', $('#experiment').val());
          data.append('group_value', $('#group_value').val());
 
-         var filesToRead = files_to_upload.length;
          var form = new FormData();
 
          // Also pass a map (filename, Id) to the server
-         $.each(files_to_upload, function(i, file) {
-             data.append('filename_' + file.name, file.id);
-
-             var fileReader = new FileReader();
-             fileReader.onload = function(evt){
-                 console.log('Finished to load file: ', file.name);
-
-                 var fileContent = evt.target.result;
-                 parseFile(fileContent);
-                 redactPatientName(fileContent);
-
-
-                 var blob = new Blob([fileContent]);
-                 data.append('files[]', blob, file.name );
-
-                 --filesToRead;
-                 if( filesToRead == 0 ){
-                     console.log("Uploading files: ", files_to_upload.join(', '));
-
-                     $.ajax('upload/submit', {
-                         data: data,
-                         cache: false,
-                         contentType: false,
-                         processData: false,
-                         type: 'POST'})
-                         .done( function(data){
-                             var response = JSON.parse(data);
-                             console.log("Received upload response: ");
-                             console.dir(response);
-
-                             $.each(response.files, updateFileStatus);
-                         })
-                         .fail( function(data){
-                             $('#result_error').text('Error: ' + data);
-                             $('#result_error').removeClass('hide');
-                         });
-                 }
+         console.log('>>>>>>>>>>>>>>>>>>>>', Object.keys(files_to_upload));
+         $.each(Object.keys(files_to_upload), function(i, key) {
+             if (key.indexOf('key') == 0) {
+                 $.each(files_to_upload[key], function(j, file) {
+                     data.append('filename_' + file.name, file.id);
+                     data.append('files[]', file.content, file.name);
+                     console.log("Uploading: ", file.name);
+                 });
              }
-
-             fileReader.readAsArrayBuffer(file);
          });
 
-     }
 
+
+         $.ajax('upload/submit', {
+             data: data,
+             cache: false,
+             contentType: false,
+             processData: false,
+             type: 'POST'})
+             .done( function(data){
+                 var response = JSON.parse(data);
+                 console.log("Received upload response: ");
+
+                 $.each(response.files, updateFileStatus);
+             })
+             .fail( function(data){
+                 $('#result_error').text('Error: ' + data);
+                 $('#result_error').removeClass('hide');
+             });
+	 }
 });
 
-
 // Add a file to the bottom list of file in the page
-function addFileToList(idx, file) {
-    var output = [];
-    var id = '_' + (id_generator++);
+function addFileToList(file) {
+    //Append to the list of FileObject to upload
+    if (!files_to_upload[file.Key]){
+        files_to_upload[file.Key] = [];
 
-    // Add our generatered id to the file object
-    file.id = id;
+        // Add our generatered id to the file object
+        var id = '_' + (id_generator++);
+        files_to_upload[file.Key].id = id;
 
-    // If there's already a file with same name on the list, override it
-    // if ($(file_id)) {
-    //     console.log('A file with the same name "', file_id, '"');
-    //     $(file_id).remove();
-    //
-    //     // Delete from DND file list
-    //     dnd_files = $.grep(dnd_files, function(dnd_file) {
-    //         return dnd_file.name != file.name;
-    //     });
-    // }
-    $('#file_list_header').removeClass('hide');
-    output.push('<tr id="', id, '"> \
-                    <td><img class="clickable" src="/images/delete.png" title="Remove this file" \
-                            onclick="removeFileFromList(\'', id, '\', \'', file.name, '\')" /></td> \
-                    <td><strong>', file.name, '</strong></td> \
-                    <td>', file.type || 'n/a', '</td> \
-                    <td>', file.size, '</td> \
-                    <td>', file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : 'n/a', '</td> \
-                    <td class="status"></td> \
-                </tr>');
+        $('#file_list_header').removeClass('hide');
+        var output = [];
+        output.push('<tr id="', id, '"> \
+                        <td><strong>', file.StudyID , '</strong></td> \
+                        <td>', file.SeriesNumber || 'n/a', '</td> \
+                        <td>', file.AcquisitionNumber, '</td> \
+                        <td>', file.SeriesInstanceUID, '</td> \
+                        <td id="count_', id, '">', '</td> \
+                        <td class="status">', file.status, '</td> \
+                    </tr>');
+
+        $('#file_list').append(output.join(''));
+    }
+
+    file.id = files_to_upload[file.Key].id;
+
+    files_to_upload[file.Key].push(file);
+    console.log('Files to upload:', files_to_upload[file.Key]);
+
+    $('#count_' + file.id).html(files_to_upload[file.Key].length);
+
+    // files_to_upload = $.merge(files_to_upload, [file]);
 
 
-    $('#file_list').append(output.join(''));
 }
 
-function removeFileFromList(id, fileNameEscaped) {
-    var fileName = unescape(fileNameEscaped);
-    console.log('Remove file from list: ', fileName);
+function addToIgnoredFilesList(file) {
+    var output = [];
+    $('#file_header_ignored').removeClass('hide');
 
-    $('#' + id).remove();
+    output.push('<tr> \
+                     <td><strong>', file.name, '</strong></td> \
+                     <td>', file.type || "n/a", '</td> \
+                     <td>', file.size, '</td> \
+                     <td class="status">', file.status, '</td> \
+                 </tr>');
 
-    // Delete from FileObject list
-    files_to_upload = $.grep(files_to_upload, function(item) {
-        return item.name != fileName;
-    });
+    $('#file_list_ignored').append(output.join(''));
 }
 
 function updateFileStatus(idx, fileResult) {
@@ -188,7 +187,9 @@ function updateFileStatus(idx, fileResult) {
 function clearFileList() {
     files_to_upload = [];
     $('#file_list').html('');
+    $('#file_list_ignored').html('');
     $('#file_list_header').addClass('hide');
+    $('#file_header_ignored').addClass('hide');
     $('#result_error').addClass('hide');
 }
 
@@ -204,38 +205,84 @@ function handleDnDSelect(evt) {
 
     console.log("handle DND event: " + evt.type);
 
-    var length = evt.originalEvent.dataTransfer.items.length;
-    for ( var i = 0; i < length; i++ ){
-        var entry = evt.originalEvent.dataTransfer.items[i].webkitGetAsEntry();
-        if(entry.isFile){
-            $.each(files, addFileToList);
-        }else if (entry.isDirectory) {
-            var dirReader = entry.createReader();
-            console.log('Object dir Reader: ', dirReader );
-            dirReader.readEntries(function(entries){
-                var idx = entries.length;
-                console.log('Idx: ', idx );
-                while(idx--){
-                    readFileTree( entries[idx], itemCallback );
-                }
-            });
+    $.each(evt.originalEvent.dataTransfer.items, function(idx, item){
+        var entry;
+        if (item.getAsEntry) { //Standard HTML5 API
+            entry = item.getAsEntry();
+        } else if(item.webkitGetAsEntry) { //Webkit implementation of HTML5 API
+            entry = item.webkitGetAsEntry();
         }
-    }
+        console.log("Entry", entry);
+        readFileTree(entry, openFileComplete);
+    });
 }
 
-// function handleDnDSelect(evt) {
-//     evt.stopPropagation();
-//     evt.preventDefault();
-//
-//     console.log("handle DND event: " + evt.type);
-//
-//     // Add each dropped file to the list of selected files
-//     var files = evt.originalEvent.dataTransfer.files;
-//     $.each(files, addFileToList);
-//
-//     // Append to the list of FileObject to upload
-//     files_to_upload = $.merge(files_to_upload, files);
-// }
+function openFileComplete(file) {
+    console.log("Opened file", file);
+
+    var fileReader = new FileReader();
+    fileReader.onload = function(evt){
+        console.log('Finished to read content of file:', file.name);
+
+        var fileContent = evt.target.result;
+        var filelength = file.name.length;
+
+		try {
+            var dcmFile = parseFile(fileContent);
+			redactPatientName(fileContent, dcmFile);
+			file.status = "Valid File";
+            file.StudyID = dcmFile.StudyID;
+            file.InstanceNumber = dcmFile.InstanceNumber;
+            file.SeriesInstanceUID = dcmFile.SeriesInstanceUID;
+            file.AcquisitionNumber = dcmFile.AcquisitionNumber;
+            file.SeriesNumber = dcmFile.SeriesNumber;
+
+            file.Key = ['key', file.StudyID, file.SeriesNumber, file.AcquisitionNumber,
+                                file.SeriesInstanceUID].join('-');
+
+            var blob = new Blob([fileContent]);
+    		file.content = blob;
+
+            files_to_upload[file.key] = file.content;
+    		// Add the file to table of files in the page
+    	    addFileToList(file);
+
+		} catch (err) {
+            console.log('Error parsing dicom file:', err);
+			// Could not parse the dicom file
+			file.status = "Not valid";
+
+            addToIgnoredFilesList(file);
+		}
+    }
+    fileReader.readAsArrayBuffer(file);
+}
+
+//Explore through the file tree
+//Traverse recursively through File and Directory entries.
+function readFileTree(itemEntry, callback){
+    if(itemEntry.isFile){
+        readFile(itemEntry, callback);
+    }else if(itemEntry.isDirectory){
+        var dirReader = itemEntry.createReader();
+        dirReader.readEntries(function(entries){
+            $.each(entries, function(idx, entry){
+                console.log("Found new entry:", entry, " is file: ", entry.isFile);
+                readFileTree(entry, callback);
+            });
+        });
+    }
+};
+
+//Read FileEntry to get Native File object.
+function readFile(fileEntry, callback){
+    //Get File object from FileEntry
+    fileEntry.file(function(callback, file){
+        if(callback){
+            callback(file);
+        }
+    }.bind(this, callback));
+};
 
 function handleDragEnter(evt) {
     $("#drop_zone").addClass("over");
@@ -259,15 +306,16 @@ function handleFileInputSelect(evt) {
     evt.stopPropagation();
     evt.preventDefault();
 
-    console.log('Handle File Input select');
-//    console.dir(evt);
-
     var files = evt.target.files;
-    $.each(files, addFileToList);
+	console.log('Handle File Input select:', files);
 
-    // Append to the list of FileObject to upload
-    files_to_upload = $.merge(files_to_upload, files);
+	// Read and parse each selected file
+    $.each(files, function(idx, file) {
+		openFileComplete(file);
+    });
 }
+
+
 
 $('#files').on('change', handleFileInputSelect);
 
@@ -276,73 +324,5 @@ $('#drop_zone').on('dragenter', handleDragEnter);
 $('#drop_zone').on('dragover', handleDragOver);
 $('#drop_zone').on('dragleave', handleDragLeave);
 $('#drop_zone').on('drop', handleDnDSelect);
+$('#drop_zone').on('click', handleFileSelect);
 
-////////////////////////////////////////////////////////////////
-// Utils
-////////////////////////////////////////////////////////////////
-
-
-///////////////////////////////////////////////////////////////////////////////////////
-
-
-// // Progress bar related
-// var reader;
-// var progress = document.querySelector('.percent');
-//
-//  function abortRead() {
-//    reader.abort();
-//  }
-//
-//  function errorHandler(evt) {
-//    switch(evt.target.error.code) {
-//      case evt.target.error.NOT_FOUND_ERR:
-//        alert('File Not Found!');
-//        break;
-//      case evt.target.error.NOT_READABLE_ERR:
-//        alert('File is not readable');
-//        break;
-//      case evt.target.error.ABORT_ERR:
-//        break; // noop
-//      default:
-//        alert('An error occurred reading this file.');
-//    };
-//  }
-//
-//  function updateProgress(evt) {
-//    // evt is an ProgressEvent.
-//    if (evt.lengthComputable) {
-//      var percentLoaded = Math.round((evt.loaded / evt.total) * 100);
-//      // Increase the progress bar length.
-//      if (percentLoaded < 100) {
-//        progress.style.width = percentLoaded + '%';
-//        progress.textContent = percentLoaded + '%';
-//      }
-//    }
-//  }
-//
-//  function handleFileSelect(evt) {
-//    // Reset progress indicator on new file selection.
-//    progress.style.width = '0%';
-//    progress.textContent = '0%';
-//
-//    reader = new FileReader();
-//    reader.onerror = errorHandler;
-//    reader.onprogress = updateProgress;
-//    reader.onabort = function(e) {
-//      alert('File read cancelled');
-//    };
-//    reader.onloadstart = function(e) {
-//      $('#progress_bar').addClass('loading');
-//    };
-//    reader.onload = function(e) {
-//      // Ensure that the progress bar displays 100% at the end.
-//      progress.style.width = '100%';
-//      progress.textContent = '100%';
-//      //setTimeout("document.getElementById('progress_bar').className='';", 2000);
-//    }
-//
-//
-//    // Read in the image file as a binary string.
-//    reader.readAsBinaryString(evt.target.files[0]);
-//  }
-// document.getElementById('files').addEventListener('change', handleFileSelect, false);
