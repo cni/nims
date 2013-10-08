@@ -84,7 +84,7 @@ class Sorter(object):
     def sort_directory(self, dirpath, filenames, aux_paths):
         log.debug('Sorting %s in directory mode' % os.path.basename(dirpath))
         try:
-            mrfile = nimsdata.NIMSData.parse(os.path.join(dirpath, filenames[0]))
+            mrfile = nimsdata.parse(os.path.join(dirpath, filenames[0]))
         except nimsdata.NIMSDataError:
             if self.preserve_path:
                 preserve_path = nimsutil.make_joined_path(self.preserve_path, os.path.relpath(dirpath, self.sort_path))

@@ -9,3 +9,4 @@ for mod in [os.path.basename(f)[:-3] for f in glob.glob(os.path.dirname(__file__
 del f, mod
 
 parse = nimsdata.NIMSData.parse
+NIMSDataError = nimsdata.NIMSDataError
