@@ -60,8 +60,7 @@ class NIMSData(object):
 
     @abc.abstractmethod
     def __init__(self):
-        self.session_spec = {'_id': self.exam_uid}
-        self.epoch_spec = {'session': self.exam_uid, 'series': self.series_no, 'acquisition': self.acq_no}
+        pass
 
     @property
     def canonical_filename(self):
