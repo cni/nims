@@ -324,5 +324,4 @@ $('#drop_zone').on('dragenter', handleDragEnter);
 $('#drop_zone').on('dragover', handleDragOver);
 $('#drop_zone').on('dragleave', handleDragLeave);
 $('#drop_zone').on('drop', handleDnDSelect);
-$('#drop_zone').on('click', handleFileSelect);
 
