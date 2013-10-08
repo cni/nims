@@ -107,6 +107,7 @@ class SearchController(NimsController):
     def index(self):
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
         dataset_cnt = Session.query.count()
+        flag = user.is_superuser
         userdataset_cnt = user.dataset_cnt
         epoch_columns = [ ('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Scan Type', 'col_typescan'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
@@ -116,6 +117,7 @@ class SearchController(NimsController):
         return dict(page='search',
             psd_values=psd_values,
             userdataset_cnt=userdataset_cnt,
+            flag=flag,
                 dataset_cnt=dataset_cnt,
             epoch_columns=epoch_columns,
             dataset_columns=dataset_columns,
@@ -128,15 +130,20 @@ class SearchController(NimsController):
         # For more robust search query parsing, check out pyparsing.
         print kwargs
         result = {'success': False}
-        if 'search_age' in kwargs and 'search_exam' in kwargs and 'search_typescan' in kwargs and 'search_operator' in kwargs and 'search_psdName' in kwargs and 'date_from' in kwargs and 'date_to' in kwargs and 'subject_name' in kwargs and 'subject_last_name' in kwargs:
+        if 'search_age' in kwargs and 'search_exam' in kwargs and 'search_typescan' in kwargs \
+            and 'search_operator' in kwargs and 'search_psdName' in kwargs and 'date_from' in kwargs \
+            and 'date_to' in kwargs and 'subject_name' in kwargs and 'subject_last_name' in kwargs:
             search_query = kwargs.values()
             search_param = kwargs.keys()
-        elif 'search_age' in kwargs and 'search_exam' in kwargs and 'search_typescan' in kwargs and 'search_operator' in kwargs and 'search_psdName' in kwargs and 'date_from' in kwargs and 'date_to' in kwargs and 'choose_db' in kwargs:
+        elif 'search_age' in kwargs and 'search_exam' in kwargs and 'search_typescan' in kwargs \
+            and 'search_operator' in kwargs and 'search_psdName' in kwargs and 'date_from' in kwargs \
+            and 'date_to' in kwargs and 'choose_db' in kwargs:
             search_query = kwargs.values()
             search_param = kwargs.keys()
         else:
             return json.dumps(result)
 
+        search_query = [x.replace(' ', '') for x in search_query]
         search_query = [x.replace('*','%') for x in search_query]
 
         #Zip fields and if any field is empty remove it from parameters

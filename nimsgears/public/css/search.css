@@ -1,6 +1,3 @@
-#psd{
-}
-
 .first_row td{
     padding-bottom:10px;
 }
@@ -39,38 +36,38 @@
     margin-left:350;
     float:left;
 }
-div#bannerjs { 
-    position: relative; 
-    top: 0; 
-    left: 0; 
-    background-color: #FFCCCC; 
-    width: 100%; 
+div#bannerjs {
+    position: relative;
+    top: 0;
+    left: 0;
+    background-color: #FFCCCC;
+    width: 100%;
     }
-#bannerjs-emptyfields {  
-    margin: 0 auto; 
-    padding: 5px; 
+#bannerjs-emptyfields {
+    margin: 0 auto;
+    padding: 5px;
     border: 1px solid #FF0033;
 }
-#bannerjs-errorstring {  
-    margin: 0 auto; 
-    padding: 5px; 
+#bannerjs-errorstring {
+    margin: 0 auto;
+    padding: 5px;
     border: 1px solid #FF0033;
 }
-#bannerjs-errorints {  
-    margin: 0 auto; 
-    padding: 5px; 
+#bannerjs-errorints {
+    margin: 0 auto;
+    padding: 5px;
     border: 1px solid #FF0033;
 }
-div#bannerpy { 
-    position: relative; 
-    top: 0; 
-    left: 0; 
-    background-color: #FFFFCC; 
-    width: 100%; 
+div#bannerpy {
+    position: relative;
+    top: 0;
+    left: 0;
+    background-color: #FFFFCC;
+    width: 100%;
 }
-div#bannerpy-content {  
-    margin: 0 auto; 
-    padding: 5px; 
+div#bannerpy-content {
+    margin: 0 auto;
+    padding: 5px;
     border: 1px solid #FFCCCC;
 }
 .asterisk{
@@ -81,7 +78,7 @@ div#bannerpy-content {
 }
 .criteriaBody{
 	padding-bottom:5px;
-    width:100%; 
+    width:100%;
 }
 #upper_Body {
     width:100%;
@@ -91,7 +88,7 @@ div#bannerpy-content {
     float:left;
     padding-bottom:5px;
 }
-#criteriaContainerB{    
+#criteriaContainerB{
     float:left;
     padding-bottom:5px;
 }
@@ -101,10 +98,10 @@ div#bannerpy-content {
 }
 #newCriteria {
     position: relative;
-} 
+}
 
 #removeCriteria {
-    
+
 }
 
 #submitDiv{

@@ -14,7 +14,6 @@
 	    py:if="False" />
     <script data-main="${tg.url('/javascript/search')}"
 	    src="${tg.url('/javascript/require.js')}"></script>
-    <script type="text/javascript" src="../javascript/jquery.qtip-1.0.0-rc3.min.js"></script>
     <script
 	    src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
 </head>
@@ -49,8 +48,11 @@
             <tr id='dataset_div'>
                <h2> NIMS Search</h2> You are currently searching <b><span id="restricted_datasets">${userdataset_cnt} / </span>${dataset_cnt}</b  > datasets.
                    <span id='db_choice'>
-                       <input id='data_checkBox' type="checkbox" name='choose_db' value='any_data'/> Search all datasets
+                       <input id='data_checkBox' type="checkbox" name='choose_db' value='any_data' /> Search all datasets
                    </span>
+             </tr>
+             <tr>
+                 <span id='flagIsSuperUser' class='hide'>${flag}</span>
              </tr>
             <tr class='first_row'>
                 <td>
