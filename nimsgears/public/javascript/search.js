@@ -28,7 +28,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
     var refreshEpochs = function(table, selected_rows, is_instant, populateNextTableFn)
     {
         // $('#bannerpy').addClass('hide');
-        
+
         $.ajax(
         {
             type: 'POST',
@@ -36,7 +36,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
             dataType: "json",
             data: $("#search_form").serialize(),
             success: function(data)
-            {                
+            {
                 if (data.success)
                 {
                     if (data.data.length == 0) {
@@ -46,7 +46,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                     } else {
                         $('#bannerpy').addClass('hide');
                     }
-                    
+
                     populateNextTableFn(table, data);
                     table.synchronizeSelections();
                     epochs.onDoubleClick(function() { Dialog.showDialog(epochs_popup, "epoch", "../epoch/edit?id="+getId(this.id)); });
@@ -54,7 +54,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                 else
                 {
                     //window.alert("algo ha fallado / parametros incorrectos / ... ");
-                    
+
                     data.data = [];
                     populateNextTableFn(table, data);
                     // $('#bannerpy-content').text(data.error_message);
@@ -139,8 +139,8 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                     }
                 });
     });
-    
-    
+
+
     var init = function()
     {
         epochs_popup = $("#epochs_pop");
@@ -210,7 +210,7 @@ $('#submit').click(function(){
    error_ascii = [];
    error_int = [];
    var validationError = false;
-   
+
    $('.required').each(function(){
        var value = $(this).val();
        if( $(this).parent().attr('value') == 'Exam'){
@@ -223,7 +223,7 @@ $('#submit').click(function(){
            $('#bannerjs-errorstring').removeClass('hide');
        }else{
            $('#bannerjs-errorstring').addClass('hide');
-       }       
+       }
        if(error_int.length != 0 ){
             $('#bannerjs-errorints').html("Fields <b>" + error_int.toString() + "</b> do not correspond to integer");
             $('#bannerjs-errorints').removeClass('hide');
@@ -240,7 +240,7 @@ $('#submit').click(function(){
 //     error_ascii = [];
 //     error_int = [];
 //     var validationError = false;
-// 
+//
 //     $('.query_table').each(function(){
 //         var optionA = $(this).children('#criteriaContainerA').find('.search_param').val();
 //         var optionB = $(this).children('#criteriaContainerB').find('.search_param').val();
@@ -265,16 +265,23 @@ $('#submit').click(function(){
 //         }else{
 //             $('#bannerjs-errorints').addClass('hide');
 //         }
-//     });      
+//     });
 //     if( validationError ){
 //         return false;
 //     }
 // });
 
+//If superUser, then by default all dataset checkbox is checked
+if ($('#flagIsSuperUser').text() == 'True'){
+    $('#data_checkBox').attr('checked', 'checked');
+}else{
+    $('#data_checkBox').removeAttr('checked');
+}
+
 
  //Show the First Name and Last Name only when search in your data:
- $('#data_checkBox').live('click', function(){ 
-     if($('#data_checkBox').is(':checked')){
+ $('#data_checkBox').live('click', function(){
+     if($('#data_checkBox').is(':checked') && $('#flagIsSuperUser').text() != 'True'){
         $('#restricted_datasets').hide();
         $('#first_name, #last_name').attr('disabled', 'disabled');
         $('.first_name, .last_name').css('color', '#E0E0E0');
@@ -286,5 +293,5 @@ $('#submit').click(function(){
          $('#first_name, #last_name').css('color', '#000000 ');
     }
  });
- 
-   
+
+
