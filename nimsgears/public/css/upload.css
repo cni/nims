@@ -1,3 +1,7 @@
+#files{
+    visibility:hidden;
+}
+
 #result_ok{
     position: relative;
     top: 0;
