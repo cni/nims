@@ -14,7 +14,7 @@ from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
 
 def is_ascii(s):
-    if bool(re.match(r'^[a-zA-Z0-9-_<>\%]+$', s)):
+    if bool(re.match(r'^[a-zA-Z0-9-_<>\s\%]+$', s)):
         return True
     else:
         return False
@@ -73,6 +73,7 @@ def query_date_to( db_query, query_value ):
 def query_subjectage( db_query, query_value ):
     min_age = None
     max_age = None
+    query_value = query_value.replace(' ', '')
     a = re.match(r"\s*>(\d+)\s*<(\d+)|\s*>(\d+)|\s*(\d+)\s*to\s*(\d+)|\s*<(\d+)|\s*(\d+)", query_value )
     if a != None:
         min_age = max(a.groups()[0:1]+a.groups()[2:4])
@@ -143,7 +144,7 @@ class SearchController(NimsController):
         else:
             return json.dumps(result)
 
-        search_query = [x.replace(' ', '') for x in search_query]
+        # search_query = [x.replace(' ', '') for x in search_query]
         search_query = [x.replace('*','%') for x in search_query]
 
         #Zip fields and if any field is empty remove it from parameters
