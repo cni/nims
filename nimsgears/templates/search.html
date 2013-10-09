@@ -14,7 +14,6 @@
 	    py:if="False" />
     <script data-main="${tg.url('/javascript/search')}"
 	    src="${tg.url('/javascript/require.js')}"></script>
-    <script type="text/javascript" src="../javascript/jquery.qtip-1.0.0-rc3.min.js"></script>
     <script
 	    src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
 </head>
@@ -30,6 +29,8 @@
     <div id='bannerjs'>
         <div class='hide' id="bannerjs-emptyfields">
         </div>
+        <div class='hide' id="bannerjs-errorage">
+        </div>
         <div class='hide' id="bannerjs-errorstring">
         </div>
         <div class='hide' id="bannerjs-errorints">
@@ -42,20 +43,23 @@
             </div>
         </div>
 
-	<form id="search_form" accept-charset="UTF-8">
+	<form id="search_form" accept-charset="UTF-8" action="search/query">
 		<table id="query_table" cellpadding="0" cellspacing="0">
 
 
             <tr id='dataset_div'>
                <h2> NIMS Search</h2> You are currently searching <b><span id="restricted_datasets">${userdataset_cnt} / </span>${dataset_cnt}</b  > datasets.
                    <span id='db_choice'>
-                       <input id='data_checkBox' type="checkbox" name='choose_db' value='any_data'/> Search all datasets
+                       <input id='data_checkBox' type="checkbox" name='choose_db' value='any_data' /> Search all datasets
                    </span>
+             </tr>
+             <tr>
+                 <span id='flagIsSuperUser' class='hide'>${flag}</span>
              </tr>
             <tr class='first_row'>
                 <td>
                     <span class='first_name' value='first_name'>
-                        Subject Name&nbsp;<input id='first_name' type='text' name='subject_name' placeholder='First Name' size='15'/>
+                        Subject Name&nbsp;<input id='first_name' class='required' type='text' name='subject_name' placeholder='First Name' size='15'/>
                     </span>
                     <span class='last_name' value='last_name'>
                         <input class='required' id='last_name' type='text' name='subject_last_name' placeholder='Last Name' size='15'/>
@@ -90,7 +94,7 @@
                     </span>
                 </td>
                 <td>
-                    <span id='operator' name="search_param" value='operator'>
+                    <span id='operator' name="search_param" value='Operator'>
                         Operator &nbsp;
                         <input class='required' name='search_operator' type='text' size='20'>
                         </input>
