@@ -163,9 +163,9 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
 });
 
 
+var error_ascii = [];
+var error_int = [];
 
-
-// Map of parameter options and functions to validate fields
 var validation_inputs = {
     'Subject Name' : is_ascii,
     'Subject Age' : is_ascii,
@@ -174,27 +174,30 @@ var validation_inputs = {
     'PSD Name' : is_ascii,
 };
 
-
-var error_ascii = [];
-var error_int = [];
-
 // Validation functions
 function is_ascii(value){
-   //var patt1=/^[a-zA-Z\s]*$/;
-   var pattascii=/^[\x00-\x7F]*$/;
+   //var patt1=/^[a-zA-Z\]*$/;
+   console.log('Ascii value:', value);
+   // var pattascii=/^[\x00-\x7F]*$/;
+   value = value.trim();
+   var pattascii=/^[/>/</\s/0-9a-zA-Z]*$/;
    if(!pattascii.test(value)){
        error_ascii.push(value);
-       return false
+       console.log(error_ascii);
+       return false;
    }
    return true;
 }
 
 function is_integer(value){
+    console.log('Integer:', value);
     if(value == '')
-        return true
+        return true;
+    value = value.trim();
     var patt2=/^\d+$/;
     if(!patt2.test(value)){
         error_int.push(value);
+        console.log(error_int);
         return false;
     }
     return true;
@@ -212,28 +215,38 @@ $('#submit').click(function(){
    var validationError = false;
 
    $('.required').each(function(){
+       var name = $(this).parent().attr('value');
        var value = $(this).val();
-       if( $(this).parent().attr('value') == 'Exam'){
-           is_integer(value);
-       }else{
-           is_ascii(value);
+       console.log('Validating field:', name, ' --> "' + value + '"');
+
+       if (name == 'Exam' || name == 'Operator') {
+           if (!is_integer(value)) {
+               validationError = true;
+           }
+       } else {
+           if (!is_ascii(value)) {
+               validationError = true;
+           }
        }
        if(error_ascii.length != 0 ){
            $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
            $('#bannerjs-errorstring').removeClass('hide');
+           validationError = true;
        }else{
            $('#bannerjs-errorstring').addClass('hide');
        }
        if(error_int.length != 0 ){
             $('#bannerjs-errorints').html("Fields <b>" + error_int.toString() + "</b> do not correspond to integer");
             $('#bannerjs-errorints').removeClass('hide');
+            validationError = true;
         }else{
             $('#bannerjs-errorints').addClass('hide');
         }
    });
-   if( validationError ){
-            return false;
-        }
+
+   if (validationError) {
+       return false;
+    }
 });
 
 // $('#submit').click( function(){
