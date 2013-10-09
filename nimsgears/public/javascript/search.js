@@ -219,7 +219,7 @@ $('#submit').click(function(){
        var value = $(this).val();
        console.log('Validating field:', name, ' --> "' + value + '"');
 
-       if (name == 'Exam' || name == 'Operator') {
+       if (name == 'Exam') {
            if (!is_integer(value)) {
                validationError = true;
            }
