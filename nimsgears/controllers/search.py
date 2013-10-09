@@ -61,8 +61,9 @@ def query_exam( db_query, query_value ):
     return db_query.filter(Session.exam == int( query_value ))
 
 def query_operator( db_query, query_value ):
-    return (db_query.join(User, Session.operator)
-                    .filter(User.uid.ilike(query_value) | User.firstname.ilike( query_value ) | User.lastname.ilike( query_value )))
+    user = User.get_by(uid = query_value)
+    return db_query.filter(Session.operator == user)
+                    # .filter(User.uid.ilike(query_value) | User.firstname.ilike( query_value ) | User.lastname.ilike( query_value )))
 
 def query_date_from( db_query, query_value ):
     return db_query.filter(Session.timestamp >= query_value)
