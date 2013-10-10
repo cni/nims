@@ -21,8 +21,6 @@
             alert('The File APIs are not fully supported in this browser.');
         }
     </script>
-
-    <script src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
 </head>
 <body>
     <div id='bannerjs'>
@@ -58,9 +56,13 @@
             </tr> -->
        </table>
 
-        <div id="drop_zone" name='drop_files'><span>Drop files for upload</span>
-            <input type="file" id="files" name="files[]" multiple="multiple" ></input>
+        <div id="drop_zone" name='drop_files'>
+            <span>Drop files for upload</span>
         </div>
+        <div id="select_files" border="1px solid red">
+            <input type="file" id="files" name="files[]" onchange="handleFileInputSelect(this.files)" multiple="multiple" ></input>
+        </div>
+
         <output id="list"></output>
 
         <table>
@@ -95,7 +97,6 @@
         </spam>
         <div>
             <input id="submit_form" type='submit' value="Submit"></input>
-            <!-- <input id="clear_form" type='button' value="Clear all"></input> -->
             <input id="clear_form" type='reset' value='Clear Fields'></input>
         </div>
     </form>

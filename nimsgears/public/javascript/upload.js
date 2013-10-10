@@ -302,20 +302,27 @@ function handleDragLeave(evt) {
 // File input button functions
 ////////////////////////////////////////////////////////////////
 
-function handleFileInputSelect(evt) {
+function loadinput(evt){
     evt.stopPropagation();
     evt.preventDefault();
 
-    var files = evt.target.files;
-	console.log('Handle File Input select:', files);
+    console.log('loadinput selected');
+    $('#files').click();
+}
+
+function handleFileInputSelect(evt) {
+     evt.stopPropagation();
+     evt.preventDefault();
+     console.log('Handle File Input called ');
+
+     var files = evt.target.files;
+//     console.log('Handle File Input select:', files);
 
 	// Read and parse each selected file
     $.each(files, function(idx, file) {
 		openFileComplete(file);
     });
 }
-
-
 
 $('#files').on('change', handleFileInputSelect);
 
@@ -324,4 +331,5 @@ $('#drop_zone').on('dragenter', handleDragEnter);
 $('#drop_zone').on('dragover', handleDragOver);
 $('#drop_zone').on('dragleave', handleDragLeave);
 $('#drop_zone').on('drop', handleDnDSelect);
+$('#drop_zone').on('click', loadinput);
 
