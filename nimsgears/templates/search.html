@@ -50,7 +50,7 @@
             <tr id='dataset_div'>
                <h2> NIMS Search</h2> You are currently searching <b><span id="restricted_datasets">${userdataset_cnt} / </span>${dataset_cnt}</b  > datasets.
                    <span id='db_choice'>
-                       <input id='data_checkBox' type="checkbox" name='choose_db' value='any_data' /> Search all datasets
+                       <input id='data_checkBox' type="checkbox" name='search_all' value='any_data' /> Search all datasets
                    </span>
              </tr>
              <tr>
@@ -103,10 +103,11 @@
                 </td>
                     <td>
                         <span id='age' name="search_param" value='age'>
-                            Subject Age &nbsp;
-                            <input class='required' name='search_age' type='text' size='20'>
+                            Subject Age (years)
+                            <input class='required' name='search_age_min' type='text' placeholder='Min' size='5'>
                             </input>
-                            <div class='field_information' id='age_information'>e.g.= &gt;10, &lt;50, 10 to 30</div>
+                            <input class='required' name='search_age_max' type='text' placeholder='Max' size='5'>
+                            </input>
                         </span>
                     </td>
                     <td>

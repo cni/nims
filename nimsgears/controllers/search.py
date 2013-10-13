@@ -35,13 +35,22 @@ def is_date(s):
 def is_other_field(n):
     return True
 
+def is_age(n):
+    try:
+        value = int(n)
+        return value >= 0
+    except:
+        # Not a number
+        return False
+
 
 validation_functions = {
     'subject_last_name' : is_ascii,
     'subject_name' : is_ascii,
     'search_exam' : is_a_number,
     'search_operator' : is_ascii,
-    'search_age' : is_ascii,
+    'search_age_min': is_age,
+    'search_age_max' : is_age,
     'search_psdName' : is_ascii,
     'search_typescan': is_other_field,
     'date_from': is_date,
@@ -71,31 +80,23 @@ def query_date_from( db_query, query_value ):
 def query_date_to( db_query, query_value ):
     return db_query.filter(Session.timestamp <= query_value)
 
-def query_subjectage( db_query, query_value ):
-    min_age = None
-    max_age = None
-    query_value = query_value.replace(' ', '')
-    a = re.match(r"\s*>(\d+)\s*<(\d+)|\s*>(\d+)|\s*(\d+)\s*to\s*(\d+)|\s*<(\d+)|\s*(\d+)", query_value )
-    if a != None:
-        min_age = max(a.groups()[0:1]+a.groups()[2:4])
-        max_age = max(a.groups()[1:2]+a.groups()[4:5])
-        if min_age==None and max_age==None:
-            min_age = a.groups()[6]
-            max_age = a.groups()[6]
-        if min_age==None:
-            min_age = 0
-        if max_age==None:
-            max_age = 200
+def query_age_min( db_query, query_value ):
     return (db_query
-            .filter(Session.timestamp - Subject.dob >= datetime.timedelta(days=float(min_age)*365.25))
-            .filter(Session.timestamp - Subject.dob <= datetime.timedelta(days=float(max_age)*365.25)))
+            .filter(Session.timestamp - Subject.dob >= datetime.timedelta(days=float(query_value)*365.25)))
+
+def query_age_max( db_query, query_value ):
+    # We add 1 year to the age max to get the whole year interval
+    max_age = 1 + int(query_value)
+    return (db_query
+            .filter(Session.timestamp - Subject.dob <= datetime.timedelta(days=max_age*365.25)))
 
 query_functions = {
     'subject_name' : query_subjectname,
     'subject_last_name' : query_subjectname,
     'search_exam' : query_exam,
     'search_operator' : query_operator,
-    'search_age' : query_subjectage,
+    'search_age_min' : query_age_min,
+    'search_age_max' : query_age_max,
     'search_psdName' : query_psdname,
     'search_typescan': query_scantype,
     'date_from': query_date_from,
@@ -132,29 +133,28 @@ class SearchController(NimsController):
         # For more robust search query parsing, check out pyparsing.
         print kwargs
         result = {'success': False}
-        if 'search_age' in kwargs and 'search_exam' in kwargs and 'search_typescan' in kwargs \
+        if 'search_age_min' in kwargs and'search_age_max' in kwargs and 'search_exam' in kwargs and 'search_typescan' in kwargs \
             and 'search_operator' in kwargs and 'search_psdName' in kwargs and 'date_from' in kwargs \
             and 'date_to' in kwargs and 'subject_name' in kwargs and 'subject_last_name' in kwargs:
             search_query = kwargs.values()
             search_param = kwargs.keys()
-        elif 'search_age' in kwargs and 'search_exam' in kwargs and 'search_typescan' in kwargs \
+        elif 'search_age_min' in kwargs and 'search_age_max' in kwargs and 'search_exam' in kwargs and 'search_typescan' in kwargs \
             and 'search_operator' in kwargs and 'search_psdName' in kwargs and 'date_from' in kwargs \
-            and 'date_to' in kwargs and 'choose_db' in kwargs:
+            and 'date_to' in kwargs and 'search_all' in kwargs:
             search_query = kwargs.values()
             search_param = kwargs.keys()
         else:
             return json.dumps(result)
 
-        # search_query = [x.replace(' ', '') for x in search_query]
         search_query = [x.replace('*','%') for x in search_query]
 
         #Zip fields and if any field is empty remove it from parameters
         parameters = [(x,y) for x,y in zip(search_param, search_query) if y]
-        parameters = [(x,y) for x,y in parameters if x != 'choose_db']
+        parameters = [(x,y) for x,y in parameters if x != 'search_all']
 
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
 
-        if 'choose_db' in kwargs:
+        if 'search_all' in kwargs:
             db_query = (DBSession.query(Epoch, Session, Subject, Experiment)
                         .join(Session, Epoch.session)
                         .join(Subject, Session.subject)

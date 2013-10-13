@@ -1,3 +1,5 @@
+
+
 .first_row td{
     padding-bottom:10px;
 }
@@ -91,6 +93,10 @@ div#bannerpy-content {
 #criteriaContainerB{
     float:left;
     padding-bottom:5px;
+}
+.field_information_age{
+    margin-left:200px;
+    color:#888888;
 }
 .field_information{
     margin-left:130px;
