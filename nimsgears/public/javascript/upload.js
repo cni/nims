@@ -127,15 +127,17 @@ function addFileToList(file) {
         // Add our generatered id to the file object
         var id = '_' + (id_generator++);
         files_to_upload[file.Key].id = id;
+        files_to_upload[file.Key].totalSize = 0;
 
         $('#file_list_header').removeClass('hide');
         var output = [];
-        output.push('<tr id="', id, '"> \
+        output.push('<tr id="', id, '" style="text-align:center"> \
                         <td><strong>', file.StudyID , '</strong></td> \
                         <td>', file.SeriesNumber || 'n/a', '</td> \
                         <td>', file.AcquisitionNumber, '</td> \
-                        <td>', file.SeriesInstanceUID, '</td> \
+                        <td>', file.SeriesDescription, '</td> \
                         <td id="count_', id, '">', '</td> \
+                        <td id="size_', id, '">', '</td> \
                         <td class="status">', file.status, '</td> \
                     </tr>');
 
@@ -147,7 +149,17 @@ function addFileToList(file) {
     files_to_upload[file.Key].push(file);
     console.log('Files to upload:', files_to_upload[file.Key]);
 
-    $('#count_' + file.id).html(files_to_upload[file.Key].length);
+    lengthFilesMap = files_to_upload[file.Key].length;
+    imagesFound = file.ImagesInAcquisition;
+    rateImages = lengthFilesMap/imagesFound;
+    if (rateImages != 1){
+        $('#count_' + file.id).html("<b style='color:red;'>" + lengthFilesMap + "</b>" + '/' + imagesFound);
+    }else{
+        $('#count_' + file.id).html("<b>" + lengthFilesMap + "</b>" + '/' + imagesFound);
+    }
+
+    files_to_upload[file.Key].totalSize += file.size;
+    $('#size_' + file.id).html(humanFileSize(files_to_upload[file.Key].totalSize));
 
     // files_to_upload = $.merge(files_to_upload, [file]);
 
@@ -158,7 +170,7 @@ function addToIgnoredFilesList(file) {
     var output = [];
     $('#file_header_ignored').removeClass('hide');
 
-    output.push('<tr> \
+    output.push('<tr style="text-align:center"> \
                      <td><strong>', file.name, '</strong></td> \
                      <td>', file.type || "n/a", '</td> \
                      <td>', file.size, '</td> \
@@ -218,7 +230,7 @@ function handleDnDSelect(evt) {
 }
 
 function openFileComplete(file) {
-    console.log("Opened file", file);
+    //console.log("Opened file", file);
 
     var fileReader = new FileReader();
     fileReader.onload = function(evt){
@@ -234,8 +246,10 @@ function openFileComplete(file) {
             file.StudyID = dcmFile.StudyID;
             file.InstanceNumber = dcmFile.InstanceNumber;
             file.SeriesInstanceUID = dcmFile.SeriesInstanceUID;
+            file.SeriesDescription = dcmFile.SeriesDescription;
             file.AcquisitionNumber = dcmFile.AcquisitionNumber;
             file.SeriesNumber = dcmFile.SeriesNumber;
+            file.ImagesInAcquisition = dcmFile.ImagesInAcquisition;
 
             file.Key = ['key', file.StudyID, file.SeriesNumber, file.AcquisitionNumber,
                                 file.SeriesInstanceUID].join('-');
@@ -333,3 +347,21 @@ $('#drop_zone').on('dragleave', handleDragLeave);
 $('#drop_zone').on('drop', handleDnDSelect);
 $('#drop_zone').on('click', loadinput);
 
+
+
+
+// Utils
+
+function humanFileSize(bytes) {
+    if (bytes < 1024) {
+        return bytes + ' B';
+    }
+
+    var units = ['Kb','Mb','Gb'];
+    var u = -1;
+    do {
+        bytes /= 1024;
+        ++u;
+    } while(bytes >= 1024);
+    return bytes.toFixed(1) + ' ' + units[u];
+};

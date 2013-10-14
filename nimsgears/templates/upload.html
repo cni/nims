@@ -31,8 +31,44 @@
     <form action="upload/submit" method="POST" enctype="multipart/form-data">
         <table id='table_form'>
             <tr>
-                Fill in the form and select the files to upload.
+                You can upload by Drag and Drop files or a folder, or choose some files by cliking in the area. Make sure all fields are complete.
             </tr>
+            <!-- <tr>
+                <td>
+                    <input type="file" id="files" name="files[]" multiple="multiple" />
+                </td>
+                <td></td>
+            </tr> -->
+       </table>
+
+        <div id="drop_zone" name='drop_files'>
+            <span>Click or Drop files for upload</span>
+        </div>
+        <div id="select_files" border="1px solid red">
+            <input type="file" id="files" name="files[]" onchange="handleFileInputSelect(this.files)" multiple="multiple" ></input>
+        </div>
+
+        <output id="list"></output>
+
+        <table class='files_to_upload'>
+            <thead id='file_list_header' class='hide'>
+                <tr>
+                    <th class='border'>Study ID</th>
+                    <th class='border'>Series Number</th>
+                    <th class='border'>Acquisition Number</th>
+                    <th class='border'>Series Description</th>
+                    <th class='border'>Total Imag/ Imag Acqu.</th>
+                    <th class='border'>Size</th>
+                    <th class='border'>Status</th>
+                </tr>
+            </thead>
+            <tbody id='file_list'>
+            </tbody>
+        </table>
+        <spam id='fileContents'>
+
+        </spam>
+        <table class='submitTable' width="50%">
             <tr>
                 <td>
                     <div id='group_select'>Group
@@ -47,58 +83,26 @@
                         <input type="text" id="experiment" name="experiment"></input>
                     </div>
                 </td>
-            </tr>
-            <!-- <tr>
                 <td>
-                    <input type="file" id="files" name="files[]" multiple="multiple" />
+                    <input id="submit_form" type='submit' value="Submit"></input>
                 </td>
-                <td></td>
-            </tr> -->
-       </table>
-
-        <div id="drop_zone" name='drop_files'>
-            <span>Drop files for upload</span>
-        </div>
-        <div id="select_files" border="1px solid red">
-            <input type="file" id="files" name="files[]" onchange="handleFileInputSelect(this.files)" multiple="multiple" ></input>
-        </div>
-
-        <output id="list"></output>
-
-        <table>
-            <thead id='file_list_header' class='hide'>
-                <tr>
-                    <th>Study ID</th>
-                    <th>Series Number</th>
-                    <th>Acquisition Number</th>
-                    <th>Series Instance UID</th>
-                    <th>Files Count</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody id='file_list'>
-            </tbody>
+                <td>
+                    <input id="clear_form" type='reset' value='Cancel'></input>
+                </td>
+            </tr>
         </table>
-
-        <table>
+        <table >
             <thead id='file_header_ignored' class='hide'>
                 <tr>
-                    <th>File Name</th>
-                    <th>Type</th>
-                    <th>Size (bytes)</th>
-                    <th>Status</th>
+                    <th class='border'>File Name</th>
+                    <th class='border'>Type</th>
+                    <th class='border'>Size (bytes)</th>
+                    <th class='border'>Status</th>
                 </tr>
             </thead>
             <tbody id='file_list_ignored'>
             </tbody>
         </table>
-        <spam id='fileContents'>
-
-        </spam>
-        <div>
-            <input id="submit_form" type='submit' value="Submit"></input>
-            <input id="clear_form" type='reset' value='Clear Fields'></input>
-        </div>
     </form>
 
 
