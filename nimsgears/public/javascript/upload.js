@@ -132,6 +132,7 @@ function addFileToList(file) {
         $('#file_list_header').removeClass('hide');
         var output = [];
         output.push('<tr id="', id, '" style="text-align:center"> \
+                        <td>', file.AcquisitionDate , '</td> \
                         <td><strong>', file.StudyID , '</strong></td> \
                         <td>', file.SeriesNumber || 'n/a', '</td> \
                         <td>', file.AcquisitionNumber, '</td> \
@@ -250,6 +251,7 @@ function openFileComplete(file) {
             file.AcquisitionNumber = dcmFile.AcquisitionNumber;
             file.SeriesNumber = dcmFile.SeriesNumber;
             file.ImagesInAcquisition = dcmFile.ImagesInAcquisition;
+            file.AcquisitionDate = dcmFile.AcquisitionDate;
 
             file.Key = ['key', file.StudyID, file.SeriesNumber, file.AcquisitionNumber,
                                 file.SeriesInstanceUID].join('-');
