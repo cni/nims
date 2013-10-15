@@ -48,7 +48,7 @@
 
 
             <tr id='dataset_div'>
-               <h2> NIMS Search</h2> You are currently searching <b><span id="restricted_datasets">${userdataset_cnt} / </span>${dataset_cnt}</b  > datasets.
+               <h2> NIMS Search</h2> You are currently searching <b><span id="restricted_datasets">${userdataset_cnt} / </span>${dataset_cnt}</b> datasets.
                    <span id='db_choice'>
                        <input id='data_checkBox' type="checkbox" name='search_all' value='any_data' /> Search all datasets
                    </span>
@@ -59,16 +59,16 @@
             <tr class='first_row'>
                 <td>
                     <span class='first_name' value='first_name'>
-                        Subject Name&nbsp;<input id='first_name' class='required' type='text' name='subject_name' placeholder='First Name' size='15'/>
+                        Subject Name&nbsp;<input id='first_name' class='required' type='text' name='subject_firstname' placeholder='First Name' size='15'/>
                     </span>
                     <span class='last_name' value='last_name'>
-                        <input class='required' id='last_name' type='text' name='subject_last_name' placeholder='Last Name' size='15'/>
+                        <input class='required' id='last_name' type='text' name='subject_lastname' placeholder='Last Name' size='15'/>
                     </span>
                 </td>
                 <td>
                     <span id='scan_type' name="search_param" value='scan_type'>
                         Scan Type &nbsp;
-                        <select class="scantype" name='search_typescan'>
+                        <select class="scantype" name='search_scantype'>
                             <option py:for="value in scantype_values" >${value}</option>
                         </select>
                     </span>
@@ -88,7 +88,7 @@
                 <td>
                     <span id='psd' name="search_param" value='psd_name'>
                         PSD Name &nbsp;
-                        <select class="psd_values" name='search_psdName'>
+                        <select class="psd_values" name='search_psdname'>
                             <option py:for="value in psd_values" >${value}</option>
                         </select>
                     </span>

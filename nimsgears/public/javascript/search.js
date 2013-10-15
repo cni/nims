@@ -180,7 +180,7 @@ function is_ascii(value){
    console.log('Ascii value:', value);
    // var pattascii=/^[\x00-\x7F]*$/;
    value = value.trim();
-   var pattascii=/^[/>/</\s/0-9a-zA-Z]*$/;
+   var pattascii=/^[/\s\./0-9a-zA-Z]*$/;
    if(!pattascii.test(value)){
        error_ascii.push(value);
        console.log(error_ascii);
