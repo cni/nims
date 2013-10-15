@@ -36,7 +36,7 @@
        </table>
 
         <div id="drop_zone" name='drop_files'>
-            <span>Click or Drop files for upload</span>
+            <span>Drop folder/files, click and choose files for upload</span>
         </div>
         <div id="select_files" border="1px solid red">
             <input type="file" id="files" name="files[]" onchange="handleFileInputSelect(this.files)" multiple="multiple" ></input>
@@ -47,14 +47,14 @@
         <table class='files_to_upload'>
             <thead id='file_list_header' class='hide'>
                 <tr>
-                    <th class='border'>Acquisition Date</th>
+                    <th class='border'>Date</th>
                     <th class='border'>Study ID</th>
-                    <th class='border'>Series Number</th>
-                    <th class='border'>Acquisition Number</th>
-                    <th class='border'>Series Description</th>
-                    <th class='border'>Total Imag/ Imag Acqu.</th>
+                    <th class='border'>Series #</th>
+                    <th class='border'>Description</th>
+                    <th class='border'>Images</th>
                     <th class='border'>Size</th>
-                    <th class='border'>Status</th>
+                    <th class='border'>Notes</th>
+                    <th class='border'>Upload</th>
                 </tr>
             </thead>
             <tbody id='file_list'>

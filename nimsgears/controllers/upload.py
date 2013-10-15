@@ -1,14 +1,15 @@
 import os
-from tg import expose, redirect, request
-from nimsgears.controllers.nims import NimsController
-from nimsgears.model.nims import ResearchGroup
-
-import dicom
-from nimsdata.nimsdata import NIMSData
-from nimsdata.nimsdata import NIMSDataError
-from nimsdata.nimsdicom import NIMSDicom
 import json
-import unittest
+import dicom
+from tg import expose, redirect, request
+
+from nimsdata.nimsdata import NIMSData
+from nimsdata.nimsdicom import NIMSDicom
+from nimsdata.nimsdata import NIMSDataError
+from nimsgears.model.nims import ResearchGroup
+from nimsgears.controllers.nims import NimsController
+
+
 
 class UploadController(NimsController):
 
@@ -29,7 +30,6 @@ class UploadController(NimsController):
             result['group_value'] = kwargs['group_value']
             if not type(files) is list:
                 files = [files]
-
             result['files'] = []
 
             i = 0
@@ -42,9 +42,7 @@ class UploadController(NimsController):
                 i += 1
                 out.write(content)
                 out.close()
-
                 file_result = {}
-
 
                 # Extract the request id associated with this file
                 file_result['id'] = kwargs.get('filename_' + file.filename, '')
@@ -53,12 +51,9 @@ class UploadController(NimsController):
                 try:
                     data = NIMSDicom(name)
                     file_result['exam_uid'] = data.exam_uid
-
                     file_result['status'] = True
-                    file_result['message'] = "OK"
-
+                    file_result['message'] = "Uploaded"
                     pat_name = data._hdr.PatientName
-
                     out_parse_file.write(str('\nPatient Name: %s \n\n' % data._hdr.PatientName))
                     out_parse_file.write(str(data._hdr))
                     out_parse_file.close()

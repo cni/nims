@@ -28,7 +28,7 @@ function redactPatientName(fileContent, dcmFile) {
     if (offset < 0) {
         console.log('Could not find patient name in file');
     } else {
-        console.log('Found patient name at offset:', offset);
+        //console.log('Found patient name at offset:', offset);
         var len1 = dataView.getUint8(offset + 6);
         var len2 = dataView.getUint8(offset + 7);
         lenPatientsName = (len2 * 256) + len1;
@@ -38,7 +38,7 @@ function redactPatientName(fileContent, dcmFile) {
             patientName += String.fromCharCode(dataView.getUint8(offset + 8 + idx));
         }
 
-        console.log('Name length: ', lenPatientsName, 'Name:', patientName);
+        //console.log('Name length: ', lenPatientsName, 'Name:', patientName);
 
         // Verify that the patient name is the same found by the dicomparser js library
         if (patientName != dcmFile.PatientsName) {
@@ -57,7 +57,7 @@ function parseFile(fileContent){
 	var buffer = new Uint8Array(fileContent);
     var dcmparser = new DicomParser(buffer);
     var file = dcmparser.parse_file();
-    console.log('File: ', file);
+    //console.log('File: ', file);
 
     return file;
 }
@@ -86,7 +86,6 @@ $('#submit_form').on('click', function(evt) {
          var form = new FormData();
 
          // Also pass a map (filename, Id) to the server
-         console.log('>>>>>>>>>>>>>>>>>>>>', Object.keys(files_to_upload));
          $.each(Object.keys(files_to_upload), function(i, key) {
              if (key.indexOf('key') == 0) {
                  $.each(files_to_upload[key], function(j, file) {
@@ -128,27 +127,29 @@ function addFileToList(file) {
         var id = '_' + (id_generator++);
         files_to_upload[file.Key].id = id;
         files_to_upload[file.Key].totalSize = 0;
+        var year = file.AcquisitionDate.substring(0, 4);
+        var month = file.AcquisitionDate.substring(4, 6);
+        var day = file.AcquisitionDate.substring(6, 8);
 
         $('#file_list_header').removeClass('hide');
         var output = [];
         output.push('<tr id="', id, '" style="text-align:center"> \
-                        <td>', file.AcquisitionDate , '</td> \
+                        <td>', year + '-' + month + '-' + day , '</td> \
                         <td><strong>', file.StudyID , '</strong></td> \
-                        <td>', file.SeriesNumber || 'n/a', '</td> \
-                        <td>', file.AcquisitionNumber, '</td> \
-                        <td>', file.SeriesDescription, '</td> \
+                        <td>', file.SeriesNumber + '.' + file.AcquisitionNumber || 'n/a', '</td> \
+                        <td size="200">', file.SeriesDescription, '</td> \
                         <td id="count_', id, '">', '</td> \
                         <td id="size_', id, '">', '</td> \
-                        <td class="status">', file.status, '</td> \
+                        <td id="notes_', id, '"><input id="textbox_', id,'" type="textbox" >', '</td> \
+                        <td class="status"><input id="checkbox_', id, '" type="checkbox" checked="checked" ></input>',  '</td> \
                     </tr>');
 
         $('#file_list').append(output.join(''));
     }
 
     file.id = files_to_upload[file.Key].id;
-
     files_to_upload[file.Key].push(file);
-    console.log('Files to upload:', files_to_upload[file.Key]);
+    //console.log('Files to upload:', files_to_upload[file.Key]);
 
     lengthFilesMap = files_to_upload[file.Key].length;
     imagesFound = file.ImagesInAcquisition;
@@ -168,21 +169,25 @@ function addFileToList(file) {
 }
 
 function addToIgnoredFilesList(file) {
-    var output = [];
-    $('#file_header_ignored').removeClass('hide');
+    if (file.name.substring(0,1) == '.'){
+        return;
+    }else{
+        var output = [];
+        $('#file_header_ignored').removeClass('hide');
 
-    output.push('<tr style="text-align:center"> \
+        output.push('<tr style="text-align:center"> \
                      <td><strong>', file.name, '</strong></td> \
                      <td>', file.type || "n/a", '</td> \
                      <td>', file.size, '</td> \
                      <td class="status">', file.status, '</td> \
                  </tr>');
 
-    $('#file_list_ignored').append(output.join(''));
+        $('#file_list_ignored').append(output.join(''));
+    }
 }
 
 function updateFileStatus(idx, fileResult) {
-    console.log('Updating file status for ', fileResult.filename);
+    //console.log('Updating file status for ', fileResult.filename);
 
     // Hide the 'remove' button since the file has been already processed
     $('#' + fileResult.id + ' td img').remove();
@@ -208,6 +213,15 @@ function clearFileList() {
 
 $('#clear_form').on('click', clearFileList);
 
+$("input:checkbox").live('click', function(){
+    var checkbox_id = $(this).attr('id');
+    if ( !$('#' + checkbox_id).is(":checked")){
+        $('#' + checkbox_id).removeAttr('checked');
+    }else{
+         $('#' + checkbox_id).attr("checked","checked");
+    }
+});
+
 ////////////////////////////////////////////////////////////////
 // Drag & Drop functions
 ////////////////////////////////////////////////////////////////
@@ -216,7 +230,7 @@ function handleDnDSelect(evt) {
     evt.stopPropagation();
     evt.preventDefault();
 
-    console.log("handle DND event: " + evt.type);
+    //console.log("handle DND event: " + evt.type);
 
     $.each(evt.originalEvent.dataTransfer.items, function(idx, item){
         var entry;
@@ -225,7 +239,7 @@ function handleDnDSelect(evt) {
         } else if(item.webkitGetAsEntry) { //Webkit implementation of HTML5 API
             entry = item.webkitGetAsEntry();
         }
-        console.log("Entry", entry);
+        //console.log("Entry", entry);
         readFileTree(entry, openFileComplete);
     });
 }
@@ -235,7 +249,7 @@ function openFileComplete(file) {
 
     var fileReader = new FileReader();
     fileReader.onload = function(evt){
-        console.log('Finished to read content of file:', file.name);
+        //console.log('Finished to read content of file:', file.name);
 
         var fileContent = evt.target.result;
         var filelength = file.name.length;
@@ -283,7 +297,7 @@ function readFileTree(itemEntry, callback){
         var dirReader = itemEntry.createReader();
         dirReader.readEntries(function(entries){
             $.each(entries, function(idx, entry){
-                console.log("Found new entry:", entry, " is file: ", entry.isFile);
+                //console.log("Found new entry:", entry, " is file: ", entry.isFile);
                 readFileTree(entry, callback);
             });
         });
@@ -321,15 +335,12 @@ function handleDragLeave(evt) {
 function loadinput(evt){
     evt.stopPropagation();
     evt.preventDefault();
-
-    console.log('loadinput selected');
     $('#files').click();
 }
 
 function handleFileInputSelect(evt) {
      evt.stopPropagation();
      evt.preventDefault();
-     console.log('Handle File Input called ');
 
      var files = evt.target.files;
 //     console.log('Handle File Input select:', files);
