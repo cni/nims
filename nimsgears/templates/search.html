@@ -7,15 +7,12 @@
 <xi:include href="master.html" />
 
 <head>
-    <link rel="stylesheet" type="text/css" href="../css/search.css" />
-    <title>NIMS Search</title>
-
-    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type"
-	    py:if="False" />
-    <script data-main="${tg.url('/javascript/search')}"
-	    src="${tg.url('/javascript/require.js')}"></script>
-    <script
-	    src="//ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"></script>
+<link rel="stylesheet" type="text/css" href="../css/search.css" />
+<title>NIMS Search</title>
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type"
+	py:if="False" />
+<script data-main="${tg.url('/javascript/search')}"
+	src="${tg.url('/javascript/require.js')}"></script>
 </head>
 
 <body>
@@ -25,107 +22,89 @@
 	<div id="datasets_pop" class="pop" style="display: none">
 		<iframe id="edit_dataset_iframe" src="" frameborder="no" />
 	</div>
-    <!-- Banner used to show the error from js validation -->
-    <div id='bannerjs'>
-        <div class='hide' id="bannerjs-emptyfields">
-        </div>
-        <div class='hide' id="bannerjs-errorage">
-        </div>
-        <div class='hide' id="bannerjs-errorstring">
-        </div>
-        <div class='hide' id="bannerjs-errorints">
-        </div>
-    </div>
-        <!-- Banner used to show no results  -->
-        <div class='hide' id='bannerpy'>
-            <div id="bannerpy-content">
-
-            </div>
-        </div>
+	<!-- Banner used to show the error from js validation -->
+	<div id='bannerjs'>
+		<div class='hide' id="bannerjs-emptyfields"></div>
+		<div class='hide' id="bannerjs-errorage"></div>
+		<div class='hide' id="bannerjs-errorstring"></div>
+		<div class='hide' id="bannerjs-errorints"></div>
+	</div>
+	<!-- Banner used to show no results  -->
+	<div class='hide' id='bannerpy'>
+		<div id="bannerpy-content"></div>
+	</div>
 
 	<form id="search_form" accept-charset="UTF-8" action="search/query">
 		<table id="query_table" cellpadding="0" cellspacing="0">
-
-
-            <tr id='dataset_div'>
-               <h2> NIMS Search</h2> You are currently searching <b><span id="restricted_datasets">${userdataset_cnt} / </span>${dataset_cnt}</b> datasets.
-                   <span id='db_choice'>
-                       <input id='data_checkBox' type="checkbox" name='search_all' value='any_data' /> Search all datasets
-                   </span>
-             </tr>
-             <tr>
-                 <span id='flagIsSuperUser' class='hide'>${flag}</span>
-             </tr>
-            <tr class='first_row'>
-                <td>
-                    <span class='first_name' value='first_name'>
-                        Subject Name&nbsp;<input id='first_name' class='required' type='text' name='subject_firstname' placeholder='First Name' size='15'/>
-                    </span>
-                    <span class='last_name' value='last_name'>
-                        <input class='required' id='last_name' type='text' name='subject_lastname' placeholder='Last Name' size='15'/>
-                    </span>
-                </td>
-                <td>
-                    <span id='scan_type' name="search_param" value='scan_type'>
-                        Scan Type &nbsp;
-                        <select class="scantype" name='search_scantype'>
-                            <option py:for="value in scantype_values" >${value}</option>
-                        </select>
-                    </span>
-                </td>
-                    <td>
-                        <span id="dates">
-                            <span value='date_from'><label for="date_from">Date from&nbsp;</label> <input class='required' type="text"
-                                size="10" id="date_from" name="date_from" /></span>
-                            <span value='date_to'><label for="date_to">to&nbsp;</label> <input class='required' type="text"
-                                size="10" id="date_to" name="date_to" /></span>
-                        </span>
-                    </td>
-            </tr>
-        </table>
-        <table>
-            <tr>
-                <td>
-                    <span id='psd' name="search_param" value='psd_name'>
-                        PSD Name &nbsp;
-                        <select class="psd_values" name='search_psdname'>
-                            <option py:for="value in psd_values" >${value}</option>
-                        </select>
-                    </span>
-                </td>
-                <td>
-                    <span id='operator' name="search_param" value='Operator'>
-                        Operator &nbsp;
-                        <input class='required' name='search_operator' type='text' size='20'>
-                        </input>
-                        <div class='field_information' id='operator_information'>SUNetID of operator</div>
-                    </span>
-                </td>
-                    <td>
-                        <span id='age' name="search_param" value='age'>
-                            Subject Age (years)
-                            <input class='required' name='search_age_min' type='text' placeholder='Min' size='5'>
-                            </input>
-                            <input class='required' name='search_age_max' type='text' placeholder='Max' size='5'>
-                            </input>
-                        </span>
-                    </td>
-                    <td>
-                        <span id='exam' class='search_param' name="search_param" value='Exam'>
-                            Exam &nbsp;
-                            <input class='required' name='search_exam' type='text' size='20'>
-                            </input>
-                            <div class='field_information' id='exam_information'>e.g.= 1, 99999</div>
-                        </span>
-                    </td>
-            </tr>
-        </table>
-            <div id='submitDiv'>
-                <span><input type="submit" id="submit" value="Search" /></span>
-                <span>
-                    <p id="n_results"></p>
-                </span>
-            </div>
+			<tr id='dataset_div'>
+				<h2>NIMS Search</h2>
+				You are currently searching
+				<b><span id="restricted_datasets">${userdataset_cnt} / </span>${dataset_cnt}</b>
+				datasets.
+				<span id='db_choice'> <input id='data_checkBox'
+					type="checkbox" name='search_all' value='any_data' /> Search all
+					datasets
+				</span>
+			</tr>
+			<tr>
+				<span id='flagIsSuperUser' class='hide'>${flag}</span>
+			</tr>
+			<tr class='first_row'>
+				<td><span class='first_name' value='first_name'> Subject
+						Name&nbsp;<input id='first_name' class='required' type='text'
+						name='subject_firstname' placeholder='First Name' size='15' />
+				</span> <span class='last_name' value='last_name'> <input
+						class='required' id='last_name' type='text'
+						name='subject_lastname' placeholder='Last Name' size='15' />
+				</span></td>
+				<td><span id='scan_type' name="search_param" value='scan_type'>
+						Scan Type &nbsp; <select id='select_scan' class="scantype"
+						name='search_scantype'>
+							<option py:for="value in scantype_values">${value}</option>
+					</select>
+				</span></td>
+				<td><span id="dates"> <span value='date_from'><label
+							for="date_from">Date from&nbsp;</label> <input class='required'
+							type="text" size="10" id="date_from" name="date_from" /></span> <span
+						value='date_to'><label for="date_to">to&nbsp;</label> <input
+							class='required' type="text" size="10" id="date_to"
+							name="date_to" /></span>
+				</span></td>
+			</tr>
+		</table>
+		<table>
+			<tr>
+				<td valign="top"><span id='psd' name="search_param" value='psd_name'>
+						PSD Name &nbsp; <select id='select_psd' class="psd_values"
+						name='search_psdname'>
+							<option py:for="value in psd_values">${value}</option>
+					</select>
+				</span></td>
+				<td valign="top"><span id='operator' name="search_param" value='Operator'>
+						Operator &nbsp; <input id='input_search_operator' class='required'
+						name='search_operator' type='text' size='20'> </input>
+						<div class='field_information' id='operator_information'>SUNetID
+							of operator</div>
+				</span></td>
+				<td valign="top"><span id='age' name="search_param" value='age'>
+						Subject Age (years) <input id='input_age_min' class='required'
+						name='search_age_min' type='text' placeholder='Min' size='5'>
+						</input> <input id='input_age_max' class='required' name='search_age_max'
+						type='text' placeholder='Max' size='5'> </input>
+				</span></td>
+				<td valign="top"><span id='exam' class='search_param' name="search_param"
+					value='Exam'> Exam &nbsp; <input id='input_exam'
+						class='required' name='search_exam' type='text' size='20'>
+						</input>
+						<div class='field_information' id='exam_information'>e.g.=
+							1, 99999</div>
+				</span></td>
+			</tr>
+		</table>
+		<div id='submitDiv'>
+			<span><input type="submit" id="submit" value="Search" /></span>
+			<span><input id="clear_values" type='reset' value="Clear"></input></span>
+		</div>
 	</form>
 	<table id="epochs" class="scrolltable" style="visibility: hidden">
 		<thead>

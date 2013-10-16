@@ -119,7 +119,11 @@ class SearchController(NimsController):
                 'date_from' in kwargs and
                 'date_to' in kwargs and
                 (('subject_firstname' in kwargs and 'subject_lastname' in kwargs) or 'search_all' in kwargs) and
-                not (('subject_firstname' in kwargs or 'subject_lastname' in kwargs) and 'search_all' in kwargs)
+                not (
+                    ('subject_firstname' in kwargs or 'subject_lastname' in kwargs)
+                    and 'search_all' in kwargs
+                    and not user.is_superuser
+                    )
                 ):
             return json.dumps(result)
 
@@ -141,8 +145,9 @@ class SearchController(NimsController):
         for param, query in parameters:
             try:
                 db_query = query_functions[param](db_query, query)
-            except:
-                result = {'success': False, 'error_message' : 'Field ' + query + 'could not be processed'}
+            except Exception as e:
+                result = {'success': False, 'error_message' : 'Field "%s" = "%s" could not be processed: %s'
+                                            % (param, query, e) }
                 return json.dumps(result)
 
         data_list = []
