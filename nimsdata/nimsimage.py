@@ -174,7 +174,8 @@ class NIMSImage(nimsdata.NIMSData):
             ('fov', 'fov'),
             ('scan_type', 'scan_type'),
             ('num_bands', 'num_bands'),
-            #('prescribed_duration', 'prescribed_duration'), #FIXME: mongo can't serialize datetime.timedelta
+            ('duration', 'duration'),
+            ('prescribed_duration', 'prescribed_duration'),
             ('mm_per_voxel', 'mm_per_vox'),
             ('effective_echo_spacing', 'effective_echo_spacing'),
             ('phase_encode_undersample', 'phase_encode_undersample'),

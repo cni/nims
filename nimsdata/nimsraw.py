@@ -173,7 +173,7 @@ class NIMSPFile(NIMSRaw):
         # For multishot sequences, we need to multiply by the # of shots. And for non-planar aquisitions,
         # we'd need to multiply by the # of phase encodes (accounting for any acceleration factors).
         # Even for planar sequences, this will be wrong (under-estimate) in case of cardiac-gating.
-        self.prescribed_duration = datetime.timedelta(seconds=(self.num_timepoints * self.tr))
+        self.prescribed_duration = self.num_timepoints * self.tr
         self.total_num_slices = self.num_slices * self.num_timepoints
         # The actual duration can only be computed after the data are loaded. Settled for rx duration for now.
         self.duration = self.prescribed_duration

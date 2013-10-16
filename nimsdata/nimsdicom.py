@@ -117,7 +117,7 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.num_echos = getelem(self._hdr, 'EchoNumbers', int, 1)
         self.receive_coil_name = getelem(self._hdr, 'ReceiveCoilName', None, 'unknown')
         self.num_receivers = 0 # FIXME: where is this stored?
-        self.prescribed_duration = datetime.timedelta(0, self.tr * self.num_timepoints * self.num_averages) # FIXME: probably need more hacks in here to compute the correct duration.
+        self.prescribed_duration = self.tr * self.num_timepoints * self.num_averages # FIXME: probably need more hacks in here to compute the correct duration.
         self.duration = self.prescribed_duration # actual duration can only be computed after all data are loaded
         self.operator = getelem(self._hdr, 'OperatorsName', None, 'unknown')
         self.protocol_name = getelem(self._hdr, 'ProtocolName', None, 'unknown')

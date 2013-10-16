@@ -709,8 +709,8 @@ class Epoch(DataContainer):
             epoch = cls(
                     session = session,
                     timestamp = mrfile.timestamp,
-                    duration = mrfile.duration,
-                    prescribed_duration = mrfile.prescribed_duration,
+                    duration = datetime.timedelta(0, mrfile.duration),
+                    prescribed_duration = datetime.timedelta(0, mrfile.prescribed_duration),
                     uid = uid,
                     series = mrfile.series_no,
                     acq = mrfile.acq_no,
