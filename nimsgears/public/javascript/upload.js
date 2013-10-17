@@ -75,7 +75,7 @@ $('#submit_form').on('click', function(evt) {
      if (!$('#experiment').val() || !$('#group_value').val() ){
          $('#bannerjs-emptyfields').removeClass('hide');
          $('#bannerjs-emptyfields').html("Fields in the form should be completed");
-     } else if (files_to_upload.length == 0) {
+     } else if (isFilesToUploadEmpty()) {
          $('#bannerjs-emptyfields').removeClass('hide');
          $('#bannerjs-emptyfields').html("Please select some files to upload");
      } else {
@@ -87,16 +87,12 @@ $('#submit_form').on('click', function(evt) {
 
          // Also pass a map (filename, Id) to the server
          $.each(Object.keys(files_to_upload), function(i, key) {
-             if (key.indexOf('key') == 0) {
-                 $.each(files_to_upload[key], function(j, file) {
-                     data.append('filename_' + file.name, file.id);
-                     data.append('files[]', file.content, file.name);
-                     console.log("Uploading: ", file.name);
-                 });
-             }
+             $.each(files_to_upload[key], function(j, file) {
+                 data.append('filename_' + file.name, file.id);
+                 data.append('files[]', file.content, file.name);
+                 console.log("Uploading: ", file.name);
+             });
          });
-
-
 
          $.ajax('upload/submit', {
              data: data,
@@ -140,7 +136,7 @@ function addFileToList(file) {
                         <td size="200">', file.SeriesDescription, '</td> \
                         <td id="count_', id, '">', '</td> \
                         <td id="size_', id, '">', '</td> \
-                        <td id="notes_', id, '"><input id="textbox_', id,'" type="textbox" >', '</td> \
+                        <td id="notes_', id, '"><input id="textbox_', id,'" type="textbox" style  ="width:90%">', '</td> \
                         <td class="status"><input id="checkbox_', id, '" type="checkbox" checked="checked" ></input>',  '</td> \
                     </tr>');
 
@@ -151,21 +147,16 @@ function addFileToList(file) {
     files_to_upload[file.Key].push(file);
     //console.log('Files to upload:', files_to_upload[file.Key]);
 
-    lengthFilesMap = files_to_upload[file.Key].length;
-    imagesFound = file.ImagesInAcquisition;
-    rateImages = lengthFilesMap/imagesFound;
-    if (rateImages != 1){
-        $('#count_' + file.id).html("<b style='color:red;'>" + lengthFilesMap + "</b>" + '/' + imagesFound);
-    }else{
-        $('#count_' + file.id).html("<b>" + lengthFilesMap + "</b>" + '/' + imagesFound);
+    var imagesSubmitted = files_to_upload[file.Key].length;
+    var imagesAcquired = file.ImagesInAcquisition * file.NumberOfTemporalPositions;
+    if (imagesSubmitted == imagesAcquired) {
+        $('#count_' + file.id).html("<b>" + imagesSubmitted + "</b>" + '/' + imagesAcquired);
+    } else {
+        $('#count_' + file.id).html("<b style='color:red;'>" + imagesSubmitted + "</b>" + '/' + imagesAcquired);
     }
 
     files_to_upload[file.Key].totalSize += file.size;
     $('#size_' + file.id).html(humanFileSize(files_to_upload[file.Key].totalSize));
-
-    // files_to_upload = $.merge(files_to_upload, [file]);
-
-
 }
 
 function addToIgnoredFilesList(file) {
@@ -175,7 +166,7 @@ function addToIgnoredFilesList(file) {
         var output = [];
         $('#file_header_ignored').removeClass('hide');
 
-        output.push('<tr style="text-align:center"> \
+        output.push('<tr style="text-align:center; color:#bbb;"> \
                      <td><strong>', file.name, '</strong></td> \
                      <td>', file.type || "n/a", '</td> \
                      <td>', file.size, '</td> \
@@ -184,6 +175,18 @@ function addToIgnoredFilesList(file) {
 
         $('#file_list_ignored').append(output.join(''));
     }
+}
+
+function isFilesToUploadEmpty() {
+    var isEmpty = true;
+
+    $.each(Object.keys(files_to_upload), function(i, key) {
+        if (files_to_upload[key].length > 0) {
+            isEmpty = false;
+        }
+    });
+
+    return isEmpty;
 }
 
 function updateFileStatus(idx, fileResult) {
@@ -203,7 +206,7 @@ function updateFileStatus(idx, fileResult) {
 }
 
 function clearFileList() {
-    files_to_upload = [];
+    files_to_upload = {};
     $('#file_list').html('');
     $('#file_list_ignored').html('');
     $('#file_list_header').addClass('hide');
@@ -245,19 +248,19 @@ function handleDnDSelect(evt) {
 }
 
 function openFileComplete(file) {
-    //console.log("Opened file", file);
+    // console.log("Opened file " + file.name);
 
     var fileReader = new FileReader();
     fileReader.onload = function(evt){
-        //console.log('Finished to read content of file:', file.name);
+        // console.log('Finished to read content of file:', file.name);
 
         var fileContent = evt.target.result;
         var filelength = file.name.length;
 
-		try {
+        try {
             var dcmFile = parseFile(fileContent);
-			redactPatientName(fileContent, dcmFile);
-			file.status = "Valid File";
+            redactPatientName(fileContent, dcmFile);
+            file.status = "Valid File";
             file.StudyID = dcmFile.StudyID;
             file.InstanceNumber = dcmFile.InstanceNumber;
             file.SeriesInstanceUID = dcmFile.SeriesInstanceUID;
@@ -266,25 +269,34 @@ function openFileComplete(file) {
             file.SeriesNumber = dcmFile.SeriesNumber;
             file.ImagesInAcquisition = dcmFile.ImagesInAcquisition;
             file.AcquisitionDate = dcmFile.AcquisitionDate;
+            file.ImagesInAcquisition = dcmFile.ImagesInAcquisition;
+            file.NumberOfTemporalPositions = dcmFile.NumberOfTemporalPositions;
 
             file.Key = ['key', file.StudyID, file.SeriesNumber, file.AcquisitionNumber,
                                 file.SeriesInstanceUID].join('-');
 
             var blob = new Blob([fileContent]);
-    		file.content = blob;
+            file.content = blob;
 
-            files_to_upload[file.key] = file.content;
-    		// Add the file to table of files in the page
-    	    addFileToList(file);
+            // Add the file to table of files in the page
+            addFileToList(file);
 
-		} catch (err) {
+        } catch (err) {
             console.log('Error parsing dicom file:', err);
-			// Could not parse the dicom file
-			file.status = "Not valid";
+            console.dir(err);
+            // Could not parse the dicom file
+            file.status = "Not valid";
 
             addToIgnoredFilesList(file);
-		}
+        }
     }
+    fileReader.onerror = function(evt){
+        console.log("Error opening file ", file.name, ':', evt.target.error);
+
+        file.status = "Not valid";
+        addToIgnoredFilesList(file);
+    }
+
     fileReader.readAsArrayBuffer(file);
 }
 
@@ -293,26 +305,38 @@ function openFileComplete(file) {
 function readFileTree(itemEntry, callback){
     if(itemEntry.isFile){
         readFile(itemEntry, callback);
-    }else if(itemEntry.isDirectory){
+    } else if(itemEntry.isDirectory) {
         var dirReader = itemEntry.createReader();
         dirReader.readEntries(function(entries){
-            $.each(entries, function(idx, entry){
-                //console.log("Found new entry:", entry, " is file: ", entry.isFile);
-                readFileTree(entry, callback);
-            });
+            if (entries.length == 0) {
+                return;
+            }
+
+            var idx = 0;
+            var readDirectoryCallback = function(file) {
+                // The file has been opened for reading
+                callback(file);
+
+                // Chain the next open file operation
+                if (++idx == entries.length) {
+                    // Done processing all the childrens
+                    return;
+                } else {
+                    // Process the next entry in the directory
+                    readFileTree(entries[idx], readDirectoryCallback);
+                }
+            };
+
+            readFileTree(entries[idx], readDirectoryCallback);
         });
     }
 };
 
 //Read FileEntry to get Native File object.
-function readFile(fileEntry, callback){
+function readFile(fileEntry, callback) {
     //Get File object from FileEntry
-    fileEntry.file(function(callback, file){
-        if(callback){
-            callback(file);
-        }
-    }.bind(this, callback));
-};
+    fileEntry.file(callback);
+}
 
 function handleDragEnter(evt) {
     $("#drop_zone").addClass("over");
