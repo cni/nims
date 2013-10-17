@@ -42,7 +42,7 @@ def get_info(dbfile):
     return tile_size, x_size, y_size
 
 
-def generate_montage(niftipath):
+def generate_montage(niftipath, timepoints=[]):
     # Figure out the image dimensions and make an appropriate montage.
     # NIfTI images can have up to 7 dimensions. The fourth dimension is
     # by convention always supposed to be time, so some images (RGB, vector, tensor)
@@ -72,6 +72,8 @@ def generate_montage(niftipath):
         # timeseries (x, y, z, t) or more
         num_cols = data.shape[2]
         data = data.transpose(np.concatenate(([0,1,3,2],range(4,data.ndim)))).reshape(data.shape[0], data.shape[1], num_images)
+        if len(timepoints)>0:
+            data = data[...,timepoints]
 
     num_rows = int(np.ceil(float(data.shape[2])/float(num_cols)))
     montage = np.zeros((data.shape[0] * num_rows, data.shape[1] * num_cols), dtype=data.dtype)
