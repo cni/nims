@@ -242,12 +242,37 @@ function handleDnDSelect(evt) {
         } else if(item.webkitGetAsEntry) { //Webkit implementation of HTML5 API
             entry = item.webkitGetAsEntry();
         }
-        //console.log("Entry", entry);
-        readFileTree(entry, openFileComplete);
+
+        var fileList = [];
+        fileList.pendingOps = 0;
+        traverseFileTree(entry, fileList, function() {
+            console.log("Done traversing file tree for ", entry.name, ' Found files: ', fileList.length);
+
+            // Now process each file sequentially
+            async.mapSeries(fileList, openFile, function(err, resultList){
+                console.log('Done processing files list - Got results: ', resultList.length);
+            });
+        });
     });
 }
 
-function openFileComplete(file) {
+function openFile(fileEntry, callback) {
+    console.log('Opening file:', fileEntry.fullPath);
+
+    // First open the file
+    fileEntry.file(function(item) {
+        // File is open, read the content
+        processFile(item, callback);
+
+    }, function(item) {
+        // Failed to open the file
+        item.status = "Could not open file";
+        addToIgnoredFilesList(item);
+        callback(null, item)
+    });
+}
+
+function processFile(file, callback) {
     // console.log("Opened file " + file.name);
 
     var fileReader = new FileReader();
@@ -280,6 +305,7 @@ function openFileComplete(file) {
 
             // Add the file to table of files in the page
             addFileToList(file);
+            callback(null, file);
 
         } catch (err) {
             console.log('Error parsing dicom file:', err);
@@ -288,54 +314,43 @@ function openFileComplete(file) {
             file.status = "Not valid";
 
             addToIgnoredFilesList(file);
+            callback(null, file);
         }
     }
     fileReader.onerror = function(evt){
-        console.log("Error opening file ", file.name, ':', evt.target.error);
+        console.log("Error reading file ", file.name, ':', evt.target.error);
 
-        file.status = "Not valid";
+        file.status = "Cannot read file";
         addToIgnoredFilesList(file);
+        callback(null, file);
     }
 
     fileReader.readAsArrayBuffer(file);
 }
 
-//Explore through the file tree
-//Traverse recursively through File and Directory entries.
-function readFileTree(itemEntry, callback){
-    if(itemEntry.isFile){
-        readFile(itemEntry, callback);
-    } else if(itemEntry.isDirectory) {
-        var dirReader = itemEntry.createReader();
-        dirReader.readEntries(function(entries){
-            if (entries.length == 0) {
-                return;
+function traverseFileTree(entry, fileList, traverseCallback) {
+    if (entry.isFile) {
+        // console.log("File:", entry.fullPath);
+        fileList.push(entry);
+    } else if (entry.isDirectory) {
+        // console.log("Dir:", entry.fullPath);
+        ++fileList.pendingOps;
+        var dirReader = entry.createReader();
+        dirReader.readEntries(function(entries) {
+            for (var idx = 0; idx < entries.length; idx++) {
+                traverseFileTree(entries[idx], fileList, traverseCallback);
             }
 
-            var idx = 0;
-            var readDirectoryCallback = function(file) {
-                // The file has been opened for reading
-                callback(file);
-
-                // Chain the next open file operation
-                if (++idx == entries.length) {
-                    // Done processing all the childrens
-                    return;
-                } else {
-                    // Process the next entry in the directory
-                    readFileTree(entries[idx], readDirectoryCallback);
-                }
-            };
-
-            readFileTree(entries[idx], readDirectoryCallback);
+            if (--fileList.pendingOps == 0) {
+                // All the async operations have completed
+                traverseCallback();
+            }
         });
     }
-};
 
-//Read FileEntry to get Native File object.
-function readFile(fileEntry, callback) {
-    //Get File object from FileEntry
-    fileEntry.file(callback);
+    if (fileList.pendingOps == 0) {
+        traverseCallback();
+    }
 }
 
 function handleDragEnter(evt) {
@@ -371,7 +386,7 @@ function handleFileInputSelect(evt) {
 
 	// Read and parse each selected file
     $.each(files, function(idx, file) {
-		openFileComplete(file);
+		processFile(file);
     });
 }
 
