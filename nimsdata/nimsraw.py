@@ -209,7 +209,7 @@ class NIMSPFile(NIMSRaw):
             self.slice_order = nimsimage.SLICE_ORDER_SEQ_INC
         elif self._hdr.series.se_sortorder == 1:
             self.slice_order = nimsimage.SLICE_ORDER_ALT_INC
-        slice_norm = np.array([self._hdr.image.norm_R, self._hdr.image.norm_A, self._hdr.image.norm_S])
+        slice_norm = np.array([-self._hdr.image.norm_R, -self._hdr.image.norm_A, self._hdr.image.norm_S])
         # This is either the first slice tlhc (image_tlhc) or the last slice tlhc. How to decide?
         # And is it related to wheather I have to negate the slice_norm?
         # Tuned this empirically by comparing spiral and EPI data with the same Rx.
@@ -227,12 +227,16 @@ class NIMSPFile(NIMSRaw):
             self.reverse_slice_order = False
         if self.num_bands > 1:
             image_position = image_position - slice_norm * self.band_spacing_mm * (self.num_bands - 1.0) / 2.0
+
+        #origin = image_position * np.array([-1, -1, 1])
+        # Fix the half-voxel offset. Apparently, the p-file convention specifies coords at the
+        # corner of a voxel. But DICOM/NIFTI convention is the voxel center. So offset by a half-voxel.
+        origin = image_position + (row_cosines+col_cosines)*(np.array(self.mm_per_vox)/2)
         # The DICOM standard defines these two unit vectors in an LPS coordinate frame, but we'll
         # need RAS (+x is right, +y is anterior, +z is superior) for NIFTI. So, we compute them
         # such that self.row_cosines points to the right and self.col_cosines points up.
         row_cosines[0:2] = -row_cosines[0:2]
         col_cosines[0:2] = -col_cosines[0:2]
-        origin = image_position[0] * np.array([-1, -1, 1])
         if self.is_dwi and self.dwi_bvalue==0:
             log.warning('the data appear to be diffusion-weighted, but image.b_value is 0!')
         # The bvals/bvecs will get set later
@@ -381,7 +385,7 @@ class NIMSPFile(NIMSRaw):
             if os.path.exists(basepath+'.B0freq2') and os.path.getsize(basepath+'.B0freq2')>0:
                 self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echos,self.num_slices],order='F').transpose((0,1,3,2))
 
-    def recon_mux_epi(self, tempdir, num_jobs, timepoints=[]):
+    def recon_mux_epi(self, tempdir, num_jobs, timepoints=[], octave_bin='octave'):
         start_sec = time.time()
         """Do mux_epi image reconstruction and populate self.imagedata."""
         ref_file  = os.path.join(self.dirpath, '_'+self.basename+'_ref.dat')
@@ -394,12 +398,15 @@ class NIMSPFile(NIMSRaw):
                 shutil.copy(ref_file, os.path.join(temp_dirpath, os.path.basename(ref_file)))
                 shutil.copy(vrgf_file, os.path.join(temp_dirpath, os.path.basename(vrgf_file)))
                 pfile_path = os.path.join(temp_dirpath, self.basename)
-                #with open(pfile_path, 'wb') as fd:
-                #    with gzip.open(self.filepath, 'rb') as gzfile:
-                #        fd.writelines(gzfile)
                 # The following with pigz is ~4x faster than the python code above (with gzip, it's about 2.5x faster)
-                #subprocess.call('pigz -d -c %s > %s' % (self.filepath, pfile_path), shell=True)
-                subprocess.call('gzip -d -c %s > %s' % (self.filepath, pfile_path), shell=True)
+                if os.path.isfile('/usr/bin/pigz'):
+                    subprocess.call('pigz -d -c %s > %s' % (self.filepath, pfile_path), shell=True)
+                elif os.path.isfile('/usr/bin/gzip'):
+                    subprocess.call('gzip -d -c %s > %s' % (self.filepath, pfile_path), shell=True)
+                else:
+                    with open(pfile_path, 'wb') as fd:
+                        with gzip.open(self.filepath, 'rb') as gzfile:
+                            fd.writelines(gzfile)
             else:
                 pfile_path = self.filepath
             recon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'mux_epi_recon'))
@@ -413,12 +420,8 @@ class NIMSPFile(NIMSRaw):
                 if num_running_jobs < num_jobs:
                     # Recon each slice separately. Note the slice_num+1 to deal with matlab's 1-indexing.
                     # Use 'str' on timepoints so that an empty array will produce '[]'
-                    cmd = ('octave --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", [], %d, %s, %d);\''
-                            % (recon_path, pfile_path, outname, slice_num, slice_num + 1, str(timepoints), self.num_vcoils))
-                    # FIXME!!! cpu_num needs to be gleaned more efficiently for all use-cases
-                    #cpu_num = slice_num
-                    #cmd = ('numactl -l --physcpubind=%d -- octave --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", [], %d, %s, %d);\''
-                    #        % (cpu_num, recon_path, pfile_path, outname, slice_num, slice_num + 1, str(timepoints), self.num_vcoils))
+                    cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", [], %d, %s, %d);\''
+                        % (octave_bin, recon_path, pfile_path, outname, slice_num, slice_num + 1, str(timepoints), self.num_vcoils))
                     log.debug(cmd)
                     mux_recon_jobs.append(subprocess.Popen(args=shlex.split(cmd), stdout=open('/dev/null', 'w')))
                     slice_num += 1
