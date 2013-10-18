@@ -119,6 +119,9 @@ function addFileToList(file) {
     if (!files_to_upload[file.Key]){
         files_to_upload[file.Key] = [];
 
+        //Make visible the table
+        $('#table_scrollable').removeClass('hide');
+
         // Add our generatered id to the file object
         var id = '_' + (id_generator++);
         files_to_upload[file.Key].id = id;
@@ -148,7 +151,12 @@ function addFileToList(file) {
     //console.log('Files to upload:', files_to_upload[file.Key]);
 
     var imagesSubmitted = files_to_upload[file.Key].length;
-    var imagesAcquired = file.ImagesInAcquisition * file.NumberOfTemporalPositions;
+    console.log('Images Submitted: ', imagesSubmitted);
+    if(file.NumberOfTemporalPositions){
+        var imagesAcquired = file.ImagesInAcquisition * file.NumberOfTemporalPositions;
+    } else {
+        var imagesAcquired = file.ImagesInAcquisition;
+    }
     if (imagesSubmitted == imagesAcquired) {
         $('#count_' + file.id).html("<b>" + imagesSubmitted + "</b>" + '/' + imagesAcquired);
     } else {
