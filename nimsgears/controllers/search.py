@@ -129,6 +129,7 @@ class SearchController(NimsController):
 
         parameters = [(x.replace('*','%'), y) for x, y in kwargs.iteritems() if y and x != 'search_all']
         if not parameters:
+            result = result = {'success': False, 'error_message' : 'empty_fields'}
             return json.dumps(result)
 
         db_query = (DBSession.query(Epoch, Session, Subject, Experiment)

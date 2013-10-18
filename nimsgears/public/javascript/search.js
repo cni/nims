@@ -55,9 +55,12 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                     // Clear datasets list table and add error message
                     data.data = [];
                     populateNextTableFn(table, data);
-                    console.error('Error in post request', data.error_message);
-                    $('#bannerpy-content').text(data.error_message);
-                    $('#bannerpy').removeClass('hide');
+                    if (data.error_message!='empty_fields'){
+                        $('#bannerpy-content').text(data.error_message);
+                        $('#bannerpy').removeClass('hide');
+                    } else {
+                        $('#bannerpy').addClass('hide');
+                    }
                 }
                 table.select(is_instant);
             },
