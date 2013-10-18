@@ -266,10 +266,10 @@ $('#submit').click(function(){
          $('#first_name, #last_name').removeAttr('disabled');
          $('.first_name, .last_name').css('color', '#000000 ');
          $('#first_name, #last_name').css('color', '#000000 ');
-         $('#bannerjs-errorints').addClass('hide');
-         $('#bannerjs-errorstring').addClass('hide');
-         $('#bannerpy').addClass('hide');
      }
+     $('#bannerjs-errorints').addClass('hide');
+     $('#bannerjs-errorstring').addClass('hide');
+     $('#bannerpy').addClass('hide');
  });
 
  //If superUser, then by default all dataset checkbox is checked
