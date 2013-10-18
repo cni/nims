@@ -201,7 +201,12 @@ class NIMSImage(nimsdata.NIMSData):
         pass
 
     def parse_subject_name(self, name):
-        lastname, firstname = name.split('^') if '^' in name else ('', '')
+        if '^' in name:
+            lastname, firstname = name.strip().split('^', 1)
+        elif ' ' in name:
+            firstname, lastname = name.rsplit(None, 1)
+        else:
+            firstname, lastname = ('', name)
         return firstname.title(), lastname.title()
 
     def parse_subject_dob(self, dob):
