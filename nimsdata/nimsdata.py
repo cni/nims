@@ -60,7 +60,7 @@ class NIMSData(object):
 
     @abc.abstractmethod
     def __init__(self):
-        pass
+        self.default_subj_code = None
 
     @property
     def canonical_filename(self):
@@ -78,14 +78,14 @@ class NIMSData(object):
             setattr(self, field_name, value)
 
     def get_session_info(self, **kwargs):
-        return filter(lambda t: t[1], [(field, getattr(self, field_name, None)) for field, field_name in self.session_fields]) + kwargs.items()
+        return filter(lambda t: t[1], [(field, getattr(self, field_name, None)) for field, field_name in self.session_fields] + kwargs.items())
 
     def get_epoch_info(self, **kwargs):
-        return filter(lambda t: t[1] is not None, [(field, getattr(self, field_name, None)) for field, field_name in self.epoch_fields]) + kwargs.items()
+        return filter(lambda t: t[1], [(field, getattr(self, field_name, None)) for field, field_name in self.epoch_fields] + kwargs.items())
 
     def get_file_info(self, **kwargs):
-        return filter(lambda t: t[1], [(field, getattr(self, field_name, None)) for field, field_name in self.file_fields]) + kwargs.items()
+        return filter(lambda t: t[1], [(field, getattr(self, field_name, None)) for field, field_name in self.file_fields] + kwargs.items())
 
     def get_file_spec(self, _prefix, **kwargs):
-        file_spec = filter(lambda t: t[1], [(field, getattr(self, field_name, None)) for field, field_name in NIMSData.file_fields])
-        return [(_prefix + key, value) for key, value in file_spec + kwargs.items()]
+        spec = filter(lambda t: t[1], [(field, getattr(self, field_name, None)) for field, field_name in NIMSData.file_fields] + kwargs.items())
+        return [(_prefix + key, value) for key, value in spec]

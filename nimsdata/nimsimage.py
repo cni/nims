@@ -172,7 +172,7 @@ class NIMSImage(nimsdata.NIMSData):
             ('size_x', 'size_x'),
             ('size_y', 'size_y'),
             ('fov', 'fov'),
-            ('scan_type', 'scan_type'),
+            ('datatype', 'scan_type'),
             ('num_bands', 'num_bands'),
             ('duration', 'duration'),
             ('prescribed_duration', 'prescribed_duration'),
@@ -186,6 +186,7 @@ class NIMSImage(nimsdata.NIMSData):
     @abc.abstractmethod
     def __init__(self):
         super(NIMSImage, self).__init__()
+        self.default_subj_code = 'ex' + str(self.exam_no)
 
     @abc.abstractmethod
     def load_all_metadata(self):
