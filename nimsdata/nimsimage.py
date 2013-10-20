@@ -172,9 +172,10 @@ class NIMSImage(nimsdata.NIMSData):
             ('size_x', 'size_x'),
             ('size_y', 'size_y'),
             ('fov', 'fov'),
-            ('scan_type', 'scan_type'),
+            ('datatype', 'scan_type'),
             ('num_bands', 'num_bands'),
-            #('prescribed_duration', 'prescribed_duration'), #FIXME: mongo can't serialize datetime.timedelta
+            ('duration', 'duration'),
+            ('prescribed_duration', 'prescribed_duration'),
             ('mm_per_voxel', 'mm_per_vox'),
             ('effective_echo_spacing', 'effective_echo_spacing'),
             ('phase_encode_undersample', 'phase_encode_undersample'),
@@ -185,6 +186,7 @@ class NIMSImage(nimsdata.NIMSData):
     @abc.abstractmethod
     def __init__(self):
         super(NIMSImage, self).__init__()
+        self.default_subj_code = 'ex' + str(self.exam_no)
 
     @abc.abstractmethod
     def load_all_metadata(self):
@@ -199,7 +201,12 @@ class NIMSImage(nimsdata.NIMSData):
         pass
 
     def parse_subject_name(self, name):
-        lastname, firstname = name.split('^') if '^' in name else ('', '')
+        if '^' in name:
+            lastname, firstname = name.strip().split('^', 1)
+        elif ' ' in name:
+            firstname, lastname = name.rsplit(None, 1)
+        else:
+            firstname, lastname = ('', name)
         return firstname.title(), lastname.title()
 
     def parse_subject_dob(self, dob):

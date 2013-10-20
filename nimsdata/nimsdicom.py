@@ -38,6 +38,9 @@ TAG_BVALUE =            (0x0043, 0x1039)
 TAG_BVEC =              [(0x0019, 0x10bb), (0x0019, 0x10bc), (0x0019, 0x10bd)]
 TAG_MTOFF_HZ =          (0x0043, 0x1034)
 
+# Siemens-specific tags
+TAG_IMAGES_IN_MOSAIC =  (0x0019, 0x100a)
+
 # Siemens: b-value=(0x0019, 0x100C), all 3 grad dirs=(0x0019, 0x100E), and csa (??) =(0x0029, [0x1010 | 0x1020])
 # Philips: b-value=(0x2001, 0x1003), grad dirs=(0x2005, [0x100B0, 0x100B1, 0x100B2])
 
@@ -61,7 +64,7 @@ class NIMSDicom(nimsimage.NIMSImage):
     priority = 0
     parse_priority = 9
 
-    def __init__(self, dcm_path):
+    def __init__(self, dcm_path, metadata_only=True):
         self.filepath = dcm_path
         def acq_date(hdr):
             if 'AcquisitionDate' in hdr:    return hdr.AcquisitionDate
@@ -79,14 +82,12 @@ class NIMSDicom(nimsimage.NIMSImage):
                 self.compressed = True
                 with tarfile.open(self.filepath) as archive:
                     archive.next()  # skip over top-level directory
-                    self._hdr = dicom.read_file(cStringIO.StringIO(archive.extractfile(archive.next()).read()), stop_before_pixels=True)
+                    self._hdr = dicom.read_file(cStringIO.StringIO(archive.extractfile(archive.next()).read()), stop_before_pixels=metadata_only)
             else:
                 # directory of dicoms or single file
                 self.compressed = False
                 dcm_path = self.filepath if os.path.isfile(self.filepath) else os.path.join(self.filepath, os.listdir(self.filepath)[0])
-                self._hdr = dicom.read_file(dcm_path, stop_before_pixels=True)
-            if self._hdr.Manufacturer != 'GE MEDICAL SYSTEMS':    # TODO: make code more general
-                raise NIMSDicomError('we can only handle data from GE MEDICAL SYSTEMS')
+                self._hdr = dicom.read_file(dcm_path, stop_before_pixels=metadata_only)
         except Exception as e:
             raise NIMSDicomError(str(e))
 
@@ -102,7 +103,7 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.subj_sex = {'M': 'male', 'F': 'female'}.get(getelem(self._hdr, 'PatientSex'))
         self.psd_name = os.path.basename(getelem(self._hdr, TAG_PSD_NAME, None, 'unknown'))
         self.psd_type = nimsimage.infer_psd_type(self.psd_name)
-        self.timestamp = datetime.datetime.strptime(acq_date(self._hdr) + acq_time(self._hdr), '%Y%m%d%H%M%S')
+        self.timestamp = datetime.datetime.strptime(acq_date(self._hdr) + acq_time(self._hdr)[:6], '%Y%m%d%H%M%S')
         self.ti = getelem(self._hdr, 'InversionTime', float, 0.) / 1000.0
         self.te = getelem(self._hdr, 'EchoTime', float, 0.) / 1000.0
         self.tr = getelem(self._hdr, 'RepetitionTime', float, 0.) / 1000.0
@@ -110,6 +111,7 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.pixel_bandwidth = getelem(self._hdr, 'PixelBandwidth', float, 0.)
         self.phase_encode = int(getelem(self._hdr, 'InPlanePhaseEncodingDirection', None, '') == 'COL')
         self.mt_offset_hz = getelem(self._hdr, TAG_MTOFF_HZ, float, 0.)
+        self.images_in_mosaic = getelem(self._hdr, TAG_IMAGES_IN_MOSAIC, int, 0)
         self.total_num_slices = getelem(self._hdr, 'ImagesInAcquisition', int, 0)
         self.num_slices = getelem(self._hdr, TAG_SLICES_PER_VOLUME, int, 1)
         self.num_timepoints = getelem(self._hdr, 'NumberOfTemporalPositions', int, self.total_num_slices / self.num_slices)
@@ -117,14 +119,14 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.num_echos = getelem(self._hdr, 'EchoNumbers', int, 1)
         self.receive_coil_name = getelem(self._hdr, 'ReceiveCoilName', None, 'unknown')
         self.num_receivers = 0 # FIXME: where is this stored?
-        self.prescribed_duration = datetime.timedelta(0, self.tr * self.num_timepoints * self.num_averages) # FIXME: probably need more hacks in here to compute the correct duration.
+        self.prescribed_duration = self.tr * self.num_timepoints * self.num_averages # FIXME: probably need more hacks in here to compute the correct duration.
         self.duration = self.prescribed_duration # actual duration can only be computed after all data are loaded
         self.operator = getelem(self._hdr, 'OperatorsName', None, 'unknown')
         self.protocol_name = getelem(self._hdr, 'ProtocolName', None, 'unknown')
         self.scanner_name = '%s %s'.strip() % (getelem(self._hdr, 'InstitutionName', None, ''), getelem(self._hdr, 'StationName', None, ''))
         self.scanner_type = '%s %s'.strip() % (getelem(self._hdr, 'Manufacturer', None, ''), getelem(self._hdr, 'ManufacturerModelName', None, ''))
         self.acquisition_type = getelem(self._hdr, 'MRAcquisitionType', None, 'unknown')
-        self.mm_per_vox = getelem(self._hdr, 'PixelSpacing', float, [0., 0.]) + [getelem(self._hdr, 'SpacingBetweenSlices', float, 0.)]
+        self.mm_per_vox = getelem(self._hdr, 'PixelSpacing', float, [1., 1.]) + [getelem(self._hdr, 'SpacingBetweenSlices', float, getelem(self._hdr, 'SliceThickness', float, 1.))]
         # FIXME: confirm that DICOM (Columns,Rows) = PFile (X,Y)
         self.size_x = getelem(self._hdr, 'Columns', int, 0)
         self.size_y = getelem(self._hdr, 'Rows', int, 0)
@@ -158,6 +160,11 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.scan_type = self.infer_scan_type()
         self.dcm_list = None
         super(NIMSDicom, self).__init__()
+
+    def write_anonymized_file(self, filepath):
+        self._hdr.PatientName = ''
+        self._hdr.PatientBirthDate = self._hdr.PatientBirthDate[:6] + '15' if self._hdr.PatientBirthDate else ''
+        self._hdr.save_as(filepath)
 
     def get_imagedata(self):
         if self.dcm_list == None:

@@ -7,6 +7,7 @@ import os
 import re
 import gzip
 import shutil
+import string
 import tarfile
 import difflib
 import hashlib
@@ -72,7 +73,7 @@ def parse_patient_id(patient_id, known_ids):
     We use fuzzy matching to find the best matching known lab id. If we can't
     do so with high confidence, the lab id is set to 'unknown'.
     """
-    subj_code, dummy, lab_info = patient_id.lower().rpartition('@')
+    subj_code, dummy, lab_info = patient_id.strip(string.punctuation + string.whitespace).lower().rpartition('@')
     lab_id, dummy, exp_id = (clean_string(z[0]) or z[1] for z in zip(lab_info.partition('/'), ('unknown', '', 'untitled')))
     lab_id_matches = difflib.get_close_matches(lab_id, known_ids, cutoff=0.8)
     if len(lab_id_matches) == 1:
