@@ -333,9 +333,9 @@ class NIMSPFile(NIMSRaw):
         if 'd' in mat:
             sz = mat['d_size'].flatten().astype(int)
             slice_locs = mat['sl_loc'].flatten().astype(int) - 1
-            imagedata = np.zeros(sz)
+            imagedata = np.zeros(sz, np.int16)
             raw = np.atleast_3d(mat['d'])
-            imagedata[:,:,slice_locs,...] = raw[::-1,...]
+            imagedata[:,:,slice_locs,...] = raw[::-1,...].round().clip(-32768, 32767).astype(np.int16)
         elif 'MIP_res' in mat:
             imagedata = np.atleast_3d(mat['MIP_res'])
             imagedata = imagedata.transpose((1,0,2,3))[::-1,::-1,:,:]
