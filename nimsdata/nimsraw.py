@@ -401,7 +401,7 @@ class NIMSPFile(NIMSRaw):
                 # The following with pigz is ~4x faster than the python code above (with gzip, it's about 2.5x faster)
                 if os.path.isfile('/usr/bin/pigz'):
                     subprocess.call('pigz -d -c %s > %s' % (self.filepath, pfile_path), shell=True)
-                elif os.path.isfile('/usr/bin/gzip'):
+                elif os.path.isfile('/usr/bin/gzip') or os.path.isfile('/bin/gzip'):
                     subprocess.call('gzip -d -c %s > %s' % (self.filepath, pfile_path), shell=True)
                 else:
                     with open(pfile_path, 'wb') as fd:
