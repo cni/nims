@@ -87,10 +87,16 @@ $('#submit_form').on('click', function(evt) {
 
          // Also pass a map (filename, Id) to the server
          $.each(Object.keys(files_to_upload), function(i, key) {
+             data.append('notes_' + key, $('#notes_' + files_to_upload[key].id).val());
+             data.append('StudyID_' + key,           files_to_upload[key].StudyID);
+             data.append('SeriesNumber_' + key,      files_to_upload[key].SeriesNumber);
+             data.append('AcquisitionNumber_' + key, files_to_upload[key].AcquisitionNumber);
+             data.append('SeriesInstanceUID_' + key, files_to_upload[key].SeriesInstanceUID);
+
              $.each(files_to_upload[key], function(j, file) {
                  data.append('filename_' + file.name, file.id);
+                 data.append('file_key_' + file.name, key);
                  data.append('files[]', file.content, file.name);
-                 console.log("Uploading: ", file.name);
              });
          });
 
@@ -126,6 +132,11 @@ function addFileToList(file) {
         var id = '_' + (id_generator++);
         files_to_upload[file.Key].id = id;
         files_to_upload[file.Key].totalSize = 0;
+        files_to_upload[file.Key].StudyID = file.StudyID;
+        files_to_upload[file.Key].SeriesNumber = file.SeriesNumber;
+        files_to_upload[file.Key].AcquisitionNumber = file.AcquisitionNumber;
+        files_to_upload[file.Key].SeriesInstanceUID = file.SeriesInstanceUID;
+
         var year = file.AcquisitionDate.substring(0, 4);
         var month = file.AcquisitionDate.substring(4, 6);
         var day = file.AcquisitionDate.substring(6, 8);
@@ -139,7 +150,7 @@ function addFileToList(file) {
                         <td size="200">', file.SeriesDescription, '</td> \
                         <td id="count_', id, '">', '</td> \
                         <td id="size_', id, '">', '</td> \
-                        <td id="notes_', id, '"><input id="textbox_', id,'" type="textbox" style  ="width:90%">', '</td> \
+                        <td><input id="notes_', id,'" type="textbox" style  ="width:90%">', '</td> \
                         <td class="status"><input id="checkbox_', id, '" type="checkbox" checked="checked" ></input>',  '</td> \
                     </tr>');
 
