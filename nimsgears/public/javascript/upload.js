@@ -151,16 +151,27 @@ function addFileToList(file) {
     //console.log('Files to upload:', files_to_upload[file.Key]);
 
     var imagesSubmitted = files_to_upload[file.Key].length;
-    console.log('Images Submitted: ', imagesSubmitted);
-    if(file.NumberOfTemporalPositions){
-        var imagesAcquired = file.ImagesInAcquisition * file.NumberOfTemporalPositions;
-    } else {
-        var imagesAcquired = file.ImagesInAcquisition;
+
+    if (file.ImagesInAcquisition == undefined) {
+        file.ImagesInAcquisition = 0;
     }
-    if (imagesSubmitted == imagesAcquired) {
-        $('#count_' + file.id).html("<b>" + imagesSubmitted + "</b>" + '/' + imagesAcquired);
+
+    if (file.SlicesPerVolume == undefined) {
+        file.SlicesPerVolume = 1;
+    }
+
+    if (file.NumberOfTemporalPositions == undefined) {
+        file.NumberOfTemporalPositions = file.ImagesInAcquisition / file.SlicesPerVolume;
+    }
+
+    if (file.SlicesPerVolume == file.ImagesInAcquisition) {
+        file.ImagesInAcquisition = file.SlicesPerVolume * file.NumberOfTemporalPositions;
+    }
+
+    if (imagesSubmitted == file.ImagesInAcquisition) {
+        $('#count_' + file.id).html("<b>" + imagesSubmitted + "</b>" + '/' + file.ImagesInAcquisition);
     } else {
-        $('#count_' + file.id).html("<b style='color:red;'>" + imagesSubmitted + "</b>" + '/' + imagesAcquired);
+        $('#count_' + file.id).html("<b style='color:red;'>" + imagesSubmitted + "</b>" + '/' + file.ImagesInAcquisition);
     }
 
     files_to_upload[file.Key].totalSize += file.size;
@@ -265,7 +276,7 @@ function handleDnDSelect(evt) {
 }
 
 function openFile(fileEntry, callback) {
-    console.log('Opening file:', fileEntry.fullPath);
+//    console.log('Opening file:', fileEntry.fullPath);
 
     // First open the file
     fileEntry.file(function(item) {
@@ -304,6 +315,7 @@ function processFile(file, callback) {
             file.AcquisitionDate = dcmFile.AcquisitionDate;
             file.ImagesInAcquisition = dcmFile.ImagesInAcquisition;
             file.NumberOfTemporalPositions = dcmFile.NumberOfTemporalPositions;
+            file.SlicesPerVolume = dcmFile.SlicesPerVolume;
 
             file.Key = ['key', file.StudyID, file.SeriesNumber, file.AcquisitionNumber,
                                 file.SeriesInstanceUID].join('-');
