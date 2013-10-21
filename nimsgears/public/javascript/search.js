@@ -206,42 +206,51 @@ function is_integer(value){
 
 // Validation of the fields
 $('#submit').click(function(){
-   error_ascii = [];
-   error_int = [];
-   var validationError = false;
+   var errors = [];
+   var hasAtLeastOneParameter = false;
 
    $('.required').each(function(){
        var name = $(this).parent().attr('value');
        var value = $(this).val();
 
-       if (name == 'Exam') {
+       if ($.inArray(name, ['Exam', 'Min Age', 'Max Age']) != -1) {
            if (!is_integer(value)) {
-               validationError = true;
+               errors.push('Field <b>' + name + '</b> needs to be an integer');
            }
-       } else {
-           if (!is_ascii(value)) {
-               validationError = true;
-           }
+       } else if (!is_ascii(value)) {
+           errors.push('Field <b>' + name + '</b>: "<b>' + value + '</b>" is not ascii');
        }
-       if(error_ascii.length != 0 ){
-           $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
-           $('#bannerjs-errorstring').removeClass('hide');
-           validationError = true;
-       }else{
-           $('#bannerjs-errorstring').addClass('hide');
-       }
-       if(error_int.length != 0 ){
-            $('#bannerjs-errorints').html("Fields <b>" + error_int.toString() + "</b> do not correspond to integer");
-            $('#bannerjs-errorints').removeClass('hide');
-            validationError = true;
-        }else{
-            $('#bannerjs-errorints').addClass('hide');
+
+        if (value != '') {
+            hasAtLeastOneParameter = true;
         }
    });
 
-   if (validationError) {
+   if (errors.length > 0) {
+       // There is validation error
+       var errorsList = '';
+       $.each(errors, function(idx, error) {
+           errorsList += '<li>' + error + '</li>';
+       });
+
+       $('#bannerjs-errors').html('<ul>' + errorsList + '</ul>');
+       $('#bannerjs-errors').removeClass('hide');
        return false;
-    }
+   } else {
+       $('#bannerjs-errors').addClass('hide');
+   }
+
+   var scan_type = $('#select_scan').val();
+   var psd = $('#select_psd').val();
+
+   //Show banner to advise there is no parameter in the query.
+   if (!hasAtLeastOneParameter && scan_type=='' && psd=='') {
+        $('#bannerjs-errors').html("This query has no parameters");
+        $('#bannerjs-errors').removeClass('hide');
+       return false;
+   }
+
+   return true;
 });
 
  //Show the First Name and Last Name only when search in your data:
@@ -259,16 +268,17 @@ $('#submit').click(function(){
     }
  });
 
- //Set First Name and Last Name visible after clear search_all
+
  $('#clear_values').live('click', function(){
+     //Set First Name and Last Name visible after clear search_all
      if($('#data_checkBox').is(':checked')){
          $('#restricted_datasets').show();
          $('#first_name, #last_name').removeAttr('disabled');
          $('.first_name, .last_name').css('color', '#000000 ');
          $('#first_name, #last_name').css('color', '#000000 ');
      }
-     $('#bannerjs-errorints').addClass('hide');
-     $('#bannerjs-errorstring').addClass('hide');
+
+     $('#bannerjs-errors').addClass('hide');
      $('#bannerpy').addClass('hide');
  });
 

@@ -49,22 +49,15 @@ div#bannerjs {
 	width: 100%;
 }
 
-#bannerjs-emptyfields {
+#bannerjs-errors {
 	margin: 0 auto;
 	padding: 5px;
 	border: 1px solid #FF0033;
 }
 
-#bannerjs-errorstring {
-	margin: 0 auto;
-	padding: 5px;
-	border: 1px solid #FF0033;
-}
-
-#bannerjs-errorints {
-	margin: 0 auto;
-	padding: 5px;
-	border: 1px solid #FF0033;
+#bannerjs-errors ul {
+	margin: 0 0 0 10px;
+    padding: 0px;
 }
 
 div#bannerpy {

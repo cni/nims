@@ -26,8 +26,7 @@
 	<div id='bannerjs'>
 		<div class='hide' id="bannerjs-emptyfields"></div>
 		<div class='hide' id="bannerjs-errorage"></div>
-		<div class='hide' id="bannerjs-errorstring"></div>
-		<div class='hide' id="bannerjs-errorints"></div>
+		<div class='hide' id="bannerjs-errors"></div>
 	</div>
 	<!-- Banner used to show no results  -->
 	<div class='hide' id='bannerpy'>
@@ -50,10 +49,10 @@
 				<span id='flagIsSuperUser' class='hide'>${flag}</span>
 			</tr>
 			<tr class='first_row'>
-				<td><span class='first_name' value='first_name'> Subject
+				<td><span class='first_name' value='First Name'> Subject
 						Name&nbsp;<input id='first_name' class='required' type='text'
 						name='subject_firstname' placeholder='First Name' size='15' />
-				</span> <span class='last_name' value='last_name'> <input
+				</span> <span class='last_name' value='Last Name'> <input
 						class='required' id='last_name' type='text'
 						name='subject_lastname' placeholder='Last Name' size='15' />
 				</span></td>
@@ -63,10 +62,10 @@
 							<option py:for="value in scantype_values">${value}</option>
 					</select>
 				</span></td>
-				<td><span id="dates"> <span value='date_from'><label
+				<td><span id="dates"> <span value='Date From'><label
 							for="date_from">Date from&nbsp;</label> <input class='required'
 							type="text" size="10" id="date_from" name="date_from" /></span> <span
-						value='date_to'><label for="date_to">to&nbsp;</label> <input
+						value='Date To'><label for="date_to">to&nbsp;</label> <input
 							class='required' type="text" size="10" id="date_to"
 							name="date_to" /></span>
 				</span></td>
@@ -74,25 +73,26 @@
 		</table>
 		<table>
 			<tr>
-				<td valign="top"><span id='psd' name="search_param" value='psd_name'>
+				<td valign="top"><span id='psd' value='PSD Name'>
 						PSD Name &nbsp; <select id='select_psd' class="psd_values"
 						name='search_psdname'>
 							<option py:for="value in psd_values">${value}</option>
 					</select>
 				</span></td>
-				<td valign="top"><span id='operator' name="search_param" value='Operator'>
+				<td valign="top"><span id='operator' value='Operator'>
 						Operator &nbsp; <input id='input_search_operator' class='required'
 						name='search_operator' type='text' size='20'> </input>
 						<div class='field_information' id='operator_information'>SUNetID
 							of operator</div>
 				</span></td>
-				<td valign="top"><span id='age' name="search_param" value='age'>
+				<td valign="top"><span id='age' name="search_param" value='Min Age'>
 						Subject Age (years) <input id='input_age_min' class='required'
 						name='search_age_min' type='text' placeholder='Min' size='5'>
-						</input> <input id='input_age_max' class='required' name='search_age_max'
-						type='text' placeholder='Max' size='5'> </input>
+						</input></span>
+                        <span value='Max Age'><input id='input_age_max' class='required' name='search_age_max'
+						type='text' placeholder='Max' size='5'></input>
 				</span></td>
-				<td valign="top"><span id='exam' class='search_param' name="search_param"
+				<td valign="top"><span id='exam' class='search_param'
 					value='Exam'> Exam &nbsp; <input id='input_exam'
 						class='required' name='search_exam' type='text' size='20'>
 						</input>
