@@ -91,6 +91,7 @@ var element_to_repr_le = {
     "UT": buffer_to_string,
     "US": buffer_to_unsigned_le,
     "UL": buffer_to_unsigned_le,
+    "SS": buffer_to_unsigned_le,
     "IS": buffer_to_integer_string
 };
 
@@ -107,6 +108,7 @@ var element_to_repr_be = {
     "UT": buffer_to_string,
     "US": buffer_to_unsigned_be,
     "UL": buffer_to_unsigned_be,
+    "SS": buffer_to_unsigned_be,
     "IS": buffer_to_integer_string
 };
 
@@ -124,6 +126,7 @@ var element_to_value_le = {
     "UT": buffer_to_string,
     "US": buffer_to_unsigned_le,
     "UL": buffer_to_unsigned_le,
+    "SS": buffer_to_unsigned_le,
     "IS": buffer_to_integer_string,
     "OW": buffer_to_uint16array_le,
     "OB": buffer_to_uint8array
@@ -143,6 +146,7 @@ var element_to_value_be = {
     "UT": buffer_to_string,
     "US": buffer_to_unsigned_be,
     "UL": buffer_to_unsigned_be,
+    "SS": buffer_to_unsigned_be,
     "IS": buffer_to_integer_string,
     "OW": buffer_to_uint16array_be,
     "OB": buffer_to_uint8array
