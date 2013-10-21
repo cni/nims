@@ -1,125 +1,134 @@
-#psd{
+#clear_values {
+	margin-left: 50px;
 }
 
-.first_row td{
-    padding-bottom:10px;
+.first_row td {
+	padding-bottom: 10px;
 }
 
-#exam_information{
-    font-size:90%;
-    margin-left: 50px;
-}
-#psdName_information{
-    font-size:90%;
-    margin-left:80px;
-}
- #operator_information,#age_information{
-    font-size:90%;
-    margin-left:80px;
-}
-#query_table{
-    display:table;
-}
-#dataset_div{
-    display:table-row;
+#exam_information {
+	font-size: 90%;
+	margin-left: 50px;
 }
 
-#container_names, #container_scanType{
-    display:table-cell;
-}
-
-#db_choice{
-    padding:15px;
-}
-.first_name{
-    float:left;
-}
-.last_name{
-
-    margin-left:350;
-    float:left;
-}
-div#bannerjs { 
-    position: relative; 
-    top: 0; 
-    left: 0; 
-    background-color: #FFCCCC; 
-    width: 100%; 
-    }
-#bannerjs-emptyfields {  
-    margin: 0 auto; 
-    padding: 5px; 
-    border: 1px solid #FF0033;
-}
-#bannerjs-errorstring {  
-    margin: 0 auto; 
-    padding: 5px; 
-    border: 1px solid #FF0033;
-}
-#bannerjs-errorints {  
-    margin: 0 auto; 
-    padding: 5px; 
-    border: 1px solid #FF0033;
-}
-div#bannerpy { 
-    position: relative; 
-    top: 0; 
-    left: 0; 
-    background-color: #FFFFCC; 
-    width: 100%; 
-}
-div#bannerpy-content {  
-    margin: 0 auto; 
-    padding: 5px; 
-    border: 1px solid #FFCCCC;
-}
-.asterisk{
-	position:absolute;
-}
-#select_param{
-	padding-right:15px;
-}
-.criteriaBody{
-	padding-bottom:5px;
-    width:100%; 
-}
-#upper_Body {
-    width:100%;
-}
-#criteriaContainerA{
-    width:350px;
-    float:left;
-    padding-bottom:5px;
-}
-#criteriaContainerB{    
-    float:left;
-    padding-bottom:5px;
-}
-.field_information{
-    margin-left:130px;
-    color:#888888;
-}
-#newCriteria {
-    position: relative;
-} 
-
-#removeCriteria {
-    
-}
-
-#submitDiv{
-    margin:auto;
-    width:70%;
-	padding:5px;
-}
-
-#dates{
-    width:100%;
-    float:left;
-	padding:5px;
+#operator_information {
+	font-size: 90%;
+	margin-left: 80px;
 }
 
 #query_table {
+	display: table;
+}
+
+#dataset_div {
+	display: table-row;
+}
+
+#container_names,#container_scanType {
+	display: table-cell;
+}
+
+#db_choice {
+	padding: 15px;
+}
+
+.first_name {
+	float: left;
+}
+
+.last_name {
+	margin-left: 350;
+	float: left;
+}
+
+div#bannerjs {
+	position: relative;
+	top: 0;
+	left: 0;
+	background-color: #FFCCCC;
+	width: 100%;
+}
+
+#bannerjs-errors {
+	margin: 0 auto;
+	padding: 5px;
+	border: 1px solid #FF0033;
+}
+
+#bannerjs-errors ul {
+	margin: 0 0 0 10px;
+    padding: 0px;
+}
+
+div#bannerpy {
+	position: relative;
+	top: 0;
+	left: 0;
+	background-color: #FFCCCC;
+	width: 100%;
+}
+
+div#bannerpy-content {
+	margin: 0 auto;
+	padding: 5px;
+	border: 1px solid #FF0033;
+}
+
+.asterisk {
+	position: absolute;
+}
+
+#select_param {
+	padding-right: 15px;
+}
+
+.criteriaBody {
+	padding-bottom: 5px;
+	width: 100%;
+}
+
+#upper_Body {
+	width: 100%;
+}
+
+#criteriaContainerA {
+	width: 350px;
+	float: left;
+	padding-bottom: 5px;
+}
+
+#criteriaContainerB {
+	float: left;
+	padding-bottom: 5px;
+}
+
+.field_information {
+	margin-left: 80px;
+	color: #888888;
+}
+
+#newCriteria {
+	position: relative;
+}
+
+#removeCriteria {
+
+}
+
+#submitDiv {
+	margin: auto;
+	width: 70%;
+	padding: 5px;
+}
+
+#dates {
+	width: 100%;
+	float: left;
+	padding: 5px;
+}
+
+#query_table {
+
 }
 
 #epochs {
@@ -162,3 +171,4 @@ div#bannerpy-content {
 	padding: 0px;
 	margin: 0px;
 	overflow: hidden;
+}
