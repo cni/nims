@@ -1,3 +1,5 @@
+//Author Sara Benito Arce
+
 require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/dialog'], function (Drilldown, DrilldownManager, Dialog) {
     var epochs_popup;
     var datasets_popup;
@@ -27,8 +29,6 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
      */
     var refreshEpochs = function(table, selected_rows, is_instant, populateNextTableFn)
     {
-        // $('#bannerpy').addClass('hide');
-        
         $.ajax(
         {
             type: 'POST',
@@ -36,7 +36,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
             dataType: "json",
             data: $("#search_form").serialize(),
             success: function(data)
-            {                
+            {
                 if (data.success)
                 {
                     if (data.data.length == 0) {
@@ -46,23 +46,25 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                     } else {
                         $('#bannerpy').addClass('hide');
                     }
-                    
                     populateNextTableFn(table, data);
                     table.synchronizeSelections();
                     epochs.onDoubleClick(function() { Dialog.showDialog(epochs_popup, "epoch", "../epoch/edit?id="+getId(this.id)); });
                 }
                 else
                 {
-                    //window.alert("algo ha fallado / parametros incorrectos / ... ");
-                    
+                    // Clear datasets list table and add error message
                     data.data = [];
                     populateNextTableFn(table, data);
-                    // $('#bannerpy-content').text(data.error_message);
-//                     $('#bannerpy').removeClass('hide');
+                    if (data.error_message!='empty_fields'){
+                        $('#bannerpy-content').text(data.error_message);
+                        $('#bannerpy').removeClass('hide');
+                    } else {
+                        $('#bannerpy').addClass('hide');
+                    }
                 }
                 table.select(is_instant);
             },
-        }); // ajax call
+        });
     };
 
     /*
@@ -98,11 +100,15 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                     }
                     else
                     {
-                        alert('Failed'); // implement better alert
+                        // Clear datasets list table and add error message
+                        data.data = [];
+                        populateNextTableFn(table, data);
+                        $('#bannerpy-content').text('Error in getting datasets list');
+                        $('#bannerpy').removeClass('hide');
                     }
                     table.select(is_instant);
                 },
-            }); // ajax call
+            });
         }
         else
         {
@@ -111,14 +117,14 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
         }
     };
 
-
     $(function() {
         $("#date_from").datepicker(
                 {
                     defaultDate : "-1m",
+                    dateFormat: 'yy-mm-dd',
                     changeMonth : true,
                     changeYear : true,
-                    numberOfMonths : 2,
+                    numberOfMonths : 1,
                     maxDate : "+1d",
                     onSelect : function(selectedDate) {
                         $("#date_to").datepicker("option",
@@ -128,9 +134,10 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
         $("#date_to").datepicker(
                 {
                     defaultDate : "+0d",
+                    dateFormat: 'yy-mm-dd',
                     changeMonth : true,
                     changeYear : true,
-                    numberOfMonths : 2,
+                    numberOfMonths : 1,
                     maxDate : "+1d",
                     onSelect : function(selectedDate) {
                         $("#date_from").datepicker(
@@ -139,8 +146,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                     }
                 });
     });
-    
-    
+
     var init = function()
     {
         epochs_popup = $("#epochs_pop");
@@ -163,9 +169,9 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
 });
 
 
+var error_ascii = [];
+var error_int = [];
 
-
-// Map of parameter options and functions to validate fields
 var validation_inputs = {
     'Subject Name' : is_ascii,
     'Subject Age' : is_ascii,
@@ -174,107 +180,82 @@ var validation_inputs = {
     'PSD Name' : is_ascii,
 };
 
-
-var error_ascii = [];
-var error_int = [];
-
 // Validation functions
 function is_ascii(value){
-   //var patt1=/^[a-zA-Z\s]*$/;
-   var pattascii=/^[\x00-\x7F]*$/;
+   value = value.trim();
+   var pattascii=/^[/\s\.\-/0-9a-zA-Z]*$/;
    if(!pattascii.test(value)){
        error_ascii.push(value);
-       return false
+       return false;
    }
    return true;
 }
 
 function is_integer(value){
     if(value == '')
-        return true
+        return true;
+    value = value.trim();
     var patt2=/^\d+$/;
     if(!patt2.test(value)){
         error_int.push(value);
+
         return false;
     }
     return true;
 }
 
-function is_otherfield(value){
-    return true;
-}
-
 // Validation of the fields
-
 $('#submit').click(function(){
-   error_ascii = [];
-   error_int = [];
-   var validationError = false;
-   
+   var errors = [];
+   var hasAtLeastOneParameter = false;
+
    $('.required').each(function(){
+       var name = $(this).parent().attr('value');
        var value = $(this).val();
-       if( $(this).parent().attr('value') == 'Exam'){
-           is_integer(value);
-       }else{
-           is_ascii(value);
+
+       if ($.inArray(name, ['Exam', 'Min Age', 'Max Age']) != -1) {
+           if (!is_integer(value)) {
+               errors.push('Field <b>' + name + '</b> needs to be an integer');
+           }
+       } else if (!is_ascii(value)) {
+           errors.push('Field <b>' + name + '</b>: "<b>' + value + '</b>" is not ascii');
        }
-       if(error_ascii.length != 0 ){
-           $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
-           $('#bannerjs-errorstring').removeClass('hide');
-       }else{
-           $('#bannerjs-errorstring').addClass('hide');
-       }       
-       if(error_int.length != 0 ){
-            $('#bannerjs-errorints').html("Fields <b>" + error_int.toString() + "</b> do not correspond to integer");
-            $('#bannerjs-errorints').removeClass('hide');
-        }else{
-            $('#bannerjs-errorints').addClass('hide');
+
+        if (value != '') {
+            hasAtLeastOneParameter = true;
         }
    });
-   if( validationError ){
-            return false;
-        }
+
+   if (errors.length > 0) {
+       // There is validation error
+       var errorsList = '';
+       $.each(errors, function(idx, error) {
+           errorsList += '<li>' + error + '</li>';
+       });
+
+       $('#bannerjs-errors').html('<ul>' + errorsList + '</ul>');
+       $('#bannerjs-errors').removeClass('hide');
+       return false;
+   } else {
+       $('#bannerjs-errors').addClass('hide');
+   }
+
+   var scan_type = $('#select_scan').val();
+   var psd = $('#select_psd').val();
+
+   //Show banner to advise there is no parameter in the query.
+   if (!hasAtLeastOneParameter && scan_type=='' && psd=='') {
+        $('#bannerjs-errors').html("This query has no parameters");
+        $('#bannerjs-errors').removeClass('hide');
+       return false;
+   }
+
+   return true;
 });
 
-// $('#submit').click( function(){
-//     error_ascii = [];
-//     error_int = [];
-//     var validationError = false;
-// 
-//     $('.query_table').each(function(){
-//         var optionA = $(this).children('#criteriaContainerA').find('.search_param').val();
-//         var optionB = $(this).children('#criteriaContainerB').find('.search_param').val();
-//         if (optionA != 'Scan Type'){
-//             var valueA = $(this).children('#criteriaContainerA').find('.required').val();
-//             validation_inputs[optionA](valueA);
-//         }
-//         if (optionB != 'Scan Type'){
-//             var valueB = $(this).children('#criteriaContainerB').find('.required').val();
-//             alert(valueB)
-//             validation_inputs[optionB](valueB);
-//         }
-//         if(error_ascii.length != 0 ){
-//             $('#bannerjs-errorstring').html("Fields <b>" + error_ascii.toString() + "</b> is not ascii");
-//             $('#bannerjs-errorstring').removeClass('hide');
-//         }else{
-//             $('#bannerjs-errorstring').addClass('hide');
-//         }
-//         if(error_int.length != 0 ){
-//             $('#bannerjs-errorints').html("Fields <b>" + error_int.toString() + "</b> do not correspond to integer");
-//             $('#bannerjs-errorints').removeClass('hide');
-//         }else{
-//             $('#bannerjs-errorints').addClass('hide');
-//         }
-//     });      
-//     if( validationError ){
-//         return false;
-//     }
-// });
-
-
  //Show the First Name and Last Name only when search in your data:
- $('#data_checkBox').live('click', function(){ 
-     if($('#data_checkBox').is(':checked')){
+ $('#data_checkBox').live('click', function(){
+     if($('#data_checkBox').is(':checked') && $('#flagIsSuperUser').text() != 'True'){
         $('#restricted_datasets').hide();
         $('#first_name, #last_name').attr('disabled', 'disabled');
         $('.first_name, .last_name').css('color', '#E0E0E0');
@@ -283,8 +264,27 @@ $('#submit').click(function(){
         $('#restricted_datasets').show();
         $('#first_name, #last_name').removeAttr('disabled');
         $('.first_name, .last_name').css('color', '#000000 ');
-         $('#first_name, #last_name').css('color', '#000000 ');
+        $('#first_name, #last_name').css('color', '#000000 ');
     }
  });
- 
-   
+
+
+ $('#clear_values').live('click', function(){
+     //Set First Name and Last Name visible after clear search_all
+     if($('#data_checkBox').is(':checked')){
+         $('#restricted_datasets').show();
+         $('#first_name, #last_name').removeAttr('disabled');
+         $('.first_name, .last_name').css('color', '#000000 ');
+         $('#first_name, #last_name').css('color', '#000000 ');
+     }
+
+     $('#bannerjs-errors').addClass('hide');
+     $('#bannerpy').addClass('hide');
+ });
+
+ //If superUser, then by default all dataset checkbox is checked
+ if ($('#flagIsSuperUser').text() == 'True'){
+     $('#data_checkBox').attr('checked', 'checked');
+ }else{
+     $('#data_checkBox').removeAttr('checked');
+ }
