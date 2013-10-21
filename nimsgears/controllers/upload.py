@@ -17,7 +17,8 @@ class UploadController(NimsController):
     @expose('nimsgears.templates.upload')
     def index(self):
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
-        groups = user.member_group_names
+        groups = [ '%s - %s' % (exp.owner.gid, exp.name)
+                    for exp, priv in user.experiments_with_access_privilege(u'Read-Only', ignore_superuser=True)]
         if 'unknown' in groups: groups.remove('unknown')
         return dict(page='upload', research_groups=groups)
 
@@ -27,7 +28,6 @@ class UploadController(NimsController):
 
         if not (
                 'files[]' in kwargs and
-                'experiment' in kwargs and
                 'group_value' in kwargs
                 ):
             result['processed'] = False
@@ -59,7 +59,6 @@ class UploadController(NimsController):
             out.close()
 
         files = kwargs['files[]']
-        result['experiment'] = kwargs['experiment']
         result['group_value'] = kwargs['group_value']
         if not type(files) is list: files = [files]
         result['files'] = []

@@ -72,7 +72,7 @@ $('#submit_form').on('click', function(evt) {
 
      $('#bannerjs-emptyfields').addClass('hide');
 
-     if (!$('#experiment').val() || !$('#group_value').val() ){
+     if (!$('#group_value').val() ){
          $('#bannerjs-emptyfields').removeClass('hide');
          $('#bannerjs-emptyfields').html("Fields in the form should be completed");
      } else if (isFilesToUploadEmpty()) {
@@ -80,7 +80,6 @@ $('#submit_form').on('click', function(evt) {
          $('#bannerjs-emptyfields').html("Please select some files to upload");
      } else {
          var data = new FormData();
-         data.append('experiment', $('#experiment').val());
          data.append('group_value', $('#group_value').val());
 
          var form = new FormData();
