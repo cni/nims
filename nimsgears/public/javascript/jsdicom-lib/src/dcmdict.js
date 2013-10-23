@@ -4638,10 +4638,6 @@ var dcmdict = {
     "ACR_NEMA_2C_HuffmanTableTriplet": 0x10000013,
     "ACR_NEMA_2C_ShiftTableTriplet": 0x10000015,
     "ACR_NEMA_2C_ZonalMap": 0x10100004,
-    "ACR_NEMA_2C_CoefficientsSDHN": 0x7FE00030,
-
-    // Custom DICOM tags
-    "SlicesPerVolume": 0x0021104F,
-    0x0021104F: ["SS", "SlicesPerVolume"]
+    "ACR_NEMA_2C_CoefficientsSDHN": 0x7FE00030
 };
 

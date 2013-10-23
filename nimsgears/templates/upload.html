@@ -27,23 +27,20 @@
         <div class='hide' id="bannerjs-emptyfields">
         </div>
     </div>
-    <h2>Upload</h2>
-    <form action="upload/submit" method="POST" enctype="multipart/form-data">
-        <table id='table_form'>
-            <tr>
-                You can upload by Drag and Drop files or a folder, or choose some files by cliking in the area. Make sure all fields are complete.
-            </tr>
-       </table>
-
+    <h2>Upload
         <div id="drop_zone" name='drop_files'>
             <span>Drop folder/files, click and choose files for upload</span>
         </div>
+    </h2>
+    <form action="upload/submit" method="POST" enctype="multipart/form-data">
+        <p id='information'>
+                You can upload by Drag and Drop files or a folder, or choose some files by clicking in the area. <br> Make sure all fields are completed.</br>
+       </p>
         <div id="select_files" border="1px solid red">
             <input type="file" id="files" name="files[]" onchange="handleFileInputSelect(this.files)" multiple="multiple" ></input>
         </div>
 
         <output id="list"></output>
-        <div id='table_scrollable' class='hide'>
         <table class='manager = new DrilldownManager([epochs, datasets], [refreshEpochs, refreshDatasets], true);'>
             <thead id='file_list_header' class='hide'>
                 <tr>
@@ -60,7 +57,6 @@
             <tbody id='file_list'>
             </tbody>
         </table>
-        </div>
         <spam id='fileContents'>
 
         </spam>
