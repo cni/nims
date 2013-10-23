@@ -23,6 +23,9 @@ function findOffset(data, seq) {
 function redactPatientName(fileContent, dcmFile) {
     var dataView = new DataView(fileContent);
 
+    //var name = dcmFile.get_elemet(0x00100010);
+    //console.log('Patients name: ', dcmFile.PatientsName);
+
     //Search for the sequence ( 0010 0010 PN ) that corresponds to the tag and initials of Patient Name
     offset = findOffset(fileContent, [0x10, 0x00, 0x10, 0x00, 0x50, 0x4e]);
     if (offset < 0) {
@@ -64,6 +67,7 @@ function parseFile(fileContent){
 
 var files_to_upload = {};
 var id_generator = 0;
+var fileList = []
 
 // Prevent from submit for ajax call. If fields are empty, show error banner. Send data to upload.py.
 $('#submit_form').on('click', function(evt) {
@@ -93,8 +97,8 @@ $('#submit_form').on('click', function(evt) {
              var seriesId = files_to_upload[key].id;
              console.log('Series ID: ', seriesId);
 
+             //If series is not checked, do not upload
              if ($('#checkbox_' + seriesId).is(":checked")){
-                 console.log('Checkbox checked!');
                  data.append('notes_' + key, $('#notes_' + files_to_upload[key].id).val());
                  data.append('group-experimet_' + key, $('#group_value').val());
                  data.append('StudyID_' + key,           files_to_upload[key].StudyID);
@@ -170,11 +174,13 @@ function addFileToList(file) {
         $('#file_list').append(output.join(''));
     }
 
-    file.id = files_to_upload[file.Key].id;
-    console.log( 'File ID: ', file.id );
-    files_to_upload[file.Key].push(file);
-
-    //console.log('Files to upload:', files_to_upload[file.Key]);
+    if ( $.inArray(file.name, fileList) == -1 ){
+        fileList.push(file.name);
+        file.id = files_to_upload[file.Key].id;
+        files_to_upload[file.Key].push(file);
+    } else {
+        return;
+    }
 
     var imagesSubmitted = files_to_upload[file.Key].length;
 
