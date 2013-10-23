@@ -26,7 +26,7 @@ function redactPatientName(fileContent, dcmFile) {
     //Search for the sequence ( 0010 0010 PN ) that corresponds to the tag and initials of Patient Name
     offset = findOffset(fileContent, [0x10, 0x00, 0x10, 0x00, 0x50, 0x4e]);
     if (offset < 0) {
-        console.log('Could not find patient name in file');
+        console.log('Could not find patient name in file, offset not founded' );
     } else {
         //console.log('Found patient name at offset:', offset);
         var len1 = dataView.getUint8(offset + 6);
@@ -79,6 +79,10 @@ $('#submit_form').on('click', function(evt) {
          $('#bannerjs-emptyfields').removeClass('hide');
          $('#bannerjs-emptyfields').html("Please select some files to upload");
      } else {
+
+         //Disable upload button while the submision
+         $("input[type=submit]").attr("disabled", "disabled");
+
          var data = new FormData();
          data.append('group_value', $('#group_value').val());
 
@@ -86,17 +90,26 @@ $('#submit_form').on('click', function(evt) {
 
          // Also pass a map (filename, Id) to the server
          $.each(Object.keys(files_to_upload), function(i, key) {
-             data.append('notes_' + key, $('#notes_' + files_to_upload[key].id).val());
-             data.append('StudyID_' + key,           files_to_upload[key].StudyID);
-             data.append('SeriesNumber_' + key,      files_to_upload[key].SeriesNumber);
-             data.append('AcquisitionNumber_' + key, files_to_upload[key].AcquisitionNumber);
-             data.append('SeriesInstanceUID_' + key, files_to_upload[key].SeriesInstanceUID);
+             var seriesId = files_to_upload[key].id;
+             console.log('Series ID: ', seriesId);
 
-             $.each(files_to_upload[key], function(j, file) {
-                 data.append('filename_' + file.name, file.id);
-                 data.append('file_key_' + file.name, key);
-                 data.append('files[]', file.content, file.name);
-             });
+             if ($('#checkbox_' + seriesId).is(":checked")){
+                 console.log('Checkbox checked!');
+                 data.append('notes_' + key, $('#notes_' + files_to_upload[key].id).val());
+                 data.append('group-experimet_' + key, $('#group_value').val());
+                 data.append('StudyID_' + key,           files_to_upload[key].StudyID);
+                 data.append('SeriesNumber_' + key,      files_to_upload[key].SeriesNumber);
+                 data.append('AcquisitionNumber_' + key, files_to_upload[key].AcquisitionNumber);
+                 data.append('SeriesInstanceUID_' + key, files_to_upload[key].SeriesInstanceUID);
+
+                 $.each(files_to_upload[key], function(j, file) {
+                     data.append('filename_' + file.name, file.id);
+                     data.append('file_key_' + file.name, key);
+                     data.append('files[]', file.content, file.name);
+                 });
+             } else {
+                 return;
+             }
          });
 
          $.ajax('upload/submit', {
@@ -108,6 +121,7 @@ $('#submit_form').on('click', function(evt) {
              .done( function(data){
                  var response = JSON.parse(data);
                  console.log("Received upload response: ");
+                 $("input[type=submit]").removeAttr("disabled");
 
                  $.each(response.files, updateFileStatus);
              })
@@ -157,7 +171,9 @@ function addFileToList(file) {
     }
 
     file.id = files_to_upload[file.Key].id;
+    console.log( 'File ID: ', file.id );
     files_to_upload[file.Key].push(file);
+
     //console.log('Files to upload:', files_to_upload[file.Key]);
 
     var imagesSubmitted = files_to_upload[file.Key].length;
@@ -241,6 +257,7 @@ function clearFileList() {
     $('#file_list_header').addClass('hide');
     $('#file_header_ignored').addClass('hide');
     $('#result_error').addClass('hide');
+    $('#bannerjs-emptyfields').addClass('hide');
 }
 
 $('#clear_form').on('click', clearFileList);
@@ -312,6 +329,7 @@ function processFile(file, callback) {
         var filelength = file.name.length;
 
         try {
+
             var dcmFile = parseFile(fileContent);
             redactPatientName(fileContent, dcmFile);
             file.status = "Valid File";
@@ -325,7 +343,12 @@ function processFile(file, callback) {
             file.AcquisitionDate = dcmFile.AcquisitionDate;
             file.ImagesInAcquisition = dcmFile.ImagesInAcquisition;
             file.NumberOfTemporalPositions = dcmFile.NumberOfTemporalPositions;
-            file.SlicesPerVolume = dcmFile.SlicesPerVolume;
+
+            //Retrieve SlicesPerVolume by tag:
+            slicesPerVolume_le0 = dcmFile.get_element(0x0021104F).data[0];
+            slicesPerVolume_le1 = 256 * dcmFile.get_element(0x0021104F).data[1];
+            file.SlicesPerVolume = slicesPerVolume_le0 + slicesPerVolume_le1;
+            //console.log('slices per volume (using get_elemet function): ', file.SlicesPerVolume);
 
             file.Key = ['key', file.StudyID, file.SeriesNumber, file.AcquisitionNumber,
                                 file.SeriesInstanceUID].join('-');
