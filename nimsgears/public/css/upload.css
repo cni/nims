@@ -66,6 +66,10 @@ tr.ok {
     background-color: #FFFFCC;
 }
 
+tr.complete {
+    background-color: #99FF99;
+}
+
 tr.error {
     background-color: #FFCCCC;
 }
