@@ -1,58 +1,17 @@
 
-function findOffset(data, seq) {
-    var array = new Int8Array(data);
-
-    for (var i = 0; i < (array.length - seq.length); i++) {
-        var j;
-        for (j = 0; j < seq.length; j++) {
-            if (array[i+j] != seq[j]) {
-                break;
-            }
-        }
-
-        if (j == seq.length) {
-            // We've reached the end of the seq array without break,
-            // I have found a match
-            return i;
-        }
-    }
-
-    return -1;
-}
-
-function redactPatientName(fileContent, dcmFile) {
+// Parse the dicom file from the file content and overwrite
+// the patient name tag with spaces in-place in the buffer
+function redactPatientName(fileContent) {
     var dataView = new DataView(fileContent);
+    var dcmFile = parseFile(fileContent);
 
-    //var name = dcmFile.get_elemet(0x00100010);
-    //console.log('Patients name: ', dcmFile.PatientsName);
+    var patientNameTag = dcmdict["PatientsName"];
+    var patientNameElement = dcmFile.get_element(patientNameTag);
+    var patientNameLength = patientNameElement.vl;
+    var offset = patientNameElement.offset;
 
-    //Search for the sequence ( 0010 0010 PN ) that corresponds to the tag and initials of Patient Name
-    offset = findOffset(fileContent, [0x10, 0x00, 0x10, 0x00, 0x50, 0x4e]);
-    if (offset < 0) {
-        console.log('Could not find patient name in file, offset not founded' );
-    } else {
-        //console.log('Found patient name at offset:', offset);
-        var len1 = dataView.getUint8(offset + 6);
-        var len2 = dataView.getUint8(offset + 7);
-        lenPatientsName = (len2 * 256) + len1;
-
-        var patientName = '';
-        for (var idx = 0; idx < lenPatientsName; idx++) {
-            patientName += String.fromCharCode(dataView.getUint8(offset + 8 + idx));
-        }
-
-        //console.log('Name length: ', lenPatientsName, 'Name:', patientName);
-
-        // Verify that the patient name is the same found by the dicomparser js library
-        if (patientName != dcmFile.PatientsName) {
-            console.error('Could not redact the patient name. Found:', patientName,
-                ' dicomParser:', dcmFile.PatientsName);
-            return;
-        }
-
-        for (var i = 0; i < lenPatientsName; i++) {
-            dataView.setUint8(offset + 8 + i, 0x58);
-        }
+    for (var i = 0; i < patientNameLength; i++) {
+        dataView.setUint8(offset + 8 + i, 0x20);
     }
 }
 
@@ -69,7 +28,6 @@ var files_to_upload = {};
 var id_generator = 0;
 var fileList = []
 
-// Prevent from submit for ajax call. If fields are empty, show error banner. Send data to upload.py.
 $('#submit_form').on('click', function(evt) {
      evt.stopPropagation();
      evt.preventDefault();
@@ -83,58 +41,104 @@ $('#submit_form').on('click', function(evt) {
          $('#bannerjs-emptyfields').removeClass('hide');
          $('#bannerjs-emptyfields').html("Please select some files to upload");
      } else {
-
          //Disable upload button while the submision
          $("input[type=submit]").attr("disabled", "disabled");
 
-         var data = new FormData();
-         data.append('group_value', $('#group_value').val());
-
-         var form = new FormData();
-
          // Also pass a map (filename, Id) to the server
          $.each(Object.keys(files_to_upload), function(i, key) {
-             var seriesId = files_to_upload[key].id;
-             console.log('Series ID: ', seriesId);
-
-             //If series is not checked, do not upload
-             if ($('#checkbox_' + seriesId).is(":checked")){
-                 data.append('notes_' + key, $('#notes_' + files_to_upload[key].id).val());
-                 data.append('group-experimet_' + key, $('#group_value').val());
-                 data.append('StudyID_' + key,           files_to_upload[key].StudyID);
-                 data.append('SeriesNumber_' + key,      files_to_upload[key].SeriesNumber);
-                 data.append('AcquisitionNumber_' + key, files_to_upload[key].AcquisitionNumber);
-                 data.append('SeriesInstanceUID_' + key, files_to_upload[key].SeriesInstanceUID);
-
-                 $.each(files_to_upload[key], function(j, file) {
-                     data.append('filename_' + file.name, file.id);
-                     data.append('file_key_' + file.name, key);
-                     data.append('files[]', file.content, file.name);
-                 });
-             } else {
-                 return;
-             }
+             startUpload(key);
          });
-
-         $.ajax('upload/submit', {
-             data: data,
-             cache: false,
-             contentType: false,
-             processData: false,
-             type: 'POST'})
-             .done( function(data){
-                 var response = JSON.parse(data);
-                 console.log("Received upload response: ");
-                 $("input[type=submit]").removeAttr("disabled");
-
-                 $.each(response.files, updateFileStatus);
-             })
-             .fail( function(data){
-                 $('#result_error').text('Error: ' + data);
-                 $('#result_error').removeClass('hide');
-             });
 	 }
 });
+
+
+function startUpload(key) {
+    $.ajax('upload/start_upload', {
+        cache: false,
+        data: new FormData(),
+        contentType: false,
+        processData: false,
+        type: 'POST' })
+    .done(function(data) {
+        var response = JSON.parse(data);
+        console.log("Received start upload response: ", response);
+
+        if (response.status == true) {
+            // Start uploading the 1st file
+            doUpload(key, 0, response.upload_id);
+        }
+
+        updateStatus(key, 0, response);
+    }).fail( function(data){
+        var response = JSON.parse(data);
+        updateStatus(key, 0, response);
+    });
+}
+
+function doUpload(key, idx, upload_id) {
+    var file = files_to_upload[key][idx];
+
+    // File is open, read the content
+    var fileReader = new FileReader();
+    fileReader.onload = function(evt){
+        // Got the content
+        var content = evt.target.result;
+        redactPatientName(content);
+        var blob = new Blob([content]);
+
+        // Upload this file to the server
+        var data = new FormData();
+        data.append('file', blob, file.name);
+        data.append('upload_id', upload_id);
+
+        $.ajax('upload/upload_file', {
+            data: data,
+            cache: false,
+            contentType: false,
+            processData: false,
+            type: 'POST' })
+        .done( function(data){
+            var response = JSON.parse(data);
+            if (response.status == true) {
+
+                idx += 1;
+                if (idx == files_to_upload[key].length) {
+                    console.log("Finished uploading files for key", key);
+                    endUpload(key, upload_id);
+                } else {
+                    doUpload(key, idx, upload_id);
+                }
+            }
+
+            updateStatus(key, idx, response);
+        })
+        .fail( function(data){
+            updateStatus(key, idx, {'message' : 'File upload failed'});
+        });
+    }
+
+    fileReader.readAsArrayBuffer(file);
+}
+
+function endUpload(key, upload_id) {
+    var data = {};
+    var series = files_to_upload[key];
+    data['SeriesInstanceUID'] = series.SeriesInstanceUID;
+    data['GroupValue'] = $('#group_value').val();
+    data['Notes'] = $('#notes_' + series.id).val();
+    data['upload_id'] = upload_id;
+
+    $.post( "upload/end_upload", data)
+        .done(function(data) {
+            var response = JSON.parse(data);
+            console.log("Received end upload response: ", response);
+            updateStatus(key, files_to_upload[key].length, response);
+        })
+        .fail( function(data){
+            var response = JSON.parse(data);
+            updateStatus(key, files_to_upload[key].length, response);
+        });
+}
 
 // Add a file to the bottom list of file in the page
 function addFileToList(file) {
@@ -174,16 +178,35 @@ function addFileToList(file) {
         $('#file_list').append(output.join(''));
     }
 
-    if ( $.inArray(file.name, fileList) == -1 ){
+    if ($.inArray(file.name, fileList) == -1) {
+        // File is not already listed in the page
         fileList.push(file.name);
         file.id = files_to_upload[file.Key].id;
         files_to_upload[file.Key].push(file);
     } else {
+        // Ignoring duplicate file
         return;
     }
 
+    adjustImagesInAcquisition(file);
+
     var imagesSubmitted = files_to_upload[file.Key].length;
 
+    if (imagesSubmitted == file.ImagesInAcquisition) {
+        $('#count_' + file.id).html("<b>" + imagesSubmitted + "</b>" + '/' +
+            file.ImagesInAcquisition);
+    } else {
+        $('#count_' + file.id).html("<b style='color:red;'>" + imagesSubmitted + "</b>" +
+            '/' + file.ImagesInAcquisition);
+    }
+
+    files_to_upload[file.Key].totalSize += file.size;
+    $('#size_' + file.id).html(humanFileSize(files_to_upload[file.Key].totalSize));
+}
+
+// Perform a more precise evaluation of the total number
+// of images in the serie
+function adjustImagesInAcquisition(file) {
     if (file.ImagesInAcquisition == undefined) {
         file.ImagesInAcquisition = 0;
     }
@@ -199,33 +222,20 @@ function addFileToList(file) {
     if (file.SlicesPerVolume == file.ImagesInAcquisition) {
         file.ImagesInAcquisition = file.SlicesPerVolume * file.NumberOfTemporalPositions;
     }
-
-    if (imagesSubmitted == file.ImagesInAcquisition) {
-        $('#count_' + file.id).html("<b>" + imagesSubmitted + "</b>" + '/' + file.ImagesInAcquisition);
-    } else {
-        $('#count_' + file.id).html("<b style='color:red;'>" + imagesSubmitted + "</b>" + '/' + file.ImagesInAcquisition);
-    }
-
-    files_to_upload[file.Key].totalSize += file.size;
-    $('#size_' + file.id).html(humanFileSize(files_to_upload[file.Key].totalSize));
 }
 
 function addToIgnoredFilesList(file) {
-    if (file.name.substring(0,1) == '.'){
-        return;
-    }else{
-        var output = [];
-        $('#file_header_ignored').removeClass('hide');
+    var output = [];
+    $('#file_header_ignored').removeClass('hide');
 
-        output.push('<tr style="text-align:center; color:#bbb;"> \
+    output.push('<tr style="text-align:center; color:#bbb;"> \
                      <td><strong>', file.name, '</strong></td> \
                      <td>', file.type || "n/a", '</td> \
                      <td>', file.size, '</td> \
                      <td class="status">', file.status, '</td> \
                  </tr>');
 
-        $('#file_list_ignored').append(output.join(''));
-    }
+    $('#file_list_ignored').append(output.join(''));
 }
 
 function isFilesToUploadEmpty() {
@@ -240,20 +250,23 @@ function isFilesToUploadEmpty() {
     return isEmpty;
 }
 
-function updateFileStatus(idx, fileResult) {
+function updateStatus(key, uploaded, result) {
     //console.log('Updating file status for ', fileResult.filename);
+    var totalFiles = files_to_upload[key].length;
+    var id = files_to_upload[key].id;
 
-    // Hide the 'remove' button since the file has been already processed
-    $('#' + fileResult.id + ' td img').remove();
-
-    if (fileResult.status == true) {
+    if (result.status == true) {
         // File was uploaded and processed correctly
-        $('#' + fileResult.id).addClass('ok');
-        $('#' + fileResult.id + ' td:last').html(fileResult.message);
+        if (uploaded == totalFiles) {
+            $('#' + id).addClass('complete');
+        } else {
+            $('#' + id).addClass('ok');
+        }
     } else {
-        $('#' + fileResult.id).addClass('error');
-        $('#' + fileResult.id + ' td:last').html(fileResult.message);
+        $('#' + id).addClass('error');
     }
+
+    $('#' + id + ' td:last').html(uploaded + '/' + totalFiles + ' ' + result.message);
 }
 
 function clearFileList() {
@@ -264,6 +277,7 @@ function clearFileList() {
     $('#file_header_ignored').addClass('hide');
     $('#result_error').addClass('hide');
     $('#bannerjs-emptyfields').addClass('hide');
+    $("input[type=submit]").removeAttr("disabled");
 }
 
 $('#clear_form').on('click', clearFileList);
@@ -284,8 +298,9 @@ $("input:checkbox").live('click', function(){
 function handleDnDSelect(evt) {
     evt.stopPropagation();
     evt.preventDefault();
-
-    //console.log("handle DND event: " + evt.type);
+    var pendingDirectories = evt.originalEvent.dataTransfer.items.length;
+    //Disable upload button while the DnD processing
+    $("input[type=submit]").attr("disabled", "disabled");
 
     $.each(evt.originalEvent.dataTransfer.items, function(idx, item){
         var entry;
@@ -301,8 +316,14 @@ function handleDnDSelect(evt) {
             console.log("Done traversing file tree for ", entry.name, ' Found files: ', fileList.length);
 
             // Now process each file sequentially
-            async.mapSeries(fileList, openFile, function(err, resultList){
-                console.log('Done processing files list - Got results: ', resultList.length);
+            async.mapSeries(fileList, openFile, function(err, resultList) {
+                //Decrement pending every time we are done processin files in a
+                //directory
+                --pendingDirectories;
+                if (pendingDirectories == 0) {
+                    //Enable upload button while the submision
+                    $("input[type=submit]").removeAttr("disabled");
+                }
             });
         });
     });
@@ -325,7 +346,11 @@ function openFile(fileEntry, callback) {
 }
 
 function processFile(file, callback) {
-    // console.log("Opened file " + file.name);
+    if (file.name.substring(0,1) == '.') {
+        // Ignoring hidden files
+        callback(null, file);
+        return;
+    }
 
     var fileReader = new FileReader();
     fileReader.onload = function(evt){
@@ -337,7 +362,6 @@ function processFile(file, callback) {
         try {
 
             var dcmFile = parseFile(fileContent);
-            redactPatientName(fileContent, dcmFile);
             file.status = "Valid File";
             file.StudyID = dcmFile.StudyID;
             file.InstanceNumber = dcmFile.InstanceNumber;
@@ -351,23 +375,21 @@ function processFile(file, callback) {
             file.NumberOfTemporalPositions = dcmFile.NumberOfTemporalPositions;
 
             //Retrieve SlicesPerVolume by tag:
-            slicesPerVolume_le0 = dcmFile.get_element(0x0021104F).data[0];
-            slicesPerVolume_le1 = 256 * dcmFile.get_element(0x0021104F).data[1];
+            var SLICES_PER_VOLUME_TAG = 0x0021104F;
+            slicesPerVolume_le0 = dcmFile.get_element(SLICES_PER_VOLUME_TAG).data[0];
+            slicesPerVolume_le1 = 256 * dcmFile.get_element(SLICES_PER_VOLUME_TAG).data[1];
             file.SlicesPerVolume = slicesPerVolume_le0 + slicesPerVolume_le1;
             //console.log('slices per volume (using get_elemet function): ', file.SlicesPerVolume);
 
             file.Key = ['key', file.StudyID, file.SeriesNumber, file.AcquisitionNumber,
                                 file.SeriesInstanceUID].join('-');
 
-            var blob = new Blob([fileContent]);
-            file.content = blob;
-
             // Add the file to table of files in the page
             addFileToList(file);
             callback(null, file);
 
         } catch (err) {
-            console.log('Error parsing dicom file:', err);
+            console.log('Error parsing dicom file:', err, 'file Name: ', file.name);
             console.dir(err);
             // Could not parse the dicom file
             file.status = "Not valid";
@@ -437,15 +459,17 @@ function loadinput(evt){
 }
 
 function handleFileInputSelect(evt) {
-     evt.stopPropagation();
-     evt.preventDefault();
+    evt.stopPropagation();
+    evt.preventDefault();
 
-     var files = evt.target.files;
-//     console.log('Handle File Input select:', files);
+    var files = evt.target.files;
+    console.log('Handle File Input select:', files);
 
 	// Read and parse each selected file
     $.each(files, function(idx, file) {
-		processFile(file);
+		processFile(file, function() {
+		    // Done
+		});
     });
 }
 
