@@ -318,7 +318,8 @@ class NIMSPFile(NIMSRaw):
     def convert(self, outbase, tempdir=None, num_jobs=8, aux_files=None):
         self.load_all_metadata()
         self.aux_files = aux_files
-        self.get_imagedata(tempdir, num_jobs)
+        if self.imagedata is None:
+            self.get_imagedata(tempdir, num_jobs)
         result = (None, None)
         if self.imagedata is not None:  # catches, for example, HO Shims
             if self.reverse_slice_order:
