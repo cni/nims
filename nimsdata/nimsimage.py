@@ -155,7 +155,7 @@ class NIMSImage(nimsdata.NIMSData):
     datatype = u'mri'
 
     epoch_fields = nimsdata.NIMSData.epoch_fields + [
-            ('psd', 'psd'),
+            ('psd', 'psd_name'),
             ('tr', 'tr'),
             ('te', 'te'),
             ('ti', 'ti'),
@@ -194,6 +194,10 @@ class NIMSImage(nimsdata.NIMSData):
 
     @abc.abstractmethod
     def get_imagedata(self):
+        pass
+
+    @abc.abstractmethod
+    def prep_convert(self, *args, **kwargs):
         pass
 
     @abc.abstractmethod
