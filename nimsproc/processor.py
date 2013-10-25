@@ -256,7 +256,21 @@ class PFilePipeline(Pipeline):
                         pf = None
                     else:
                         break
-            conv_type, conv_file = pf.convert(os.path.join(outputdir, ds.container.name), self.tempdir, self.max_recon_jobs) if pf else (None, None)
+
+            if pf is not None:
+                criteria = pf.prep_convert()
+                if criteria != None:
+                    q = Epoch.query.filter(Epoch.session==self.job.data_container.session)
+                    for fieldname,value in criteria.iteritems():
+                        q = q.filter(getattr(Epoch,fieldname)==unicode(value))
+                    epochs = q.all()
+                    aux_files = [os.path.join(self.nims_path, e.primary_dataset.relpath, f) for e in epochs for f in e.primary_dataset.filenames if f.startswith('P')]
+                    self.job.activity = (u'Found %d aux files: %s' % (len(aux_files), (', '.join([f for f in aux_files])))[:255])
+                    log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                else
+                    aux_files = None
+
+                conv_type, conv_file = pf.convert(os.path.join(outputdir, ds.container.name), self.tempdir, self.max_recon_jobs, aux_files)
 
             if conv_file:
                 outputdir_list = os.listdir(outputdir)
