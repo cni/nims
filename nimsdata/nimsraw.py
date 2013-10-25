@@ -428,8 +428,8 @@ class NIMSPFile(NIMSRaw):
         if len(cal_file)>0:
             cal_compressed = is_compressed(cal_file)
             cal_basename = cal_file[:-3] if cal_compressed else cal_file
-            cal_ref_file  = os.path.join(self.dirpath, '_'+cal_file+'_ref.dat')
-            cal_vrgf_file = os.path.join(self.dirpath, '_'+cal_file+'_vrgf.dat')
+            cal_ref_file  = os.path.join(os.path.dirname(cal_basename), '_'+os.path.basename(cal_basename)+'_ref.dat')
+            cal_vrgf_file = os.path.join(os.path.dirname(cal_basename), '_'+os.path.basename(cal_basename)+'_vrgf.dat')
         else:
             cal_compressed = False
             cal_ref_file = []
@@ -469,7 +469,7 @@ class NIMSPFile(NIMSRaw):
                 if num_running_jobs < num_jobs:
                     # Recon each slice separately. Note the slice_num+1 to deal with matlab's 1-indexing.
                     # Use 'str' on timepoints so that an empty array will produce '[]'
-                    cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", %s, %d, %s, %d);\''
+                    cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", "%s", %d, %s, %d);\''
                         % (octave_bin, recon_path, pfile_path, outname, slice_num, str(cal_file), slice_num + 1, str(timepoints), self.num_vcoils))
                     log.debug(cmd)
                     mux_recon_jobs.append(subprocess.Popen(args=shlex.split(cmd), stdout=open('/dev/null', 'w')))
