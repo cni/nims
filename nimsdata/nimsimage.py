@@ -196,7 +196,6 @@ class NIMSImage(nimsdata.NIMSData):
     def get_imagedata(self):
         pass
 
-    @abc.abstractmethod
     def prep_convert(self, *args, **kwargs):
         pass
 
