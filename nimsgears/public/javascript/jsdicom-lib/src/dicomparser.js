@@ -88,6 +88,7 @@ DicomParser.prototype.parse_file = function() {
     // Parse Dicom-Data-Set
     while(offset + 6 < this.buffer.length) {
         var data_element = new DataElement(little_endian);
+        data_element.offset = offset;
 
         offset = element_reader.read_element(this.buffer, offset, data_element);
         file.data_elements[data_element.tag] = data_element;
