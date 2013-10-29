@@ -115,6 +115,8 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.total_num_slices = getelem(self._hdr, 'ImagesInAcquisition', int, 0)
         self.num_slices = getelem(self._hdr, TAG_SLICES_PER_VOLUME, int, 1)
         self.num_timepoints = getelem(self._hdr, 'NumberOfTemporalPositions', int, self.total_num_slices / self.num_slices)
+        if self.total_num_slices == self.num_slices:
+            self.total_num_slices = self.num_slices * self.num_timepoints
         self.num_averages = getelem(self._hdr, 'NumberOfAverages', int, 1)
         self.num_echos = getelem(self._hdr, 'EchoNumbers', int, 1)
         self.receive_coil_name = getelem(self._hdr, 'ReceiveCoilName', None, 'unknown')
