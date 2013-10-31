@@ -44,7 +44,7 @@ class UploadController(NimsController):
 
     @expose()
     def end_upload(self, upload_id,
-                    SeriesInstanceUID, GroupValue, Notes):
+                    SeriesInstanceUID, AcquisitionNumber, GroupValue, Notes):
 
         self.verify_user(upload_id)
 
@@ -57,7 +57,7 @@ class UploadController(NimsController):
         summary['Date'] = str(date.today())
         summary['User'] = self.get_user().uid
         summary['Notes'] = Notes
-        json_path = os.path.join( tmp_upload_directory, 'summary.json')
+        json_path = os.path.join( tmp_upload_directory, SeriesInstanceUID + AcquisitionNumber + '.json')
         out = open(json_path, 'w')
         json.dump(summary, out, indent=True)
         out.close()

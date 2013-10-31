@@ -63,15 +63,15 @@ img.clickable {
 }
 
 tr.ok {
-    background-color: #FFFFCC;
+    background-color: #D2C295;
 }
 
 tr.complete {
-    background-color: #99FF99;
+    background-color: #C7D1C5;
 }
 
 tr.error {
-    background-color: #FFCCCC;
+    background-color: #ED8181;
 }
 
 #information{

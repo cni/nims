@@ -1,17 +1,31 @@
 
 // Parse the dicom file from the file content and overwrite
 // the patient name tag with spaces in-place in the buffer
-function redactPatientName(fileContent) {
+function redactIdentityInformation(fileContent) {
     var dataView = new DataView(fileContent);
     var dcmFile = parseFile(fileContent);
 
+    // Overwrite Patient name with spaces
     var patientNameTag = dcmdict["PatientsName"];
     var patientNameElement = dcmFile.get_element(patientNameTag);
     var patientNameLength = patientNameElement.vl;
-    var offset = patientNameElement.offset;
+    var offsetName = patientNameElement.offset;
 
     for (var i = 0; i < patientNameLength; i++) {
-        dataView.setUint8(offset + 8 + i, 0x20);
+        dataView.setUint8(offsetName + 8 + i, 0x20);
+    }
+
+    // Set the patient birth day always to the 15th of the month
+    var patientBirthTag = dcmdict["PatientsBirthDate"];
+    var patientBirthElement = dcmFile.get_element(patientBirthTag);
+    if (patientBirthElement) {
+        var patientBirthDateLength = patientBirthElement.vl;
+        var offsetBirth = patientBirthElement.offset;
+
+        if (patientBirthDateLength == 8) {
+            dataView.setUint8(offsetBirth + 8 + 6, 0x31);
+            dataView.setUint8(offsetBirth + 8 + 7, 0x35);
+        }
     }
 }
 
@@ -26,7 +40,8 @@ function parseFile(fileContent){
 
 var files_to_upload = {};
 var id_generator = 0;
-var fileList = []
+var fileMap = {};
+var pendingUploadsSeries = 0;
 
 $('#submit_form').on('click', function(evt) {
      evt.stopPropagation();
@@ -41,12 +56,20 @@ $('#submit_form').on('click', function(evt) {
          $('#bannerjs-emptyfields').removeClass('hide');
          $('#bannerjs-emptyfields').html("Please select some files to upload");
      } else {
-         //Disable upload button while the submision
+         // Disable upload button while the upload is running
          $("input[type=submit]").attr("disabled", "disabled");
+         disableDnd();
+         console.time("uploadTimer");
 
          // Also pass a map (filename, Id) to the server
          $.each(Object.keys(files_to_upload), function(i, key) {
-             startUpload(key);
+             var seriesId = files_to_upload[key].id;
+
+             if ($('#checkbox_' + seriesId).is(":checked")) {
+                 console.log('Uploading Files for the key: ', key);
+                 startUpload(key);
+                 pendingUploadsSeries++;
+             }
          });
 	 }
 });
@@ -83,7 +106,7 @@ function doUpload(key, idx, upload_id) {
     fileReader.onload = function(evt){
         // Got the content
         var content = evt.target.result;
-        redactPatientName(content);
+        redactIdentityInformation(content);
         var blob = new Blob([content]);
 
         // Upload this file to the server
@@ -126,6 +149,7 @@ function endUpload(key, upload_id) {
     data['SeriesInstanceUID'] = series.SeriesInstanceUID;
     data['GroupValue'] = $('#group_value').val();
     data['Notes'] = $('#notes_' + series.id).val();
+    data['AcquisitionNumber'] = series.AcquisitionNumber;
     data['upload_id'] = upload_id;
 
     $.post( "upload/end_upload", data)
@@ -133,6 +157,11 @@ function endUpload(key, upload_id) {
             var response = JSON.parse(data);
             console.log("Received end upload response: ", response);
             updateStatus(key, files_to_upload[key].length, response);
+            pendingUploadsSeries--;
+            if (pendingUploadsSeries == 0) {
+                console.log("Finished Upload in all series");
+                console.timeEnd('uploadTimer');
+            }
         })
         .fail( function(data){
             var response = JSON.parse(data);
@@ -149,6 +178,8 @@ function addFileToList(file) {
         //Make visible the table
         $('#table_scrollable').removeClass('hide');
 
+        adjustImagesInAcquisition(file);
+
         // Add our generatered id to the file object
         var id = '_' + (id_generator++);
         files_to_upload[file.Key].id = id;
@@ -157,6 +188,7 @@ function addFileToList(file) {
         files_to_upload[file.Key].SeriesNumber = file.SeriesNumber;
         files_to_upload[file.Key].AcquisitionNumber = file.AcquisitionNumber;
         files_to_upload[file.Key].SeriesInstanceUID = file.SeriesInstanceUID;
+        files_to_upload[file.Key].ImagesInAcquisition = file.ImagesInAcquisition;
 
         var year = file.AcquisitionDate.substring(0, 4);
         var month = file.AcquisitionDate.substring(4, 6);
@@ -165,9 +197,9 @@ function addFileToList(file) {
         $('#file_list_header').removeClass('hide');
         var output = [];
         output.push('<tr id="', id, '" style="text-align:center"> \
-                        <td>', year + '-' + month + '-' + day , '</td> \
+                        <td>', year, '-',  month, '-', day , '</td> \
                         <td><strong>', file.StudyID , '</strong></td> \
-                        <td>', file.SeriesNumber + '.' + file.AcquisitionNumber || 'n/a', '</td> \
+                        <td>', file.SeriesNumber, '.', file.AcquisitionNumber || 'n/a', '</td> \
                         <td size="200">', file.SeriesDescription, '</td> \
                         <td id="count_', id, '">', '</td> \
                         <td id="size_', id, '">', '</td> \
@@ -176,32 +208,51 @@ function addFileToList(file) {
                     </tr>');
 
         $('#file_list').append(output.join(''));
+        var key = file.Key;
+
+        // Set a timer to upload the status every 1s
+        files_to_upload[key].timer = setInterval(updateFilesSubmitted.bind(this, key), 1000);
+
+        // Update the status the 1st time
+        updateFilesSubmitted(key);
     }
 
-    if ($.inArray(file.name, fileList) == -1) {
-        // File is not already listed in the page
-        fileList.push(file.name);
-        file.id = files_to_upload[file.Key].id;
-        files_to_upload[file.Key].push(file);
-    } else {
+    if (fileMap[file.name] == true) {
         // Ignoring duplicate file
         return;
-    }
-
-    adjustImagesInAcquisition(file);
-
-    var imagesSubmitted = files_to_upload[file.Key].length;
-
-    if (imagesSubmitted == file.ImagesInAcquisition) {
-        $('#count_' + file.id).html("<b>" + imagesSubmitted + "</b>" + '/' +
-            file.ImagesInAcquisition);
     } else {
-        $('#count_' + file.id).html("<b style='color:red;'>" + imagesSubmitted + "</b>" +
-            '/' + file.ImagesInAcquisition);
+        // File is not already listed in the page
+        fileMap[file.name] = true;
+        file.id = files_to_upload[file.Key].id;
+        files_to_upload[file.Key].push(file);
+
+        files_to_upload[file.Key].totalSize += file.size;
+
+        // If last file, update the page immediately
+        if (files_to_upload[file.Key].length == files_to_upload[file.Key].ImagesInAcquisition) {
+            updateFilesSubmitted(file.Key);
+        }
+    }
+}
+
+function updateFilesSubmitted(key) {
+    var imagesInAcquisition = files_to_upload[key].ImagesInAcquisition;
+    var id = files_to_upload[key].id;
+    var imagesSubmitted = files_to_upload[key].length;
+
+    if (imagesSubmitted < imagesInAcquisition) {
+        $('#count_' + id).html("<b style='color:red;'>" + imagesSubmitted + "</b>" +
+        '/' + imagesInAcquisition);
+    } else {
+        // All the files for the series have been added
+        $('#count_' + id).html("<b>" + imagesSubmitted + "</b>" + '/' +
+            imagesInAcquisition);
+
+        clearInterval(files_to_upload[key].timer);
     }
 
-    files_to_upload[file.Key].totalSize += file.size;
-    $('#size_' + file.id).html(humanFileSize(files_to_upload[file.Key].totalSize));
+
+    $('#size_' + id).html(humanFileSize(files_to_upload[key].totalSize));
 }
 
 // Perform a more precise evaluation of the total number
@@ -271,6 +322,7 @@ function updateStatus(key, uploaded, result) {
 
 function clearFileList() {
     files_to_upload = {};
+    fileMap = {};
     $('#file_list').html('');
     $('#file_list_ignored').html('');
     $('#file_list_header').addClass('hide');
@@ -278,6 +330,8 @@ function clearFileList() {
     $('#result_error').addClass('hide');
     $('#bannerjs-emptyfields').addClass('hide');
     $("input[type=submit]").removeAttr("disabled");
+
+    enableDnd();
 }
 
 $('#clear_form').on('click', clearFileList);
@@ -476,14 +530,41 @@ function handleFileInputSelect(evt) {
 $('#files').on('change', handleFileInputSelect);
 
 // Setup the dnd listeners.
-$('#drop_zone').on('dragenter', handleDragEnter);
-$('#drop_zone').on('dragover', handleDragOver);
-$('#drop_zone').on('dragleave', handleDragLeave);
-$('#drop_zone').on('drop', handleDnDSelect);
-$('#drop_zone').on('click', loadinput);
 
+function enableDnd() {
+    $('#drop_zone').on('dragenter', handleDragEnter);
+    $('#drop_zone').on('dragover', handleDragOver);
+    $('#drop_zone').on('dragleave', handleDragLeave);
+    $('#drop_zone').on('drop', handleDnDSelect);
+    $('#drop_zone').on('click', loadinput);
+}
 
+function disableDnd() {
+    $('#drop_zone').off('dragenter');
+    $('#drop_zone').off('dragover');
+    $('#drop_zone').off('dragleave');
+    $('#drop_zone').off('drop');
+    $('#drop_zone').off('click');
 
+    $('#drop_zone').on('dragenter', function(evt) {
+            evt.stopPropagation();
+            evt.preventDefault();
+    });
+    $('#drop_zone').on('dragover', function(evt) {
+        evt.stopPropagation();
+        evt.preventDefault();
+    });
+    $('#drop_zone').on('dragleave', function(evt) {
+        evt.stopPropagation();
+        evt.preventDefault();
+    });
+    $('#drop_zone').on('drop', function(evt) {
+        evt.stopPropagation();
+        evt.preventDefault();
+    });
+}
+
+enableDnd();
 
 // Utils
 
