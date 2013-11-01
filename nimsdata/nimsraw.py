@@ -433,8 +433,11 @@ class NIMSPFile(NIMSRaw):
             cal_vrgf_file = os.path.join(os.path.dirname(cal_basename), '_'+os.path.basename(cal_basename)+'_vrgf.dat')
         else:
             cal_compressed = False
-            cal_ref_file = []
-            cal_vrgf_file = []
+            cal_ref_file = ''
+            cal_vrgf_file = ''
+        # Make sure we return an empty string when none is found.
+        if not cal_file:
+            cal_file = ''
         return cal_file,cal_ref_file,cal_vrgf_file,cal_compressed
 
     def recon_mux_epi(self, tempdir, num_jobs, timepoints=[], octave_bin='octave'):
@@ -471,7 +474,7 @@ class NIMSPFile(NIMSRaw):
                     # Recon each slice separately. Note the slice_num+1 to deal with matlab's 1-indexing.
                     # Use 'str' on timepoints so that an empty array will produce '[]'
                     cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", "%s", %d, %s, %d);\''
-                        % (octave_bin, recon_path, pfile_path, outname, slice_num, str(cal_file), slice_num + 1, str(timepoints), self.num_vcoils))
+                        % (octave_bin, recon_path, pfile_path, outname, slice_num, cal_file, slice_num + 1, str(timepoints), self.num_vcoils))
                     log.debug(cmd)
                     mux_recon_jobs.append(subprocess.Popen(args=shlex.split(cmd), stdout=open('/dev/null', 'w')))
                     slice_num += 1
