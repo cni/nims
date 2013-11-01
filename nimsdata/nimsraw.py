@@ -453,7 +453,8 @@ class NIMSPFile(NIMSRaw):
         sense_recon = 1 if 'CAIPI' in self.series_desc else 0
 
         with nimsutil.TempDir(dir=tempdir) as temp_dirpath:
-            log.debug('Running %d v-coil mux recon on %s in tempdir %s with %d jobs.' % (self.num_vcoils, self.filepath, tempdir, num_jobs))
+            log.debug('Running %d v-coil mux recon on %s in tempdir %s with %d jobs (sense=%d).'
+                    % (self.num_vcoils, self.filepath, tempdir, num_jobs, sense_recon))
             if self.compressed:
                 shutil.copy(ref_file, os.path.join(temp_dirpath, os.path.basename(ref_file)))
                 shutil.copy(vrgf_file, os.path.join(temp_dirpath, os.path.basename(vrgf_file)))
