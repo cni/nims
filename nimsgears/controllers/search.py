@@ -22,7 +22,8 @@ def is_ascii(s):
         return False
 
 def is_date(s):
-    if bool(re.compile(r'\s*\d+\d+').match(s)):
+    # date format: yyyy-mm-dd
+    if bool(re.compile(r'^(19|20|21)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])').match(s)):
         return True
     else:
         return False
@@ -55,6 +56,8 @@ def query_date_from(db_query, query_value):
     return db_query.filter(Session.timestamp >= query_value)
 
 def query_date_to(db_query, query_value):
+    # Extend the parameter to include the whole day
+    query_value += ' 23:59:59'
     if not is_date(query_value):
         raise Exception
     return db_query.filter(Session.timestamp <= query_value)
