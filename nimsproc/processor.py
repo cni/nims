@@ -265,9 +265,9 @@ class PFilePipeline(Pipeline):
                         q = q.filter(getattr(Epoch,fieldname)==unicode(value))
                     epochs = q.all()
                     aux_files = [os.path.join(self.nims_path, e.primary_dataset.relpath, f) for e in epochs for f in e.primary_dataset.filenames if f.startswith('P')]
-                    self.job.activity = (u'Found %d aux files: %s' % (len(aux_files), (', '.join([f for f in aux_files])))[:255])
+                    self.job.activity = (u'Found %d aux files: %s' % (len(aux_files), (', '.join([os.path.basename(f) for f in aux_files]))))[:255]
                     log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                else
+                else:
                     aux_files = None
 
                 conv_type, conv_file = pf.convert(os.path.join(outputdir, ds.container.name), self.tempdir, self.max_recon_jobs, aux_files)
