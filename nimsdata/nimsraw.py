@@ -449,6 +449,8 @@ class NIMSPFile(NIMSRaw):
             raise NIMSPFileError('dat files not found')
         # See if external calibration data files are needed:
         cal_file,cal_ref_file,cal_vrgf_file,cal_compressed = self.find_mux_cal_file()
+        # HACK to force SENSE recon for caipi data
+        sense_recon = 1 if 'CAIPI' in self.series_desc else 0
 
         with nimsutil.TempDir(dir=tempdir) as temp_dirpath:
             log.debug('Running %d v-coil mux recon on %s in tempdir %s with %d jobs.' % (self.num_vcoils, self.filepath, tempdir, num_jobs))
@@ -473,8 +475,8 @@ class NIMSPFile(NIMSRaw):
                 if num_running_jobs < num_jobs:
                     # Recon each slice separately. Note the slice_num+1 to deal with matlab's 1-indexing.
                     # Use 'str' on timepoints so that an empty array will produce '[]'
-                    cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", "%s", %d, %s, %d);\''
-                        % (octave_bin, recon_path, pfile_path, outname, slice_num, cal_file, slice_num + 1, str(timepoints), self.num_vcoils))
+                    cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", "%s", %d, %s, %d, 0, %d);\''
+                        % (octave_bin, recon_path, pfile_path, outname, slice_num, cal_file, slice_num + 1, str(timepoints), self.num_vcoils, sense_recon))
                     log.debug(cmd)
                     mux_recon_jobs.append(subprocess.Popen(args=shlex.split(cmd), stdout=open('/dev/null', 'w')))
                     slice_num += 1
