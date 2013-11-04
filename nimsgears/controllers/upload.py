@@ -63,7 +63,7 @@ class UploadController(NimsController):
         out.close()
 
         # Finalize the upload by moving the directory in its final destination
-        final_upload_path =  'uploads/%s' % (upload_id)
+        final_upload_path = 'uploads/%s' % (upload_id)
         os.rename(tmp_upload_directory, final_upload_path)
 
         result = {'status' : True, 'message' : 'Upload complete'}
