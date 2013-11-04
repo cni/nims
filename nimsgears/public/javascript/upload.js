@@ -8,11 +8,13 @@ function redactIdentityInformation(fileContent) {
     // Overwrite Patient name with spaces
     var patientNameTag = dcmdict["PatientsName"];
     var patientNameElement = dcmFile.get_element(patientNameTag);
-    var patientNameLength = patientNameElement.vl;
-    var offsetName = patientNameElement.offset;
+    if (patientNameElement) {
+        var patientNameLength = patientNameElement.vl;
+        var offsetName = patientNameElement.offset;
 
-    for (var i = 0; i < patientNameLength; i++) {
-        dataView.setUint8(offsetName + 8 + i, 0x20);
+        for (var i = 0; i < patientNameLength; i++) {
+            dataView.setUint8(offsetName + 8 + i, 0x20);
+        }
     }
 
     // Set the patient birth day always to the 15th of the month
@@ -41,7 +43,6 @@ function parseFile(fileContent){
 var files_to_upload = {};
 var id_generator = 0;
 var fileMap = {};
-var pendingUploadsSeries = 0;
 
 $('#submit_form').on('click', function(evt) {
      evt.stopPropagation();
@@ -61,21 +62,42 @@ $('#submit_form').on('click', function(evt) {
          disableDnd();
          console.time("uploadTimer");
 
-         // Also pass a map (filename, Id) to the server
-         $.each(Object.keys(files_to_upload), function(i, key) {
+         var upload_list = []
+
+         // The first step is to call startUpload for each series
+         async.each(Object.keys(files_to_upload), function(key, callback) {
              var seriesId = files_to_upload[key].id;
 
              if ($('#checkbox_' + seriesId).is(":checked")) {
-                 console.log('Uploading Files for the key: ', key);
-                 startUpload(key);
-                 pendingUploadsSeries++;
+                 startUpload(key, callback);
+                 //Error_checked: Upload list tiene los elementos que hemos marcado en el checked
+                 upload_list = upload_list.concat(files_to_upload[key]);
+             }  else {
+                 callback();
              }
+         }, function(err) {
+             // This is called when all the startUpload calls are done
+             if (err) {
+                 console.log("Start uploads error:", err);
+                 return;
+             }
+
+             // Upload all the files, 3 at once
+             async.eachLimit(upload_list, 3, doUpload, function(err) {
+                // Finished uploading all the files from every series
+                console.log("All uploads finished");
+
+                // Call end upload for each series
+                async.each(Object.keys(files_to_upload), endUpload, function(err) {
+                    console.log("EndUploads finished on all the series");
+                    console.timeEnd('uploadTimer');
+                });
+             });
          });
 	 }
 });
 
-
-function startUpload(key) {
+function startUpload(key, callback) {
     $.ajax('upload/start_upload', {
         cache: false,
         data: new FormData(),
@@ -86,20 +108,24 @@ function startUpload(key) {
         var response = JSON.parse(data);
         console.log("Received start upload response: ", response);
 
-        if (response.status == true) {
-            // Start uploading the 1st file
-            doUpload(key, 0, response.upload_id);
-        }
+        files_to_upload[key].upload_id = response.upload_id;
+        files_to_upload[key].uploaded = 0;
+        updateStatus(key, response);
 
-        updateStatus(key, 0, response);
+        if (response.status == true) {
+            callback();
+        } else {
+            callback(response.message);
+        }
     }).fail( function(data){
         var response = JSON.parse(data);
-        updateStatus(key, 0, response);
+        updateStatus(key, response);
+        callback(response.message);
     });
 }
 
-function doUpload(key, idx, upload_id) {
-    var file = files_to_upload[key][idx];
+function doUpload(file, callback) {
+    var key = file.Key;
 
     // File is open, read the content
     var fileReader = new FileReader();
@@ -112,7 +138,7 @@ function doUpload(key, idx, upload_id) {
         // Upload this file to the server
         var data = new FormData();
         data.append('file', blob, file.name);
-        data.append('upload_id', upload_id);
+        data.append('upload_id', files_to_upload[key].upload_id);
 
         $.ajax('upload/upload_file', {
             data: data,
@@ -122,30 +148,38 @@ function doUpload(key, idx, upload_id) {
             type: 'POST' })
         .done( function(data){
             var response = JSON.parse(data);
+
             if (response.status == true) {
-
-                idx += 1;
-                if (idx == files_to_upload[key].length) {
-                    console.log("Finished uploading files for key", key);
-                    endUpload(key, upload_id);
-                } else {
-                    doUpload(key, idx, upload_id);
-                }
+                // File was successfully uploaded
+                files_to_upload[key].uploaded += 1;
+                updateStatus(key, response);
+                callback();
+            } else {
+                updateStatus(key, response);
+                callback(response.message);
             }
-
-            updateStatus(key, idx, response);
         })
         .fail( function(data){
-            updateStatus(key, idx, {'message' : 'File upload failed'});
+            updateStatus(key, {'message' : 'File upload failed'});
+            callback('File upload failed');
         });
     }
 
     fileReader.readAsArrayBuffer(file);
 }
 
-function endUpload(key, upload_id) {
+function endUpload(key, callback) {
+    console.log('EndUpload:', key);
     var data = {};
     var series = files_to_upload[key];
+    var upload_id = files_to_upload[key].upload_id;
+
+    if ($('#checkbox_' + files_to_upload[key].id)) {
+        // If the series was not selected for upload, ignore it
+        callback();
+        return;
+    }
+
     data['SeriesInstanceUID'] = series.SeriesInstanceUID;
     data['GroupValue'] = $('#group_value').val();
     data['Notes'] = $('#notes_' + series.id).val();
@@ -157,15 +191,12 @@ function endUpload(key, upload_id) {
             var response = JSON.parse(data);
             console.log("Received end upload response: ", response);
             updateStatus(key, files_to_upload[key].length, response);
-            pendingUploadsSeries--;
-            if (pendingUploadsSeries == 0) {
-                console.log("Finished Upload in all series");
-                console.timeEnd('uploadTimer');
-            }
+            callback();
         })
         .fail( function(data){
             var response = JSON.parse(data);
             updateStatus(key, files_to_upload[key].length, response);
+            callback(response.message);
         });
 }
 
@@ -211,7 +242,7 @@ function addFileToList(file) {
         var key = file.Key;
 
         // Set a timer to upload the status every 1s
-        files_to_upload[key].timer = setInterval(updateFilesSubmitted.bind(this, key), 1000);
+        files_to_upload[key].timer = setInterval(updateFilesSubmitted.bind(this, key), 400);
 
         // Update the status the 1st time
         updateFilesSubmitted(key);
@@ -301,9 +332,10 @@ function isFilesToUploadEmpty() {
     return isEmpty;
 }
 
-function updateStatus(key, uploaded, result) {
-    //console.log('Updating file status for ', fileResult.filename);
+function updateStatus(key, result) {
+    //console.log('Updating file status for ', result);
     var totalFiles = files_to_upload[key].length;
+    var uploaded = files_to_upload[key].uploaded;
     var id = files_to_upload[key].id;
 
     if (result.status == true) {
@@ -317,7 +349,7 @@ function updateStatus(key, uploaded, result) {
         $('#' + id).addClass('error');
     }
 
-    $('#' + id + ' td:last').html(uploaded + '/' + totalFiles + ' ' + result.message);
+    $('#' + id + ' td:last').html(uploaded + '/' + totalFiles + ' ' + (result.message || ''));
 }
 
 function clearFileList() {
@@ -367,7 +399,7 @@ function handleDnDSelect(evt) {
         var fileList = [];
         fileList.pendingOps = 0;
         traverseFileTree(entry, fileList, function() {
-            console.log("Done traversing file tree for ", entry.name, ' Found files: ', fileList.length);
+            //console.log("Done traversing file tree for ", entry.name, ' Found files: ', fileList.length);
 
             // Now process each file sequentially
             async.mapSeries(fileList, openFile, function(err, resultList) {
