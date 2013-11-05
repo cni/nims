@@ -145,6 +145,7 @@ div#bannerpy-content {
 
 .col_access {
 	width: 10%;
+    text-align:center;
 }
 
 .col_sunet {
@@ -152,11 +153,11 @@ div#bannerpy-content {
 }
 
 .col_exp {
-	width: 17%;
+	width: 16%;
 }
 
 .col_datetime {
-	width: 17%;
+	width: 18%;
 }
 
 .col_typescan {
@@ -165,6 +166,10 @@ div#bannerpy-content {
 
 .col_desc {
 	width: 32%;
+}
+
+.col_exam {
+    width: 10%;
 }
 
 #epochs_pop,#datasets_pop {
