@@ -168,27 +168,23 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
     $(document).ready(function() { init(); });
 });
 
-
-var error_ascii = [];
-var error_int = [];
-
-var validation_inputs = {
-    'Subject Name' : is_ascii,
-    'Subject Age' : is_ascii,
-    'Exam' : is_integer,
-    'Operator' : is_ascii,
-    'PSD Name' : is_ascii,
-};
-
 // Validation functions
 function is_ascii(value){
    value = value.trim();
    var pattascii=/^[/\s\.\-/0-9a-zA-Z]*$/;
    if(!pattascii.test(value)){
-       error_ascii.push(value);
        return false;
    }
    return true;
+}
+
+function is_date(value){
+    var pattern = /^(19|20|21)\d\d-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$/;
+    if (value.length > 0 && !pattern.test(value)) {
+        return false;
+    }
+
+    return true;
 }
 
 function is_integer(value){
@@ -197,8 +193,6 @@ function is_integer(value){
     value = value.trim();
     var patt2=/^\d+$/;
     if(!patt2.test(value)){
-        error_int.push(value);
-
         return false;
     }
     return true;
@@ -216,6 +210,10 @@ $('#submit').click(function(){
        if ($.inArray(name, ['Exam', 'Min Age', 'Max Age']) != -1) {
            if (!is_integer(value)) {
                errors.push('Field <b>' + name + '</b> needs to be an integer');
+           }
+       } else if (name == 'Date From' || name == 'Date To') {
+           if (!is_date(value)) {
+               errors.push('Field <b>' + name + '</b> needs to be a valid date');
            }
        } else if (!is_ascii(value)) {
            errors.push('Field <b>' + name + '</b>: "<b>' + value + '</b>" is not ascii');
