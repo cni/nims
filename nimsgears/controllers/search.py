@@ -157,7 +157,7 @@ class SearchController(NimsController):
         for res in db_query.all():
             data_list.append((res.Experiment.owner.gid,
                               res.Experiment.name,
-                              res.Session.timestamp.strftime('%Y-%m-%d %H:%M'),
+                              res.Epoch.timestamp.strftime('%Y-%m-%d %H:%M'),
                               res.Session.exam,
                               res.Epoch.scan_type,
                               res.Epoch.description))
