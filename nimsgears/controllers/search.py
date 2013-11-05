@@ -94,7 +94,8 @@ class SearchController(NimsController):
         dataset_cnt = Session.query.count()
         flag = user.is_superuser
         userdataset_cnt = user.dataset_cnt
-        epoch_columns = [('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'), ('Scan Type', 'col_scantype'), ('Description', 'col_desc')]
+        epoch_columns = [('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'),
+            ('Exam', 'col_exam'), ('Type Scan', 'col_scantype'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
         scantype_values = [''] + sorted(nimsdata.nimsimage.scan_types.all)
         psd_names_tuples = DBSession.query(Epoch.psd).distinct(Epoch.psd)
@@ -159,7 +160,8 @@ class SearchController(NimsController):
         for res in db_query.all():
             data_list.append((res.Experiment.owner.gid,
                               res.Experiment.name,
-                              res.Session.timestamp.strftime('%Y-%m-%d %H:%M'),
+                              res.Epoch.timestamp.strftime('%Y-%m-%d %H:%M'),
+                              res.Session.exam,
                               res.Epoch.scan_type,
                               res.Epoch.description))
             attr_list.append({'id':'epoch=%d' % res.Epoch.id})

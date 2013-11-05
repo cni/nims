@@ -107,10 +107,10 @@
 		</div>
 	</form>
 	<table id="epochs" class="scrolltable" style="visibility: hidden">
-		<thead>
+		<thead id="table_header">
 			<tr>
 				<py:for each="col in epoch_columns">
-					<th py:with="name, cls = col" class="${cls}">${name}</th>
+					<th py:with="name, cls = col" id="${cls}" class="${cls}">${name}</th>
 				</py:for>
 			</tr>
 		</thead>
