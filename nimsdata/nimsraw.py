@@ -575,6 +575,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-t', '--tempdir', help='directory to use for scratch files (must exist and have lots of space!)')
         self.add_argument('-j', '--jobs', default=8, type=int, help='maximum number of processes to spawn')
         self.add_argument('-v', '--vcoils', default=0, type=int, help='number of virtual coils (0=all)')
+        self.add_argument('-c', '--auxfile', help='path to auxillary files (e.g., mux calibration p-files)')
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
@@ -582,5 +583,5 @@ if __name__ == '__main__':
     pf = NIMSPFile(args.pfile, num_virtual_coils=args.vcoils)
     if args.matfile:
         pf.update_imagedata(pf.load_imagedata_from_file(args.matfile))
-    pf.convert(args.outbase or os.path.basename(args.pfile), tempdir=args.tempdir, num_jobs=args.jobs)
+    pf.convert(args.outbase or os.path.basename(args.pfile), tempdir=args.tempdir, num_jobs=args.jobs, aux_files=[args.auxfile])
 
