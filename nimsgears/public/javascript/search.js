@@ -44,6 +44,7 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                         $('#bannerpy-content').html('Your search did not give any result');
                         $('#bannerpy').removeClass('hide');
                     } else {
+                        $(".scrolltable_title:first").html( data.data.length + " Results");
                         $('#bannerpy').addClass('hide');
                     }
                     populateNextTableFn(table, data);
