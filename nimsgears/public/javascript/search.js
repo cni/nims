@@ -312,6 +312,7 @@ $('#submit').click(function(){
  $('#data_checkBox').live('click', function(){
      if($('#data_checkBox').is(':checked') && $('#flagIsSuperUser').text() != 'True'){
         $('#restricted_datasets').hide();
+        $('#first_name, #last_name').val('');
         $('#first_name, #last_name').attr('disabled', 'disabled');
         $('.first_name, .last_name').css('color', '#E0E0E0');
         $('#first_name, #last_name').css('color', '#E0E0E0');
