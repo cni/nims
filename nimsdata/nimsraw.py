@@ -134,6 +134,7 @@ class NIMSPFile(NIMSRaw):
         self.acquisition_type = ''
         self.size_x = self._hdr.image.dim_X  # imatrix_X
         self.size_y = self._hdr.image.dim_Y  # imatrix_Y
+        self.size = [self.size_x, self.size_y]
         self.fov = [self._hdr.image.dfov, self._hdr.image.dfov_rect]
         self.scan_type = self._hdr.image.psd_iname.strip('\x00')
         self.num_bands = 1

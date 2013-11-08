@@ -102,6 +102,7 @@ class NIMSPhysio(nimsdata.NIMSData):
         self.phases = None
         self.scan_duration = self.nframes * self.tr
         self.exam_uid = ''
+        self.series_uid = ''
         self.series_no = ''
         self.acq_no = ''
         try:

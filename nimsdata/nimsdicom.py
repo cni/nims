@@ -132,6 +132,7 @@ class NIMSDicom(nimsimage.NIMSImage):
         # FIXME: confirm that DICOM (Columns,Rows) = PFile (X,Y)
         self.size_x = getelem(self._hdr, 'Columns', int, 0)
         self.size_y = getelem(self._hdr, 'Rows', int, 0)
+        self.size = [self.size_x, self.size_y]
         self.fov = 2 * [getelem(self._hdr, 'ReconstructionDiameter', float, 0.)]
         # Dicom convention is ROW,COL. E.g., ROW is the first dim (index==0), COL is the second (index==1)
         if self.phase_encode == 1:

@@ -68,7 +68,7 @@ class NIMSData(object):
 
     def get_metadata(self, tgt_cls=None):
         tgt_cls = tgt_cls or self.__class__
-        field_names = [('_id', 'exam_uid')] + tgt_cls.session_fields + tgt_cls.epoch_fields
+        field_names = [('', 'exam_uid'), ('', 'series_uid')] + tgt_cls.session_fields + tgt_cls.epoch_fields
         return {t[0]: t[1] for t in [(field_name, getattr(self, field_name, None)) for field, field_name in field_names] if t[1]}
 
     def set_metadata_fields(self, metadata_fields):
