@@ -86,17 +86,14 @@ class UploadController(NimsController):
 
         try:
             data = NIMSDicom(file_path)
-            # print 'Patient name:', data.subj_firstname, data.subj_lastname
             file_result['exam_uid'] = data.exam_uid
             file_result['status'] = True
             file_result['message'] = "Uploaded"
-            # pat_name = data._hdr.PatientName
 
         except NIMSDataError:
             print "Couldn't understand the file", file.filename
             file_result['status'] = False
             file_result['message'] = "File %s is not a Dicom" % file.filename
-            # print '++++++++++++ result_error: ', result
         except:
             file_result['status'] = False
             file_result['message'] = "File %s could not be parsed" % file.filename
