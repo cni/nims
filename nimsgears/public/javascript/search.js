@@ -1,6 +1,6 @@
 //Author Sara Benito Arce
 
-require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/dialog'], function (Drilldown, DrilldownManager, Dialog) {
+require(['utility/tablednd', 'utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/dialog'], function (TableDragAndDrop, Drilldown, DrilldownManager, Dialog) {
     var epochs_popup;
     var datasets_popup;
 
@@ -148,16 +148,72 @@ require(['utility/scrolltab/drilldown', 'utility/scrolltab/manager', 'utility/di
                 });
     });
 
+    /*
+     * getIdDictionary
+     * Given a list of rows, returns a dictionary of types and a list of the
+     * corresponding ids for each of those types. For example, given a list of
+     * rows with ids ["exp=33", "sess=44", "exp=43"] it would return
+     * {"exp":["33", "43"], "sess":["44"]}.
+     *
+     * selected_rows - rows you'd like to prune ids from
+     */
+    var getIdDictionary = function (selected_rows)
+    {
+        var id_dict = {};
+        selected_rows.each(function()
+        {
+            var chunks = this.id.split('=');
+            var key = chunks[0];
+            if (id_dict[key] == null)
+            {
+                id_dict[key] = new Array();
+            }
+            id_dict[key].push(chunks[1]);
+        });
+        console.log('id_dict: ', id_dict);
+        return id_dict;
+    };
+
+    /*
+     * dropDownloads
+     * Callback when a row or rows have been dropped on the downloads div.
+     */
+    var dropDownloads = function (event, ui)
+    {
+        var id_dict = getIdDictionary(ui.helper.data('moving_rows'));
+        var iframe = document.getElementById("hidden_downloader");
+
+        if (iframe === null)
+        {
+            iframe = document.createElement('iframe');
+            iframe.id = "hidden_downloader";
+            iframe.style.visibility = 'hidden';
+            document.body.appendChild(iframe);
+        }
+        iframe.src = '../download?&id_dict=' + JSON.stringify(id_dict)
+        console.log('iframe.src: ', iframe.src);
+        if ($('#download_drop input[id=raw]').is(':checked'))
+            iframe.src += '&raw=1';
+        if ($('#download_drop input[id=legacy]').is(':checked'))
+            iframe.src += '&legacy=1';
+
+    };
+
     var init = function()
     {
+        epochs = new Drilldown("epochs", "Results", 2, -1);
+        datasets = new Drilldown("datasets", "Datasets");
+        manager = new DrilldownManager([epochs, datasets], [refreshEpochs, refreshDatasets], true);
+
+        TableDragAndDrop.setupDraggable($(epochs._getBodyTable()));
+        TableDragAndDrop.setupDraggable($(datasets._getBodyTable()));
+        TableDragAndDrop.setupDroppable("#epochs .scrolltable_body table, #datasets .scrolltable_body table",
+                                        $("#download_drop"), dropDownloads);
+
         epochs_popup = $("#epochs_pop");
         datasets_popup = $("#datasets_pop");
         Dialog.bindSizeChange(epochs_popup);
         Dialog.bindSizeChange(datasets_popup, 'dataset');
-
-        epochs = new Drilldown("epochs", "Results", 2, -1);
-        datasets = new Drilldown("datasets", "Datasets");
-        manager = new DrilldownManager([epochs, datasets], [refreshEpochs, refreshDatasets], true);
 
         $("#search_form").submit(function()
         {
