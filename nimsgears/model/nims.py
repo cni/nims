@@ -664,6 +664,7 @@ class Epoch(DataContainer):
     series = Field(Integer)
     acq = Field(Integer, index=True)
     description = Field(Unicode(255))
+    notes = Field(Unicode)
     psd = Field(Unicode(255))
     physio_recorded = Field(Boolean, default=False)
     physio_valid = Field(Boolean)

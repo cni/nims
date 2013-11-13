@@ -15,6 +15,7 @@ class EditEpochForm(tws.DbFormPage):
         series = twf.LabelField()
         acq = twf.LabelField()
         description = twf.TextArea(validator=twc.StringLengthValidator(max=255))
+        notes = twf.LabelField()
         psd = twf.LabelField()
         physio_flag = twf.LabelField()
         tr = twf.LabelField()

@@ -67,7 +67,7 @@ define([], function ()
         });
         // directs to the relevant URL
         iframe.attr('src', url);
-        var convert_type_string = type.charAt(0).toUpperCase() + type.slice(1)
+        var convert_type_string = type.charAt(0).toUpperCase() + type.slice(1);
         popup.attr('title', convert_type_string);
     };
 
