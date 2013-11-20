@@ -257,6 +257,7 @@ function addFileToList(file) {
         files_to_upload[file.Key].push(file);
 
         files_to_upload[file.Key].totalSize += file.size;
+        incrementFileSize(file.size);
 
         // If last file, update the page immediately
         if (files_to_upload[file.Key].length >= files_to_upload[file.Key].ImagesInAcquisition) {
@@ -381,6 +382,7 @@ function clearFileList() {
     $("input[type=submit]").removeAttr("disabled");
     $("input[type=submit]").removeClass("lightColor");
     $("#warning").addClass('hide');
+    $('.submitTable').css("width", "70%");
     $('#totalSize').addClass('hide');
     enableDnd();
 }
@@ -445,6 +447,10 @@ function handleDnDSelect(evt) {
                         $('#warning').addClass('hide');
                     }
 
+                    $('.submitTable').css("width", "70%");
+                    $('#totalSize').removeClass('hide');
+                    $("#totalSize").text("Total File Size: " + humanFileSize(totalFilesSize));
+
                     //Enable upload button while the submision
                     $("input[type=submit]").removeAttr("disabled");
                     $("input[type=submit]").removeClass("lightColor");
@@ -460,7 +466,6 @@ function openFile(fileEntry, callback) {
     fileEntry.file(function(item) {
 
         // File is open, read the content
-        incrementFileSize(item.size);
         if (totalFilesSize > MAX_UPLOAD_SIZE) {
             $('#bannerjs-emptyfields').removeClass('hide');
             $('#bannerjs-emptyfields').html("Reached the maximum total file size");
