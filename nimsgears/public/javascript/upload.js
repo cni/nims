@@ -1,3 +1,127 @@
+function Unpacker(array) {
+    this.array = array;
+    this.idx = 0;
+
+    // Reads an integer as le
+    this.getInt = function() {
+        var n = 0;
+
+        for (i = 3; i >= 0; --i) {
+            n = n * 256 + this.array[this.idx + i];
+        }
+
+        this.idx += 4;
+        return n;
+    }
+
+    this.getString = function(maxSize) {
+        var s = "";
+        for (i = 0; i < maxSize; i++) {
+            if (this.array[this.idx + i] == 0) {
+                break;
+            }
+            s += String.fromCharCode(this.array[this.idx + i]);
+        }
+
+        // go to 4 byte boundary
+        plus4 = maxSize % 4;
+        if (plus4 != 0) {
+            maxSize += (4-plus4);
+        }
+
+        this.idx += maxSize;
+        return s;
+    }
+}
+
+function parse_csa(data) {
+    var unpacker = new Unpacker(data);
+
+    var hdr = {};
+    hdr['id'] = unpacker.getString(4);
+
+    // Skip next 4 bytes
+    unpacker.getString(4);
+
+    hdr['n_tags'] = unpacker.getInt();
+    hdr['check'] = unpacker.getInt();
+
+    if (hdr['n_tags'] > 128) {
+        throw Exception('n_tags is too big');
+    }
+
+    hdr['tags'] = [];
+
+    var n_tags = hdr['n_tags'];
+
+    for (var i = 0; i < n_tags; i++) {
+        tag = {}
+        tag['name'] = unpacker.getString(64);
+        tag['vm'] = unpacker.getInt(); //value multiplicity
+        tag['vr'] = unpacker.getString(4); //value representation
+        tag['syngodt'] = unpacker.getInt();
+        tag['n_items'] = unpacker.getInt();
+        tag['last3'] = unpacker.getInt();
+
+        var n_values;
+        if (tag['vm'] == 0) {
+            n_values = tag['n_items'];
+        } else {
+            n_values = tag['vm'];
+        }
+
+        tag['items'] = [];
+
+        for (var item_no = 0; item_no < tag['n_items']; item_no++) {
+            var x0 = unpacker.getInt();
+            var x1 = unpacker.getInt();
+            var x2 = unpacker.getInt();
+            var x3 = unpacker.getInt();
+
+            if (item_no >= n_values) {
+                continue;
+            }
+
+            // CSA2 hdr['id'] = 'SV10'
+            var item_len = x1;
+            if (item_len > 1000000) {
+                throw Exception('too long');
+            }
+
+            var item = unpacker.getString(item_len);
+            if (tag['name'] == 'MrPhoenixProtocol') {
+                var start = item.search("### ASCCONV BEGIN ###");
+                var end = item.search("### ASCCONV END ###");
+                var ascconv = item.substring(start + "### ASCCONV BEGIN ###".length, end);
+
+                hdr['ascconv'] = parseAscconvTable(ascconv);
+            }
+
+            tag['items'].push(item);
+        }
+        hdr['tags'].push(tag);
+     }
+    return hdr;
+}
+
+// Parse a list of 'key = value' lines and return a map
+function parseAscconvTable(str) {
+    var result = {};
+    var lines = str.split('\n');
+
+    for (var i = 0; i < lines.length; i++ ) {
+        var parts = lines[i].split(' = ');
+        if ( parts.length != 2 ){
+            continue;
+        }
+
+        var key = parts[0].trim();
+        var value = parts[1].trim();
+        result[key] = value;
+    }
+
+    return result;
+}
 
 // Parse the dicom file from the file content and overwrite
 // the patient name tag with spaces in-place in the buffer
@@ -208,8 +332,6 @@ function addFileToList(file) {
         //Make visible the table
         $('#table_scrollable').removeClass('hide');
 
-        adjustImagesInAcquisition(file);
-
         // Add our generatered id to the file object
         var id = '_' + (id_generator++);
         files_to_upload[file.Key].id = id;
@@ -229,7 +351,7 @@ function addFileToList(file) {
         output.push('<tr id="', id, '" style="text-align:center"> \
                         <td>', year, '-',  month, '-', day , '</td> \
                         <td><strong>', file.StudyID , '</strong></td> \
-                        <td>', file.SeriesNumber, '.', file.AcquisitionNumber || 'n/a', '</td> \
+                        <td id="acq_', id, '">',  '</td> \
                         <td size="200">', file.SeriesDescription, '</td> \
                         <td id="count_', id, '">', '</td> \
                         <td id="size_', id, '">', '</td> \
@@ -275,6 +397,8 @@ function updateFilesSubmitted(key) {
     var imagesInAcquisition = files_to_upload[key].ImagesInAcquisition;
     var id = files_to_upload[key].id;
     var imagesSubmitted = files_to_upload[key].length;
+    var seriesNumber = files_to_upload[key].SeriesNumber;
+    var acquisitionNumber = files_to_upload[key].AcquisitionNumber;
 
     if (!imagesInAcquisition) {
         $('#count_' + id).html("<b>" + imagesSubmitted + "</b>");
@@ -289,8 +413,14 @@ function updateFilesSubmitted(key) {
         clearInterval(files_to_upload[key].timer);
     }
 
-
     $('#size_' + id).html(humanFileSize(files_to_upload[key].totalSize));
+
+    if (acquisitionNumber == '(mosaic)'){
+        $('#acq_' + id).html(seriesNumber + ' ' + acquisitionNumber);
+    } else {
+        $('#acq_' + id).html(seriesNumber + '.' + acquisitionNumber);
+    }
+
 }
 
 // Perform a more precise evaluation of the total number
@@ -532,15 +662,53 @@ function processFile(file, callback) {
             file.AcquisitionDate = dcmFile.AcquisitionDate;
             file.ImagesInAcquisition = dcmFile.ImagesInAcquisition;
             file.NumberOfTemporalPositions = dcmFile.NumberOfTemporalPositions;
+            file.Manufacturer = dcmFile.Manufacturer;
+            file.MRAcquisitionType = dcmFile.MRAcquisitionType;
+            file.SliceThickness = dcmFile.SliceThickness;
 
-            //Retrieve SlicesPerVolume by tag:
-            var SLICES_PER_VOLUME_TAG = 0x0021104F;
-            slicesPerVolume_le0 = dcmFile.get_element(SLICES_PER_VOLUME_TAG).data[0];
-            slicesPerVolume_le1 = 256 * dcmFile.get_element(SLICES_PER_VOLUME_TAG).data[1];
-            file.SlicesPerVolume = slicesPerVolume_le0 + slicesPerVolume_le1;
+            if(file.Manufacturer == "GE MEDICAL SYSTEMS"){
+                //Retrieve SlicesPerVolume by tag:
+                var SLICES_PER_VOLUME_TAG = 0x0021104F;
+                slicesPerVolume_le0 = dcmFile.get_element(SLICES_PER_VOLUME_TAG).data[0];
+                slicesPerVolume_le1 = 256 * dcmFile.get_element(SLICES_PER_VOLUME_TAG).data[1];
+                file.SlicesPerVolume = slicesPerVolume_le0 + slicesPerVolume_le1;
 
-            file.Key = ['key', file.StudyID, file.SeriesNumber, file.AcquisitionNumber,
+                adjustImagesInAcquisition(file);
+
+                file.Key = ['key', file.StudyID, file.SeriesNumber, file.AcquisitionNumber,
                                 file.SeriesInstanceUID].join('-');
+            } else if (file.Manufacturer == "SIEMENS "){
+                var CSA_TAG_SERIES = 0x00291020;
+                var CSA_TAG_IMAGE = 0x00291010;
+                var headerInfo_series = dcmFile.get_element(CSA_TAG_SERIES);
+                var headerInfo_image = dcmFile.get_element(CSA_TAG_IMAGE);
+                csa_series = parse_csa(headerInfo_series.data);
+                csa_image = parse_csa(headerInfo_image.data);
+
+                //First check it is a Mosaic
+                $.each(csa_image['tags'], function( idx, tag ) {
+                    if (tag.name == 'NumberOfImagesInMosaic') {
+                        index = 0;
+                        if (index < tag.items.length) {
+                            //It is a Mosaic
+                            file.AcquisitionNumber = '(mosaic)';
+                            file.Key = ['key', file.SeriesNumber, file.SeriesInstanceUID].join('-');
+                        } else {
+                            if (file.MRAcquisitionType == '2D') {
+                                file.ImagesInAcquisition = parseInt(csa_series['ascconv']['sSliceArray.lSize']);
+                            } else {
+                                var totalThickness = parseInt(csa_series['ascconv']['sSliceArray.asSlice[0].dThickness']);
+                                var sliceThickness = parseInt(dcmFile.SliceThickness);
+
+                                var slices = Math.round(totalThickness / sliceThickness);
+                                file.ImagesInAcquisition = slices;
+                            }
+
+                            file.Key = ['key', file.SeriesNumber, file.AcquisitionNumber, file.SeriesInstanceUID].join('-');
+                        }
+                    }
+                });
+            }
 
             // Add the file to table of files in the page
             addFileToList(file);
