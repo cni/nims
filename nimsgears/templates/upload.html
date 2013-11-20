@@ -29,12 +29,12 @@
     </div>
     <h2>Upload
         <div id="drop_zone" name='drop_files'>
-            <span>Drop folder/files, click and choose files for upload</span>
+            <span>Drop files or folders,<br />or click to select files</span>
         </div>
     </h2>
     <form action="upload/submit" method="POST" enctype="multipart/form-data">
         <p id='information'>
-                You can upload by Drag and Drop files or a folder, or choose some files by clicking in the area. <br> Make sure all fields are completed.</br>
+            To select data for upload, drag files or folders into the box on the right.<br />
        </p>
         <div id="select_files" border="1px solid red">
             <input type="file" id="files" name="files[]" multiple="multiple" ></input>
@@ -48,7 +48,7 @@
                     <th class='border'>Study ID</th>
                     <th class='border'>Series #</th>
                     <th class='border'>Description</th>
-                    <th class='border'>Images</th>
+                    <th class='border'>Slices</th>
                     <th class='border'>Size</th>
                     <th class='border'>Notes</th>
                     <th class='border'>Upload</th>
@@ -70,7 +70,12 @@
                         </select>
                     </div>
                 </td>
+                <!-- <td title="There are some slices missing for one or more series">
+                    <img id='warning' src="/images/warning-icon.png" class='hide'></img>
+                </td> -->
                 <td>
+                    <img id='warning' src="/images/warning.png" class='hide'
+                        title="There are some slices missing for one or more series"></img>
                     <input id="submit_form" type='submit' value="Upload"></input>
                 </td>
                 <td>

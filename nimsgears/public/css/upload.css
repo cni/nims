@@ -1,3 +1,11 @@
+#warning{
+    height:15px;
+    width:15px;
+    margin-bottom:-5px;
+    position:relative;
+    padding-right:3px;
+}
+
 .lightColor{
     color:#bbb;
 }

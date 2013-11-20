@@ -44,7 +44,7 @@ var id_generator = 0;
 var fileMap = {};
 var totalFilesSize = 0;
 
-var MAX_UPLOAD_SIZE = 2 * 1024 * 1024 * 1024;
+var MAX_UPLOAD_SIZE = 3 * 1024 * 1024 * 1024;
 
 $('#submit_form').on('click', function(evt) {
      evt.stopPropagation();
@@ -64,8 +64,9 @@ $('#submit_form').on('click', function(evt) {
          $("input[type=submit]").addClass("lightColor");
          disableDnd();
          console.time("uploadTimer");
+         $("#warning").addClass('hide');
 
-         var upload_list = []
+         var upload_list = [];
 
          // The first step is to call startUpload for each series
          async.each(Object.keys(files_to_upload), function(key, callback) {
@@ -258,7 +259,7 @@ function addFileToList(file) {
         files_to_upload[file.Key].totalSize += file.size;
 
         // If last file, update the page immediately
-        if (files_to_upload[file.Key].length == files_to_upload[file.Key].ImagesInAcquisition) {
+        if (files_to_upload[file.Key].length >= files_to_upload[file.Key].ImagesInAcquisition) {
             updateFilesSubmitted(file.Key);
         }
     }
@@ -274,7 +275,9 @@ function updateFilesSubmitted(key) {
     var id = files_to_upload[key].id;
     var imagesSubmitted = files_to_upload[key].length;
 
-    if (imagesSubmitted < imagesInAcquisition) {
+    if (!imagesInAcquisition) {
+        $('#count_' + id).html("<b>" + imagesSubmitted + "</b>");
+    } else if (imagesSubmitted < imagesInAcquisition) {
         $('#count_' + id).html("<b style='color:red;'>" + imagesSubmitted + "</b>" +
         '/' + imagesInAcquisition);
     } else {
@@ -377,6 +380,8 @@ function clearFileList() {
     $('#bannerjs-emptyfields').addClass('hide');
     $("input[type=submit]").removeAttr("disabled");
     $("input[type=submit]").removeClass("lightColor");
+    $("#warning").addClass('hide');
+    $('#totalSize').addClass('hide');
     enableDnd();
 }
 
@@ -423,6 +428,23 @@ function handleDnDSelect(evt) {
                 //directory
                 --pendingDirectories;
                 if (pendingDirectories == 0) {
+
+                    var missingFiles = false;
+
+                    //Add warning sign in case slices missing
+                    $.each(Object.keys(files_to_upload), function(idx, key) {
+                        if (files_to_upload[key].ImagesInAcquisition
+                                && files_to_upload[key].length < files_to_upload[key].ImagesInAcquisition) {
+                            missingFiles = true;
+                        }
+                    });
+
+                    if (missingFiles) {
+                        $('#warning').removeClass('hide');
+                    } else {
+                        $('#warning').addClass('hide');
+                    }
+
                     //Enable upload button while the submision
                     $("input[type=submit]").removeAttr("disabled");
                     $("input[type=submit]").removeClass("lightColor");
@@ -523,12 +545,12 @@ function traverseFileTree(entry, fileList, traverseCallback) {
         fileList.push(entry);
     } else if (entry.isDirectory) {
         ++fileList.pendingOps;
+
         var dirReader = entry.createReader();
         dirReader.readEntries(function(entries) {
             for (var idx = 0; idx < entries.length; idx++) {
                 traverseFileTree(entries[idx], fileList, traverseCallback);
             }
-
             if (--fileList.pendingOps == 0) {
                 // All the async operations have completed
                 traverseCallback();
