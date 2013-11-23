@@ -22,6 +22,15 @@
 	<div id="datasets_pop" class="pop" style="display: none">
 		<iframe id="edit_dataset_iframe" src="" frameborder="no" />
 	</div>
+    <div class="dropbox" id="download_drop" title="Use checkboxes to include raw data and to use legacy file naming.">
+        <strong>Download</strong><br />
+        <py:if test="tg.identity">
+        <div style="text-align:left">
+            <input type="checkbox" id="raw" name="raw_cb" title="Include raw data (p-files and dicoms) in the download.">Include raw</input><br />
+            <input type="checkbox" id="legacy" name="legacy_cb" title="Use the old NIMS file naming                                     convention.">Legacy format</input>
+        </div>
+        </py:if>
+    </div>
 	<!-- Banner used to show the error from js validation -->
 	<div id='bannerjs'>
 		<div class='hide' id="bannerjs-emptyfields"></div>
@@ -32,7 +41,6 @@
 	<div class='hide' id='bannerpy'>
 		<div id="bannerpy-content"></div>
 	</div>
-
 	<form id="search_form" accept-charset="UTF-8" action="search/query">
 		<table id="query_table" cellpadding="0" cellspacing="0">
 			<tr id='dataset_div'>

@@ -1,3 +1,17 @@
+.dropbox {
+	text-align: center;
+    float: right;
+	height: 40px;
+	width: 110px;
+	border: 2px solid #820000;
+	padding: 5px 5px 15px 15px;
+	margin: 5px 5px 5px 5px;
+}
+
+.dropbox.hover {
+	background-color: #ddcf99
+}
+
 #clear_values {
 	margin-left: 50px;
 }
@@ -57,7 +71,7 @@ div#bannerjs {
 
 #bannerjs-errors ul {
 	margin: 0 0 0 10px;
-    padding: 0px;
+	padding: 0px;
 }
 
 div#bannerpy {
@@ -145,7 +159,7 @@ div#bannerpy-content {
 
 .col_access {
 	width: 10%;
-    text-align:center;
+	text-align: center;
 }
 
 .col_sunet {
@@ -169,7 +183,7 @@ div#bannerpy-content {
 }
 
 .col_exam {
-    width: 10%;
+	width: 10%;
 }
 
 #epochs_pop,#datasets_pop {
