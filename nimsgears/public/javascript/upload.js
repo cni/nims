@@ -341,6 +341,8 @@ function addFileToList(file) {
         files_to_upload[file.Key].AcquisitionNumber = file.AcquisitionNumber;
         files_to_upload[file.Key].SeriesInstanceUID = file.SeriesInstanceUID;
         files_to_upload[file.Key].ImagesInAcquisition = file.ImagesInAcquisition;
+        files_to_upload[file.Key].EchoNumbers = file.EchoNumbers;
+        files_to_upload[file.Key].NumberOfImagesInMosaic = file.NumberOfImagesInMosaic;
 
         var year = file.AcquisitionDate.substring(0, 4);
         var month = file.AcquisitionDate.substring(4, 6);
@@ -379,6 +381,8 @@ function addFileToList(file) {
         files_to_upload[file.Key].push(file);
 
         files_to_upload[file.Key].totalSize += file.size;
+        //EchoNumber can change the number of Slices per Acquisition.
+        files_to_upload[file.Key].EchoNumbers = Math.max(files_to_upload[file.Key].EchoNumbers, file.EchoNumbers);
         incrementFileSize(file.size);
 
         // If last file, update the page immediately
@@ -393,19 +397,20 @@ function updateFilesSubmitted(key) {
         // The series has already been cleared
         return;
     }
-
-    var imagesInAcquisition = files_to_upload[key].ImagesInAcquisition;
+    var imagesInAcquisition = files_to_upload[key].ImagesInAcquisition * files_to_upload[key].EchoNumbers;
     var id = files_to_upload[key].id;
     var imagesSubmitted = files_to_upload[key].length;
     var seriesNumber = files_to_upload[key].SeriesNumber;
     var acquisitionNumber = files_to_upload[key].AcquisitionNumber;
+    var numberOfImagesInMosaic = files_to_upload[key].NumberOfImagesInMosaic;
 
     if (!imagesInAcquisition) {
+        imagesSubmitted *= numberOfImagesInMosaic;
         $('#count_' + id).html("<b>" + imagesSubmitted + "</b>");
     } else if (imagesSubmitted < imagesInAcquisition) {
         $('#count_' + id).html("<b style='color:red;'>" + imagesSubmitted + "</b>" +
         '/' + imagesInAcquisition);
-    } else {
+        } else {
         // All the files for the series have been added
         $('#count_' + id).html("<b>" + imagesSubmitted + "</b>" + '/' +
             imagesInAcquisition);
@@ -665,6 +670,7 @@ function processFile(file, callback) {
             file.Manufacturer = dcmFile.Manufacturer;
             file.MRAcquisitionType = dcmFile.MRAcquisitionType;
             file.SliceThickness = dcmFile.SliceThickness;
+            file.EchoNumbers = dcmFile.EchoNumbers || 1;
 
             if(file.Manufacturer == "GE MEDICAL SYSTEMS"){
                 //Retrieve SlicesPerVolume by tag:
@@ -685,12 +691,11 @@ function processFile(file, callback) {
                 csa_series = parse_csa(headerInfo_series.data);
                 csa_image = parse_csa(headerInfo_image.data);
 
-                //First check it is a Mosaic
                 $.each(csa_image['tags'], function( idx, tag ) {
                     if (tag.name == 'NumberOfImagesInMosaic') {
-                        index = 0;
-                        if (index < tag.items.length) {
+                        if (tag.items.length > 0) {
                             //It is a Mosaic
+                            file.NumberOfImagesInMosaic = parseInt(tag.items[0]);
                             file.AcquisitionNumber = '(mosaic)';
                             file.Key = ['key', file.SeriesNumber, file.SeriesInstanceUID].join('-');
                         } else {
