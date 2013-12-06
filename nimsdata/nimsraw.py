@@ -87,7 +87,7 @@ class NIMSPFile(NIMSRaw):
             self.psd_type = 'basic'
         elif 'mux' in self.psd_name.lower(): # multi-band EPI!
             self.psd_type = 'mux'
-        elif self.psd_name == 'Probe-MEGA':
+        elif self.psd_name == 'Probe-MEGA' or self.psd_name== 'gaba_ss_cni':
             self.psd_type = 'mrs'
         else:
             self.psd_type = 'unknown'
