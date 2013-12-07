@@ -181,10 +181,12 @@ class NIMSPFile(NIMSRaw):
         elif self.psd_type == 'mrs':
             self._hdr.image.scanspacing = 0.
             self.mm_per_vox = [self._hdr.rec.roileny, self._hdr.rec.roilenx, self._hdr.rec.roilenz]
-            image_tlhc = np.array([self._hdr.image.ctr_R, self._hdr.image.ctr_A, self._hdr.image.ctr_S])
-            image_trhc = image_tlhc + [self.mm_per_vox[0], 0., 0.]
-            image_brhc = image_trhc + [0., self.mm_per_vox[2], 0.]
-        # Tread carefully! Most of the stuff down here depends on various field being corrected in the
+            image_tlhc = np.array((-self._hdr.rec.roilocx - self.mm_per_vox[0]/2.,
+                                    self._hdr.rec.roilocy + self.mm_per_vox[1]/2.,
+                                    self._hdr.rec.roilocz - self.mm_per_vox[1]/2.))
+            image_trhc = image_tlhc - [self.mm_per_vox[0], 0., 0.]
+            image_brhc = image_trhc + [0., self.mm_per_vox[1], 0.]
+        # Tread carefully! Most of the stuff down here depends on various fields being corrected in the
         # sequence-specific set of hacks just above. So, move things with care!
 
         # Note: the following is true for single-shot planar acquisitions (EPI and 1-shot spiral).
@@ -446,12 +448,24 @@ class NIMSPFile(NIMSRaw):
         """Do mux_epi image reconstruction and populate self.imagedata."""
         ref_file  = os.path.join(self.dirpath, '_'+self.basename+'_ref.dat')
         vrgf_file = os.path.join(self.dirpath, '_'+self.basename+'_vrgf.dat')
-        if not os.path.isfile(ref_file) or not os.path.isfile(vrgf_file):
-            raise NIMSPFileError('dat files not found')
         # See if external calibration data files are needed:
         cal_file,cal_ref_file,cal_vrgf_file,cal_compressed = self.find_mux_cal_file()
+        # The dat files might be missing or empty if the vendor recon was disabled. If so, try to use the cal dat file.
+        # FIXME: if the p-file is not compressed, the cal dat file will not be used! We should refactor the recon
+        # code so that the dat files are always explicitly specified.
+        if not os.path.isfile(ref_file) or os.path.getsize(ref_file)<64:
+            if cal_ref_file:
+                ref_file = cal_ref_file
+            else:
+                raise NIMSPFileError('ref.dat file not found')
+        if not os.path.isfile(vrgf_file) or os.path.getsize(vrgf_file)<64:
+            if cal_vrgf_file:
+                vrgf_file = cal_vrgf_file
+            else:
+                raise NIMSPFileError('vrgf.dat file not found')
         # HACK to force SENSE recon for caipi data
-        sense_recon = 1 if 'CAIPI' in self.series_desc else 0
+        #sense_recon = 1 if 'CAIPI' in self.series_desc else 0
+        sense_recon = 0
 
         with nimsutil.TempDir(dir=tempdir) as temp_dirpath:
             log.info('Running %d v-coil mux recon on %s in tempdir %s with %d jobs (sense=%d).'
@@ -477,8 +491,8 @@ class NIMSPFile(NIMSRaw):
                 if num_running_jobs < num_jobs:
                     # Recon each slice separately. Note the slice_num+1 to deal with matlab's 1-indexing.
                     # Use 'str' on timepoints so that an empty array will produce '[]'
-                    cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", "%s", %d, %s, %d, 0, %d);\''
-                        % (octave_bin, recon_path, pfile_path, outname, slice_num, cal_file, slice_num + 1, str(timepoints), self.num_vcoils, sense_recon))
+                    cmd = ('%s --no-window-system -p %s --eval \'mux_epi_main("%s", "%s_%03d.mat", "%s", %d, %s, %d, 0, %s);\''
+                        % (octave_bin, recon_path, pfile_path, outname, slice_num, cal_file, slice_num + 1, str(timepoints), self.num_vcoils, str(sense_recon)))
                     log.debug(cmd)
                     mux_recon_jobs.append(subprocess.Popen(args=shlex.split(cmd), stdout=open('/dev/null', 'w')))
                     slice_num += 1
