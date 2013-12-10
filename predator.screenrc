@@ -1,0 +1,15 @@
+# vim: filetype=screen :
+
+defscrollback 100000
+hardstatus alwayslastline "%{W} %w %= %D %d %M %y %c"
+bindkey -k kD stuff ^H
+shell -bash
+
+sessionname muxproc
+
+screen -t bash          0
+stuff "source ~/tg2env/bin/activate \015"
+
+screen -t mux_proc      1
+stuff "source ~/tg2env/bin/activate \015"
+stuff "nimsproc/processor.py -f log/mux_proc.log -j1 -k32 -t /run/shm -e\"Epoch.psd.contains(u'mux')\" postgresql://nims:nims@cnifs.stanford.edu:5432/nims /net/cnifs/cnifs/nims /cnimr/physio \015"
