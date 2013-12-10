@@ -215,7 +215,7 @@ class NIMSPFile(NIMSRaw):
         self.caipi = self._hdr.rec.user13   # true: CAIPIRINHA-type acquisition; false: Direct aliasing of simultaneous slices.
         self.cap_blip_start = self._hdr.rec.user14   # Starting index of the kz blips. 0~(mux-1) correspond to -kmax~kmax.
         self.cap_blip_inc = self._hdr.rec.user15   # Increment of the kz blip index for adjacent acquired ky lines.
-        self.slice_duration = self.tr * 1000 / self.num_slices
+        self.slice_duration = self.tr / self.num_slices
         lr_diff = image_trhc - image_tlhc
         si_diff = image_trhc - image_brhc
         if not np.all(lr_diff==0) and not np.all(si_diff==0):
