@@ -130,9 +130,7 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.acquisition_type = getelem(self._hdr, 'MRAcquisitionType', None, 'unknown')
         self.mm_per_vox = getelem(self._hdr, 'PixelSpacing', float, [1., 1.]) + [getelem(self._hdr, 'SpacingBetweenSlices', float, getelem(self._hdr, 'SliceThickness', float, 1.))]
         # FIXME: confirm that DICOM (Columns,Rows) = PFile (X,Y)
-        self.size_x = getelem(self._hdr, 'Columns', int, 0)
-        self.size_y = getelem(self._hdr, 'Rows', int, 0)
-        self.size = [self.size_x, self.size_y]
+        self.size = [getelem(self._hdr, 'Columns', int, 0), getelem(self._hdr, 'Rows', int, 0)]
         self.fov = 2 * [getelem(self._hdr, 'ReconstructionDiameter', float, 0.)]
         # Dicom convention is ROW,COL. E.g., ROW is the first dim (index==0), COL is the second (index==1)
         if self.phase_encode == 1:
@@ -174,7 +172,7 @@ class NIMSDicom(nimsimage.NIMSImage):
             self.load_all_metadata()
         slice_loc = [getelem(dcm, 'SliceLocation') for dcm in self.dcm_list]
         imagedata = np.dstack([np.swapaxes(dcm.pixel_array, 0, 1) for dcm in self.dcm_list])
-        dims = np.array((self.size_y, self.size_x, self.num_slices, self.num_timepoints))
+        dims = np.array((self.size[1], self.size[0], self.num_slices, self.num_timepoints))
         slices_total = len(self.dcm_list)
         # If we can figure the dimensions out, reshape the matrix
         if np.prod(dims) == np.size(imagedata):
@@ -188,7 +186,7 @@ class NIMSDicom(nimsimage.NIMSImage):
                 msg = 'dimensions indicate missing slices from volume - zero padding with %d slices' % slices_padding
                 self.notes += 'WARNING: ' + msg + '\n'
                 log.warning(msg)
-                padding = np.zeros((self.size_y, self.size_x, slices_padding))
+                padding = np.zeros((self.size[1], self.size[0], slices_padding))
                 imagedata = np.dstack([imagedata, padding])
             volume_start_indices = range(0, slices_total_rounded_up, self.num_slices)
             imagedata = np.concatenate([imagedata[:,:,index:(index + self.num_slices),np.newaxis] for index in volume_start_indices], axis=3)

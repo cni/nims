@@ -134,9 +134,7 @@ class NIMSPFile(NIMSRaw):
         self.scanner_name = self._hdr.exam.hospname.strip('\x00') + ' ' + self._hdr.exam.ex_sysid.strip('\x00')
         self.scanner_type = 'GE MEDICAL' # FIXME
         self.acquisition_type = ''
-        self.size_x = self._hdr.image.dim_X  # imatrix_X
-        self.size_y = self._hdr.image.dim_Y  # imatrix_Y
-        self.size = [self.size_x, self.size_y]
+        self.size = [self._hdr.image.dim_X, self._hdr.image.dim_Y]  # imatrix_Y
         self.fov = [self._hdr.image.dfov, self._hdr.image.dfov_rect]
         self.scan_type = self._hdr.image.psd_iname.strip('\x00')
         self.num_bands = 1
@@ -148,7 +146,7 @@ class NIMSPFile(NIMSRaw):
         self.deltaTE = 0.0
         self.scale_data = False
         # Compute the voxel size rather than use image.pixsize_X/Y
-        self.mm_per_vox = [self.fov[0] / self.size_y, self.fov[1] / self.size_y, self._hdr.image.slthick + self._hdr.image.scanspacing]
+        self.mm_per_vox = [self.fov[0] / self.size[0], self.fov[1] / self.size[1], self._hdr.image.slthick + self._hdr.image.scanspacing]
         image_tlhc = np.array([self._hdr.image.tlhc_R, self._hdr.image.tlhc_A, self._hdr.image.tlhc_S])
         image_trhc = np.array([self._hdr.image.trhc_R, self._hdr.image.trhc_A, self._hdr.image.trhc_S])
         image_brhc = np.array([self._hdr.image.brhc_R, self._hdr.image.brhc_A, self._hdr.image.brhc_S])
@@ -166,13 +164,14 @@ class NIMSPFile(NIMSRaw):
             # this isn't guaranteed to be correct, as Atsushi's recon does whatever it
             # damn well pleases. Maybe we could add a check to infer the image size,
             # assuming it's square?
-            self.size_x = self.size_y = self._hdr.rec.im_size
+            self.size[0] = self.size[1] = self._hdr.rec.im_size
+            self.mm_per_vox[0:2] = [self.fov[0] / self.size[0]] * 2
         elif self.psd_type == 'basic':
             # first 6 are ref scans, so ignore those. Also, two acquired timepoints are used
             # to generate each reconned time point.
             self.num_timepoints = (self._hdr.rec.npasses * self._hdr.rec.nechoes - 6) / 2
             self.num_timepoints_available = self.num_timepoints
-            self.num_echoes = 1
+            self.num_echos = 1
         elif self.psd_type == 'muxepi':
             self.num_bands = int(self._hdr.rec.user6)
             self.num_mux_cal_cycle = int(self._hdr.rec.user7)
@@ -379,12 +378,11 @@ class NIMSPFile(NIMSRaw):
 
     def update_imagedata(self, imagedata):
         self.imagedata = imagedata
-        if self.imagedata.shape[0] != self.size_x or self.imagedata.shape[1] != self.size_y:
+        if self.imagedata.shape[0] != self.size[0] or self.imagedata.shape[1] != self.size[1]:
             log.warning('Image matrix discrepancy. Fixing the header, assuming imagedata is correct...')
-            self.size_x = self.imagedata.shape[0]
-            self.size_y = self.imagedata.shape[1]
-            self.mm_per_vox[0] = self.fov[0] / self.size_x
-            self.mm_per_vox[1] = self.fov[1] / self.size_y
+            self.size = [self.imagedata.shape[0], self.imagedata.shape[1]]
+            self.mm_per_vox[0] = self.fov[0] / self.size[0]
+            self.mm_per_vox[1] = self.fov[1] / self.size[1]
         if self.imagedata.shape[2] != self.num_slices * self.num_bands:
             log.warning('Image slice count discrepancy. Fixing the header, assuming imagedata is correct...')
             self.num_slices = self.imagedata.shape[2]
@@ -392,7 +390,7 @@ class NIMSPFile(NIMSRaw):
             log.warning('Image time frame discrepancy (header=%d, array=%d). Fixing the header, assuming imagedata is correct...'
                     % (self.num_timepoints, self.imagedata.shape[3]))
             self.num_timepoints = self.imagedata.shape[3]
-        self.duration = self.num_timepoints * self.tr # FIXME: maybe need self.num_echoes?
+        self.duration = self.num_timepoints * self.tr # FIXME: maybe need self.num_echos?
 
     def recon_hoshim(self, tempdir, num_jobs):
         log.debug('Cannot recon HO SHIM data')
@@ -415,9 +413,9 @@ class NIMSPFile(NIMSRaw):
             log.debug(cmd)
             subprocess.call(shlex.split(cmd), cwd=temp_dirpath, stdout=open('/dev/null', 'w'))  # run spirec to generate .mag and fieldmap files
 
-            self.imagedata = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_timepoints,self.num_echos,self.num_slices],order='F').transpose((0,1,4,2,3))
+            self.imagedata = np.fromfile(file=basepath+'.mag_float', dtype=np.float32).reshape([self.size[0],self.size[1],self.num_timepoints,self.num_echos,self.num_slices],order='F').transpose((0,1,4,2,3))
             if os.path.exists(basepath+'.B0freq2') and os.path.getsize(basepath+'.B0freq2')>0:
-                self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size_x,self.size_y,self.num_echos,self.num_slices],order='F').transpose((0,1,3,2))
+                self.fm_data = np.fromfile(file=basepath+'.B0freq2', dtype=np.float32).reshape([self.size[0],self.size[1],self.num_echos,self.num_slices],order='F').transpose((0,1,3,2))
 
     def find_mux_cal_file(self):
         cal_file = []
@@ -535,7 +533,7 @@ class NIMSPFile(NIMSRaw):
         """
 
         n_frames = self._hdr.rec.nframes + self._hdr.rec.hnover
-        n_echoes = self._hdr.rec.nechoes
+        n_echos = self._hdr.rec.nechoes
         n_slices = self._hdr.rec.nslices / self._hdr.rec.npasses
         n_coils = self.num_receivers
         n_passes = self._hdr.rec.npasses
@@ -544,7 +542,7 @@ class NIMSPFile(NIMSRaw):
         if passes == None: passes = range(n_passes)
         if coils == None: coils = range(n_coils)
         if slices == None: slices = range(n_slices)
-        if echos == None: echos = range(n_echoes)
+        if echos == None: echos = range(n_echos)
         if frames == None: frames = range(n_frames)
 
         # Size (in bytes) of each sample:
@@ -555,7 +553,7 @@ class NIMSPFile(NIMSRaw):
         frame_bytes = 2 * ptsize * frame_sz
 
         echosz = frame_bytes * (1 + n_frames)
-        slicesz = echosz * n_echoes
+        slicesz = echosz * n_echos
         coilsz = slicesz * n_slices
         passsz = coilsz * n_coils
 
