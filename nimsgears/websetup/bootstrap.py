@@ -15,6 +15,7 @@ superusers = [
         u'bobd',
         u'rfbowen',
         u'laimab',
+        u'sbenito',
         ]
 
 groups = [
@@ -46,6 +47,7 @@ groups = [
         dict(gid=u'nambady',    pis=[u'nambady'],   managers=[u'blhughes']),
         dict(gid=u'nass',       pis=[u'nass'],      managers=[u'lharbott']),
         dict(gid=u'ngolden',    pis=[u'ngolden'],   managers=[u'jenguyen']),
+        dict(gid=u'nordahl',    pis=[u'crswu'],     managers=[u'rtjohn']),
         dict(gid=u'pauly',      pis=[u'pauly'],     managers=[u'cvbowen', u'tjou']),
         dict(gid=u'smcclure',   pis=[u'smcclure'],  managers=[u'gstang', u'hennigan', u'mayas']),
         dict(gid=u'wandell',    pis=[u'wandell'],   managers=[u'lmperry']),

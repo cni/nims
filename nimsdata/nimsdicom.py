@@ -13,10 +13,13 @@ import datetime
 import cStringIO
 import numpy as np
 
+import nibabel
 import nimspng
 import nimsutil
 import nimsimage
 import nimsnifti
+
+from nibabel.nicom import dicomreaders
 
 log = logging.getLogger('nimsdicom')
 
@@ -308,6 +311,15 @@ class NIMSDicom(nimsimage.NIMSImage):
                 result = ('bitmap', nimspng.NIMSPNG.write(self, dcm.pixel_array, outbase + '_%d' % (i+1)))
         elif 'PRIMARY' in self.image_type:
             imagedata = self.get_imagedata()
+            if 'MOSAIC' in self.image_type:
+                print 'self.image_type', self.image_type
+                self.load_dicoms()
+                for idx, dcm in enumerate(self.dcm_list):
+                    nifti = dicomreaders.mosaic_to_nii(dcm)
+                    filepath = outbase + '_%d.nii.gz' % (idx+1)
+                    print 'Saved nifti object at', filepath
+                    nibabel.save(nifti, filepath)
+                    result = ('mosaic', filepath)
             result = ('nifti', nimsnifti.NIMSNifti.write(self, imagedata, outbase, self.notes))
         if result[0] is None:
             log.warning('dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase))
