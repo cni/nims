@@ -120,7 +120,9 @@ class NIMSPFile(NIMSRaw):
         self.flip_angle = float(self._hdr.image.mr_flip)
         self.pixel_bandwidth = self._hdr.rec.bw
         # Note: the freq/phase dir isn't meaningful for spiral trajectories.
-        self.phase_encode = 1 if self._hdr.image.freq_dir == 0 else 0
+        # GE numbers the dims 1,2, so freq_dir==1 is the first dim. We'll use
+        # the convention where first dim = 0, second dim = 1, etc. for phase_encode.
+        self.phase_encode = 1 if self._hdr.image.freq_dir==1 else 0
         self.mt_offset_hz = self._hdr.image.offsetfreq
         self.num_slices = self._hdr.image.slquant
         self.num_averages = self._hdr.image.averages
