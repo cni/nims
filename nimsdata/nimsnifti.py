@@ -98,5 +98,3 @@ class NIMSNifti(nimsdata.NIMSData):
         nibabel.save(nifti, filepath)
         log.debug('generated %s' % os.path.basename(filepath))
         return filepath
-
-

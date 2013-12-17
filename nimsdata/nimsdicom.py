@@ -11,7 +11,9 @@ import tarfile
 import argparse
 import datetime
 import cStringIO
+import tempfile
 import numpy as np
+import shutil
 
 import nibabel
 import nimspng
@@ -311,16 +313,20 @@ class NIMSDicom(nimsimage.NIMSImage):
                 result = ('bitmap', nimspng.NIMSPNG.write(self, dcm.pixel_array, outbase + '_%d' % (i+1)))
         elif 'PRIMARY' in self.image_type:
             imagedata = self.get_imagedata()
-            if 'MOSAIC' in self.image_type:
-                print 'self.image_type', self.image_type
-                self.load_dicoms()
-                for idx, dcm in enumerate(self.dcm_list):
-                    nifti = dicomreaders.mosaic_to_nii(dcm)
-                    filepath = outbase + '_%d.nii.gz' % (idx+1)
-                    print 'Saved nifti object at', filepath
-                    nibabel.save(nifti, filepath)
-                    result = ('mosaic', filepath)
-            result = ('nifti', nimsnifti.NIMSNifti.write(self, imagedata, outbase, self.notes))
+            if 'SIEMENS' in self.scanner_type and 'MOSAIC' in self.image_type:
+
+                tmpdir = tempfile.mkdtemp()
+                tar = tarfile.open(self.filepath)
+                tar.extractall(tmpdir)
+                dcm_files_path = os.path.join(tmpdir, self.filepath.split('/')[-1].rsplit('.', 1)[0])
+
+                imagedata, self.qto_xyz, self.bvals, self.bvecs = dicomreaders.read_mosaic_dir(dcm_files_path)
+                result = ('nifti', nimsnifti.NIMSNifti.write(self, imagedata, outbase, self.notes))
+
+                shutil.rmtree(tmpdir)
+
+            else:
+                result = ('nifti', nimsnifti.NIMSNifti.write(self, imagedata, outbase, self.notes))
         if result[0] is None:
             log.warning('dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase))
         return result
