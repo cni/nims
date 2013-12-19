@@ -44,7 +44,7 @@ var id_generator = 0;
 var fileMap = {};
 var totalFilesSize = 0;
 
-var MAX_UPLOAD_SIZE = 3 * 1024 * 1024 * 1024;
+var MAX_UPLOAD_SIZE = 6 * 1024 * 1024 * 1024;
 
 $('#submit_form').on('click', function(evt) {
      evt.stopPropagation();
@@ -472,7 +472,7 @@ function openFile(fileEntry, callback) {
             callback('Reached maximum size', item);
         } else {
             // File is open, read the content
-            processFile(item, callback);
+            checkForDicomFile(item, callback);
         }
 
     }, function(item) {
@@ -483,13 +483,35 @@ function openFile(fileEntry, callback) {
     });
 }
 
-function processFile(file, callback) {
+function checkForDicomFile(file, callback) {
     if (file.name.substring(0,1) == '.') {
         // Ignoring hidden files
         callback(null, file);
         return;
     }
 
+    var blob = file.slice(128, 132);
+    var reader = new FileReader();
+
+    reader.onloadend = function(evt){
+        var magic = evt.target.result;
+        var isDicom = (magic == 'DICM');
+
+        if (isDicom) {
+            processFile(file, callback);
+        } else {
+            // Could not parse the dicom file
+            console.log('Ignoring non-dicom file:', file.name);
+            file.status = "Not valid";
+            addToIgnoredFilesList(file);
+            callback(null, file);
+        }
+    }
+
+    reader.readAsBinaryString(blob);
+}
+
+function processFile(file, callback) {
     var fileReader = new FileReader();
     fileReader.onload = function(evt){
 
@@ -525,7 +547,7 @@ function processFile(file, callback) {
             callback(null, file);
 
         } catch (err) {
-            console.log('Error parsing dicom file:', err, 'file Name: ', file.name);
+            console.log('Error parsing file:', err, 'file Name: ', file.name);
             console.dir(err);
             // Could not parse the dicom file
             file.status = "Not valid";
