@@ -49,6 +49,8 @@ var MAX_UPLOAD_SIZE = 6 * 1024 * 1024 * 1024;
 $('#submit_form').on('click', function(evt) {
      evt.stopPropagation();
      evt.preventDefault();
+     //Prevent user from reload, change of page.
+     window.onbeforeunload = closeEditorWarning;
 
      $('#bannerjs-emptyfields').addClass('hide');
 
@@ -407,6 +409,8 @@ function handleDnDSelect(evt) {
     evt.stopPropagation();
     evt.preventDefault();
     pendingDirectories = evt.originalEvent.dataTransfer.items.length;
+    //Prevent user from reload, change of page.
+    window.onbeforeunload = closeEditorWarning;
 
     //Disable upload button while the DnD processing
     $("input[type=submit]").attr("disabled", "disabled");
@@ -617,6 +621,8 @@ function loadinput(evt){
 function handleFileInputSelect(evt) {
     evt.stopPropagation();
     evt.preventDefault();
+    //Prevent user from reload, change of page.
+    window.onbeforeunload = closeEditorWarning;
 
     var files = evt.target.files;
 
@@ -692,3 +698,8 @@ function humanFileSize(bytes) {
     } while(bytes >= 1024);
     return bytes.toFixed(1) + ' ' + units[u];
 };
+
+function closeEditorWarning(){
+    return 'It looks like you might be in the middle of an upload -- \
+    if you leave before the end of the upload your changes will be lost.'
+}
