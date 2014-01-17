@@ -71,6 +71,7 @@ class Sorter(object):
             else:
                 dataset = model.Dataset.from_mrfile(mrfile, self.nims_path)
                 new_filenames = [filename]
+                log.debug('Moving from ' + filepath + ' to ' + os.path.join(self.nims_path, dataset.relpath, filename))
                 shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
                 for aux_path in aux_paths.get(os.path.splitext(filename)[0] if dataset.compressed else filename, []):
                     new_filenames.append(os.path.basename(aux_path))
