@@ -262,7 +262,7 @@ function doUpload(file, callback) {
 
         // Upload this file to the server
         var data = new FormData();
-        data.append('file', blob, file.name);
+        data.append('file', blob, correctFileExtension(file.name));
         data.append('upload_id', files_to_upload[key].upload_id);
 
         $.ajax('upload/upload_file', {
@@ -865,3 +865,13 @@ function humanFileSize(bytes) {
     } while(bytes >= 1024);
     return bytes.toFixed(1) + ' ' + units[u];
 };
+
+// Change the file extension on dicom files to always be .dcm
+function correctFileExtension(file) {
+    extension = file.substr(file.lastIndexOf("."), file.length);
+    if (extension == ".json"){
+        return;
+    } else {
+        return file.substr(0, file.lastIndexOf(".")) + ".dcm";
+    }
+}
