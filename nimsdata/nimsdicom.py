@@ -224,6 +224,12 @@ class NIMSDicom(nimsimage.NIMSImage):
             self.bvals = np.array([getelem(dcm, TAG_BVALUE, float)[0] for dcm in self.dcm_list[0::self.num_slices]])
             self.bvecs = np.array([[getelem(dcm, TAG_BVEC[i], float) for i in range(3)] for dcm in self.dcm_list[0::self.num_slices]]).transpose()
 
+        # Try to carry on on incomplete datasets. Also, some weird scans like MRVs don't set the
+        # number of slices correctly in the dicom header. (Or at least they set it in a weird way
+        # that we don't understand.)
+        if len(self.dcm_list) < self.num_slices:
+            self.num_slices = len(self.dcm_list)
+            
         image_position = [tuple(getelem(dcm, 'ImagePositionPatient', float, [0., 0., 0.])) for dcm in self.dcm_list]
 
         if self.num_timepoints == 1:
