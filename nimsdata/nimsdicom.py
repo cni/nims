@@ -229,8 +229,9 @@ class NIMSDicom(nimsimage.NIMSImage):
         # that we don't understand.)
         if len(self.dcm_list) < self.num_slices:
             self.num_slices = len(self.dcm_list)
+        if len(self.dcm_list) < self.total_num_slices:
             self.total_num_slices = len(self.dcm_list)
-            
+
         image_position = [tuple(getelem(dcm, 'ImagePositionPatient', float, [0., 0., 0.])) for dcm in self.dcm_list]
 
         if self.num_timepoints == 1:
