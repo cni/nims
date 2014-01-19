@@ -200,10 +200,10 @@ class NIMSDicom(nimsimage.NIMSImage):
             # If a scan was aborted, the number of volumes might be less than the target number of
             # volumes (self.num_timepoints). We'll zero-pad in that case.
             if imagedata.shape[3] < self.num_timepoints:
+                pad_vols = self.num_timepoints - imagedata.shape[3]
                 msg = 'dimensions indicate missing data - zero padding with %d volumes' % pad_vols
                 self.notes += 'WARNING: ' + msg + '\n'
                 log.warning(msg)
-                pad_vols = self.num_timepoints - imagedata.shape[3]
                 imagedata = np.append(imagedata, np.zeros(imagedata.shape[0:3]+(pad_vols,), dtype=imagedata.dtype), axis=3)
 
             nvols = np.prod(imagedata.shape[2:4])
