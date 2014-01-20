@@ -18,7 +18,7 @@ from __future__ import division
 from ctypes import *
 from ctypes.util import find_library
 from errno import *
-from os import strerror
+from os import strerror,read,lseek
 from platform import machine, system
 from signal import signal, SIGINT, SIG_DFL
 from stat import S_IFDIR
@@ -496,8 +496,10 @@ class FUSE(object):
         else:
           fh = fip.contents.fh
 
-        ret = self.operations('read', path.decode(self.encoding), size,
-                                      offset, fh)
+        lseek(fh, offset, 0)
+        ret = read(fh, size)
+        #ret = self.operations('read', path.decode(self.encoding), size,
+        #                              offset, fh)
 
         if not ret: return 0
 
@@ -505,7 +507,6 @@ class FUSE(object):
         assert retsize <= size, \
             'actual amount read %d greater than expected %d' % (retsize, size)
 
-        #data = create_string_buffer(ret, retsize)
         memmove(buf, ret, retsize)
         return retsize
 

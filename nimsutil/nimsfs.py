@@ -226,21 +226,22 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         init_model(sqlalchemy.create_engine(self.db_uri))
 
     def getattr(self, path, fh=None):
-        print 'getattr: ' + path
-        if self.path==path:
-            ts = self.ts
-            gid = self.gid
-            mode = self.mode
-            nlink = self.nlink
-            size = self.size
-            uid = self.uid
+        uid, gid, pid = fuse.fuse_get_context()
+        if fh:
+            fs = os.fstat(fh)
+            at = fs.st_atime
+            ct = fs.st_ctime
+            mt = fs.st_mtime
+            sz = fs.st_size
+            mode = stat.S_IFREG | 0444
+            nlink = 1
+            # TODO: get the uncompressed size for gzip files.
         else:
-            uid, gid, pid = fuse.fuse_get_context()
             fn = path.split('/')[-1]
             is_dir = '%' in fn or not bool(os.path.splitext(fn)[1])
-            ts = int(time.time())
+            at = ct = mt = int(time.time())
             if is_dir:
-                size = 0
+                sz = 0
                 mode = stat.S_IFDIR | 0555
                 nlink = 2
             else:
@@ -249,12 +250,12 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
                 username = pwd.getpwuid(uid).pw_name if not self.god_mode else None
                 groupname = grp.getgrgid(gid).gr_name
                 cur_path = path.split('/')
-                size = 1
+                sz = 1
                 if len(cur_path) == 6:
                     files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath)
                     fname = next((f[1] for f in files if f[0]==cur_path[5]), None)
                     if fname:
-                        size = os.path.getsize(fname)
+                        sz = os.path.getsize(fname)
                         ts = os.path.getmtime(fname)
                     elif cur_path[5].endswith('ugz'):
                         # Check to see if we're being asked about a gzipped file
@@ -266,19 +267,12 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
                             # TODO: consider saving this (as well as the timestamp) in the db.
                             with open(fname, 'r') as fp:
                                 fp.seek(-4,2)
-                                size = struct.unpack('<I',fp.read())[0]
+                                sz = struct.unpack('<I',fp.read())[0]
                         else:
                             raise fuse.FuseOSError(errno.ENOENT)
                     else:
                         raise fuse.FuseOSError(errno.ENOENT)
-                self.path = path
-                self.ts = ts
-                self.gid = gid
-                self.mode = mode
-                self.nlink = nlink
-                self.size = size
-                self.uid = uid
-        return {'st_atime':ts, 'st_ctime':ts, 'st_gid':gid, 'st_mode':mode, 'st_mtime':ts, 'st_nlink':nlink, 'st_size':size, 'st_uid':uid}
+        return {'st_atime':at, 'st_ctime':ct, 'st_gid':gid, 'st_mode':mode, 'st_mtime':mt, 'st_nlink':nlink, 'st_size':sz, 'st_uid':uid}
 
     def readdir(self, path, fh):
         uid, gid, pid = fuse.fuse_get_context()
@@ -336,14 +330,15 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         self.gzfile = None
         os.close(fh)
 
-    def read(self, path, size, offset, fh):
-        #with self.rwlock:
-        if self.gzfile:
-            self.gzfile.seek(offset, 0)
-            return self.gzfile.read(size)
-        else:
-            os.lseek(fh, offset, 0)
-            return os.read(fh, size)
+    # NOTE: the read function is implemented in fuse.py. Doing it there makes file reads 10x faster!
+    #def read(self, path, size, offset, fh):
+    #    #with self.rwlock:
+    #    if self.gzfile:
+    #        self.gzfile.seek(offset, 0)
+    #        return self.gzfile.read(size)
+    #    else:
+    #        os.lseek(fh, offset, 0)
+    #    return os.read(fh, size)
 
     def fgetattr(self, fh=None):
         uid, gid, pid = fuse.fuse_get_context()
@@ -351,7 +346,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         mode = stat.S_IFREG | 0444
         if fh:
             fs = os.fstat(fh)
-            at = os.st_atime
+            at = fs.st_atime
             ct = fs.st_ctime
             mt = fs.st_mtime
             sz = fs.st_size
@@ -386,6 +381,6 @@ if __name__ == '__main__':
     fuse = fuse.FUSE(Nimsfs(datapath=args.datapath, db_uri=args.uri, god_mode=args.god),
                      args.mountpoint,
                      debug=args.debug,
-                     big_writes=True, max_read=2**17, max_write=2**17, nothreads=True,
+                     nothreads=True,
                      allow_other=(not args.no_allow_other))
-
+#big_writes=True, max_read=2**17, max_write=2**17,
