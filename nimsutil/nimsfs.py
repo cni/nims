@@ -6,7 +6,7 @@
 Nimsfs uses FUSE to expose the NIMS database to users as a browseable filesystem.
 Access control is implemented assuming that the operating system uid of the process
 accessing nimsfs is correct, and that this uid maps to the correct NIMS username.
-If all users are assigned their Stanford-assigned uids and only kerberos authentication
+If all users are assigned their centrally-managed uids and only kerberos authentication
 is permitted on the system, then these requirements should be met.
 
 """
@@ -17,7 +17,6 @@ import stat   # for file properties
 import time
 import argparse
 import pwd    # to translate uid to username
-import grp    # to translate gid to groupname
 import fuse
 import gzip
 import struct
@@ -92,12 +91,20 @@ class memoize(object):
             '''Support instance methods.'''
             return functools.partial(self.__call__, obj)
 
+def get_user(username):
+    # We could be given either a real username (string) or a numeric unix UID
+    if isinstance(username,(int,long)):
+        user = User.get_by(uid_number=username)
+    else:
+        user = User.get_by(uid=unicode(username))
+    return user
+
 @memoize()
 def get_groups(username):
     if username==None:
         experiments = (Experiment.query.all())
     else:
-        user = User.get_by(uid=unicode(username))
+        user = get_user(username)
         experiments = (Experiment.query.join(Access)
                        .filter(Access.user==user)
                        .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
@@ -112,7 +119,7 @@ def get_experiments(username, group_name, trash=False):
     if not trash:
         q = q.filter(Experiment.trashtime == None)
     if username!=None:
-        user = User.get_by(uid=unicode(username))
+        user = get_user(username)
         q = (q.filter(Access.user==user)
               .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read')))
     return sorted([e.name.encode() for e in q.all()])
@@ -128,7 +135,7 @@ def get_sessions(username, group_name, exp_name, trash=False):
     if not trash:
         q = q.filter(Session.trashtime == None)
     if username!=None:
-        user = User.get_by(uid=unicode(username))
+        user = get_user(username)
         q = (q.filter(Access.user==user)
               .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read')))
     return sorted([s.name.encode() for s in q.all()])
@@ -150,7 +157,7 @@ def get_epochs(username, group_name, exp_name, session_name, trash=False):
         if not trash:
             q = q.filter(Epoch.trashtime == None)
         if username!=None:
-            user = User.get_by(uid=unicode(username))
+            user = get_user(username)
             q = (q.filter(Access.user==user)
                   .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read')))
         epoch_names = sorted([(e.name + '_' + e.description).encode() for e in q.all()])
@@ -187,7 +194,7 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
         if not trash:
             q = q.filter(Dataset.trashtime == None)
         if username!=None:
-            user = User.get_by(uid=unicode(username))
+            user = get_user(username)
             q = (q.filter(Access.user==user)
                   .filter((Access.privilege >= AccessPrivilege.value(u'Read-Only'))
                        | ((Dataset.kind != u'primary') & (Dataset.kind != u'secondary'))))
@@ -216,14 +223,39 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
 
 class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
 
-    def __init__(self, datapath, db_uri, god_mode=False):
+    def __init__(self, datapath, db_uri, god_mode=False, local_names=False):
+        ''' datapath: the path to the nims data. All data must be readable by
+                      the user running nimsfs.
+            db_uri: the database URI for quering the nims db. The machine where
+                    nimsfs runs must have permission to query the db.
+            god_mode: a flag used mostly for debugging. All access control is disabled.
+                      Obvioulsy, only superusers should have access to nimsfs running
+                      in this mode.
+            local_names: a flag indicating that we should use the local password file
+                         to map uid's to usernames. If false, then the uid will be passed
+                         straight to nims for the user look-up. This is useful when the
+                         users accessing nimsfs don't have local accounts on the machine
+                         running nimsfs (e.g., when nimsfs is run on a server and exported
+                         over NFS). Note that we still count on the local machine's uid
+                         being set correctly for security.
+
+        '''
         self.datapath = datapath
         self.db_uri = db_uri
         self.god_mode = god_mode
+        self.local_names = local_names
         #self.rwlock = threading.Lock()
         self.gzfile = None
-        self.path = ''
         init_model(sqlalchemy.create_engine(self.db_uri))
+
+    def get_username(self, uid):
+        if self.god_mode:
+            username = None
+        elif self.local_names:
+            username = pwd.getpwuid(uid).pw_name
+        else:
+            username = uid
+        return username
 
     def getattr(self, path, fh=None):
         uid, gid, pid = fuse.fuse_get_context()
@@ -247,8 +279,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
             else:
                 mode = stat.S_IFREG | 0444
                 nlink = 1
-                username = pwd.getpwuid(uid).pw_name if not self.god_mode else None
-                groupname = grp.getgrgid(gid).gr_name
+                username = self.get_username(uid)
                 cur_path = path.split('/')
                 sz = 1
                 if len(cur_path) == 6:
@@ -276,8 +307,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
 
     def readdir(self, path, fh):
         uid, gid, pid = fuse.fuse_get_context()
-        username = pwd.getpwuid(uid).pw_name if not self.god_mode else None
-        groupname = grp.getgrgid(gid).gr_name
+        username = self.get_username(uid)
         cur_path = path.split('/')
         if len(cur_path) < 2 or not cur_path[1]:
             dirs = get_groups(username)
@@ -306,8 +336,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
             cur_path = path.split('/')
             if len(cur_path) == 6:
                 uid, gid, pid = fuse.fuse_get_context()
-                username = pwd.getpwuid(uid).pw_name if not self.god_mode else None
-                groupname = grp.getgrgid(gid).gr_name
+                username = self.get_username(uid)
                 files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath)
                 fname = next((f[1] for f in files if f[0]==cur_path[5]), None)
                 if fname:
@@ -368,6 +397,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-n', '--no_allow_other', action='store_true', help='Use this flag to disable the "allow_other" option. (For normal use, be sure to enable allow_other in /etc/fuse.conf)')
         self.add_argument('-d', '--debug', action='store_true', help='start the filesystem in debug mode')
         self.add_argument('-g', '--god', action='store_true', help='God mode-- NO ACCESS CONTROL!')
+        self.add_argument('-l', '--localname', action='store_true', help='Use the local password file to map uid to NIMS username. (Otherwise, uids are sent straight to NIMS.)')
         uri = 'postgresql://nims:nims@cnifs.stanford.edu:5432/nims'
         self.add_argument('-u', '--uri', metavar='URI', default=uri, help='URI pointing to the NIMS database. (Default=%s)' % uri)
         self.add_argument('datapath', help='path to NIMS data')
@@ -378,7 +408,7 @@ if __name__ == '__main__':
     args = ArgumentParser().parse_args()
     if args.god:
         print "WARNING: Starting god-mode. All access control disabled!"
-    fuse = fuse.FUSE(Nimsfs(datapath=args.datapath, db_uri=args.uri, god_mode=args.god),
+    fuse = fuse.FUSE(Nimsfs(datapath=args.datapath, db_uri=args.uri, god_mode=args.god, local_names=args.localname),
                      args.mountpoint,
                      debug=args.debug,
                      nothreads=True,
