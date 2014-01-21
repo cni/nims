@@ -51,6 +51,7 @@ class User(Entity):
     """User definition for :mod:`repoze.who`; `user_name` required."""
 
     uid = Field(Unicode(32), unique=True)           # translation for user_name set in app_cfg.py
+    uid_number = Field(Integer, index=True)
     firstname = Field(Unicode(255))
     lastname = Field(Unicode(255))
     email = Field(Unicode(255))
