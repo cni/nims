@@ -69,10 +69,11 @@ class User(Entity):
 
     def __init__(self, **kwargs):
         if 'uid' in kwargs:
-            ldap_firstname, ldap_lastname, ldap_email = nimsutil.ldap_query(kwargs['uid'])
+            ldap_firstname, ldap_lastname, ldap_email, ldap_uid_number = nimsutil.ldap_query(kwargs['uid'])
             kwargs['firstname'] = ldap_firstname
             kwargs['lastname'] = ldap_lastname
             kwargs['email'] = ldap_email
+            kwargs['uid_number'] = ldap_uid_number
         super(User, self).__init__(**kwargs)
 
     def __repr__(self):
