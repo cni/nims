@@ -135,7 +135,6 @@ class Pipeline(threading.Thread):
 
     def is_wh_job(self):
         experiment_name = self.job.data_container.session.experiment.name
-        print '-------------------------- Experiment name: ', experiment_name
         return 'w_h' in experiment_name
 
     @abc.abstractmethod
@@ -215,7 +214,6 @@ class DicomPipeline(Pipeline):
             dcm_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
             dcm_acq = nimsdata.nimsdicom.NIMSDicom(dcm_tgz)
             conv_type, conv_file = dcm_acq.convert(outbase)
-
             if conv_type:
                 outputdir_list = os.listdir(outputdir)
                 self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]

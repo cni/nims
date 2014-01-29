@@ -84,7 +84,7 @@ class NIMSDicom(nimsimage.NIMSImage):
             elif 'StudyTime' in hdr:        return hdr.StudyTime
             else:                           return '000000'
 
-        if True:
+        try:
             if os.path.isfile(self.filepath) and tarfile.is_tarfile(self.filepath):
                 # compressed tarball
                 self.compressed = True
@@ -106,8 +106,8 @@ class NIMSDicom(nimsimage.NIMSImage):
                 self.compressed = False
                 dcm_path = self.filepath if os.path.isfile(self.filepath) else os.path.join(self.filepath, os.listdir(self.filepath)[0])
                 self._hdr = dicom.read_file(dcm_path, stop_before_pixels=metadata_only)
-        # except Exception as e:
-        #     raise e # NIMSDicomError(str(e))
+        except Exception as e:
+            raise NIMSDicomError(str(e))
 
         self.exam_no = getelem(self._hdr, 'StudyID', int)
         self.series_no = getelem(self._hdr, 'SeriesNumber', int)
@@ -313,7 +313,8 @@ class NIMSDicom(nimsimage.NIMSImage):
     def load_dicoms(self):
         if os.path.isfile(self.filepath) and tarfile.is_tarfile(self.filepath):     # compressed tarball
             with tarfile.open(self.filepath) as archive:
-                self.dcm_list = [dicom.read_file(cStringIO.StringIO(archive.extractfile(ti).read())) for ti in archive if ti.isreg() and ti.name.endswith('.dcm')]
+                self.dcm_list = [dicom.read_file(cStringIO.StringIO(archive.extractfile(ti).read()))
+                                for ti in archive if ti.isreg() and not ti.name.endswith('.json')]
         elif os.path.isfile(self.filepath):                                         # single file
             self.dcm_list = [dicom.read_file(self.filepath)]
         else:                                                                       # directory of dicoms

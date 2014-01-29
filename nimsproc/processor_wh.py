@@ -46,42 +46,39 @@ class ProcessorWH(object):
                 time.sleep(self.sleeptime)
                 continue
 
+            job.status = 'wh-process'
+            transaction.commit()
+
             epoch = job.data_container
             session = Session.query.get(epoch.session_datacontainer_id)
 
             jobs = Job.query.join(DataContainer).join(Epoch) \
                      .filter(Epoch.session_datacontainer_id==session.id).with_lockmode('update').all()
+            epochs = session.epochs
 
+            print 'Associated epochs', epochs
             print 'Associated jobs:', jobs
-            niftis = []
-            datasets = []
 
             # make sure all epochs have been processed (niftis exist)
-            for j in jobs:
-                epoch = j.data_container
-                assert isinstance(epoch, Epoch)
+            all_epochs_have_nifti = True
+            for e in epochs:
+                if len(for ds in e.datasets if ds.filetype == 'nifti') == 0:
+                    all_epochs_have_nifti = False
+                    break
 
-                niftis += [ds.primary_file_relpath for ds in epoch.datasets if ds.filetype == 'nifti']
-                j.status = u'wh-process'
-
-            if len(jobs) != len(niftis):
-                # There is one or more Epochs missing niftis
+            if not all_epochs_have_nifti:
+                log.info("There is one or more Epochs missing niftis")
                 continue
 
+            nimsfs_niftis_path = 'XXXXXX'
 
             # Run the script
-            print 'Processing niftis:', niftis
             # We need to create a temp dir to pass on the process command
-            with nimsutil.TempDir() as tmp_in_dir, nimsutil.TempDir() as tmp_out_dir:
-                print 'Input dir:', tmp_in_dir
-                for nifti in niftis:
-                    nifti_path = os.path.join(self.nims_path, nifti)
-                    link_path = os.path.join(tmp_in_dir, nifti.split('/')[-1])
-                    os.symlink(nifti_path, link_path)
-
+            # The call to the script should be something like subprocess.check_output( script name, parameter1(name directory nimsfs), parameter2( temp/output dir))
+            with nimsutil.TempDir() as tmp_out_dir:
                 print 'Out dir:', tmp_out_dir
 
-                res = subprocess.call( [PROCESSOR_CMD, tmp_in_dir, tmp_out_dir] )
+                res = subprocess.call( [PROCESSOR_CMD, nimsfs_niftis_path, tmp_out_dir] )
                 if res != 0:
                     log.error('Error running WH processor')
                     # Mark the processing as failed
