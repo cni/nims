@@ -5,6 +5,7 @@
 
 import os
 import time
+import json
 import shutil
 import signal
 import logging
@@ -85,7 +86,21 @@ class Sorter(object):
     def sort_directory(self, dirpath, filenames, aux_paths):
         log.debug('Sorting %s in directory mode' % os.path.basename(dirpath))
         try:
-            mrfile = nimsdata.parse(os.path.join(dirpath, filenames[0]))
+            json_metadata = None
+            for filename in filenames:
+                if filename.endswith('.json'):
+                    json_file = open(os.path.join(dirpath, filename))
+                    json_metadata = json.load(json_file)
+                    print '---- json metadata: ', json_metadata
+
+            # Get a single dicom file from the directory. Make sure it's not
+            # the json metatadata file
+            filename = [x for x in filenames if not x.endswith('.json')][0]
+            mrfile = nimsdata.parse(os.path.join(dirpath, filename))
+
+            if json_metadata:
+                mrfile.patient_id = json_metadata.get('Group', '') + '/' + json_metadata.get('Experiment', '')
+                mrfile.notes = json_metadata.get('Notes', '')
         except nimsdata.NIMSDataError:
             if self.preserve_path:
                 preserve_path = nimsutil.make_joined_path(self.preserve_path, os.path.relpath(dirpath, self.sort_path))
