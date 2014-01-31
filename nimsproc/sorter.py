@@ -91,7 +91,6 @@ class Sorter(object):
                 if filename.endswith('.json'):
                     json_file = open(os.path.join(dirpath, filename))
                     json_metadata = json.load(json_file)
-                    print '---- json metadata: ', json_metadata
 
             # Get a single dicom file from the directory. Make sure it's not
             # the json metatadata file

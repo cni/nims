@@ -47,7 +47,6 @@ class ProcessorWH(object):
                 continue
 
             job.status = 'wh-process'
-            transaction.commit()
 
             epoch = job.data_container
             session = Session.query.get(epoch.session_datacontainer_id)
@@ -58,16 +57,26 @@ class ProcessorWH(object):
 
             print 'Associated epochs', epochs
             print 'Associated jobs:', jobs
+            subject = Subject.query.join(Experiment, Subject.experiment_datacontainer_id == Experiment.datacontainer_id) \
+                            .filter(Subject.datacontainer_id == session.subject_datacontainer_id).first()
+            print 'subject', subject
+            print 'Experiment:', subject.experiment
+            print 'Research group:', subject.experiment.owner.gid
+            print 'session name: ', session.name
+
+            nimsfs_niftis_path = '%s-%s-%s' % (subject.experiment.owner.gid, str(subject.experiment.name), session.name)
+            print 'nimsfs_niftis_path', nimsfs_niftis_path
 
             # make sure all epochs have been processed (niftis exist)
             all_epochs_have_nifti = True
             for e in epochs:
-                if len(for ds in e.datasets if ds.filetype == 'nifti') == 0:
+                if not any(ds for ds in e.datasets if ds.filetype == 'nifti'):
                     all_epochs_have_nifti = False
                     break
 
             if not all_epochs_have_nifti:
                 log.info("There is one or more Epochs missing niftis")
+                transaction.commit()
                 continue
 
             nimsfs_niftis_path = 'XXXXXX'
