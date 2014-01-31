@@ -589,7 +589,7 @@ class Session(DataContainer):
     using_options(inheritance='multi')
 
     uid = Field(LargeBinary(32), index=True)
-    exam = Field(Integer)
+    exam = Field(Integer, default=0)
     notes = Field(Unicode)
 
     subject = ManyToOne('Subject')
