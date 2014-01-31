@@ -42,14 +42,16 @@
   <!-- Start #nav -->
   <div id="nav">
     <ul>
-      <py:if test="not tg.identity">
-        <li><a href="${tg.url('/')}" class="${('', 'current')[defined('page') and page=='index']}">Home</a></li>
-        <li><a href="${tg.url('/pub/browse')}" class="${('', 'current')[defined('page') and page=='browse']}">Public Data</a></li>
-        <li><a href="${tg.url('/pub/search')}" class="${('', 'current')[defined('page') and page=='search']}">Public Search</a></li>
-        <li><a href="${tg.url('/pub/upload')}" class="${('', 'current')[defined('page') and page=='upload']}">Public Upload</a></li>
-        <li class="right">
-            <a href="${tg.url('/auth')}">Login</a></li>
-      </py:if>
+        <div id="nav_float" style="max-width:960px;">
+            <py:if test="not tg.identity">
+              <li><a href="${tg.url('/')}" class="${('', 'current')[defined('page') and page=='index']}">Home</a></li>
+              <li><a href="${tg.url('/pub/browse')}" class="${('', 'current')[defined('page') and page=='browse']}">Public Data</a></li>
+              <li><a href="${tg.url('/pub/search')}" class="${('', 'current')[defined('page') and page=='search']}">Public Search</a></li>
+              <li><a href="${tg.url('/pub/upload')}" class="${('', 'current')[defined('page') and page=='upload']}">Public Upload</a></li>
+              <li class="right">
+                  <a href="${tg.url('/auth')}">Login</a></li>
+            </py:if>
+        </div>
 
       <py:if test="tg.identity">
         <li><a href="${tg.url('/auth/browse')}" class="${('', 'current')[defined('page') and page=='browse']}">My Data</a></li>
@@ -69,4 +71,10 @@
   <!-- End #nav -->
 
 </py:def>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script>
+      $(window).resize(function(){
+          $('#nav_float').width($(this).width());
+      });
+</script>
 </html>
