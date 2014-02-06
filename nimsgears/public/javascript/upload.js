@@ -212,6 +212,11 @@ $('#submit_form').on('click', function(evt) {
 
              // Upload all the files, 3 at once
              async.eachLimit(upload_list, 3, doUpload, function(err) {
+                if (err) {
+                    console.log("Upload failed:", err);
+                    return;
+                }
+
                 // Finished uploading all the files from every series
 
                 // Call end upload for each series
@@ -867,11 +872,16 @@ function humanFileSize(bytes) {
 };
 
 // Change the file extension on dicom files to always be .dcm
-function correctFileExtension(file) {
-    extension = file.substr(file.lastIndexOf("."), file.length);
-    if (extension == ".json"){
-        return;
+function correctFileExtension(filename) {
+    var idx = filename.lastIndexOf(".");
+    var extension = filename.substr(idx, filename.length);
+    if (extension == ".json") {
+        return filename;
+    } else if (idx < 0) {
+        // Filename had no extension
+        return filename + ".dcm";
     } else {
-        return file.substr(0, file.lastIndexOf(".")) + ".dcm";
+        // Substitute the file extension
+        return filename.substr(0, idx) + ".dcm";
     }
 }
