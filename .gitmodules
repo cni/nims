@@ -1,0 +1,3 @@
+[submodule "nimsdata"]
+	path = nimsdata
+	url = git@github.com:cni/nimsdata.git
