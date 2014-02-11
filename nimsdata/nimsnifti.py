@@ -93,7 +93,6 @@ class NIMSNifti(nimsdata.NIMSData):
                 )
         if '3D' in metadata.acquisition_type:   # for 3D acquisitions, add the slice R-factor
             nii_header['descrip'] = str(nii_header['descrip']) + 'rs=%.1f' % (1. / metadata.slice_encode_undersample)
-
         nifti = nibabel.Nifti1Image(imagedata, None, nii_header)
         filepath = outbase + '.nii.gz'
         nibabel.save(nifti, filepath)

@@ -39,6 +39,7 @@ class Processor(object):
 
         self.alive = True
         init_model(sqlalchemy.create_engine(db_uri))
+
         if reset: self.reset_all()
 
     def halt(self):
@@ -103,21 +104,27 @@ class Pipeline(threading.Thread):
         log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
         DBSession.add(self.job)
+        conv_type = None
+
         try:
             if self.job.task == u'find&proc':
                 self.find()
-                self.process()
+                conv_type = self.process()
             elif self.job.task == u'find':
                 self.find()
             elif self.job.task == u'proc':
-                self.process()
+                conv_type = self.process()
         except Exception as ex:
             self.job.status = u'failed'
             self.job.activity = u'failed: %s' % ex
             log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         else:
-            self.job.status = u'done'
             self.job.activity = u'done'
+            if conv_type == 'nifti' and self.is_wh_job():
+                self.job.status = u'wh-pending'
+            else:
+                self.job.status = u'done'
+
             log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
 
@@ -125,6 +132,10 @@ class Pipeline(threading.Thread):
         for ds in Dataset.query.filter_by(container=data_container).filter_by(kind=kind).all():
             shutil.rmtree(os.path.join(self.nims_path, ds.relpath))
             ds.delete()
+
+    def is_wh_job(self):
+        experiment_name = self.job.data_container.session.experiment.name
+        return 'w_h' in experiment_name
 
     @abc.abstractmethod
     def find(self):
@@ -203,7 +214,6 @@ class DicomPipeline(Pipeline):
             dcm_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
             dcm_acq = nimsdata.nimsdicom.NIMSDicom(dcm_tgz)
             conv_type, conv_file = dcm_acq.convert(outbase)
-
             if conv_type:
                 outputdir_list = os.listdir(outputdir)
                 self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
@@ -234,7 +244,8 @@ class DicomPipeline(Pipeline):
                 pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
                 transaction.commit()
 
-        DBSession.add(self.job)
+            DBSession.add(self.job)
+            return conv_type
 
 
 class PFilePipeline(Pipeline):

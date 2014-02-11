@@ -5,18 +5,24 @@
 #           Bob Dougherty
 
 import os
+import json
 import dicom
 import logging
 import tarfile
 import argparse
 import datetime
 import cStringIO
+import tempfile
 import numpy as np
+import shutil
 
+import nibabel
 import nimspng
 import nimsutil
 import nimsimage
 import nimsnifti
+
+from nibabel.nicom import dicomreaders
 
 log = logging.getLogger('nimsdicom')
 
@@ -66,6 +72,8 @@ class NIMSDicom(nimsimage.NIMSImage):
 
     def __init__(self, dcm_path, metadata_only=True):
         self.filepath = dcm_path
+        self._hdr = None
+        self._json = None
         def acq_date(hdr):
             if 'AcquisitionDate' in hdr:    return hdr.AcquisitionDate
             elif 'StudyDate' in hdr:        return hdr.StudyDate
@@ -81,8 +89,18 @@ class NIMSDicom(nimsimage.NIMSImage):
                 # compressed tarball
                 self.compressed = True
                 with tarfile.open(self.filepath) as archive:
-                    archive.next()  # skip over top-level directory
-                    self._hdr = dicom.read_file(cStringIO.StringIO(archive.extractfile(archive.next()).read()), stop_before_pixels=metadata_only)
+                    for ti in archive:
+                        if self._hdr is None and ti.isreg():
+                            file = archive.extractfile(ti)
+                            file.seek(128)
+                            file_magic = file.read(4)
+                            if file_magic == 'DICM':
+                                self._hdr = dicom.read_file(archive.extractfile(ti),
+                                                            stop_before_pixels=metadata_only)
+                        if self._json is None and ti.isreg() and ti.name.endswith('.json'):
+                            self._json = json.load(archive.extractfile(ti))
+                        if self._hdr and self._json:
+                            break
             else:
                 # directory of dicoms or single file
                 self.compressed = False
@@ -130,7 +148,9 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.acquisition_type = getelem(self._hdr, 'MRAcquisitionType', None, 'unknown')
         self.mm_per_vox = getelem(self._hdr, 'PixelSpacing', float, [1., 1.]) + [getelem(self._hdr, 'SpacingBetweenSlices', float, getelem(self._hdr, 'SliceThickness', float, 1.))]
         # FIXME: confirm that DICOM (Columns,Rows) = PFile (X,Y)
-        self.size = [getelem(self._hdr, 'Columns', int, 0), getelem(self._hdr, 'Rows', int, 0)]
+        self.size_x = getelem(self._hdr, 'Columns', int, 0)
+        self.size_y = getelem(self._hdr, 'Rows', int, 0)
+        self.size = [self.size_x, self.size_y]
         self.fov = 2 * [getelem(self._hdr, 'ReconstructionDiameter', float, 0.)]
         # Dicom convention is ROW,COL. E.g., ROW is the first dim (index==0), COL is the second (index==1)
         if self.phase_encode == 1:
@@ -160,6 +180,9 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.notes = ''
         self.scan_type = self.infer_scan_type()
         self.dcm_list = None
+        if self._json:
+            self.patient_id = self._json.get('Group', '') + '/' + self._json.get('Experiment', '')
+            self.notes = self._json.get('Notes', '')
         super(NIMSDicom, self).__init__()
 
     def write_anonymized_file(self, filepath):
@@ -172,7 +195,7 @@ class NIMSDicom(nimsimage.NIMSImage):
             self.load_all_metadata()
         slice_loc = [getelem(dcm, 'SliceLocation') for dcm in self.dcm_list]
         imagedata = np.dstack([np.swapaxes(dcm.pixel_array, 0, 1) for dcm in self.dcm_list])
-        dims = np.array((self.size[1], self.size[0], self.num_slices, self.num_timepoints))
+        dims = np.array((self.size_y, self.size_x, self.num_slices, self.num_timepoints))
         slices_total = len(self.dcm_list)
         # If we can figure the dimensions out, reshape the matrix
         if np.prod(dims) == np.size(imagedata):
@@ -186,7 +209,7 @@ class NIMSDicom(nimsimage.NIMSImage):
                 msg = 'dimensions indicate missing slices from volume - zero padding with %d slices' % slices_padding
                 self.notes += 'WARNING: ' + msg + '\n'
                 log.warning(msg)
-                padding = np.zeros((self.size[1], self.size[0], slices_padding))
+                padding = np.zeros((self.size_y, self.size_x, slices_padding))
                 imagedata = np.dstack([imagedata, padding])
             volume_start_indices = range(0, slices_total_rounded_up, self.num_slices)
             imagedata = np.concatenate([imagedata[:,:,index:(index + self.num_slices),np.newaxis] for index in volume_start_indices], axis=3)
@@ -298,7 +321,8 @@ class NIMSDicom(nimsimage.NIMSImage):
     def load_dicoms(self):
         if os.path.isfile(self.filepath) and tarfile.is_tarfile(self.filepath):     # compressed tarball
             with tarfile.open(self.filepath) as archive:
-                self.dcm_list = [dicom.read_file(cStringIO.StringIO(archive.extractfile(ti).read())) for ti in archive if ti.isreg()]
+                self.dcm_list = [dicom.read_file(cStringIO.StringIO(archive.extractfile(ti).read()))
+                                for ti in archive if ti.isreg() and not ti.name.endswith('.json')]
         elif os.path.isfile(self.filepath):                                         # single file
             self.dcm_list = [dicom.read_file(self.filepath)]
         else:                                                                       # directory of dicoms
@@ -316,7 +340,20 @@ class NIMSDicom(nimsimage.NIMSImage):
                 result = ('bitmap', nimspng.NIMSPNG.write(self, dcm.pixel_array, outbase + '_%d' % (i+1)))
         elif 'PRIMARY' in self.image_type:
             imagedata = self.get_imagedata()
-            result = ('nifti', nimsnifti.NIMSNifti.write(self, imagedata, outbase, self.notes))
+            if 'SIEMENS' in self.scanner_type and 'MOSAIC' in self.image_type:
+
+                tmpdir = tempfile.mkdtemp()
+                tar = tarfile.open(self.filepath)
+                tar.extractall(tmpdir)
+                dcm_files_path = os.path.join(tmpdir, self.filepath.split('/')[-1].rsplit('.', 1)[0])
+
+                imagedata, self.qto_xyz, self.bvals, self.bvecs = dicomreaders.read_mosaic_dir(dcm_files_path)
+                result = ('nifti', nimsnifti.NIMSNifti.write(self, imagedata, outbase, self.notes))
+
+                shutil.rmtree(tmpdir)
+
+            else:
+                result = ('nifti', nimsnifti.NIMSNifti.write(self, imagedata, outbase, self.notes))
         if result[0] is None:
             log.warning('dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase))
         return result

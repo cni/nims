@@ -80,6 +80,7 @@ class UploadController(NimsController):
 
         file_path = os.path.join(tmp_upload_directory, file.filename)
         content = file.file.read()
+        file.file.close()
         out = open(file_path, 'w')
         out.write(content)
         out.close()
@@ -90,11 +91,14 @@ class UploadController(NimsController):
             file_result['status'] = True
             file_result['message'] = "Uploaded"
 
-        except NIMSDataError:
+        except NIMSDataError as e:
             print "Couldn't understand the file", file.filename
+            print e
             file_result['status'] = False
             file_result['message'] = "File %s is not a Dicom" % file.filename
-        except:
+        except Exception as e:
+            print "Error processing file", file.filename
+            print e
             file_result['status'] = False
             file_result['message'] = "File %s could not be parsed" % file.filename
 
