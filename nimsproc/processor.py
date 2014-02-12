@@ -248,14 +248,16 @@ class PFilePipeline(Pipeline):
         ds = self.job.data_container.primary_dataset
         with nimsutil.TempDir(dir=self.tempdir) as outputdir:
             pf = None
-            for pfile in os.listdir(os.path.join(self.nims_path, ds.relpath)):
-                if not pfile.startswith('_') and 'refscan' not in pfile:
-                    try:
-                        pf = nimsdata.nimsraw.NIMSPFile(os.path.join(self.nims_path, ds.relpath, pfile))
-                    except nimsdata.nimsraw.NIMSPFileError:
-                        pf = None
-                    else:
-                        break
+            pfiles = [f for f in os.listdir(os.path.join(self.nims_path, ds.relpath)) if not f.startswith('_') and 'refscan' not in f]
+            # Try them in numerical order.
+            # FIXME: if there are >1 pfiles, what to do? Try them all?
+            for pfile in sorted(pfiles):
+                try:
+                    pf = nimsdata.nimsraw.NIMSPFile(os.path.join(self.nims_path, ds.relpath, pfile))
+                except nimsdata.nimsraw.NIMSPFileError:
+                    pf = None
+                else:
+                    break
 
             if pf is not None:
                 criteria = pf.prep_convert()
@@ -263,7 +265,7 @@ class PFilePipeline(Pipeline):
                     q = Epoch.query.filter(Epoch.session==self.job.data_container.session)
                     for fieldname,value in criteria.iteritems():
                         q = q.filter(getattr(Epoch,fieldname)==unicode(value))
-                    epochs = q.all()
+                    epochs = [e for e in q.all() if e!=self.job.data_container]
                     aux_files = [os.path.join(self.nims_path, e.primary_dataset.relpath, f) for e in epochs for f in e.primary_dataset.filenames if f.startswith('P')]
                     self.job.activity = (u'Found %d aux files: %s' % (len(aux_files), (', '.join([os.path.basename(f) for f in aux_files]))))[:255]
                     log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
