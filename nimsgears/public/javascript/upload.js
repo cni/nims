@@ -225,6 +225,7 @@ $('#submit_form').on('click', function(evt) {
                 // Call end upload for each series
                 async.each(Object.keys(files_to_upload), endUpload, function(err) {
                     console.timeEnd('uploadTimer');
+                    window.onbeforeunload = null;
                 });
              });
          });
