@@ -382,12 +382,12 @@ function addFileToList(file) {
         updateFilesSubmitted(key);
     }
 
-    if (fileMap[file.name] == true) {
+    if (fileMap[file.Key+file.name] == true) {
         // Ignoring duplicate file
         return;
     } else {
         // File is not already listed in the page
-        fileMap[file.name] = true;
+        fileMap[file.Key+file.name] = true;
         file.id = files_to_upload[file.Key].id;
         files_to_upload[file.Key].push(file);
 
@@ -418,7 +418,7 @@ function updateFilesSubmitted(key) {
     var numberOfImagesInMosaic = files_to_upload[key].NumberOfImagesInMosaic;
 
     if (!imagesInAcquisition) {
-        imagesSubmitted *= numberOfImagesInMosaic;
+         imagesSubmitted *= numberOfImagesInMosaic;
         $('#count_' + id).html("<b>" + imagesSubmitted + "</b>");
     } else if (imagesSubmitted < imagesInAcquisition) {
         $('#count_' + id).html("<b style='color:red;'>" + imagesSubmitted + "</b>" +
