@@ -16,13 +16,9 @@ import tempfile
 import numpy as np
 import shutil
 
-import nibabel
-import nimspng
 import nimsutil
 import nimsimage
-import nimsnifti
 
-from nibabel.nicom import dicomreaders
 
 log = logging.getLogger('nimsdicom')
 
@@ -46,6 +42,7 @@ TAG_MTOFF_HZ =          (0x0043, 0x1034)
 
 # Siemens-specific tags
 TAG_IMAGES_IN_MOSAIC =  (0x0019, 0x100a)
+TAG_COIL_STRING = (0x0051, 0x100f)
 
 # Siemens: b-value=(0x0019, 0x100C), all 3 grad dirs=(0x0019, 0x100E), and csa (??) =(0x0029, [0x1010 | 0x1020])
 # Philips: b-value=(0x2001, 0x1003), grad dirs=(0x2005, [0x100B0, 0x100B1, 0x100B2])
@@ -121,6 +118,7 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.subj_sex = {'M': 'male', 'F': 'female'}.get(getelem(self._hdr, 'PatientSex'))
         self.psd_name = os.path.basename(getelem(self._hdr, TAG_PSD_NAME, None, 'unknown'))
         self.psd_type = nimsimage.infer_psd_type(self.psd_name)
+        self.acquisition_time = self._hdr.AcquisitionTime
         self.timestamp = datetime.datetime.strptime(acq_date(self._hdr) + acq_time(self._hdr)[:6], '%Y%m%d%H%M%S')
         self.ti = getelem(self._hdr, 'InversionTime', float, 0.) / 1000.0
         self.te = getelem(self._hdr, 'EchoTime', float, 0.) / 1000.0
@@ -130,6 +128,7 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.phase_encode = int(getelem(self._hdr, 'InPlanePhaseEncodingDirection', None, '') == 'COL')
         self.mt_offset_hz = getelem(self._hdr, TAG_MTOFF_HZ, float, 0.)
         self.images_in_mosaic = getelem(self._hdr, TAG_IMAGES_IN_MOSAIC, int, 0)
+        self.coil_string = getelem(self._hdr, TAG_COIL_STRING, str)
         self.total_num_slices = getelem(self._hdr, 'ImagesInAcquisition', int, 0)
         self.num_slices = getelem(self._hdr, TAG_SLICES_PER_VOLUME, int, 1)
         self.num_timepoints = getelem(self._hdr, 'NumberOfTemporalPositions', int, self.total_num_slices / self.num_slices)
@@ -330,34 +329,7 @@ class NIMSDicom(nimsimage.NIMSImage):
         self.dcm_list.sort(key=lambda dcm: dcm.InstanceNumber)
 
     def convert(self, outbase, *args, **kwargs):
-        if not self.image_type:
-            log.warning('dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase))
-            return
-        result = (None, None)
-        if self.image_type == TYPE_SCREEN:
-            self.load_dicoms()
-            for i, dcm in enumerate(self.dcm_list):
-                result = ('bitmap', nimspng.NIMSPNG.write(self, dcm.pixel_array, outbase + '_%d' % (i+1)))
-        elif 'PRIMARY' in self.image_type:
-            imagedata = self.get_imagedata()
-            if 'SIEMENS' in self.scanner_type and 'MOSAIC' in self.image_type:
-
-                tmpdir = tempfile.mkdtemp()
-                tar = tarfile.open(self.filepath)
-                tar.extractall(tmpdir)
-                dcm_files_path = os.path.join(tmpdir, self.filepath.split('/')[-1].rsplit('.', 1)[0])
-
-                imagedata, self.qto_xyz, self.bvals, self.bvecs = dicomreaders.read_mosaic_dir(dcm_files_path)
-                result = ('nifti', nimsnifti.NIMSNifti.write(self, imagedata, outbase, self.notes))
-
-                shutil.rmtree(tmpdir)
-
-            else:
-                result = ('nifti', nimsnifti.NIMSNifti.write(self, imagedata, outbase, self.notes))
-        if result[0] is None:
-            log.warning('dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase))
-        return result
-
+        pass
 
 class ArgumentParser(argparse.ArgumentParser):
 

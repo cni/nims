@@ -2,8 +2,11 @@
 #           Gunnar Schaefer
 
 import os
+import glob
 import logging
 import nibabel
+import dcmstack
+import dcmstack.extract
 
 import numpy as np
 
@@ -93,8 +96,38 @@ class NIMSNifti(nimsdata.NIMSData):
                 )
         if '3D' in metadata.acquisition_type:   # for 3D acquisitions, add the slice R-factor
             nii_header['descrip'] = str(nii_header['descrip']) + 'rs=%.1f' % (1. / metadata.slice_encode_undersample)
-        nifti = nibabel.Nifti1Image(imagedata, None, nii_header)
+
+        else :
+            nifti = nibabel.Nifti1Image(imagedata, None, nii_header)
+            filepath = outbase + '.nii.gz'
+            nibabel.save(nifti, filepath)
+            log.debug('generated %s' % os.path.basename(filepath))
+
+            return filepath
+
+    @staticmethod
+    def write_siemens(time_order, metadata, dcm_files_path, outbase, notes=''):
+        description = 'te=%.2f;ti=%.0f;fa=%.0f;ec=%.4f;acq=[%s];mt=%.0f;rp=%.1f;' % (
+                metadata.te * 1000.,
+                metadata.ti * 1000.,
+                metadata.flip_angle,
+                metadata.effective_echo_spacing * 1000.,
+                ','.join(map(str, metadata.acquisition_matrix)),
+                metadata.mt_offset_hz,
+                1. / metadata.phase_encode_undersample,
+                )
+        if '3D' in metadata.acquisition_type:   # for 3D acquisitions, add the slice R-factor
+            description = str(description) + 'rs=%.1f' % (1. / metadata.slice_encode_undersample)
+
+        extractor = dcmstack.extract.MetaExtractor(ignore_rules=[dcmstack.extract.ignore_non_ascii_bytes])
+        dcm_paths = glob.glob(dcm_files_path + '/*')
+        stacks = dcmstack.parse_and_stack(dcm_paths, extractor=extractor, time_order=time_order)
+        stack = stacks.values()[0]
+        nifti = stack.to_nifti()
+        nifti.get_header()['descrip'] = description
+
         filepath = outbase + '.nii.gz'
         nibabel.save(nifti, filepath)
         log.debug('generated %s' % os.path.basename(filepath))
+
         return filepath

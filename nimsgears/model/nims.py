@@ -816,6 +816,7 @@ class Dataset(Entity):
     compressed = Field(Boolean, default=False)
     archived = Field(Boolean, default=False, index=True)
     _filenames = Field(String, default='', colname='filenames', synonym='filenames')
+    acquisition_time = Field(String, default='', index=True)
 
     container = ManyToOne('DataContainer')
     parents = ManyToMany('Dataset')
@@ -856,6 +857,7 @@ class Dataset(Entity):
             else:
                 kind = u'secondary'
             epoch = Epoch.from_mrfile(mrfile)
+
             dataset = cls(
                     container=epoch,
                     priority = mrfile.priority,
@@ -864,6 +866,7 @@ class Dataset(Entity):
                     kind=kind,
                     label=cls.default_labels[mrfile.filetype],
                     archived=archived,
+                    acquisition_time=mrfile.acquisition_time
                     )
             transaction.commit()
             DBSession.add(dataset)

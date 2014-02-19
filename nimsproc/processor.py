@@ -13,13 +13,20 @@ import tarfile
 import argparse
 import datetime
 import threading
+import tempfile
+import re
 
 import sqlalchemy
 import transaction
 
+import numpy as np
 import nimsutil
 import nimsdata
+import nibabel
+from nimsdata import nimspng, nimsimage, nimsnifti, nimsdicom
+from nibabel.nicom import dicomreaders
 from nimsgears.model import *
+from dcmstack.dcmmeta import NiftiWrapper
 
 log = logging.getLogger('processor')
 
@@ -115,9 +122,9 @@ class Pipeline(threading.Thread):
             elif self.job.task == u'proc':
                 conv_type = self.process()
         except Exception as ex:
-            self.job.status = u'failed'
-            self.job.activity = u'failed: %s' % ex
-            log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+             self.job.status = u'failed'
+             self.job.activity = u'failed: %s' % ex
+             log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         else:
             self.job.activity = u'done'
             if conv_type == 'nifti' and self.is_wh_job():
@@ -213,7 +220,21 @@ class DicomPipeline(Pipeline):
             outbase = os.path.join(outputdir, ds.container.name)
             dcm_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
             dcm_acq = nimsdata.nimsdicom.NIMSDicom(dcm_tgz)
-            conv_type, conv_file = dcm_acq.convert(outbase)
+
+            if not dcm_acq.image_type:
+                log.warning('dicom conversion failed for %s: ImageType not set in dicom header' % os.path.basename(outbase))
+                return
+
+            if dcm_acq.image_type == nimsdicom.TYPE_SCREEN:
+                conv_type, conv_file = self.convert_screen(dcm_acq, outbase)
+            elif not 'PRIMARY' in dcm_acq.image_type:
+                # Ignore non-primary epochs
+                conv_type, conv_file = None, None
+            elif 'SIEMENS' in dcm_acq.scanner_type:
+                conv_type, conv_file = self.convert_siemens(dcm_acq, outbase)
+            else:
+                conv_type, conv_file = self.convert_primary_default(dcm_acq, outbase)
+
             if conv_type:
                 outputdir_list = os.listdir(outputdir)
                 self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
@@ -230,23 +251,140 @@ class DicomPipeline(Pipeline):
                     shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, conv_ds.relpath))
                 conv_ds.filenames = filenames
                 transaction.commit()
+            else:
+                log.warning('dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase))
+
+            print 'conv_file:', conv_file
+
 
             if conv_type == 'nifti':
-                pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
-                DBSession.add(self.job)
-                DBSession.add(self.job.data_container)
-                nims_montage = nimsdata.nimsmontage.generate_montage(conv_file)
-                nims_montage.write_sqlite_pyramid(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
-                self.job.activity = u'image pyramid generated'
-                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                pyramid_ds.kind = u'web'
-                pyramid_ds.container = self.job.data_container
-                pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
-                transaction.commit()
+                if type(conv_file) is str:
+                    conv_file = [conv_file]
+
+                for file in conv_file:
+                    try:
+                        pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
+                        DBSession.add(self.job)
+                        DBSession.add(self.job.data_container)
+                        nims_montage = nimsdata.nimsmontage.generate_montage(file)
+                        print 'nims_montage', nims_montage
+                        nims_montage.write_sqlite_pyramid(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
+                        self.job.activity = u'image pyramid generated'
+                        log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                        pyramid_ds.kind = u'web'
+                        pyramid_ds.container = self.job.data_container
+                        pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
+                        transaction.commit()
+                    except Exception as e:
+                        log.warn('Error creating montage file. %s' % e)
+
 
             DBSession.add(self.job)
             return conv_type
 
+    def convert_screen(self, dcm_acq, outbase):
+        self.load_dicoms()
+        for i, dcm in enumerate(self.dcm_list):
+            result = ('bitmap', nimspng.NIMSPNG.write(dcm_acq, dcm.pixel_array, outbase + '_%d' % (i+1)))
+        return result
+
+
+    def convert_primary_default(self, dcm_acq, outbase):
+        imagedata = dcm_acq.get_imagedata()
+        return ('nifti', nimsnifti.NIMSNifti.write(dcm_acq, imagedata, outbase, dcm_acq.notes))
+
+    def convert_siemens(self, dcm_acq, outbase):
+        # Extract tgz file into a temporary directory
+        tmpdir = tempfile.mkdtemp()
+        tar = tarfile.open(dcm_acq.filepath)
+        tar.extractall(tmpdir)
+        dcm_files_path = os.path.join(tmpdir, dcm_acq.filepath.split('/')[-1].rsplit('.', 1)[0])
+
+        niftis = []
+        is_current_nifti_multicoil = False
+
+        if 'MOSAIC' in dcm_acq.image_type:
+            imagedata, dcm_acq.qto_xyz, dcm_acq.bvals, dcm_acq.bvecs = dicomreaders.read_mosaic_dir(dcm_files_path)
+            niftis.append(nimsnifti.NIMSNifti.write(dcm_acq, imagedata, outbase, dcm_acq.notes))
+        else:
+            if re.match('H[0-3]?[0-9]', dcm_acq.coil_string):
+                print '--- Multichannel process nifti'
+                is_current_nifti_multicoil = True
+                time_order = 'CoilString'
+                niftis.append(nimsnifti.NIMSNifti.write_siemens(time_order, dcm_acq, dcm_files_path, outbase, dcm_acq.notes ))
+            else:
+                print '---Normal siemens nifti'
+                time_order = None
+                niftis.append(nimsnifti.NIMSNifti.write_siemens(time_order, dcm_acq, dcm_files_path, outbase, dcm_acq.notes ))
+
+        # Try to find the paired multi-coil combined dataset (if any)
+        print 'Acquisition time:', dcm_acq.acquisition_time
+        dataset = Dataset.from_mrfile(dcm_acq, None)
+        print 'Id:', dataset.id, 'DatacontainerId', dataset.container_id
+        pair_ds = Dataset.query.filter(Dataset.acquisition_time == dcm_acq.acquisition_time, Dataset.id != dataset.id).first()
+        if not pair_ds:
+            log.debug("Multi-coil combined dataset not found")
+        else:
+            log.info('Found multi-coil combined dataset: %d datacontainer_id: %d' % (pair_ds.id, pair_ds.container_id) )
+
+            nifti_combined = niftis[0]
+            print 'nifti_combined: ', nifti_combined
+
+            #Multicoil
+            nifti_multicoil = Dataset.query.filter(Dataset.container_id == pair_ds.container_id, Dataset.filetype == 'nifti').first()
+            if not nifti_multicoil:
+                log.info('Multi-coil combined dataset does not have a nifti yet. dataset:%d datacontainer_id: %d' % (pair_ds.id, pair_ds.container_id) )
+            else:
+                filename2 = nifti_multicoil.filenames[0]
+
+                nifti_multicoil_in_db = os.path.join(self.nims_path, nifti_multicoil.relpath,filename2)
+
+                log.info('Generating combined nifti from %s --- %s' % (nifti_combined, nifti_multicoil_in_db) )
+
+                #Use dcmstack to get a wrapper of NIfTI
+                nw_combined = NiftiWrapper.from_filename(nifti_combined)
+                nw_multicoil = NiftiWrapper.from_filename(nifti_multicoil_in_db)
+
+                if is_current_nifti_multicoil:
+                    # Swap the 2 niftis so that we merge them always in the same order
+                    nw_combined, nw_multicoil = nw_multicoil, nw_combined
+
+                #Get data from wrapper
+                matrix_combined = nw_combined.nii_img.get_data()
+                matrix_multicoil = nw_multicoil.nii_img.get_data()
+
+                #Get a numpy matrix to merge both
+                matrix_combined_np = np.array(matrix_combined)
+                matrix_multicoil_np = np.array(matrix_multicoil)
+
+                #Add one dimension to combined data to be able to concatenate
+                matrix_combined_extended_dim = matrix_combined_np[...,None]
+
+                merged = np.concatenate((matrix_multicoil_np, matrix_combined_extended_dim), axis=3)
+
+                # Build a new Nifti using Nibabel
+                nibabel_nifti = nibabel.load(nifti_multicoil_in_db)
+                nibabel_header_multicoil = nibabel_nifti.get_header()
+                nibabel_affine_multicoil = nibabel_nifti.get_affine()
+                built_merged_nifti = nibabel.Nifti1Image(np.array(merged), nibabel_affine_multicoil, nibabel_header_multicoil)
+
+                print 'outbase: ', outbase
+                filepath = outbase + '_merged.nii.gz'
+
+                #Save the niftis into the DB
+                nibabel.save(built_merged_nifti, filepath)
+                niftis.append(filepath)
+
+                #Change the description of the epoch in which the 'combined' is located
+                combined_ds = Dataset.query.filter(Dataset.id == dataset.id).first()
+                epoch_object = Epoch.query.filter(Epoch.datacontainer_id == combined_ds.container_id).first()
+                if not epoch_object.description.endswith(' [merged]'):
+                    epoch_object.description += ' [merged]'
+
+
+        shutil.rmtree(tmpdir)
+        print 'niftis: ', niftis
+        return ('nifti', niftis)
 
 class PFilePipeline(Pipeline):
 
