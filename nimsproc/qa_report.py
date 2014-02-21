@@ -36,13 +36,7 @@ def find_spikes(d, spike_thresh=3):
     # This will catch smaller spikes that may have been swamped by big ones.
     d.mask[:,:,spike_inds[:,0],spike_inds[:,1]] = True
     slice_mean2 = d.mean(axis=0).mean(axis=0)
-    t_z = (slice_mean - np.atleast_2d(slice_mean2.mean(axis=1)).T) / np.atleast_2d(slice_mean2.std(axis=1)).T
-    spikes = np.logical_or(spikes, t_z<-spike_thresh)
-    spike_inds = np.transpose(spikes.nonzero())
-
-    d.mask[:,:,spike_inds[:,0],spike_inds[:,1]] = True
-    slice_mean2 = d.mean(axis=0).mean(axis=0)
-    t_z = (slice_mean - np.atleast_2d(slice_mean2.mean(axis=1)).T) / np.atleast_2d(slice_mean2.std(axis=1)).T
+    t_z = (slice_mean - np.atleast_2d(slice_mean.mean(axis=1)).T) / np.atleast_2d(slice_mean2.std(axis=1)).T
     spikes = np.logical_or(spikes, t_z<-spike_thresh)
     spike_inds = np.transpose(spikes.nonzero())
 
@@ -125,12 +119,13 @@ def generate_qa_report(epoch_id, nimspath, force=False):
             print('   Estimating motion...')
             aligned,mean_disp = motion_correct(ni)
             print('   Finding spikes...')
-            brain,background = mask(aligned.get_data(), nskip=3)
+            brain,background = mask(aligned.get_data(), nskip=4)
             t = np.arange(0.,brain.shape[3]) * tr
             # Get the global mean signal and subtract it out
-            global_ts = UnivariateSpline(t, brain.mean(0).mean(0).mean(0), s=10)
+            global_ts = brain.mean(0).mean(0).mean(0)
+            global_ts_spline = UnivariateSpline(t, global_ts, s=10)
             # Simple z-score-based spike detection
-            spike_inds,t_z = find_spikes(brain - global_ts(t), spike_thresh=5.)
+            spike_inds,t_z = find_spikes(brain - global_ts_spline(t), spike_thresh=6.)
             tsnr = brain.mean(axis=3) / brain.std(axis=3)
             median_tsnr = np.ma.median(tsnr)
             qa_ds = Dataset.at_path(nimspath, u'json')
@@ -144,6 +139,7 @@ def generate_qa_report(epoch_id, nimspath, force=False):
                             'max md': mean_disp.max().round(3).astype(float),
                             'median md': np.median(mean_disp).round(3).astype(float),
                             'temporal SNR (median)': median_tsnr.round(3).astype(float),
+                            'global mean signal': global_ts.round(2).tolist(fill_value=global_ts.mean()),
                             'timeseries zscore': t_z.round(3).tolist(fill_value=0),
                             'spikes': spike_inds.tolist()}],
                           fp)
