@@ -91,6 +91,28 @@ class RootController(BaseController):
             db_file = os.path.join(store_path, ds.relpath, ds.filenames[0])
             return dict(zip(['dataset_id', 'tile_size', 'x_size', 'y_size'], (ds.id,) + nimsdata.nimsmontage.get_info(db_file)))
 
+    @expose('nimsgears.templates.qa_report', render_params={'doctype': None})
+    def qa_report(self, **kwargs):
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
+        ds = Dataset.get(kwargs['dataset_id'])
+        if user.has_access_to(ds):
+            qa_file = os.path.join(store_path, ds.relpath, ds.filenames[0])
+        with open(qa_file) as fp:
+            qa = json.load(fp)
+            md = qa[0]['mean displacement']
+            rel_md = [0] + [round(md[i]-md[i-1],3) for i in range(1,len(md))]
+            d = [{'key':"'absolute'",'color':"'blue'",'values':[{'x':t,'y':d} for t,d in zip(qa[0]['frame #'],md)]},
+                 {'key':"'relative'",'color':"'cyan'",'values':[{'x':t,'y':d} for t,d in zip(qa[0]['frame #'],rel_md)]}]
+            motion_js = json.dumps(d).replace('"','').replace(' ','')
+            vals = []
+            color_scale = 239/(len(qa[0]['timeseries zscore'])-1)
+            for sl,tsz in enumerate(qa[0]['timeseries zscore']):
+                c = "'#10" + hex(sl*color_scale+16)[2:] + hex(255-sl*color_scale)[2:] + "'"
+                vals.append({'key':"'slice%d'"%sl,'color':c,'values':[{'x':t,'y':d} for t,d in zip(qa[0]['frame #'], tsz)]})
+            tsz_js = json.dumps(vals).replace('"','').replace(' ','')
+            return dict(motion=motion_js, tsz=tsz_js, tsnr=round(qa[0]['temporal SNR (median)'],2), num_spikes=len(qa[0]['spikes']))
+
+
     @expose(content_type='image/jpeg')
     def pyramid_tile(self, *args):
         user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
