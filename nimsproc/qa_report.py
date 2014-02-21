@@ -12,6 +12,8 @@ import nipy.algorithms.registration
 import sys
 import json
 import argparse
+import time
+import shutil
 
 def mask(d, nskip=6):
     mn = d[:,:,:,nskip:].mean(3)
@@ -93,51 +95,72 @@ def motion_correct(nifti_image):
         mean_disp.append(np.sqrt( R**2. / 5 * np.trace(A.T * A) + (t + A*xc).T * (t + A*xc) ).item())
     return aligned,np.array(mean_disp)
 
-def generate_qa_report(epoch, nimspath):
-    epoch.qa_status = u'running'
-    transaction.commit()
-    ni_ds = [ds for ds in epoch.datasets if ds.filetype==u'nifti'][0]
-    ni_fname = os.path.join(nimspath, ni_ds.relpath, ni_ds.filenames[0])
-    ni = nb.load(ni_fname)
-    tr = ni.get_header().get_zooms()[3]
-    dims = ni.get_shape()
-    if len(dims)<4 or dims[3]<6:
-        print('Not a time series.')
-    else:
+def generate_qa_report(epoch_id, nimspath, force=False):
+    epoch = Epoch.get(epoch_id)
+    print('Running QA on ' + str(epoch) + '...')
+    qa_ds = [ds for ds in epoch.datasets if ds.filetype==u'json' and ds.label==u'QA']
+    if len(qa_ds)>0:
+        if force:
+            for ds in qa_ds:
+                shutil.rmtree(os.path.join(nimspath, ds.relpath))
+                ds.delete()
+            epoch.qa_status = u'pending'
+        else:
+            # This epoch has QA. Mark it as such.
+            epoch.qa_status = u'done'
         transaction.commit()
-        aligned,mean_disp = motion_correct(ni)
-        brain,background = mask(aligned.get_data(), nskip=3)
-        t = np.arange(0.,brain.shape[3]) * tr
-        # Get the global mean signal and subtract it out
-        global_ts = UnivariateSpline(t, brain.mean(0).mean(0).mean(0), s=10)
-        # Simple z-score-based spike detection
-        spike_inds,t_z = find_spikes(brain - global_ts(t), spike_thresh=5.)
-        tsnr = brain.mean(axis=3) / brain.std(axis=3)
-        median_tsnr = np.ma.median(tsnr)
-        qa_ds = Dataset.at_path(nimspath, u'json')
-        qa_ds.filenames = [u'qa_report.json']
-        qa_ds.container = e
-        outfile = os.path.join(nimspath, qa_ds.relpath, qa_ds.filenames[0])
-        with open(outfile, 'w') as fp:
-            json.dump([{'dataset': ni_fname, 'tr': tr.tolist(),
-                        'frame #': range(0,brain.shape[3]),
-                        'mean displacement': mean_disp.round(3).tolist(),
-                        'max md': mean_disp.max().round(3).astype(float),
-                        'median md': np.median(mean_disp).round(3).astype(float),
-                        'temporal SNR (median)': median_tsnr.round(3).astype(float),
-                        'timeseries zscore': t_z.round(3).tolist(fill_value=0),
-                        'spikes': spike_inds.tolist()}],
-                      fp)
-    e.qa_status = u'done'
-    transaction.commit()
+        DBSession.add(epoch)
+    if force or epoch.qa_status==None or epoch.qa_status==u'pending':
+        epoch.qa_status = u'running'
+        transaction.commit()
+        DBSession.add(epoch)
+        ni_ds = [ds for ds in epoch.datasets if ds.filetype==u'nifti'][0]
+        ni_fname = os.path.join(nimspath, ni_ds.relpath, ni_ds.filenames[0])
+        ni = nb.load(ni_fname)
+        tr = ni.get_header().get_zooms()[3]
+        dims = ni.get_shape()
+        if len(dims)<4 or dims[3]<6:
+            print('Not a time series-- aborting.')
+        else:
+            print('   Estimating motion...')
+            aligned,mean_disp = motion_correct(ni)
+            print('   Finding spikes...')
+            brain,background = mask(aligned.get_data(), nskip=3)
+            t = np.arange(0.,brain.shape[3]) * tr
+            # Get the global mean signal and subtract it out
+            global_ts = UnivariateSpline(t, brain.mean(0).mean(0).mean(0), s=10)
+            # Simple z-score-based spike detection
+            spike_inds,t_z = find_spikes(brain - global_ts(t), spike_thresh=5.)
+            tsnr = brain.mean(axis=3) / brain.std(axis=3)
+            median_tsnr = np.ma.median(tsnr)
+            qa_ds = Dataset.at_path(nimspath, u'json')
+            qa_ds.filenames = [u'qa_report.json']
+            qa_ds.container = epoch
+            outfile = os.path.join(nimspath, qa_ds.relpath, qa_ds.filenames[0])
+            with open(outfile, 'w') as fp:
+                json.dump([{'dataset': ni_fname, 'tr': tr.tolist(),
+                            'frame #': range(0,brain.shape[3]),
+                            'mean displacement': mean_disp.round(3).tolist(),
+                            'max md': mean_disp.max().round(3).astype(float),
+                            'median md': np.median(mean_disp).round(3).astype(float),
+                            'temporal SNR (median)': median_tsnr.round(3).astype(float),
+                            'timeseries zscore': t_z.round(3).tolist(fill_value=0),
+                            'spikes': spike_inds.tolist()}],
+                          fp)
+        epoch.qa_status = u'done'
+        transaction.commit()
+        print('   Finished.')
+    else:
+        print('   QA appears to have already been run on this epoch. Use --force to rerun it.')
 
 
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):
         super(ArgumentParser, self).__init__()
         self.description = """Run CNI quality assurance metrics and save the qa report in the NIMS database."""
-        self.add_argument('-f', '-flag', action='store_true', help='foo')
+        self.add_argument('-f', '--force', default=False, action='store_true', help='force qa to run even it exists.')
         self.add_argument('-s', '--session_id', help='To run QA metrics on all epochs in a session, pass the session id.')
+        self.add_argument('-e', '--epoch_id', help='Run QA metrics on this epoch.')
         uri = 'postgresql://nims:nims@cnifs.stanford.edu:5432/nims'
         self.add_argument('-u', '--uri', metavar='URI', default=uri, help='URI pointing to the NIMS database. (Default=%s)' % uri)
         self.add_argument('nimspath', default='/cnifs/nims/', help='path to NIMS data (must be writable)')
@@ -145,10 +168,19 @@ class ArgumentParser(argparse.ArgumentParser):
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
     init_model(sqlalchemy.create_engine(args.uri))
-    if args.session_id:
+    if args.epoch_id:
+        generate_qa_report(args.epoch_id, args.nimspath, force=args.force)
+    elif args.session_id:
         s = Session.get(args.session_id)
-        func_epochs = [e for e in s.epochs if e.scan_type==u'functional']
-        for e in func_epochs:
-            if e.qa_status==None or e.qa_status==u'pending':
-                generate_qa_report(e, args.nimspath)
+        func_epoch_ids = [e.id for e in s.epochs if e.scan_type==u'functional']
+        for epoch_id in func_epoch_ids:
+            generate_qa_report(epoch_id, args.nimspath, force=args.force)
+            #DBSession.add(s)
+    else:
+        # Run continuously, doing QA on the latest epoch with it.
+        while True:
+            time.sleep(1)
 
+# TODO: enable the 'force' option. To do it right, we need to clean up old QA datasets.
+# We might want to do that by default, since we generally never want more than one QA on an epoch.
+# Also, we should put qa_status on the epoch, not the dataset.
