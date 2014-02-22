@@ -670,7 +670,7 @@ class Epoch(DataContainer):
     psd = Field(Unicode(255))
     physio_recorded = Field(Boolean, default=False)
     physio_valid = Field(Boolean)
-    qa_status = Field(Enum(u'pending', u'running', u'done', u'failed', u'abandoned', name=u'dataset_qa_status'))
+    qa_status = Field(Enum(u'pending', u'running', u'done', u'failed', u'abandoned', u'rerun', name=u'dataset_qa_status'))
 
     tr = Field(Float)
     te = Field(Float)
@@ -849,6 +849,7 @@ class Dataset(Entity):
             elif alt_dataset.priority < mrfile.priority:
                 kind = u'primary'
                 alt_dataset.kind = u'secondary'
+                alt_dataset.container.qa_status = u'rerun'
             else:
                 kind = u'secondary'
             epoch = Epoch.from_mrfile(mrfile)
