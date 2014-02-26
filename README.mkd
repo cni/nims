@@ -67,7 +67,7 @@ Generate the production database:
 Configure and restart Apache:
 
     ln -s $PWD/apache.conf /etc/apache2/conf.d/nims.conf
-    mkdir /var/cache/nims && chown www-data:www-data /var/cache/nims
+    mkdir /var/cache/nimsgears && chown www-data:www-data /var/cache/nimsgears
     service apache2 restart
 
 
