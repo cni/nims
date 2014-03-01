@@ -37,63 +37,64 @@ svg {
 </style>
 
 <script>
-nv.addGraph(function() {
-  //var chart = nv.models.lineWithFocusChart()
-  var chart = nv.models.lineChart()
-                .margin({left: 80, bottom: 50})
-                .showXAxis(true)
-                .showYAxis(true)
-                .showLegend(true)
-                .transitionDuration(200)
-  ;
+var url1 = "${tg.url('/qa_data')}/motion_${dataset_id}.json";
+var url2 = "${tg.url('/qa_data')}/tsz_${dataset_id}.json";
+d3.json(url1, function(data1) {
+    nv.addGraph(function() {
+      //var chart = nv.models.lineWithFocusChart()
+      var chart = nv.models.lineChart()
+                    .margin({left: 80, bottom: 50})
+                    .showXAxis(true)
+                    .showYAxis(true)
+                    .showLegend(true)
+                    .transitionDuration(200)
+      ;
 
- // chart.transitionDuration(500);
- chart.xAxis
-      .axisLabel("Time (frame #)")
-      .tickFormat(d3.format(',f'));
+     chart.xAxis
+          .axisLabel("Time (frame #)")
+          .tickFormat(d3.format(',f'));
 
-  chart.yAxis
-      .axisLabel("Mean Displacement (mm)")
-      .tickFormat(d3.format(',.2f'));
+      chart.yAxis
+          .axisLabel("Mean Displacement (mm)")
+          .tickFormat(d3.format(',.2f'));
 
-  d3.select('#chart1 svg')
-      .datum(data1)
-      .call(chart);
+      d3.select('#chart1 svg')
+          .datum(data1)
+          .call(chart);
 
-  nv.utils.windowResize(chart.update);
-
-  return chart;
+      nv.utils.windowResize(chart.update);
+      return chart;
+    });
 });
 
-nv.addGraph(function() {
-  //var chart = nv.models.lineWithFocusChart()
-  var chart = nv.models.lineChart()
-                .margin({left: 80, bottom: 50})
-                .showXAxis(true)
-                .showYAxis(true)
-                .showLegend(false)
-                .transitionDuration(200)
-  ;
+d3.json(url2, function(data2) {
+    nv.addGraph(function() {
+      //var chart = nv.models.lineWithFocusChart()
+      var chart = nv.models.lineChart()
+                    .margin({left: 80, bottom: 50})
+                    .showXAxis(true)
+                    .showYAxis(true)
+                    .showLegend(false)
+                    .transitionDuration(200)
+      ;
 
- chart.xAxis
-      .axisLabel("Time (frame #)")
-      .tickFormat(d3.format(',f'));
+     chart.xAxis
+          .axisLabel("Time (frame #)")
+          .tickFormat(d3.format(',f'));
 
-  chart.yAxis
-      .axisLabel("z-score")
-      .tickFormat(d3.format(',.2f'));
+      chart.yAxis
+          .axisLabel("z-score")
+          .tickFormat(d3.format(',.2f'));
 
-  d3.select('#chart2 svg')
-      .datum(data2)
-      .call(chart);
+      d3.select('#chart2 svg')
+          .datum(data2)
+          .call(chart);
 
-  nv.utils.windowResize(chart.update);
+      nv.utils.windowResize(chart.update);
 
-  return chart;
+      return chart;
+    });
 });
-
-data1 = ${motion};
-data2 = ${tsz};
 
 </script>
 

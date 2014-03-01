@@ -110,8 +110,35 @@ class RootController(BaseController):
                 c = "'#10" + hex(sl*color_scale+16)[2:] + hex(255-sl*color_scale)[2:] + "'"
                 vals.append({'key':"'slice%d'"%sl,'color':c,'values':[{'x':t,'y':d} for t,d in zip(qa[0]['frame #'], tsz)]})
             tsz_js = json.dumps(vals).replace('"','').replace(' ','')
-            return dict(motion=motion_js, tsz=tsz_js, tsnr=round(qa[0]['temporal SNR (median)'],2), num_spikes=len(qa[0]['spikes']))
+            return dict(dataset_id=ds.id, tsnr=round(qa[0]['temporal SNR (median)'],2), num_spikes=len(qa[0]['spikes']))
 
+    @expose(content_type='application/json')
+    def qa_data(self, *args):
+        user = request.identity['user'] if request.identity else User.get_by(uid=u'@public')
+        print('qa_data')
+        data_name,dataset_id = args[0].rsplit('.', 1)[0].split('_')
+        print((data_name,dataset_id))
+        ds = Dataset.get(int(dataset_id))
+        if user.has_access_to(ds):
+            qa_file = os.path.join(store_path, ds.relpath, ds.filenames[0])
+            with open(qa_file) as fp:
+                qa = json.load(fp)
+                if data_name=='motion':
+                    md = qa[0]['mean displacement']
+                    rel_md = [0] + [round(md[i]-md[i-1],3) for i in range(1,len(md))]
+                    d = [{'key':"absolute",'color':"blue",'values':[{'x':t,'y':d} for t,d in zip(qa[0]['frame #'],md)]},
+                         {'key':"relative",'color':"cyan",'values':[{'x':t,'y':d} for t,d in zip(qa[0]['frame #'],rel_md)]}]
+                    json_str = json.dumps(d)
+                elif data_name=='tsz':
+                    vals = []
+                    color_scale = 239/(len(qa[0]['timeseries zscore'])-1)
+                    for sl,tsz in enumerate(qa[0]['timeseries zscore']):
+                        c = "#10" + hex(sl*color_scale+16)[2:] + hex(255-sl*color_scale)[2:]
+                        vals.append({'key':"slice%d"%sl,'color':c,'values':[{'x':t,'y':d} for t,d in zip(qa[0]['frame #'], tsz)]})
+                    json_str = json.dumps(vals)
+                else:
+                    json_str = ''
+                return json_str
 
     @expose(content_type='image/jpeg')
     def pyramid_tile(self, *args):
