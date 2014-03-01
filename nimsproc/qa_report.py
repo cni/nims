@@ -197,7 +197,9 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=6
     return
 
 def run_a_job(nims_path, scan_type, spike_thresh, nskip):
-    # Get the latest ifunctional epoch without qa and try it. (.desc() means descending order)
+    # Get the latest functional epoch without qa and try it. (.desc() means descending order)
+    # We need to lock the column so that another process doesn't pick this one up before we have a chance to
+    # commit the transaction that marks it as 'running'.
     epoch = (Epoch.query.join(Dataset)
                         .filter((Epoch.qa_status==u'pending') | (Epoch.qa_status==u'rerun'))
                         .filter(Epoch.scan_type==scan_type)
