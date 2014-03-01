@@ -49,7 +49,6 @@ def find_spikes(d, spike_thresh):
     t_z = (slice_mean - np.atleast_2d(slice_mean.mean(axis=1)).T) / np.atleast_2d(slice_mean.std(axis=1)).T
     spikes = np.abs(t_z)>spike_thresh
     spike_inds = np.transpose(spikes.nonzero())
-
     # mask out the spikes and recompute z-scores using variance uncontaminated with spikes.
     # This will catch smaller spikes that may have been swamped by big ones.
     d.mask[:,:,spike_inds[:,0],spike_inds[:,1]] = True
@@ -57,12 +56,10 @@ def find_spikes(d, spike_thresh):
     t_z = (slice_mean - np.atleast_2d(slice_mean.mean(axis=1)).T) / np.atleast_2d(slice_mean2.std(axis=1)).T
     spikes = np.logical_or(spikes, t_z<-spike_thresh)
     spike_inds = np.transpose(spikes.nonzero())
-
     return((spike_inds, t_z))
 
 def plot_slices(t_z, spike_thresh):
     import matplotlib.pyplot as plt
-
     c = np.vstack((np.linspace(0,1.,t_z.shape[0]), np.linspace(1,0,t_z.shape[0]), np.ones((2,t_z.shape[0])))).T
     sl_num = np.tile(range(t_z.shape[0]), (t_z.shape[1], 1)).T
     print "%d spikes detected in %d slices" % (spike_inds.shape[0], np.unique(sl_num[spike_inds[:,0]]).shape[0])
@@ -73,7 +70,6 @@ def plot_slices(t_z, spike_thresh):
     plt.plot((0,t_z.shape[1]),(spike_thresh,spike_thresh),'k:')
     plt.xlabel('time (frame #)')
     plt.ylabel('signal intensity (z-score)')
-
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     divider = make_axes_locatable(plt.gca())
     cax = divider.append_axes("right", "5%", pad="3%")
@@ -190,8 +186,6 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=6
         # the state may have changed while we were processing...
         if epoch.qa_status!=u'rerun':
             epoch.qa_status = u'done'
-        else:
-            epoch.qa_status = u'pending'
     print("%s epoch id %d (%s) QA: Finished in %0.2f minutes." % (time.asctime(), epoch_id, str(epoch), (time.time()-start_secs)/60.))
     transaction.commit()
     return
@@ -208,8 +202,7 @@ def run_a_job(nims_path, scan_type, spike_thresh, nskip):
                         .with_lockmode('update')
                         .first())
     # Set force=True here so that any old QA files will be cleaned up. We've already filtered by
-    # by qs_status. By doing this, you can force a rerun of the qa by simply resetting the qa_status
-    # flag to 'pending'.
+    # qs_status. Force a rerun of the qa by simply resetting the qa_status flag to 'rerun'.
     generate_qa_report(epoch.id, nims_path, force=True, spike_thresh=spike_thresh, nskip=nskip)
 
 
