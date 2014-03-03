@@ -239,7 +239,7 @@ if __name__ == '__main__':
         # Run continuously, doing QA on the latest epoch without QA.
         while True:
             if args.jobs==1:
-                run_a_job(args.nims_path, spike_thresh=args.spike_thresh, nskip=args.nskip)
+                run_a_job(args.nims_path, scan_type=scan_type, spike_thresh=args.spike_thresh, nskip=args.nskip)
             else:
                 if len(multiprocessing.active_children())<args.jobs:
                     t = multiprocessing.Process(target=run_a_job, args=(args.nims_path, scan_type, args.spike_thresh, args.nskip))
