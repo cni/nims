@@ -5,9 +5,11 @@ import dicom
 from datetime import date
 from tg import expose, redirect, request
 
+import nimsutil
 from nimsdata.nimsdata import NIMSData
 from nimsdata.nimsdicom import NIMSDicom
 from nimsdata.nimsdata import NIMSDataError
+from nimsgears.model import Session, DBSession
 from nimsgears.model.nims import ResearchGroup, User
 from nimsgears.controllers.nims import NimsController
 
@@ -88,8 +90,15 @@ class UploadController(NimsController):
         try:
             data = NIMSDicom(file_path)
             file_result['exam_uid'] = data.exam_uid
-            file_result['status'] = True
-            file_result['message'] = "Uploaded"
+            encrypted_exam_uid = nimsutil.pack_dicom_uid(data.exam_uid)
+            print 'encrypted exam_uid: ', encrypted_exam_uid
+            existing_database_session = Session.query.filter_by(uid=encrypted_exam_uid).first()
+            if existing_database_session:
+                file_result['status'] = False
+                file_result['message'] = "Session already present, contact administrator"
+            else:
+                file_result['status'] = True
+                file_result['message'] = "Uploaded"
 
         except NIMSDataError as e:
             print "Couldn't understand the file", file.filename

@@ -354,6 +354,7 @@ function addFileToList(file) {
         files_to_upload[file.Key].ImagesInAcquisition = file.ImagesInAcquisition;
         files_to_upload[file.Key].EchoNumbers = file.EchoNumbers;
         files_to_upload[file.Key].NumberOfImagesInMosaic = file.NumberOfImagesInMosaic;
+        files_to_upload[file.Key].ExamUID= file.ExamUID;
 
         var year = file.AcquisitionDate.substring(0, 4);
         var month = file.AcquisitionDate.substring(4, 6);
@@ -685,6 +686,7 @@ function processFile(file, callback) {
             file.MRAcquisitionType = dcmFile.MRAcquisitionType;
             file.SliceThickness = dcmFile.SliceThickness;
             file.EchoNumbers = dcmFile.EchoNumbers || 1;
+            file.ExamUID = dcmFile.exam_uid;
 
             if(file.Manufacturer == "GE MEDICAL SYSTEMS"){
                 //Retrieve SlicesPerVolume by tag:
