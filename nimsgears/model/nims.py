@@ -300,7 +300,7 @@ class Message(Entity):
 class Job(Entity):
 
     timestamp = Field(DateTime, default=datetime.datetime.now)
-    status = Field(Enum(u'pending', u'running', u'done', u'failed', u'abandoned', u'wh-pending', u'wh-process', name=u'job_status'))
+    status = Field(Enum(u'pending', u'running', u'done', u'failed', u'abandoned', u'qmr-pending', u'qmr-process', name=u'job_status'))
     task = Field(Enum(u'find', u'proc', u'find&proc', name=u'job_task'))
     needs_rerun = Field(Boolean, default=False)
     progress = Field(Integer)

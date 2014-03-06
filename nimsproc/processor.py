@@ -127,8 +127,8 @@ class Pipeline(threading.Thread):
              log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         else:
             self.job.activity = u'done'
-            if conv_type == 'nifti' and self.is_wh_job():
-                self.job.status = u'wh-pending'
+            if conv_type == 'nifti' and self.is_qmr_job():
+                self.job.status = u'qmr-pending'
             else:
                 self.job.status = u'done'
 
@@ -140,9 +140,9 @@ class Pipeline(threading.Thread):
             shutil.rmtree(os.path.join(self.nims_path, ds.relpath))
             ds.delete()
 
-    def is_wh_job(self):
+    def is_qmr_job(self):
         experiment_name = self.job.data_container.session.experiment.name
-        return 'w_h' in experiment_name
+        return 'qmr' in experiment_name
 
     @abc.abstractmethod
     def find(self):
