@@ -19,7 +19,7 @@ import logging
 # PROCESSOR_CMD = 'matlab file.m'
 PROCESSOR_CMD = '/Users/sbenito/test_wh.sh'
 
-log = logging.getLogger('processor-wh')
+log = logging.getLogger('processor-qmr')
 
 class ProcessorWH(object):
 
@@ -40,13 +40,13 @@ class ProcessorWH(object):
     def run(self):
         while self.alive:
             job = Job.query.join(DataContainer).join(Epoch) \
-                .filter(Job.status==u'wh-pending').order_by(Job.id).with_lockmode('update').first()
+                .filter(Job.status==u'qmr-pending').order_by(Job.id).with_lockmode('update').first()
 
             if not job:
                 time.sleep(self.sleeptime)
                 continue
 
-            job.status = 'wh-process'
+            job.status = 'qmr-process'
 
             epoch = job.data_container
             session = Session.query.get(epoch.session_datacontainer_id)
@@ -89,7 +89,7 @@ class ProcessorWH(object):
 
                 res = subprocess.call( [PROCESSOR_CMD, nimsfs_niftis_path, tmp_out_dir] )
                 if res != 0:
-                    log.error('Error running WH processor')
+                    log.error('Error running QMR processor')
                     # Mark the processing as failed
                     for j in jobs:
                         j.status = u'failed'
@@ -115,7 +115,7 @@ class ProcessorWH(object):
                 dataset.updatetime = datetime.datetime.now()
                 dataset.untrash()
 
-                # Mark all the wh-pending jobs as done
+                # Mark all the qmr-pending jobs as done
                 for j in jobs:
                     j.status = u'done'
                     j.activity = 'done'
