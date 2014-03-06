@@ -675,11 +675,13 @@ function processFile(file, callback) {
             file.StudyID = dcmFile.StudyID;
             file.InstanceNumber = dcmFile.InstanceNumber;
             file.SeriesInstanceUID = dcmFile.SeriesInstanceUID;
+            file.StudyInstanceUID = dcmFile.StudyInstanceUID;
             file.SeriesDescription = dcmFile.SeriesDescription;
             file.AcquisitionNumber = dcmFile.AcquisitionNumber;
             file.SeriesNumber = dcmFile.SeriesNumber;
             file.ImagesInAcquisition = dcmFile.ImagesInAcquisition;
             file.AcquisitionDate = dcmFile.AcquisitionDate;
+            file.AcquisitionTime = dcmFile.AcquisitionTime;
             file.ImagesInAcquisition = dcmFile.ImagesInAcquisition;
             file.NumberOfTemporalPositions = dcmFile.NumberOfTemporalPositions;
             file.Manufacturer = dcmFile.Manufacturer;
@@ -704,6 +706,7 @@ function processFile(file, callback) {
                 var CSA_TAG_IMAGE = 0x00291010;
                 var headerInfo_series = dcmFile.get_element(CSA_TAG_SERIES);
                 var headerInfo_image = dcmFile.get_element(CSA_TAG_IMAGE);
+
                 csa_series = parse_csa(headerInfo_series.data);
                 csa_image = parse_csa(headerInfo_image.data);
 
@@ -725,7 +728,7 @@ function processFile(file, callback) {
                                 file.ImagesInAcquisition = slices;
                             }
 
-                            file.Key = ['key', file.SeriesNumber, file.AcquisitionNumber, file.SeriesInstanceUID].join('-');
+                            file.Key = ['key', file.StudyInstanceUID, file.AcquisitionTime].join('-');
                         }
                     }
                 });
