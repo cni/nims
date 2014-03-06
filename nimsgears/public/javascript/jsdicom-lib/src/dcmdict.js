@@ -2371,6 +2371,8 @@ var dcmdict = {
     0x7FE00020: ["OW", "ACR_NEMA_2C_CoefficientsSDVN"],
     0x7FE00030: ["OW", "ACR_NEMA_2C_CoefficientsSDHN"],
     0x7FE00040: ["OW", "ACR_NEMA_2C_CoefficientsSDDN"],
+    0x0051100f: ["LO", "CoilString"],
+    "CoilString": 0x0051100f,
     "CommandGroupLength": 0x00000000,
     "AffectedSOPClassUID": 0x00000002,
     "RequestedSOPClassUID": 0x00000003,

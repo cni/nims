@@ -723,9 +723,20 @@ function processFile(file, callback) {
                             } else {
                                 var totalThickness = parseInt(csa_series['ascconv']['sSliceArray.asSlice[0].dThickness']);
                                 var sliceThickness = parseInt(dcmFile.SliceThickness);
+                                var coilString = String("'" + dcmFile.CoilString + "'");
 
                                 var slices = Math.round(totalThickness / sliceThickness);
                                 file.ImagesInAcquisition = slices;
+
+                                //Computation for multicoil dicom
+                                var re = new RegExp("H[0-9]");
+                                if (re.test(coilString)) {
+                                    file.numberOfCoils = parseInt(csa_series['ascconv']['sProtConsistencyInfo.lMaximumNofRxReceiverChannels']);
+                                    file.imagesPerSlab = parseInt(csa_series['ascconv']['sKSpace.lImagesPerSlab']);
+
+                                    //We add 1 to number of coils to compute also the combined DICOMs
+                                    file.ImagesInAcquisition = (file.numberOfCoils + 1) * file.imagesPerSlab;
+                                }
                             }
 
                             file.Key = ['key', file.StudyInstanceUID, file.AcquisitionTime].join('-');
