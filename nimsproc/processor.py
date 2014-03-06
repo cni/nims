@@ -254,7 +254,6 @@ class DicomPipeline(Pipeline):
             else:
                 log.warning('dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase))
 
-            print 'conv_file:', conv_file
 
 
             if conv_type == 'nifti':
@@ -267,7 +266,6 @@ class DicomPipeline(Pipeline):
                         DBSession.add(self.job)
                         DBSession.add(self.job.data_container)
                         nims_montage = nimsdata.nimsmontage.generate_montage(file)
-                        print 'nims_montage', nims_montage
                         nims_montage.write_sqlite_pyramid(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
                         self.job.activity = u'image pyramid generated'
                         log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
@@ -294,97 +292,27 @@ class DicomPipeline(Pipeline):
         return ('nifti', nimsnifti.NIMSNifti.write(dcm_acq, imagedata, outbase, dcm_acq.notes))
 
     def convert_siemens(self, dcm_acq, outbase):
+        nifti =''
+
         # Extract tgz file into a temporary directory
         tmpdir = tempfile.mkdtemp()
         tar = tarfile.open(dcm_acq.filepath)
         tar.extractall(tmpdir)
         dcm_files_path = os.path.join(tmpdir, dcm_acq.filepath.split('/')[-1].rsplit('.', 1)[0])
 
-        niftis = []
-        is_current_nifti_multicoil = False
-
         if 'MOSAIC' in dcm_acq.image_type:
             imagedata, dcm_acq.qto_xyz, dcm_acq.bvals, dcm_acq.bvecs = dicomreaders.read_mosaic_dir(dcm_files_path)
-            niftis.append(nimsnifti.NIMSNifti.write(dcm_acq, imagedata, outbase, dcm_acq.notes))
+            nifti = nimsnifti.NIMSNifti.write(dcm_acq, imagedata, outbase, dcm_acq.notes)
         else:
             if re.match('H[0-3]?[0-9]', dcm_acq.coil_string):
-                print '--- Multichannel process nifti'
-                is_current_nifti_multicoil = True
                 time_order = 'CoilString'
-                niftis.append(nimsnifti.NIMSNifti.write_siemens(time_order, dcm_acq, dcm_files_path, outbase, dcm_acq.notes ))
+                nifti = nimsnifti.NIMSNifti.write_siemens(time_order, dcm_acq, dcm_files_path, outbase, dcm_acq.notes)
             else:
-                print '---Normal siemens nifti'
                 time_order = None
-                niftis.append(nimsnifti.NIMSNifti.write_siemens(time_order, dcm_acq, dcm_files_path, outbase, dcm_acq.notes ))
-
-        # Try to find the paired multi-coil combined dataset (if any)
-        print 'Acquisition time:', dcm_acq.acquisition_time
-        dataset = Dataset.from_mrfile(dcm_acq, None)
-        print 'Id:', dataset.id, 'DatacontainerId', dataset.container_id
-        pair_ds = Dataset.query.filter(Dataset.acquisition_time == dcm_acq.acquisition_time, Dataset.id != dataset.id).first()
-        if not pair_ds:
-            log.debug("Multi-coil combined dataset not found")
-        else:
-            log.info('Found multi-coil combined dataset: %d datacontainer_id: %d' % (pair_ds.id, pair_ds.container_id) )
-
-            nifti_combined = niftis[0]
-            print 'nifti_combined: ', nifti_combined
-
-            #Multicoil
-            nifti_multicoil = Dataset.query.filter(Dataset.container_id == pair_ds.container_id, Dataset.filetype == 'nifti').first()
-            if not nifti_multicoil:
-                log.info('Multi-coil combined dataset does not have a nifti yet. dataset:%d datacontainer_id: %d' % (pair_ds.id, pair_ds.container_id) )
-            else:
-                filename2 = nifti_multicoil.filenames[0]
-
-                nifti_multicoil_in_db = os.path.join(self.nims_path, nifti_multicoil.relpath,filename2)
-
-                log.info('Generating combined nifti from %s --- %s' % (nifti_combined, nifti_multicoil_in_db) )
-
-                #Use dcmstack to get a wrapper of NIfTI
-                nw_combined = NiftiWrapper.from_filename(nifti_combined)
-                nw_multicoil = NiftiWrapper.from_filename(nifti_multicoil_in_db)
-
-                if is_current_nifti_multicoil:
-                    # Swap the 2 niftis so that we merge them always in the same order
-                    nw_combined, nw_multicoil = nw_multicoil, nw_combined
-
-                #Get data from wrapper
-                matrix_combined = nw_combined.nii_img.get_data()
-                matrix_multicoil = nw_multicoil.nii_img.get_data()
-
-                #Get a numpy matrix to merge both
-                matrix_combined_np = np.array(matrix_combined)
-                matrix_multicoil_np = np.array(matrix_multicoil)
-
-                #Add one dimension to combined data to be able to concatenate
-                matrix_combined_extended_dim = matrix_combined_np[...,None]
-
-                merged = np.concatenate((matrix_multicoil_np, matrix_combined_extended_dim), axis=3)
-
-                # Build a new Nifti using Nibabel
-                nibabel_nifti = nibabel.load(nifti_multicoil_in_db)
-                nibabel_header_multicoil = nibabel_nifti.get_header()
-                nibabel_affine_multicoil = nibabel_nifti.get_affine()
-                built_merged_nifti = nibabel.Nifti1Image(np.array(merged), nibabel_affine_multicoil, nibabel_header_multicoil)
-
-                print 'outbase: ', outbase
-                filepath = outbase + '_merged.nii.gz'
-
-                #Save the niftis into the DB
-                nibabel.save(built_merged_nifti, filepath)
-                niftis.append(filepath)
-
-                #Change the description of the epoch in which the 'combined' is located
-                combined_ds = Dataset.query.filter(Dataset.id == dataset.id).first()
-                epoch_object = Epoch.query.filter(Epoch.datacontainer_id == combined_ds.container_id).first()
-                if not epoch_object.description.endswith(' [merged]'):
-                    epoch_object.description += ' [merged]'
-
+                nifti = nimsnifti.NIMSNifti.write_siemens(time_order, dcm_acq, dcm_files_path, outbase, dcm_acq.notes)
 
         shutil.rmtree(tmpdir)
-        print 'niftis: ', niftis
-        return ('nifti', niftis)
+        return ('nifti', nifti)
 
 class PFilePipeline(Pipeline):
 
