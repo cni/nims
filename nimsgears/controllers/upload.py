@@ -46,7 +46,7 @@ class UploadController(NimsController):
 
     @expose()
     def end_upload(self, upload_id,
-                    SeriesInstanceUID, AcquisitionNumber, GroupValue, Notes):
+                    SeriesInstanceUID, AcquisitionNumber, GroupValue, Notes, PatientsBirthDate, PatientsSex):
 
         self.verify_user(upload_id)
 
@@ -59,6 +59,8 @@ class UploadController(NimsController):
         summary['Date'] = str(date.today())
         summary['User'] = self.get_user().uid
         summary['Notes'] = Notes
+        summary['PatientsBirthDate'] = PatientsBirthDate
+        summary['PatientsSex'] = PatientsSex
         json_path = os.path.join( tmp_upload_directory, SeriesInstanceUID + AcquisitionNumber + '.json')
         out = open(json_path, 'w')
         json.dump(summary, out, indent=True)
@@ -91,7 +93,6 @@ class UploadController(NimsController):
             data = NIMSDicom(file_path)
             file_result['exam_uid'] = data.exam_uid
             encrypted_exam_uid = nimsutil.pack_dicom_uid(data.exam_uid)
-            print 'encrypted exam_uid: ', encrypted_exam_uid
             existing_database_session = Session.query.filter_by(uid=encrypted_exam_uid).first()
             if existing_database_session:
                 file_result['status'] = False

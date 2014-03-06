@@ -332,6 +332,8 @@ function endUpload(key, callback) {
     data['Notes'] = $('#notes_' + series.id).val();
     data['AcquisitionNumber'] = series.AcquisitionNumber;
     data['upload_id'] = upload_id;
+    data['PatientsBirthDate'] = series.PatientsBirthDate;
+    data['PatientsSex'] = series.PatientsSex;
 
     $.post( "upload/end_upload", data)
         .done(function(data) {
@@ -369,6 +371,8 @@ function addFileToList(file) {
         files_to_upload[file.Key].EchoNumbers = file.EchoNumbers;
         files_to_upload[file.Key].NumberOfImagesInMosaic = file.NumberOfImagesInMosaic;
         files_to_upload[file.Key].ExamUID= file.ExamUID;
+        files_to_upload[file.Key].PatientsBirthDate= file.PatientsBirthDate;
+        files_to_upload[file.Key].PatientsSex = file.PatientsSex;
 
         var year = file.AcquisitionDate.substring(0, 4);
         var month = file.AcquisitionDate.substring(4, 6);
@@ -703,6 +707,10 @@ function processFile(file, callback) {
             file.SliceThickness = dcmFile.SliceThickness;
             file.EchoNumbers = dcmFile.EchoNumbers || 1;
             file.ExamUID = dcmFile.exam_uid;
+            if (dcmFile.PatientsBirthDate) {
+                file.PatientsBirthDate = dcmFile.PatientsBirthDate.substring(0,6) + '15';
+            }
+            file.PatientsSex = dcmFile.PatientsSex;
 
             if(file.Manufacturer == "GE MEDICAL SYSTEMS"){
                 //Retrieve SlicesPerVolume by tag:
