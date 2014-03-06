@@ -126,6 +126,7 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=6
         return
 
     print('%s epoch id %d (%s) QA: Starting QA report...' % (time.asctime(), epoch_id, str(epoch)))
+    # FIXME: use ds.kind==u'qa'
     qa_ds = [ds for ds in epoch.datasets if ds.filetype==u'json' and ds.label==u'QA']
     if len(qa_ds)>0:
         if force:
@@ -168,6 +169,7 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=6
             transrot[:,3:] *= 180./np.pi
             qa_ds = Dataset.at_path(nimspath, u'json')
             qa_ds.filenames = [u'qa_report.json']
+            qa_ds.kind = u'qa'
             qa_ds.container = epoch
             outfile = os.path.join(nimspath, qa_ds.relpath, qa_ds.filenames[0])
             print("%s epoch id %d (%s) QA: writing report to %s..." % (time.asctime(), epoch_id, str(epoch), outfile))
@@ -188,6 +190,27 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=6
             epoch.qa_status = u'done'
     print("%s epoch id %d (%s) QA: Finished in %0.2f minutes." % (time.asctime(), epoch_id, str(epoch), (time.time()-start_secs)/60.))
     transaction.commit()
+    return
+
+def clean_up(nims_path):
+    ep = Epoch.query.filter((Epoch.qa_status==u'done')).filter(Epoch.scan_type==scan_type).order_by(Epoch.timestamp.desc()).all()
+    eids = [e.id for e in ep]
+    for eid in eids:
+        epoch = Epoch.get(eid)
+        qa_ds = [ds for ds in epoch.datasets if ds.filetype==u'json' and ds.label==u'QA']
+        if len(qa_ds)==0:
+            epoch.qa_status=u'rerun'
+        else:
+            n = len(qa_ds)
+            for ds in qa_ds:
+                if not os.path.exists(os.path.join(nimspath, ds.relpath, ds.filenames[0])):
+                    if os.path.isdir(os.path.join(nimspath, ds.relpath)):
+                        shutil.rmtree(os.path.join(nimspath, ds.relpath))
+                    ds.delete()
+                    n -= 1
+            if n==0:
+                epoch.qa_status=u'rerun'
+        transaction.commit()
     return
 
 def run_a_job(nims_path, scan_type, spike_thresh, nskip):

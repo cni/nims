@@ -744,7 +744,7 @@ class Epoch(DataContainer):
                     phase_encode_undersample = mrfile.phase_encode_undersample,
                     slice_encode_undersample = mrfile.slice_encode_undersample,
                     acquisition_matrix = unicode(str(mrfile.acquisition_matrix)),
-                    qa_status=u'pending',
+                    qa_status = u'pending',
                     # to unpack fov, mm_per_vox, and acquisition_matrix: np.fromstring(str(mm)[1:-1],sep=',')
                     )
         return epoch
