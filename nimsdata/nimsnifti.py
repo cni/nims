@@ -97,13 +97,12 @@ class NIMSNifti(nimsdata.NIMSData):
         if '3D' in metadata.acquisition_type:   # for 3D acquisitions, add the slice R-factor
             nii_header['descrip'] = str(nii_header['descrip']) + 'rs=%.1f' % (1. / metadata.slice_encode_undersample)
 
-        else :
-            nifti = nibabel.Nifti1Image(imagedata, None, nii_header)
-            filepath = outbase + '.nii.gz'
-            nibabel.save(nifti, filepath)
-            log.debug('generated %s' % os.path.basename(filepath))
+        nifti = nibabel.Nifti1Image(imagedata, None, nii_header)
+        filepath = outbase + '.nii.gz'
+        nibabel.save(nifti, filepath)
+        log.debug('generated %s' % os.path.basename(filepath))
 
-            return filepath
+        return filepath
 
     @staticmethod
     def write_siemens(time_order, metadata, dcm_files_path, outbase, notes=''):
@@ -120,8 +119,9 @@ class NIMSNifti(nimsdata.NIMSData):
             description = str(description) + 'rs=%.1f' % (1. / metadata.slice_encode_undersample)
 
         extractor = dcmstack.extract.MetaExtractor(ignore_rules=[dcmstack.extract.ignore_non_ascii_bytes])
-        dcm_paths = glob.glob(dcm_files_path + '/*')
-        stacks = dcmstack.parse_and_stack(dcm_paths, extractor=extractor, time_order=time_order)
+        dcm_paths = glob.glob(dcm_files_path + '/*.dcm')
+        stacks = dcmstack.parse_and_stack(dcm_paths, extractor=extractor, time_order=time_order,
+                            group_by=('AcquisitionTime'))
         stack = stacks.values()[0]
         nifti = stack.to_nifti()
         nifti.get_header()['descrip'] = description
