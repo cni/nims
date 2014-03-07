@@ -7,12 +7,29 @@ import logging
 import nibabel
 import dcmstack
 import dcmstack.extract
+from natsort import natsort_key
 
 import numpy as np
 
 import nimsdata
 
 log = logging.getLogger('nimsnifti')
+
+
+def dicom_natural_comparator(a, b):
+    ''' Special comparator that uses natural sorting for dicoms and
+        takes care of combined ones to put them at the end
+    '''
+    if a[1] == u'C:HEA;HEP' and b[1] != u'C:HEA;HEP':
+        return +1
+
+    if b[1] == u'C:HEA;HEP' and a[1] != u'C:HEA;HEP':
+        return -1
+
+    a = (a[0], natsort_key(a[1]), a[2])
+    b = (b[0], natsort_key(b[1]), b[2])
+
+    return cmp(a, b)
 
 
 class NIMSNiftiError(nimsdata.NIMSDataError):
@@ -121,7 +138,8 @@ class NIMSNifti(nimsdata.NIMSData):
         extractor = dcmstack.extract.MetaExtractor(ignore_rules=[dcmstack.extract.ignore_non_ascii_bytes])
         dcm_paths = glob.glob(dcm_files_path + '/*.dcm')
         stacks = dcmstack.parse_and_stack(dcm_paths, extractor=extractor, time_order=time_order,
-                            group_by=('AcquisitionTime'))
+                            group_by=('AcquisitionTime'),
+                            dcm_cmp=dicom_natural_comparator)
         stack = stacks.values()[0]
         nifti = stack.to_nifti()
         nifti.get_header()['descrip'] = description

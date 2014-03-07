@@ -154,20 +154,6 @@ function redactIdentityInformation(fileContent) {
             dataView.setUint8(offsetBirth + 8 + 7, 0x35);
         }
     }
-
-    var coilStringTag = dcmdict["CoilString"];
-    var coilStringElement = dcmFile.get_element(coilStringTag);
-    if (coilStringElement) {
-        var coilStringLength = coilStringElement.vl;
-        var offsetCoil = coilStringElement.offset;
-        value = coilStringElement.get_value();
-
-        if (value.indexOf("C:HEA;HEP")!=-1){
-            for (var i = 0; i < coilStringLength; i++) {
-                dataView.setUint8(offsetCoil + 8 + i, 0x7a);
-            }
-        }
-    }
 }
 
 function parseFile(fileContent){

@@ -1,7 +1,3 @@
-#!/usr/bin/env python
-#
-# @author:  Sara Benito
-
 import nimsutil
 from nimsgears.model import *
 
@@ -55,17 +51,10 @@ class ProcessorWH(object):
                      .filter(Epoch.session_datacontainer_id==session.id).with_lockmode('update').all()
             epochs = session.epochs
 
-            print 'Associated epochs', epochs
-            print 'Associated jobs:', jobs
             subject = Subject.query.join(Experiment, Subject.experiment_datacontainer_id == Experiment.datacontainer_id) \
                             .filter(Subject.datacontainer_id == session.subject_datacontainer_id).first()
-            print 'subject', subject
-            print 'Experiment:', subject.experiment
-            print 'Research group:', subject.experiment.owner.gid
-            print 'session name: ', session.name
 
             nimsfs_niftis_path = '%s-%s-%s' % (subject.experiment.owner.gid, str(subject.experiment.name), session.name)
-            print 'nimsfs_niftis_path', nimsfs_niftis_path
 
             # make sure all epochs have been processed (niftis exist)
             all_epochs_have_nifti = True
