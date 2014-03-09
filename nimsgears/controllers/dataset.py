@@ -11,6 +11,8 @@ class DatasetController(NimsController):
         if dataset:
             if dataset.filetype == u'img_pyr':
                 redirect('pyramid?dataset_id=%d' % dataset.id)
+            elif dataset.filetype == u'json':
+                redirect('qa_report?dataset_id=%d' % dataset.id)
             else:
                 html_str = '<html><body>'
                 if dataset.filetype == u'bitmap':

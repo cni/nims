@@ -210,8 +210,13 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
                     ext_start_ind = len(d.filenames[0].split('.')[0])
                 #print 'DATASET ' + str(d)
                 for f in d.filenames:
-                    display_name = '%04d_%02d_%s%s' % (d.container.series, d.container.acq, d.container.description, f[ext_start_ind:])
-                    datafiles.append((display_name.encode(), os.path.join(datapath,d.relpath,f).encode()))
+                    if len(epoch_name)>1 and epoch_name[1]=='t':
+                        if d.filetype==u'nifti':
+                            display_name = '%04d_%02d_%s%s' % (d.container.series, d.container.acq, d.container.scan_type, f[ext_start_ind:])
+                            datafiles.append((display_name.encode(), os.path.join(datapath,d.relpath,f).encode()))
+                    else:
+                        display_name = '%04d_%02d_%s%s' % (d.container.series, d.container.acq, d.container.description, f[ext_start_ind:])
+                        datafiles.append((display_name.encode(), os.path.join(datapath,d.relpath,f).encode()))
                     #print '   FILENAME=' + f + ' DISPLAY_NAME=' + display_name
         else:
             # Use the filename on disk

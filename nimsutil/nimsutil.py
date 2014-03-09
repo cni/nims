@@ -128,10 +128,11 @@ def update_reference_datetime(datetime_file, new_datetime):
 def ldap_query(uid):
     ldap_uri = 'ldap://ldap.stanford.edu'
     ldap_base = 'dc=stanford,dc=edu'        # subtrees 'cn=people' and 'cn=accounts' exist
-    ldap_attrs = ['suDisplayNameFirst', 'suDisplayNameLast', 'mail', 'cn']
+    ldap_attrs = ['suDisplayNameFirst', 'suDisplayNameLast', 'mail', 'cn', 'uidNumber']
     firstname = ''
     lastname = ''
     email = ''
+    uid_number = None
     try:
         import ldap, ldap.sasl
         srv = ldap.initialize(ldap_uri)
@@ -141,16 +142,16 @@ def ldap_query(uid):
         pass
     else:
         for subtree, res_dict in results:
-            if 'people' in subtree:
-                firstname = res_dict.get('suDisplayNameFirst', [''])[0]
-                lastname = res_dict.get('suDisplayNameLast', [''])[0]
-                email = res_dict.get('mail', [''])[0] or ('%s@stanford.edu' % uid if lastname else '')
-                break
             if 'accounts' in subtree:
                 name_list = (res_dict.get('cn', [''])[0]).split(' ')
                 firstname = name_list[0]
                 lastname = name_list[-1]
-    return unicode(firstname), unicode(lastname), unicode(email)
+                uid_number = int(res_dict.get('uidNumber', [0])[0])
+            if 'people' in subtree:
+                firstname = res_dict.get('suDisplayNameFirst', [''])[0]
+                lastname = res_dict.get('suDisplayNameLast', [''])[0]
+                email = res_dict.get('mail', [''])[0] or ('%s@stanford.edu' % uid if lastname else '')
+    return unicode(firstname), unicode(lastname), unicode(email), uid_number
 
 
 def find_ge_physio(data_path, timestamp, psd_name):

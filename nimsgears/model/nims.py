@@ -69,10 +69,11 @@ class User(Entity):
 
     def __init__(self, **kwargs):
         if 'uid' in kwargs:
-            ldap_firstname, ldap_lastname, ldap_email = nimsutil.ldap_query(kwargs['uid'])
+            ldap_firstname, ldap_lastname, ldap_email, ldap_uid_number = nimsutil.ldap_query(kwargs['uid'])
             kwargs['firstname'] = ldap_firstname
             kwargs['lastname'] = ldap_lastname
             kwargs['email'] = ldap_email
+            kwargs['uid_number'] = ldap_uid_number
         super(User, self).__init__(**kwargs)
 
     def __repr__(self):
@@ -677,6 +678,7 @@ class Epoch(DataContainer):
     psd = Field(Unicode(255))
     physio_recorded = Field(Boolean, default=False)
     physio_valid = Field(Boolean)
+    qa_status = Field(Enum(u'pending', u'running', u'done', u'failed', u'abandoned', u'rerun', name=u'dataset_qa_status'))
 
     tr = Field(Float)
     te = Field(Float)
@@ -751,6 +753,7 @@ class Epoch(DataContainer):
                     slice_encode_undersample = mrfile.slice_encode_undersample,
                     acquisition_matrix = unicode(str(mrfile.acquisition_matrix)),
                     notes = unicode(mrfile.notes),
+                    qa_status = u'pending',
                     # to unpack fov, mm_per_vox, and acquisition_matrix: np.fromstring(str(mm)[1:-1],sep=',')
                     )
         return epoch
@@ -801,6 +804,7 @@ class Dataset(Entity):
             u'bitmap':  u'Bitmap',
             u'img_pyr': u'Image Viewer',
             u'physio':  u'Physio Data',
+            u'json':    u'QA',
             u'png-figure': u'PNG figure',
             }
 
@@ -808,8 +812,10 @@ class Dataset(Entity):
     offset = Field(Interval, default=datetime.timedelta())
     trashtime = Field(DateTime)
     priority = Field(Integer, default=0)
-    kind = Field(Enum(u'primary', u'secondary', u'peripheral', u'derived', u'web', name=u'dataset_kind'))
-    filetype = Field(Enum(u'pfile', u'dicom', u'nifti', u'bitmap', u'img_pyr', u'physio', u'png-figure', name=u'dataset_filetype'))
+    kind = Field(Enum(u'primary', u'secondary', u'peripheral', u'derived', u'web', u'qa', name=u'dataset_kind'))
+    # NOTE: use Epoch.qa_status!
+    qa_status = Field(Enum(u'pending', u'running', u'done', u'failed', u'abandoned', name=u'dataset_qa_status'))
+    filetype = Field(Enum(u'pfile', u'dicom', u'nifti', u'bitmap', u'img_pyr', u'physio', u'json', u'png-figure', name=u'dataset_filetype'))
     datatype = Field(Enum(u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap', u'mr_spectro', name=u'dataset_datatype'), default=u'unknown')
     _updatetime = Field(DateTime, default=datetime.datetime.now, colname='updatetime', synonym='updatetime')
     digest = Field(LargeBinary(20))
@@ -854,6 +860,7 @@ class Dataset(Entity):
             elif alt_dataset.priority < mrfile.priority:
                 kind = u'primary'
                 alt_dataset.kind = u'secondary'
+                alt_dataset.container.qa_status = u'rerun'
             else:
                 kind = u'secondary'
             epoch = Epoch.from_mrfile(mrfile)
@@ -866,6 +873,7 @@ class Dataset(Entity):
                     kind=kind,
                     label=cls.default_labels[mrfile.filetype],
                     archived=archived,
+                    qa_status=u'pending',
                     acquisition_time=mrfile.acquisition_time
                     )
             transaction.commit()

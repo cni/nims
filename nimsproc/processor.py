@@ -33,7 +33,7 @@ log = logging.getLogger('processor')
 
 class Processor(object):
 
-    def __init__(self, db_uri, nims_path, physio_path, task, filters, max_jobs, max_recon_jobs, reset, sleeptime, tempdir):
+    def __init__(self, db_uri, nims_path, physio_path, task, filters, max_jobs, max_recon_jobs, reset, sleeptime, tempdir, newest):
         super(Processor, self).__init__()
         self.nims_path = nims_path
         self.physio_path = physio_path
@@ -43,6 +43,7 @@ class Processor(object):
         self.max_recon_jobs = max_recon_jobs
         self.sleeptime = sleeptime
         self.tempdir = tempdir
+        self.newest = newest
 
         self.alive = True
         init_model(sqlalchemy.create_engine(db_uri))
@@ -60,7 +61,10 @@ class Processor(object):
                     query = query.filter(Job.task==self.task)
                 for f in self.filters:
                     query = query.filter(eval(f))
-                job = query.filter(Job.status==u'pending').order_by(Job.id).with_lockmode('update').first()
+                if self.newest:
+                    job = query.filter(Job.status==u'pending').order_by(Job.id.desc()).with_lockmode('update').first()
+                else:
+                    job = query.filter(Job.status==u'pending').order_by(Job.id).with_lockmode('update').first()
 
                 if job:
                     if isinstance(job.data_container, Epoch):
@@ -201,6 +205,8 @@ class Pipeline(threading.Thread):
     def process(self):
         self.clean(self.job.data_container, u'derived')
         self.clean(self.job.data_container, u'web')
+        self.clean(self.job.data_container, u'qa')
+        self.data_container.qa_status = u'rerun'
         self.job.activity = u'generating NIfTI / running recon'
         log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
@@ -325,22 +331,24 @@ class PFilePipeline(Pipeline):
         ds = self.job.data_container.primary_dataset
         with nimsutil.TempDir(dir=self.tempdir) as outputdir:
             pf = None
-            for pfile in os.listdir(os.path.join(self.nims_path, ds.relpath)):
-                if not pfile.startswith('_') and 'refscan' not in pfile:
-                    try:
-                        pf = nimsdata.nimsraw.NIMSPFile(os.path.join(self.nims_path, ds.relpath, pfile))
-                    except nimsdata.nimsraw.NIMSPFileError:
-                        pf = None
-                    else:
-                        break
+            pfiles = [f for f in os.listdir(os.path.join(self.nims_path, ds.relpath)) if not f.startswith('_') and 'refscan' not in f]
+            # Try them in numerical order.
+            # FIXME: if there are >1 pfiles, what to do? Try them all?
+            for pfile in sorted(pfiles):
+                try:
+                    pf = nimsdata.nimsraw.NIMSPFile(os.path.join(self.nims_path, ds.relpath, pfile))
+                except nimsdata.nimsraw.NIMSPFileError:
+                    pf = None
+                else:
+                    break
 
             if pf is not None:
                 criteria = pf.prep_convert()
                 if criteria != None:
-                    q = Epoch.query.filter(Epoch.session==self.job.data_container.session)
+                    q = Epoch.query.filter(Epoch.session==self.job.data_container.session).filter(Epoch.trashtime == None)
                     for fieldname,value in criteria.iteritems():
                         q = q.filter(getattr(Epoch,fieldname)==unicode(value))
-                    epochs = q.all()
+                    epochs = [e for e in q.all() if e!=self.job.data_container]
                     aux_files = [os.path.join(self.nims_path, e.primary_dataset.relpath, f) for e in epochs for f in e.primary_dataset.filenames if f.startswith('P')]
                     self.job.activity = (u'Found %d aux files: %s' % (len(aux_files), (', '.join([os.path.basename(f) for f in aux_files]))))[:255]
                     log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
@@ -397,6 +405,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-f', '--logfile', help='path to log file')
         self.add_argument('-l', '--loglevel', default='info', help='log level (default: info)')
         self.add_argument('-q', '--quiet', action='store_true', default=False, help='disable console logging')
+        self.add_argument('-n', '--newest', action='store_true', default=False, help='do newest jobs first')
 
 
 if __name__ == '__main__':
@@ -406,7 +415,7 @@ if __name__ == '__main__':
 
     args = ArgumentParser().parse_args()
     nimsutil.configure_log(args.logfile, not args.quiet, args.loglevel)
-    processor = Processor(args.db_uri, args.nims_path, args.physio_path, args.task, args.filter, args.jobs, args.reconjobs, args.reset, args.sleeptime, args.tempdir)
+    processor = Processor(args.db_uri, args.nims_path, args.physio_path, args.task, args.filter, args.jobs, args.reconjobs, args.reset, args.sleeptime, args.tempdir, args.newest)
 
     def term_handler(signum, stack):
         processor.halt()

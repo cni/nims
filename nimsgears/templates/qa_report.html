@@ -1,0 +1,128 @@
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:py="http://genshi.edgewall.org/"
+      xmlns:xi="http://www.w3.org/2001/XInclude">
+
+<head>
+  <link rel="stylesheet" type="text/css" media="screen" href="${tg.url('/javascript/nvd3/nv.d3.css')}" />
+  <script type="text/javascript" src="${tg.url('/javascript/nvd3/d3.v3.js')}"></script>
+  <script src="${tg.url('/javascript/nvd3/nv.d3.min.js')}"></script>
+  <script src="${tg.url('/javascript/nvd3/tooltip.js')}"></script>
+  <script src="${tg.url('/javascript/nvd3/utils.js')}"></script>
+  <script src="${tg.url('/javascript/nvd3/models/legend.js')}"></script>
+  <script src="${tg.url('/javascript/nvd3/models/axis.js')}"></script>
+  <script src="${tg.url('/javascript/nvd3/models/scatter.js')}"></script>
+  <script src="${tg.url('/javascript/nvd3/models/line.js')}"></script>
+  <script src="${tg.url('/javascript/nvd3/models/lineWithFocusChart.js')}"></script>
+
+<style>
+
+    body {
+  overflow-y:scroll;
+}
+
+text {
+  font: 12px sans-serif;
+}
+
+svg {
+  display: block;
+}
+
+#chart1 svg {
+  height: 250px;
+  min-width: 600px;
+  min-height: 100px;
+}
+
+</style>
+
+<script>
+var url1 = "${tg.url('/qa_data')}/motion_${dataset_id}.json";
+var url2 = "${tg.url('/qa_data')}/tsz_${dataset_id}.json";
+d3.json(url1, function(data1) {
+    nv.addGraph(function() {
+      //var chart = nv.models.lineWithFocusChart()
+      var chart = nv.models.lineChart()
+                    .margin({left: 80, bottom: 50})
+                    .showXAxis(true)
+                    .showYAxis(true)
+                    .showLegend(true)
+                    .transitionDuration(200)
+      ;
+
+     chart.xAxis
+          .axisLabel("Time (frame #)")
+          .tickFormat(d3.format(',f'));
+
+      chart.yAxis
+          .axisLabel("Mean Displacement (mm)")
+          .tickFormat(d3.format(',.2f'));
+
+      d3.select('#chart1 svg')
+          .datum(data1)
+          .call(chart);
+
+      nv.utils.windowResize(chart.update);
+      return chart;
+    });
+});
+
+d3.json(url2, function(data2) {
+    nv.addGraph(function() {
+      //var chart = nv.models.lineWithFocusChart()
+      var chart = nv.models.lineChart()
+                    .margin({left: 80, bottom: 50})
+                    .showXAxis(true)
+                    .showYAxis(true)
+                    .showLegend(false)
+                    .transitionDuration(200)
+      ;
+
+     chart.xAxis
+          .axisLabel("Time (frame #)")
+          .tickFormat(d3.format(',f'));
+
+      chart.yAxis
+          .axisLabel("z-score")
+          .tickFormat(d3.format(',.2f'));
+
+      d3.select('#chart2 svg')
+          .datum(data2)
+          .call(chart);
+
+      nv.utils.windowResize(chart.update);
+
+      return chart;
+    });
+});
+
+</script>
+
+</head>
+
+<body>
+    <p>
+    Temporal SNR (median): ${tsnr}<br></br>
+    Number of spikes detected: ${num_spikes}
+    </p>
+
+    <div style="width: 900px; height: 700px">
+        <p>
+        <center>Subject Motion</center>
+        <div id="chart1" class='with-3d-shadow with-transitions'>
+        <svg style="height: 250px; width: 800px"></svg>
+        </div>
+        </p>
+        <p>
+        <center>Temporal Drift and Spikes</center>
+        <div id="chart2" class='with-3d-shadow with-transitions'>
+        <svg style="height: 250px; width: 800px"></svg>
+        </div>
+        </p>
+    </div>
+
+</body>
+
+</html>
+
+

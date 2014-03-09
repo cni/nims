@@ -65,7 +65,7 @@ class AuthController(BaseController):
             flash(l_('Your settings have been updated.'))
 
         if not user.firstname or not user.lastname or not user.email:
-            ldap_firstname, ldap_lastname, ldap_email = nimsutil.ldap_query(user.uid)
+            ldap_firstname, ldap_lastname, ldap_email, ldap_uid_number = nimsutil.ldap_query(user.uid)
         firstname = user.firstname or ldap_firstname
         lastname = user.lastname or ldap_lastname
         email = user.email or ldap_email
