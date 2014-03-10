@@ -188,7 +188,7 @@ class Pipeline(threading.Thread):
         self.clean(self.job.data_container, u'derived')
         self.clean(self.job.data_container, u'web')
         self.clean(self.job.data_container, u'qa')
-        self.data_container.qa_status = u'rerun'
+        self.job.data_container.qa_status = u'rerun'
         self.job.activity = u'generating NIfTI / running recon'
         log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
