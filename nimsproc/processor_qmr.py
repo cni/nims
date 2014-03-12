@@ -1,5 +1,4 @@
-import nimsutil
-from nimsgears.model import *
+#!/usr/bin/env python
 
 import sys
 import time
@@ -12,8 +11,13 @@ import shutil
 import os.path
 import logging
 
+import nimsutil
+from nimsgears.model import *
+
 # PROCESSOR_CMD = 'matlab file.m'
-PROCESSOR_CMD = '/Users/sbenito/test_wh.sh'
+PROCESSOR_CMD_CHECK = '/Users/sbenito/test_wh.sh'
+#PROCESSOR_CMD_CHECK = '/root/nims_qmr/nims_qmr_get_exit_code'
+#PROCESSOR_CMD_COMPUTE = '/root/nims_qmr/nims_qmr_main'
 
 log = logging.getLogger('processor-qmr')
 
@@ -54,7 +58,24 @@ class ProcessorWH(object):
             subject = Subject.query.join(Experiment, Subject.experiment_datacontainer_id == Experiment.datacontainer_id) \
                             .filter(Subject.datacontainer_id == session.subject_datacontainer_id).first()
 
-            nimsfs_niftis_path = '%s-%s-%s' % (subject.experiment.owner.gid, str(subject.experiment.name), session.name)
+            group_users = []
+
+            for user_experiment in subject.experiment.accesses:
+                # user_experiment is expected to be a string like:
+                # 'access-type: (user, manager/experiment)'
+                # and we need to extract the user
+                user = user_experiment.split()[1][1:-1]
+                group_users.append(user)
+                # sunetID_begining = str(elem).index('(') + 1
+                #sunetID_end = str(elem).index(',')
+                # group_users.append(str(elem)[sunetID_begining: sunetID_end])
+
+            print group_users
+
+            #nimsfs_niftis_path = '%s-%s-%s-%s' % (subject.experiment.owner.gid, str(subject.experiment.name), session.name, group_users)
+            group = subject.experiment.owner.gid
+            experiment = str(subject.experiment.name)
+            sessionID = session.name
 
             # make sure all epochs have been processed (niftis exist)
             all_epochs_have_nifti = True
@@ -68,48 +89,31 @@ class ProcessorWH(object):
                 transaction.commit()
                 continue
 
-            nimsfs_niftis_path = 'XXXXXX'
-
             # Run the script
-            # We need to create a temp dir to pass on the process command
-            # The call to the script should be something like subprocess.check_output( script name, parameter1(name directory nimsfs), parameter2( temp/output dir))
-            with nimsutil.TempDir() as tmp_out_dir:
-                print 'Out dir:', tmp_out_dir
-
-                res = subprocess.call( [PROCESSOR_CMD, nimsfs_niftis_path, tmp_out_dir] )
-                if res != 0:
-                    log.error('Error running QMR processor')
-                    # Mark the processing as failed
-                    for j in jobs:
-                        j.status = u'failed'
-                        j.activity = 'Failed to run WH matlab processsing'
-
-                    transaction.commit()
-                    return
-
-                # Insert new dataset into the session
-                dataset = Dataset.at_path(self.nims_path, u'png-figure')
-                dataset.container = session
-                # Copy output files into dataset.relpath
-
-                log.info('Moving output files into ' + dataset.relpath)
-                out_files = []
-                for file in os.listdir(tmp_out_dir):
-                    shutil.move(os.path.join(tmp_out_dir, file),
-                                os.path.join(self.nims_path, dataset.relpath) )
-                    out_files.append(file)
-
-                print 'Out Files:', out_files
-                dataset.filenames = set(dataset.filenames + out_files)
-                dataset.updatetime = datetime.datetime.now()
-                dataset.untrash()
-
-                # Mark all the qmr-pending jobs as done
+            res = subprocess.call( [PROCESSOR_CMD_CHECK, group, experiment] )
+            if res == 0:
+                log.error('Error running QMR processor')
+                # Mark the processing as failed
                 for j in jobs:
-                    j.status = u'done'
-                    j.activity = 'done'
+                    j.status = u'failed'
+                    j.activity = 'Failed to run QMR matlab processsing'
 
                 transaction.commit()
+                continue
+            elif res == 222:
+                res2 = subprocess.call( [PROCESSOR_CMD_COMPUTE, group, experiment, sessionID, ','.join(group_users)] )
+
+            else:
+                log.info('Check later, not enough NIfTIs')
+                transaction.commit()
+                continue
+
+            # Mark all the qmr-pending jobs as done
+            for j in jobs:
+                j.status = u'done'
+                j.activity = 'done'
+
+            transaction.commit()
 
 
 class ArgumentParser(argparse.ArgumentParser):
