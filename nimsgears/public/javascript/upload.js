@@ -169,7 +169,13 @@ var id_generator = 0;
 var fileMap = {};
 var totalFilesSize = 0;
 
+// List of all the acquisition time for series that include some
+// multi-coil dicoms. The acquisition times are used to group the
+// dicoms in the same serie
+var acquisition_times_list = [];
+
 var MAX_UPLOAD_SIZE = 6 * 1024 * 1024 * 1024;
+var coilStringRegExp = new RegExp("^H[0-9]\s*$");
 
 $('#submit_form').on('click', function(evt) {
      evt.stopPropagation();
@@ -731,26 +737,35 @@ function processFile(file, callback) {
                             } else {
                                 var totalThickness = parseInt(csa_series['ascconv']['sSliceArray.asSlice[0].dThickness']);
                                 var sliceThickness = parseInt(dcmFile.SliceThickness);
-                                var coilString = String("'" + dcmFile.CoilString + "'");
 
                                 var slices = Math.round(totalThickness / sliceThickness);
                                 file.ImagesInAcquisition = slices;
-
-                                //Computation for multicoil dicom
-                                var re = new RegExp("H[0-9]");
-                                if (re.test(coilString)) {
-                                    file.numberOfCoils = parseInt(csa_series['ascconv']['sProtConsistencyInfo.lMaximumNofRxReceiverChannels']);
-                                    file.imagesPerSlab = parseInt(csa_series['ascconv']['sKSpace.lImagesPerSlab']);
-
-                                    //We add 1 to number of coils to compute also the combined DICOMs
-                                    file.ImagesInAcquisition = (file.numberOfCoils + 1) * file.imagesPerSlab;
-                                }
                             }
-
-                            file.Key = ['key', file.StudyInstanceUID, file.AcquisitionTime].join('-');
                         }
                     }
                 });
+
+                //Computation for multicoil dicom
+                if (coilStringRegExp.test(dcmFile.CoilString)) {
+                    file.numberOfCoils = parseInt(csa_series['ascconv']['sProtConsistencyInfo.lMaximumNofRxReceiverChannels']);
+                    file.imagesPerSlab = parseInt(csa_series['ascconv']['sKSpace.lImagesPerSlab']);
+
+                    //We add 1 to number of coils to compute also the combined DICOMs
+                    file.ImagesInAcquisition = (file.numberOfCoils + 1) * file.imagesPerSlab;
+
+                    file.Key = ['key', file.StudyInstanceUID, file.AcquisitionTime].join('-');
+
+                    if ( acquisition_times_list.indexOf(file.AcquisitionTime) == -1) {
+                        acquisition_times_list.push(file.AcquisitionTime);
+                    }
+
+                } else if (acquisition_times_list.indexOf(file.AcquisitionTime) >= 0) {
+                    file.Key = ['key', file.StudyInstanceUID, file.AcquisitionTime].join('-');
+
+                } else {
+                    file.Key = ['key', file.StudyID, file.SeriesNumber, file.AcquisitionNumber,
+                                        file.SeriesInstanceUID].join('-');
+                }
             }
 
             // Add the file to table of files in the page
