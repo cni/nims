@@ -805,7 +805,6 @@ class Dataset(Entity):
             u'img_pyr': u'Image Viewer',
             u'physio':  u'Physio Data',
             u'json':    u'QA',
-            u'png-figure': u'PNG figure',
             }
 
     label = Field(Unicode(63))  # informational only
@@ -815,7 +814,7 @@ class Dataset(Entity):
     kind = Field(Enum(u'primary', u'secondary', u'peripheral', u'derived', u'web', u'qa', name=u'dataset_kind'))
     # NOTE: use Epoch.qa_status!
     qa_status = Field(Enum(u'pending', u'running', u'done', u'failed', u'abandoned', name=u'dataset_qa_status'))
-    filetype = Field(Enum(u'pfile', u'dicom', u'nifti', u'bitmap', u'img_pyr', u'physio', u'json', u'png-figure', name=u'dataset_filetype'))
+    filetype = Field(Enum(u'pfile', u'dicom', u'nifti', u'bitmap', u'img_pyr', u'physio', u'json', name=u'dataset_filetype'))
     datatype = Field(Enum(u'unknown', u'mr_fmri', u'mr_dwi', u'mr_structural', u'mr_fieldmap', u'mr_spectro', name=u'dataset_datatype'), default=u'unknown')
     _updatetime = Field(DateTime, default=datetime.datetime.now, colname='updatetime', synonym='updatetime')
     digest = Field(LargeBinary(20))
