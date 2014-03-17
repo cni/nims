@@ -90,7 +90,7 @@ class ProcessorWH(object):
                 continue
 
             # Run the script
-            res = subprocess.call( [PROCESSOR_CMD_CHECK, group, experiment] )
+            res = subprocess.call( [PROCESSOR_CMD_CHECK, group, experiment, sessionID] )
             if res == 0:
                 log.error('Error running QMR processor')
                 # Mark the processing as failed
