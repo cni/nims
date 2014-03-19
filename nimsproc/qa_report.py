@@ -10,8 +10,7 @@ import nibabel as nb
 import os
 import numpy as np
 from glob import glob
-from scipy.interpolate import UnivariateSpline
-import nipy.algorithms.registration
+from nipy.algorithms.registration import affine,FmriRealign4d
 from dipy.segment.mask import median_otsu
 import sys
 import json
@@ -19,6 +18,66 @@ import argparse
 import time
 import shutil
 import multiprocessing
+import matplotlib
+matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
+import matplotlib.pyplot as plt
+
+qa_version = 1.0
+
+def add_subplot_axes(fig, ax, rect, axisbg='w'):
+    box = ax.get_position()
+    width = box.width
+    height = box.height
+    inax_position  = ax.transAxes.transform(rect[0:2])
+    transFigure = fig.transFigure.inverted()
+    infig_position = transFigure.transform(inax_position)
+    x = infig_position[0]
+    y = infig_position[1]
+    width *= rect[2]
+    height *= rect[3]  # <= Typo was here
+    subax = fig.add_axes([x,y,width,height],axisbg=axisbg)
+    x_labelsize = subax.get_xticklabels()[0].get_size()
+    y_labelsize = subax.get_yticklabels()[0].get_size()
+    x_labelsize *= rect[2]**0.5
+    y_labelsize *= rect[3]**0.5
+    subax.xaxis.set_tick_params(labelsize=x_labelsize)
+    subax.yaxis.set_tick_params(labelsize=y_labelsize)
+    return subax
+
+def plot_data(ts_z, abs_md, rel_md, tsnr, num_spikes, spike_thresh, outfile):
+    '''Plot the per-slice z-score timeseries represented by t_z.'''
+    c = np.vstack((np.linspace(0,1.,ts_z.shape[0]), np.linspace(1,0,ts_z.shape[0]), np.ones((2,ts_z.shape[0])))).T
+    sl_num = np.tile(range(ts_z.shape[0]), (ts_z.shape[1], 1)).T
+    fig = plt.figure(figsize=(16,8))
+    ax1 = fig.add_subplot(211)
+    t = np.arange(0,len(abs_md))
+    ax1.plot(t, abs_md, 'k-')
+    ax1.plot(t, rel_md, 'gray')
+    ax1.set_xlabel('Time (frame #)')
+    ax1.set_ylabel('Mean Displacement (mm)')
+    ax1.axis('tight')
+    ax1.grid()
+    ax1.set_title('Subject Motion')
+    ax1.legend(('absolute', 'relative'), loc='best', prop={'size':10})
+    ax2 = fig.add_subplot(212)
+    for sl in range(ts_z.shape[0]):
+        ax2.plot(ts_z[sl,:], color=c[sl,:])
+    ax2.plot((0,ts_z.shape[1]),(-spike_thresh,-spike_thresh),'k:')
+    ax2.plot((0,ts_z.shape[1]),(spike_thresh,spike_thresh),'k:')
+    ax2.set_xlabel('time (frame #)')
+    ax2.set_ylabel('Signal Intensity (z-score)')
+    ax2.axis('tight')
+    ax2.grid()
+    if num_spikes==1:
+        ax2.set_title('Spike Plot (%d spike, tSNR=%0.2f)' % (num_spikes, tsnr))
+    else:
+        ax2.set_title('Spike Plot (%d spikes, tSNR=%0.2f)' % (num_spikes, tsnr))
+    cbax = add_subplot_axes(fig, ax2, [.85,1.11, 0.25,0.05])
+    plt.imshow(np.tile(c,(2,1,1)).transpose((0,1,2)), axes=cbax)
+    cbax.set_yticks([])
+    cbax.set_xlabel('Slice number')
+    plt.tight_layout()
+    plt.savefig(outfile, bbox_inches='tight')
 
 def mask(d, raw_d=None, nskip=3):
     mn = d[:,:,:,nskip:].mean(3)
@@ -54,29 +113,9 @@ def find_spikes(d, spike_thresh):
     d.mask[:,:,spike_inds[:,0],spike_inds[:,1]] = True
     slice_mean2 = d.mean(axis=0).mean(axis=0)
     t_z = (slice_mean - np.atleast_2d(slice_mean.mean(axis=1)).T) / np.atleast_2d(slice_mean2.std(axis=1)).T
-    spikes = np.logical_or(spikes, t_z<-spike_thresh)
+    spikes = np.logical_or(spikes, np.abs(t_z)>spike_thresh)
     spike_inds = np.transpose(spikes.nonzero())
     return((spike_inds, t_z))
-
-def plot_slices(t_z, spike_thresh):
-    import matplotlib.pyplot as plt
-    c = np.vstack((np.linspace(0,1.,t_z.shape[0]), np.linspace(1,0,t_z.shape[0]), np.ones((2,t_z.shape[0])))).T
-    sl_num = np.tile(range(t_z.shape[0]), (t_z.shape[1], 1)).T
-    print "%d spikes detected in %d slices" % (spike_inds.shape[0], np.unique(sl_num[spike_inds[:,0]]).shape[0])
-    plt.figure(figsize=(16,4))
-    for sl in range(t_z.shape[0]):
-        plt.plot(t_z[sl,:], color=c[sl,:])
-    plt.plot((0,t_z.shape[1]),(-spike_thresh,-spike_thresh),'k:')
-    plt.plot((0,t_z.shape[1]),(spike_thresh,spike_thresh),'k:')
-    plt.xlabel('time (frame #)')
-    plt.ylabel('signal intensity (z-score)')
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-    divider = make_axes_locatable(plt.gca())
-    cax = divider.append_axes("right", "5%", pad="3%")
-    plt.imshow(np.tile(c,(2,1,1)).transpose((1,0,2)), axes=cax)
-    plt.xticks([])
-    plt.ylabel('Slice number')
-    plt.tight_layout()
 
 def estimate_motion(nifti_image):
     # BEGIN STDOUT SUPRESSION
@@ -85,31 +124,42 @@ def estimate_motion(nifti_image):
     # We want to use the middle time point as the reference. But the algorithm does't allow that, so fake it.
     ref_vol = nifti_image.shape[3]/2 + 1
     ims = nb.four_to_three(nifti_image)
-    ims[0] = ims[ref_vol]
-    reg = nipy.algorithms.registration.FmriRealign4d(nb.concat_images(ims), 'ascending', time_interp=False)
+    reg = FmriRealign4d(nb.concat_images([ims[ref_vol]] + ims), 'ascending', time_interp=False)
     reg.estimate(loops=3) # default: loops=5
-    aligned = reg.resample(0)
+    aligned = reg.resample(0)[:,:,:,1:]
     sys.stdout = actualstdout
     # END STDOUT SUPRESSION
-    mean_disp = []
+    abs_disp = []
+    rel_disp = []
     transrot = []
-    for T in reg._transforms[0]:
+    prev_T = None
+    # skip the first one, since it's the reference volume
+    for T in reg._transforms[0][1:]:
         # get the full affine for this volume by pre-multiplying by the reference affine
         #mc_affine = np.dot(ni.get_affine(), T.as_affine())
         transrot.append(T.translation.tolist()+T.rotation.tolist())
         # Compute the mean displacement
         # See http://www.fmrib.ox.ac.uk/analysis/techrep/tr99mj1/tr99mj1/node5.html
-        T_error = T.as_affine() - np.eye(4)
-        A = np.matrix(T_error[0:3,0:3])
-        t = np.matrix(T_error[0:3,3]).T
         # radius of the spherical head assumption (in mm):
         R = 80.
         # The center of the volume. Assume 0,0,0 in world coordinates.
+        # Note: it might be better to use the center of mass of the brain mask.
         xc = np.matrix((0,0,0)).T
-        mean_disp.append(np.sqrt( R**2. / 5 * np.trace(A.T * A) + (t + A*xc).T * (t + A*xc) ).item())
-    return aligned,np.array(mean_disp),np.array(transrot)
+        T_error = T.as_affine() - np.eye(4)
+        A = np.matrix(T_error[0:3,0:3])
+        t = np.matrix(T_error[0:3,3]).T
+        abs_disp.append(np.sqrt( R**2. / 5 * np.trace(A.T * A) + (t + A*xc).T * (t + A*xc) ).item())
+        if prev_T!=None:
+            T_error = T.as_affine() - prev_T.as_affine() # - np.eye(4)
+            A = np.matrix(T_error[0:3,0:3])
+            t = np.matrix(T_error[0:3,3]).T
+            rel_disp.append(np.sqrt( R**2. / 5 * np.trace(A.T * A) + (t + A*xc).T * (t + A*xc) ).item())
+        else:
+            rel_disp.append(0.0)
+        prev_T = T
+    return aligned,np.array(abs_disp),np.array(rel_disp),np.array(transrot)
 
-def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=6):
+def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=4):
     # Note: the caller may have locked the db, so we should be sure to commit the transaction asap.
     start_secs = time.time()
     epoch = Epoch.get(epoch_id)
@@ -134,6 +184,8 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=6
                 if os.path.isdir(os.path.join(nimspath, ds.relpath)):
                     shutil.rmtree(os.path.join(nimspath, ds.relpath))
                 ds.delete()
+            transaction.commit()
+            DBSession.add(epoch)
     ni_ds = [ds for ds in epoch.datasets if ds.filetype==u'nifti']
     if len(ni_ds)<1:
         # Keep it pending, since the nifti might be being generated.
@@ -158,7 +210,7 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=6
 
             # Compute temporal snr on motion-corrected data,
             print("%s epoch id %d (%s) QA: estimating motion..." % (time.asctime(), epoch_id, str(epoch)))
-            aligned,mean_disp,transrot = estimate_motion(ni)
+            aligned,abs_disp,rel_disp,transrot = estimate_motion(ni)
             brain_aligned = np.ma.masked_array(aligned.get_data(), brain.mask)
             # Remove slow-drift (3rd-order polynomial) from the variance
             global_ts_aligned = brain_aligned.mean(0).mean(0).mean(0)
@@ -168,23 +220,29 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=6
             # convert rotations to degrees
             transrot[:,3:] *= 180./np.pi
             qa_ds = Dataset.at_path(nimspath, u'json')
-            qa_ds.filenames = [u'qa_report.json']
+            qa_ds.filenames = [u'qa_report.json', u'qa_report.png']
             qa_ds.kind = u'qa'
             qa_ds.container = epoch
-            outfile = os.path.join(nimspath, qa_ds.relpath, qa_ds.filenames[0])
-            print("%s epoch id %d (%s) QA: writing report to %s..." % (time.asctime(), epoch_id, str(epoch), outfile))
-            with open(outfile, 'w') as fp:
-                json.dump([{'dataset': ni_fname, 'tr': tr.tolist(),
+            json_file = os.path.join(nimspath, qa_ds.relpath, qa_ds.filenames[0])
+            print("%s epoch id %d (%s) QA: writing report to %s..." % (time.asctime(), epoch_id, str(epoch), json_file))
+            with open(json_file, 'w') as fp:
+                json.dump({ 'version': qa_version,
+                            'dataset': ni_fname, 'tr': tr.tolist(),
                             'frame #': range(0,brain.shape[3]),
-                            'transrot': transrot.round(3).tolist(),
-                            'mean displacement': mean_disp.round(3).tolist(),
-                            'max md': mean_disp.max().round(3).astype(float),
-                            'median md': np.median(mean_disp).round(3).astype(float),
+                            'transrot': transrot.round(4).tolist(),
+                            'mean displacement': abs_disp.round(2).tolist(),
+                            'relative displacement': rel_disp.round(2).tolist(),
+                            'max md': rel_disp.max().round(3).astype(float),
+                            'median md': np.median(rel_disp).round(3).astype(float),
                             'temporal SNR (median)': median_tsnr.round(3).astype(float),
-                            'global mean signal': global_ts.round(2).tolist(fill_value=global_ts.mean()),
-                            'timeseries zscore': t_z.round(3).tolist(fill_value=0),
-                            'spikes': spike_inds.tolist()}],
+                            'global mean signal': global_ts.round(3).tolist(fill_value=round(global_ts.mean(),3)),
+                            'timeseries zscore': t_z.round(1).tolist(fill_value=0),
+                            'spikes': spike_inds.tolist(),
+                            'spike thresh': spike_thresh},
                           fp)
+            img_file = os.path.join(nimspath, qa_ds.relpath, qa_ds.filenames[1])
+            print("%s epoch id %d (%s) QA: writing image to %s..." % (time.asctime(), epoch_id, str(epoch), img_file))
+            plot_data(t_z, abs_disp, rel_disp, median_tsnr, spike_inds.shape[0], spike_thresh, img_file)
         # the state may have changed while we were processing...
         if epoch.qa_status!=u'rerun':
             epoch.qa_status = u'done'
@@ -220,14 +278,23 @@ def run_a_job(nims_path, scan_type, spike_thresh, nskip):
     epoch = (Epoch.query.join(Dataset)
                         .filter((Epoch.qa_status==u'pending') | (Epoch.qa_status==u'rerun'))
                         .filter(Epoch.scan_type==scan_type)
+                        .filter(Epoch.trashtime==None)
                         .filter(Dataset.filetype==u'nifti')
                         .order_by(Epoch.timestamp.desc())
                         .with_lockmode('update')
                         .first())
-    # Set force=True here so that any old QA files will be cleaned up. We've already filtered by
-    # qs_status. Force a rerun of the qa by simply resetting the qa_status flag to 'rerun'.
-    generate_qa_report(epoch.id, nims_path, force=True, spike_thresh=spike_thresh, nskip=nskip)
-
+    if epoch:
+        epoch_id = epoch.id
+        # Set force=True here so that any old QA files will be cleaned up. We've already filtered by
+        # qs_status. Force a rerun of the qa by simply resetting the qa_status flag to 'rerun'.
+        try:
+            generate_qa_report(epoch_id, nims_path, force=True, spike_thresh=spike_thresh, nskip=nskip)
+        except Exception as e:
+            print e
+            Epoch.get(epoch_id).qa_status=u'failed'
+            transaction.commit()
+    else:
+        time.sleep(10)
 
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):
@@ -269,4 +336,13 @@ if __name__ == '__main__':
                     t.start()
                 time.sleep(1)
 
+
+
+# nims_path = '/net/cnifs/cnifs/nims'
+# dsets=[d.id for d in Dataset.query.filter(Dataset.label==u'QA').all()]
+# epochs = []
+# for d in dsets:
+#    ds = Dataset.get(d)
+#    if len(ds.filenames)<2:
+#        epochs.append(ds.container_id)
 

@@ -43,6 +43,7 @@ d3.json(url1, function(data1) {
     nv.addGraph(function() {
       //var chart = nv.models.lineWithFocusChart()
       var chart = nv.models.lineChart()
+                    .useInteractiveGuideline(true)
                     .margin({left: 80, bottom: 50})
                     .showXAxis(true)
                     .showYAxis(true)
@@ -76,6 +77,8 @@ d3.json(url2, function(data2) {
                     .showYAxis(true)
                     .showLegend(false)
                     .transitionDuration(200)
+                    .tooltipContent(function(key, x, y, e, graph) {
+                              return key + ': z=' +  y + ' at frame ' + x})
       ;
 
      chart.xAxis
@@ -102,6 +105,7 @@ d3.json(url2, function(data2) {
 
 <body>
     <p>
+    QA version: ${version}<br></br>
     Temporal SNR (median): ${tsnr}<br></br>
     Number of spikes detected: ${num_spikes}
     </p>
