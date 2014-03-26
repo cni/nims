@@ -10,14 +10,21 @@ import subprocess
 import shutil
 import os.path
 import logging
+import platform
+import getpass
+import smtplib
+from email.mime.text import MIMEText
+import json
+import tarfile
 
 import nimsutil
 from nimsgears.model import *
 
 # PROCESSOR_CMD = 'matlab file.m'
-PROCESSOR_CMD_CHECK = '/Users/sbenito/test_wh.sh'
-#PROCESSOR_CMD_CHECK = '/root/nims_qmr/nims_qmr_get_exit_code'
-#PROCESSOR_CMD_COMPUTE = '/root/nims_qmr/nims_qmr_main'
+PROCESSOR_CMD_CHECK = '/root/nims_qmr/nims_qmr_check'
+PROCESSOR_CMD_COMPUTE = '/root/nims_qmr/nims_qmr_main'
+
+SMTP_SERVER = 'smtp.stanford.edu'
 
 log = logging.getLogger('processor-qmr')
 
@@ -52,7 +59,7 @@ class ProcessorWH(object):
             session = Session.query.get(epoch.session_datacontainer_id)
 
             jobs = Job.query.join(DataContainer).join(Epoch) \
-                     .filter(Epoch.session_datacontainer_id==session.id).with_lockmode('update').all()
+                     .filter(Epoch.session_datacontainer_id == session.id).with_lockmode('update').all()
             epochs = session.epochs
 
             subject = Subject.query.join(Experiment, Subject.experiment_datacontainer_id == Experiment.datacontainer_id) \
@@ -64,15 +71,9 @@ class ProcessorWH(object):
                 # user_experiment is expected to be a string like:
                 # 'access-type: (user, manager/experiment)'
                 # and we need to extract the user
-                user = user_experiment.split()[1][1:-1]
+                user = str(user_experiment).split()[1][1:-1]
                 group_users.append(user)
-                # sunetID_begining = str(elem).index('(') + 1
-                #sunetID_end = str(elem).index(',')
-                # group_users.append(str(elem)[sunetID_begining: sunetID_end])
 
-            print group_users
-
-            #nimsfs_niftis_path = '%s-%s-%s-%s' % (subject.experiment.owner.gid, str(subject.experiment.name), session.name, group_users)
             group = subject.experiment.owner.gid
             experiment = str(subject.experiment.name)
             sessionID = session.name
@@ -89,19 +90,78 @@ class ProcessorWH(object):
                 transaction.commit()
                 continue
 
+            # Get the user who made the upload
+            ds = job.data_container.primary_dataset
+            dcm_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
+            with tarfile.open(dcm_tgz) as archive:
+                for tarinfo in archive:
+                    if tarinfo.name.endswith('.json'):
+                        # Parse json and extract the user id
+                        info = json.load(archive.extractfile(tarinfo))
+                        break
+
+            user = info['User']
+
             # Run the script
-            res = subprocess.call( [PROCESSOR_CMD_CHECK, group, experiment, sessionID] )
+            res = subprocess.call( [PROCESSOR_CMD_CHECK,
+                                    '-g', group,
+                                    '-e', experiment,
+                                    '-s', sessionID] )
             if res == 0:
                 log.error('Error running QMR processor')
                 # Mark the processing as failed
                 for j in jobs:
                     j.status = u'failed'
-                    j.activity = 'Failed to run QMR matlab processsing'
+                    j.activity = 'Failed to run QMR Matlab check'
 
                 transaction.commit()
                 continue
             elif res == 222:
-                res2 = subprocess.call( [PROCESSOR_CMD_COMPUTE, group, experiment, sessionID, ','.join(group_users)] )
+                log.info("Sending notification process started for job: %d and user: %s" % (job.id, user))
+                content = '''
+
+                    Message to user in processor_qmr
+                    Process is starting now.
+
+                '''
+                self.send_mail(user, 'Started QMR processing on job %d' % job.id, content)
+
+                # nims_qmr_main -g group -e experiment -s session -u "user list"
+                res2 = subprocess.call( [PROCESSOR_CMD_COMPUTE,
+                                        '-g', group,
+                                        '-e', experiment,
+                                        '-s', sessionID,
+                                        '-u', ' '.join(group_users)] )
+                if res2 == 0:
+                    log.error('Error running Matlab')
+                    for j in jobs:
+                        j.status = u'failed'
+                        j.activity = 'Failed to run QMR Matlab process'
+                    transaction.commit()
+                    continue
+
+                elif res2 == 999:
+                    log.error('System Error')
+                    for j in jobs:
+                        j.status = u'failed'
+                        j.activity = 'Failed to run QMR Matlab process'
+                    transaction.commit()
+                    continue
+
+                elif res2 == 111:
+                    log.info("Sending success mail job: %d and user: %s" % (job.id, user))
+                    content = '''
+
+                        Message to user in processor_qmr
+                        Process succesfully completed.
+
+                    '''
+                    self.send_mail(user, 'Finished QMR processing on job %d' % job.id, content)
+
+                else:
+                    log.error('Cannot process QMR return code: %d' % res2)
+                    transaction.commit()
+                    continue
 
             else:
                 log.info('Check later, not enough NIfTIs')
@@ -114,6 +174,22 @@ class ProcessorWH(object):
                 j.activity = 'done'
 
             transaction.commit()
+
+    def send_mail(self, user, subject, body):
+        msg = MIMEText(body)
+        msg['Subject'] = subject
+        msg['From'] = getpass.getuser() + '@' + platform.node()
+        msg['To'] = user + '@stanford.edu'
+
+        username = 'benito.arce.sara@gmail.com'
+        password = 'snzikkgudokxmhjt'
+
+        server = smtplib.SMTP(SMTP_SERVER)
+        server.starttls()
+        server.login(username,password)
+
+        server.sendmail(msg['From'], [msg['To']], msg.as_string())
+        server.quit()
 
 
 class ArgumentParser(argparse.ArgumentParser):
