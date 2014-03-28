@@ -326,6 +326,7 @@ function endUpload(key, callback) {
     data['upload_id'] = upload_id;
     data['PatientsBirthDate'] = series.PatientsBirthDate;
     data['PatientsSex'] = series.PatientsSex;
+    data['Manufacturer'] = series.Manufacturer;
 
     $.post( "upload/end_upload", data)
         .done(function(data) {
@@ -365,6 +366,7 @@ function addFileToList(file) {
         files_to_upload[file.Key].ExamUID= file.ExamUID;
         files_to_upload[file.Key].PatientsBirthDate= file.PatientsBirthDate;
         files_to_upload[file.Key].PatientsSex = file.PatientsSex;
+        files_to_upload[file.Key].Manufacturer = file.Manufacturer;
 
         var year = file.AcquisitionDate.substring(0, 4);
         var month = file.AcquisitionDate.substring(4, 6);
