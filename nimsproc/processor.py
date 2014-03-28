@@ -214,7 +214,6 @@ class Pipeline(threading.Thread):
 
 
 class DicomPipeline(Pipeline):
-
     def find(self):
         return super(DicomPipeline, self).find()
 
@@ -261,7 +260,6 @@ class DicomPipeline(Pipeline):
                 log.warning('dicom conversion failed for %s: no applicable conversion defined' % os.path.basename(outbase))
 
 
-
             if conv_type == 'nifti':
                 if type(conv_file) is str:
                     conv_file = [conv_file]
@@ -295,11 +293,10 @@ class DicomPipeline(Pipeline):
 
     def convert_primary_default(self, dcm_acq, outbase):
         imagedata = dcm_acq.get_imagedata()
-        return ('nifti', nimsnifti.NIMSNifti.write(dcm_acq, imagedata, outbase, dcm_acq.notes))
+        return ('nifti', nimsnifti.NIMSNifti.write(dcm_acq, imagedata, outbase, False, dcm_acq.notes))
 
     def convert_siemens(self, dcm_acq, outbase):
         nifti =''
-
         # Extract tgz file into a temporary directory
         tmpdir = tempfile.mkdtemp()
         tar = tarfile.open(dcm_acq.filepath)
@@ -308,14 +305,16 @@ class DicomPipeline(Pipeline):
 
         if 'MOSAIC' in dcm_acq.image_type:
             imagedata, dcm_acq.qto_xyz, dcm_acq.bvals, dcm_acq.bvecs = dicomreaders.read_mosaic_dir(dcm_files_path)
-            nifti = nimsnifti.NIMSNifti.write(dcm_acq, imagedata, outbase, dcm_acq.notes)
+            nifti = nimsnifti.NIMSNifti.write(dcm_acq, imagedata, outbase, False, dcm_acq.notes)
         else:
-            if re.match('H[0-3]?[0-9]', dcm_acq.coil_string):
+            is_multi_coil = re.match('H[0-3]?[0-9]', dcm_acq.coil_string)
+            if is_multi_coil:
                 time_order = 'CoilString'
-                nifti = nimsnifti.NIMSNifti.write_siemens(time_order, dcm_acq, dcm_files_path, outbase, dcm_acq.notes)
+                nifti = nimsnifti.NIMSNifti.write_multicoil(time_order, dcm_acq, dcm_files_path,
+                                                            outbase, dcm_acq.notes)
             else:
-                time_order = None
-                nifti = nimsnifti.NIMSNifti.write_siemens(time_order, dcm_acq, dcm_files_path, outbase, dcm_acq.notes)
+                imagedata = dcm_acq.get_imagedata()
+                nifti = nimsnifti.NIMSNifti.write(dcm_acq, imagedata, outbase, True, dcm_acq.notes)
 
         shutil.rmtree(tmpdir)
         return ('nifti', nifti)
