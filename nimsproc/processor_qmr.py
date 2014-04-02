@@ -53,7 +53,7 @@ class ProcessorWH(object):
                 time.sleep(self.sleeptime)
                 continue
 
-            job.status = 'qmr-process'
+            job.status = u'qmr-process'
 
             epoch = job.data_container
             session = Session.query.get(epoch.session_datacontainer_id)
@@ -67,12 +67,8 @@ class ProcessorWH(object):
 
             group_users = []
 
-            for user_experiment in subject.experiment.accesses:
-                # user_experiment is expected to be a string like:
-                # 'access-type: (user, manager/experiment)'
-                # and we need to extract the user
-                user = str(user_experiment).split()[1][1:-1]
-                group_users.append(user)
+            research_group = subject.experiment.owner
+            group_users = [user.uid for user in set(research_group.members + research_group.managers)]
 
             group = subject.experiment.owner.gid
             experiment = str(subject.experiment.name)
@@ -104,9 +100,9 @@ class ProcessorWH(object):
 
             # Run the script
             res = subprocess.call( [PROCESSOR_CMD_CHECK,
-                                    '-g', group,
-                                    '-e', experiment,
-                                    '-s', sessionID] )
+                                     group,
+                                     experiment,
+                                     sessionID] )
             if res == 0:
                 log.error('Error running QMR processor')
                 # Mark the processing as failed
@@ -116,7 +112,7 @@ class ProcessorWH(object):
 
                 transaction.commit()
                 continue
-            elif res == 222:
+            elif res == 111:
                 log.info("Sending notification process started for job: %d and user: %s" % (job.id, user))
                 content = '''
 
@@ -181,12 +177,8 @@ class ProcessorWH(object):
         msg['From'] = getpass.getuser() + '@' + platform.node()
         msg['To'] = user + '@stanford.edu'
 
-        username = 'benito.arce.sara@gmail.com'
-        password = 'snzikkgudokxmhjt'
-
         server = smtplib.SMTP(SMTP_SERVER)
         server.starttls()
-        server.login(username,password)
 
         server.sendmail(msg['From'], [msg['To']], msg.as_string())
         server.quit()
