@@ -63,4 +63,8 @@ class NimsController(BaseController):
             if (ds.kind != u'primary' and ds.kind != u'secondary') or user.has_access_to(ds, u'Read-Only'):
                 dataset_data_list.append((ds.label + ('*' if ds.kind == u'primary' else ''),))
                 dataset_attr_list.append({'id':'dataset=%d' % ds.id, 'class':'%s' % ('trash' if ds.trashtime else '')})
+                if ds.filetype==u'nifti' and ds.container.num_slices>1 and ds.container.num_timepoints==1:
+                    dataset_data_list.append(('Volume viewer',))
+                    dataset_attr_list.append({'id':'dataset=v%d' % ds.id, 'class':'%s' % ('trash' if ds.trashtime else '')})
+
         return (dataset_data_list, dataset_attr_list)

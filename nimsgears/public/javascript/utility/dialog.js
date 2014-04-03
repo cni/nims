@@ -35,7 +35,7 @@ define([], function ()
         // small, it means we're dealing with the pyramid rendering and
         // it has yet to finish loading, so we just expand it to full
         // width and height
-        if (type == 'dataset' && width < 50 && height < 50) { width = max_width; height = max_height };
+        if (type == 'dataset' && (width < 26 || height < 26)) { width = max_width; height = max_height; };
         return { 'width': width, 'height': height };
     };
 
