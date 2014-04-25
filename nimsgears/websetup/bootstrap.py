@@ -15,6 +15,7 @@ superusers = [
         u'bobd',
         u'rfbowen',
         u'laimab',
+        u'huawu',
         ]
 
 groups = [

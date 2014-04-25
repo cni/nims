@@ -4,16 +4,23 @@
 
 import os
 import transaction
-import nimsutil
+import sqlalchemy
 from nimsgears.model import *
 import time
 import shutil
+import nimsdata
 
-data_path = '/nimsfs/nims'
+data_path = '/net/cnifs/cnifs/nims'
 tmpdir = '/tmp/physio%d' % int(time.time())
 os.mkdir(tmpdir)
+db_uri = 'postgresql://nims:nims@cnifs.stanford.edu:5432/nims'
 
-exams = [4797, 4831, 4838, 4839]
+init_model(sqlalchemy.create_engine(db_uri))
+
+sessions = Session.query.join(Subject,Session.subject).join(Experiment,Subject.experiment).filter(Experiment.id==12970).all()
+sid = [s.id for s in sessions]
+exams = [Session.get(s).exam for s in sid]
+#exams = [4797, 4831, 4838, 4839]
 
 if not exams:
     # Get them all
@@ -39,16 +46,19 @@ for pid in pd_ids:
         print('%s: recomputing regressors...' % p.container)
         physio_file = os.path.join(data_path, p.relpath, phys_filename[0])
         dc = p.container
-        phys = nimsutil.physio.PhysioData(physio_file, dc.tr, dc.num_timepoints, dc.num_slices/dc.num_bands)
-        # Get rid of old regressor and rawdata files
+        ds = dc.primary_dataset
+        phys = nimsdata.nimsphysio.NIMSPhysio(physio_file, dc.tr, dc.num_timepoints)
+        ni = nimsdata.parse(os.path.join(data_path, ds.primary_file_relpath))
+        phys.slice_order = ni.get_slice_order()
         cur_files = os.listdir(os.path.join(data_path, p.relpath))
+        # Get rid of old regressor and rawdata files
         for reg_file in [f for f in cur_files if 'regressors' in f or 'rawdata' in f]:
             shutil.move(os.path.join(data_path, p.relpath, reg_file), tmpdir)
         basename = os.path.join(data_path, p.relpath, '%s_physio_' % dc.name)
         try:
             phys.write_regressors(basename + 'regressors.csv.gz')
             #phys.write_raw_data(basename + 'rawdata.json.gz')
-        except nimsutil.physio.PhysioDataError:
+        except nimsdata.nimsphysio.NIMSPhysioError:
             print('error generating regressors from physio data')
         p.filenames = os.listdir(os.path.join(data_path, p.relpath))
         transaction.commit()
