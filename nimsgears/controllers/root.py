@@ -234,11 +234,26 @@ class RootController(BaseController):
                         sl_name = '%04d_%02d_%s%s' % (r.Epoch.series, r.Epoch.acq, r.Epoch.description, ext)
                     else:
                         sl_name = filename
-                    symlinks += [(os.path.join(store_path, r.Dataset.relpath, filename), os.path.join(ep, sl_name))]
+                    cur_outfile = os.path.join(ep, sl_name)
+                    while cur_outfile in [i[1] for i in symlinks]:
+                        name, sep, ext = sl_name.partition('.')
+                        sl_name = name + '+' + sep + ext
+                        cur_outfile = os.path.join(ep, sl_name)
+                    symlinks += [(os.path.join(store_path, r.Dataset.relpath, filename), cur_outfile)]
         for ep in set(epoch_paths):
-            os.makedirs(ep)
+            try:
+                os.makedirs(ep)
+            except OSError as err:
+                if err.errno!=17:
+                    raise
         for sl in symlinks:
-            os.symlink(*sl)
+            try:
+                os.symlink(*sl)
+            except:
+                with open('/tmp/NIMS_last_download_err.txt', 'w') as f:
+                    for s in symlinks:
+                        f.write(str(s) + '\n')
+                raise
         tar_proc = subprocess.Popen('tar -chf - -C %s nims; rm -r %s' % (temp_dir, temp_dir), shell=True, stdout=subprocess.PIPE)
         response.content_disposition = 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
         return tar_proc.stdout
