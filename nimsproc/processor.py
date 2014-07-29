@@ -59,17 +59,22 @@ class Processor(object):
                     job = query.filter(Job.status==u'pending').order_by(Job.id).with_lockmode('update').first()
 
                 if job:
-                    if isinstance(job.data_container, Epoch):
+                    if isinstance(job.data_container, Epoch) and job.data_container.primary_dataset!=None:
                         ds = job.data_container.primary_dataset
                         if ds.filetype == nimsdata.nimsdicom.NIMSDicom.filetype:
                             pipeline_class = DicomPipeline
                         elif ds.filetype == nimsdata.nimsraw.NIMSPFile.filetype:
                             pipeline_class = PFilePipeline
 
-                    pipeline = pipeline_class(job, self.nims_path, self.physio_path, self.tempdir, self.max_recon_jobs)
-                    job.status = u'running'
-                    transaction.commit()
-                    pipeline.start()
+                        pipeline = pipeline_class(job, self.nims_path, self.physio_path, self.tempdir, self.max_recon_jobs)
+                        job.status = u'running'
+                        transaction.commit()
+                        pipeline.start()
+                    else:
+                        job.status = u'failed'
+                        job.activity = u'failed: not an Epoch or no primary dataset.'
+                        log.warning(u'%d %s %s ' % (job.id, job, job.activity))
+                        transaction.commit()
                 else:
                     log.debug('Waiting for work...')
                     time.sleep(self.sleeptime)
