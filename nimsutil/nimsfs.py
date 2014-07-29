@@ -109,7 +109,7 @@ def get_groups(username):
                        .filter(Access.user==user)
                        .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
                        .all())
-    return sorted(set([e.owner.gid.encode() for e in experiments]))
+    return sorted(set([e.owner.gid.encode() for e in experiments])) + ['README.txt']
 
 @memoize()
 def get_experiments(username, group_name, trash=False):
@@ -166,7 +166,7 @@ def get_epochs(username, group_name, exp_name, session_name, trash=False):
     return epoch_names
 
 @memoize()
-def get_datasets(username, group_name, exp_name, session_name, epoch_name, datapath, trash=False):
+def get_datasets(username, group_name, exp_name, session_name, epoch_name, datapath, hide_raw=False, trash=False):
     # FIXME: we should explicitly set the epoch name
     ssp = session_name.split('_')
     if len(ssp)>2:
@@ -193,11 +193,12 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
             q = q.filter(Epoch.acq==int(esp[2]))
         if not trash:
             q = q.filter(Dataset.trashtime == None)
+        if hide_raw:
+            q = q.filter((Dataset.kind==u'peripheral') | (Dataset.kind==u'derived') | (Dataset.kind==u'qa'))
         if username!=None:
             user = get_user(username)
             q = (q.filter(Access.user==user)
-                  .filter((Access.privilege >= AccessPrivilege.value(u'Read-Only'))
-                       | ((Dataset.kind != u'primary') & (Dataset.kind != u'secondary'))))
+                  .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read')))
         if '%' in epoch_name:
             # return a flat structure with legacy-style filenames
             datafiles = []
@@ -210,6 +211,9 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
                     ext_start_ind = len(d.filenames[0].split('.')[0])
                 #print 'DATASET ' + str(d)
                 for f in d.filenames:
+                    # Filetype magic. You can get filenames based on the filetype by using %t for the epoch name. E.g.,
+                    #  $ ls /nimsfs/cni/muxt1/20140116_1218_6120/%t
+                    #     0002_01_calibration.nii.gz  0005_01_anatomy.nii.gz  0011_01_anatomy.nii.gz  0015_01_anatomy_t1w.nii.gz
                     if len(epoch_name)>1 and epoch_name[1]=='t':
                         if d.filetype==u'nifti':
                             display_name = '%04d_%02d_%s%s' % (d.container.series, d.container.acq, d.container.scan_type, f[ext_start_ind:])
@@ -228,7 +232,7 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
 
 class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
 
-    def __init__(self, datapath, db_uri, god_mode=False, local_names=False):
+    def __init__(self, datapath, db_uri, god_mode=False, hide_raw=False, local_names=False):
         ''' datapath: the path to the nims data. All data must be readable by
                       the user running nimsfs.
             db_uri: the database URI for quering the nims db. The machine where
@@ -236,6 +240,9 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
             god_mode: a flag used mostly for debugging. All access control is disabled.
                       Obvioulsy, only superusers should have access to nimsfs running
                       in this mode.
+            hide_raw: flag determining whether raw data files are shown. If true, the data
+                      shown are comparable to what a user would get from a nims download
+                      when "include raw" is unchecked.
             local_names: a flag indicating that we should use the local password file
                          to map uid's to usernames. If false, then the uid will be passed
                          straight to nims for the user look-up. This is useful when the
@@ -248,9 +255,12 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         self.datapath = datapath
         self.db_uri = db_uri
         self.god_mode = god_mode
+        self.hide_raw = hide_raw
         self.local_names = local_names
         #self.rwlock = threading.Lock()
         self.gzfile = None
+        self.readme_fname = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'user_guide.txt')
+
         init_model(sqlalchemy.create_engine(self.db_uri))
 
     def get_username(self, uid):
@@ -288,7 +298,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
                 cur_path = path.split('/')
                 sz = 1
                 if len(cur_path) == 6:
-                    files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath)
+                    files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath, self.hide_raw)
                     fname = next((f[1] for f in files if f[0]==cur_path[5]), None)
                     if fname:
                         sz = os.path.getsize(fname)
@@ -324,9 +334,9 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
             dirs = get_epochs(username, cur_path[1], cur_path[2], cur_path[3])
         elif len(cur_path) == 5:
             if cur_path[4][-1]=='?':
-                dirs = [d[1] for d in get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4][:-1], self.datapath)]
+                dirs = [d[1] for d in get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4][:-1], self.datapath, self.hide_raw)]
             else:
-                dirs = [d[0] for d in get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath)]
+                dirs = [d[0] for d in get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath, self.hide_raw)]
         else:
             dirs = []
         return ['.','..'] + dirs
@@ -342,7 +352,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
             if len(cur_path) == 6:
                 uid, gid, pid = fuse.fuse_get_context()
                 username = self.get_username(uid)
-                files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath)
+                files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath, self.hide_raw)
                 fname = next((f[1] for f in files if f[0]==cur_path[5]), None)
                 if fname:
                     self.gzfile = None
@@ -358,6 +368,8 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
                         raise fuse.FuseOSError(errno.ENOENT)
                 else:
                     raise fuse.FuseOSError(errno.ENOENT)
+            elif len(cur_path)==2 and cur_path[1]=='README.txt':
+                fh = os.open(self.readme_fname, flags)
         return fh
 
     def release(self, path, fh):
@@ -365,14 +377,14 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         os.close(fh)
 
     # NOTE: the read function is implemented in fuse.py. Doing it there makes file reads 10x faster!
-    #def read(self, path, size, offset, fh):
-    #    #with self.rwlock:
-    #    if self.gzfile:
-    #        self.gzfile.seek(offset, 0)
-    #        return self.gzfile.read(size)
-    #    else:
-    #        os.lseek(fh, offset, 0)
-    #    return os.read(fh, size)
+    def read(self, path, size, offset, fh):
+        #with self.rwlock:
+        if self.gzfile:
+            self.gzfile.seek(offset, 0)
+            return self.gzfile.read(size)
+        else:
+            os.lseek(fh, offset, 0)
+            return os.read(fh, size)
 
     def fgetattr(self, fh=None):
         uid, gid, pid = fuse.fuse_get_context()
@@ -401,7 +413,8 @@ class ArgumentParser(argparse.ArgumentParser):
         self.description = """Mount a NIMS filesystem. This exposes the NIMS file structure as a reqular filesystem using fuse."""
         self.add_argument('-n', '--no_allow_other', action='store_true', help='Use this flag to disable the "allow_other" option. (For normal use, be sure to enable allow_other in /etc/fuse.conf)')
         self.add_argument('-d', '--debug', action='store_true', help='start the filesystem in debug mode')
-        self.add_argument('-g', '--god', action='store_true', help='God mode-- NO ACCESS CONTROL!')
+        self.add_argument('-g', '--god', action='store_true', help='God mode-- NO ACCESS CONTROL! (implies hide_raw=False)')
+        self.add_argument('-r', '--hide_raw', action='store_true', help='Don''t show or allow access to raw data (no effect for god mode)')
         self.add_argument('-l', '--localname', action='store_true', help='Use the local password file to map uid to NIMS username. (Otherwise, uids are sent straight to NIMS.)')
         uri = 'postgresql://nims:nims@cnifs.stanford.edu:5432/nims'
         self.add_argument('-u', '--uri', metavar='URI', default=uri, help='URI pointing to the NIMS database. (Default=%s)' % uri)
@@ -413,7 +426,8 @@ if __name__ == '__main__':
     args = ArgumentParser().parse_args()
     if args.god:
         print "WARNING: Starting god-mode. All access control disabled!"
-    fuse = fuse.FUSE(Nimsfs(datapath=args.datapath, db_uri=args.uri, god_mode=args.god, local_names=args.localname),
+        args.hide_raw = False
+    fuse = fuse.FUSE(Nimsfs(datapath=args.datapath, db_uri=args.uri, god_mode=args.god, hide_raw=args.hide_raw, local_names=args.localname),
                      args.mountpoint,
                      debug=args.debug,
                      nothreads=True,

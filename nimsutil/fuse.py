@@ -495,11 +495,13 @@ class FUSE(object):
           fh = fip.contents
         else:
           fh = fip.contents.fh
-
-        lseek(fh, offset, 0)
-        ret = read(fh, size)
-        #ret = self.operations('read', path.decode(self.encoding), size,
-        #                              offset, fh)
+        try:
+            lseek(fh, offset, 0)
+            ret = read(fh, size)
+        except:
+            # If a direct read of fh fails, try the call-back.
+            ret = self.operations('read', path.decode(self.encoding),
+                                  size, offset, fh)
 
         if not ret: return 0
 
