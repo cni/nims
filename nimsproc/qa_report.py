@@ -200,6 +200,7 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=4
             print("%s epoch id %d (%s) QA: not enough timepoints in nifti; aborting." % (time.asctime(), epoch_id, str(epoch)))
             epoch.qa_status = u'abandoned'
         else:
+            qa_file_name = epoch.name + u'_qa'
             print("%s epoch id %d (%s) QA: finding spikes..." % (time.asctime(), epoch_id, str(epoch)))
             brain,good_vols = mask(ni.get_data(), nskip=nskip)
             t = np.arange(0.,brain.shape[3]) * tr
@@ -220,7 +221,7 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=4
             # convert rotations to degrees
             transrot[:,3:] *= 180./np.pi
             qa_ds = Dataset.at_path(nimspath, u'json')
-            qa_ds.filenames = [u'qa_report.json', u'qa_report.png']
+            qa_ds.filenames = [qa_file_name + u'.json', qa_file_name + u'.png']
             qa_ds.kind = u'qa'
             qa_ds.container = epoch
             json_file = os.path.join(nimspath, qa_ds.relpath, qa_ds.filenames[0])
