@@ -245,6 +245,13 @@ class DicomPipeline(Pipeline):
                 pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
                 transaction.commit()
 
+            if conv_type == 'bitmap':
+                # Hack to make sure screen-saves go to the end of the time-sorted list
+                DBSession.add(self.job)
+                DBSession.add(self.job.data_container)
+                self.job.data_container.timestamp = datetime.datetime.combine(date=self.job.data_container.timestamp.date(), time=datetime.time(23,59, 59))
+                transaction.commit()
+
         DBSession.add(self.job)
 
 
