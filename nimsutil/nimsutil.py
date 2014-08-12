@@ -7,6 +7,7 @@ import os
 import re
 import gzip
 import shutil
+import subprocess
 import string
 import tarfile
 import difflib
@@ -194,12 +195,18 @@ def hrsize(size):
 
 def gzip_inplace(path, mode=None):
     gzpath = path + '.gz'
-    with gzip.open(gzpath, 'wb', compresslevel=4) as gzfile:
-        with open(path) as pathfile:
-            gzfile.writelines(pathfile)
-    shutil.copystat(path, gzpath)
+    # The following with pigz is ~8x faster than the python code
+    if os.path.isfile('/usr/bin/pigz'):
+        subprocess.call('pigz -4 -p4 %s' % path, shell=True)
+    elif os.path.isfile('/usr/bin/gzip') or os.path.isfile('/bin/gzip'):
+        subprocess.call('gzip -4 %s' % path, shell=True)
+    else:
+        with gzip.open(gzpath, 'wb', compresslevel=4) as gzfile:
+            with open(path) as pathfile:
+                gzfile.writelines(pathfile)
+        shutil.copystat(path, gzpath)
+        os.remove(path)
     if mode: os.chmod(gzpath, mode)
-    os.remove(path)
 
 
 def redigest(path):
