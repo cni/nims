@@ -14,13 +14,11 @@ import nimsutil
 
 log = logging.getLogger('datasyncer')
 
-RSYNC_CMD = 'rsync -a --del %s:%s %s'
-
 
 class DataSyncer(object):
 
-    def __init__(self, data_host, data_path, sync_path, sleep_time):
-        self.rsync_cmd = RSYNC_CMD % (data_host, data_path, sync_path)
+    def __init__(self, data_path, sync_path, sleep_time):
+        self.rsync_cmd = 'rsync -a --del %s %s' % (data_path, sync_path)
         self.sleep_time = sleep_time
         self.alive = True
 
@@ -43,9 +41,8 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def __init__(self):
         super(ArgumentParser, self).__init__()
-        self.add_argument('sync_path', help='path to syncing area')
-        self.add_argument('data_host', help='username@hostname of data source')
         self.add_argument('data_path', help='path to data source')
+        self.add_argument('sync_path', help='path to syncing area')
         self.add_argument('sleep_time', type=int, help='time to sleep between rsyncs')
         self.add_argument('data_glob', nargs='?', help='glob format for files to move', default='')
         self.add_argument('-f', '--logfile', help='path to log file')
@@ -59,7 +56,7 @@ if __name__ == '__main__':
     data_path = os.path.join(args.data_path, args.data_glob) if args.data_glob else args.data_path
     nimsutil.configure_log(args.logfile, not args.quiet, args.loglevel)
 
-    syncer = DataSyncer(args.data_host, data_path, args.sync_path, args.sleep_time)
+    syncer = DataSyncer(data_path, args.sync_path, args.sleep_time)
 
     def term_handler(signum, stack):
         syncer.halt()
