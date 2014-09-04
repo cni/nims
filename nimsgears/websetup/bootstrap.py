@@ -11,45 +11,10 @@ import nimsutil
 
 
 superusers = [
-        u'gsfr',
-        u'bobd',
-        u'rfbowen',
-        u'laimab',
-        u'huawu',
         ]
 
 groups = [
-        dict(gid=u'unknown',    pis=[],             managers=[u'laimab']),
-        dict(gid=u'geservice',  pis=[u'bobd'],      managers=[u'gsfr', u'laimab']),
-        dict(gid=u'aetkin',     pis=[u'aetkin'],    managers=[u'kkpeng']),
-        dict(gid=u'amnorcia',   pis=[u'amnorcia'],  managers=[u'jmales']),
-        dict(gid=u'areiss1',    pis=[u'areiss1'],   managers=[u'maik']),
-        dict(gid=u'awagner',    pis=[u'awagner'],   managers=[u'sfavila']),
-        dict(gid=u'cni',        pis=[u'bobd'],      managers=[u'gsfr', u'laimab']),
-        dict(gid=u'danls',      pis=[u'danls'],     managers=[u'jmtsang', u'hallinen']),
-        dict(gid=u'fbaker',     pis=[u'fbaker'],    managers=[u'nzahr']),
-        dict(gid=u'gdaily',     pis=[u'gdaily'],    managers=[u'gbratman']),
-        dict(gid=u'greicius',   pis=[u'greicius'],  managers=[u'lhua', u'heydee']),
-        dict(gid=u'gross',      pis=[u'gross'],     managers=[u'kkalaf']),
-        dict(gid=u'hallss',     pis=[u'hallss'],    managers=[u'khustyi']),
-        dict(gid=u'hardanay',   pis=[u'hardanay'],  managers=[u'acsamson']),
-        dict(gid=u'henderj',    pis=[u'henderj'],   managers=[u'cindyc', u'gilja', u'cblabe']),
-        dict(gid=u'hfeldman',   pis=[u'hfeldman'],  managers=[u'vndurand']),
-        dict(gid=u'iang',       pis=[u'iang'],      managers=[u'mlhenry']),
-        dict(gid=u'jparvizi',   pis=[u'jparvizi'],  managers=[u'vinitha']),
-        dict(gid=u'jzaki',      pis=[u'jzaki'],     managers=[u'enook']),
-        dict(gid=u'kalanit',    pis=[u'kalanit'],   managers=[u'kweiner']),
-        dict(gid=u'klposton',   pis=[u'klposton'],  managers=[u'sophiey']),
-        dict(gid=u'knutson',    pis=[u'knutson'],   managers=[u'kieferk']),
-        dict(gid=u'lisaac',     pis=[u'lisaac'],    managers=[]),
-        dict(gid=u'llc',        pis=[u'llc'],       managers=[u'notthoff']),
-        dict(gid=u'menon',      pis=[u'menon'],     managers=[u'sangs']),
-        dict(gid=u'nambady',    pis=[u'nambady'],   managers=[u'blhughes']),
-        dict(gid=u'nass',       pis=[u'nass'],      managers=[u'lharbott']),
-        dict(gid=u'ngolden',    pis=[u'ngolden'],   managers=[u'jenguyen']),
-        dict(gid=u'pauly',      pis=[u'pauly'],     managers=[u'cvbowen', u'tjou']),
-        dict(gid=u'smcclure',   pis=[u'smcclure'],  managers=[u'gstang', u'hennigan', u'mayas']),
-        dict(gid=u'wandell',    pis=[u'wandell'],   managers=[u'lmperry']),
+        dict(gid=u'unknown',    pis=[],             managers=[]),
         ]
 
 

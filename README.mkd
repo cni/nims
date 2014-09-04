@@ -15,7 +15,7 @@ Set up a virtual python environment:
 
 Install the TurboGears development tools:
 
-    easy_install -i http://tg.gy/current tg.devtools
+    easy_install -i http://turbogears.org/2.2/downloads/2.2.0 tg.devtools
 
 Clone NIMS from GitHub and install its dependencies:
 
@@ -49,7 +49,7 @@ Set up a virtual python environment:
 
 Clone NIMS from GitHub and install its dependencies:
 
-    easy_install -i http://tg.gy/current tg.devtools
+    easy_install -i http://turbogears.org/2.2/downloads/2.2.0 tg.devtools
     git clone git://github.com/cni/nims.git /var/local/nims
     cd !$
     python setup.py develop
@@ -86,11 +86,7 @@ Data are automatically organized by the sorter using the PatientID field from DI
 License
 -------
 
-Copyright (c) 2012 Robert Dougherty
-
-Copyright (c) 2012 Gunnar Schaefer
-
-Copyright (c) 2012 Reno Bowen
+Copyright (c) 2014 The Board of Trustees of the Leland Stanford Junior University
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
