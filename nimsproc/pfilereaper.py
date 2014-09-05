@@ -91,7 +91,7 @@ class ReapPFile(object):
         return '<ReapPFile %s, %d, %s, %s>' % (self.basename, self.size, self.mod_time, self.needs_reaping)
 
     def __str__(self):
-        info = ' (%s) %s_%s_%s' % (self.pat_id, self.exam, self.series, self.acq) if self.pat_id else ''
+        info = ' (%s) %s_%s_%s' % (self.pat_id, self.pfile.exam_no, self.pfile.series_no, self.pfile.acq_no) if self.pat_id else ''
         return '%s [%s]%s' % (self.basename, nimsutil.hrsize(self.size), info)
 
     def reap(self):
@@ -104,12 +104,8 @@ class ReapPFile(object):
             return
         else:
             self.pat_id = self.pfile.patient_id
-            self.exam = self.pfile.exam_no
-            self.series = self.pfile.series_no
-            self.acq = self.pfile.acq_no
             stage_dir = '%s_%s' % (self.reaper.id_, datetime.datetime.now().strftime('%s.%f'))
             reap_path = nimsutil.make_joined_path(self.reaper.reap_stage, stage_dir)
-            aux_reap_files = [arf for arf in glob.glob(self.path + '_*') if self.is_aux_file(arf)]
         if self.pat_id.strip('/').lower() in reaper.discard_ids:
             self.needs_reaping = False
             log.info('Discarding  %s' % self)
@@ -122,9 +118,9 @@ class ReapPFile(object):
         try:
             log.info('Reaping     %s' % self)
             shutil.copy2(self.path, reap_path)
-            for arf in aux_reap_files:
-                shutil.copy2(arf, os.path.join(reap_path, '_' + os.path.basename(arf)))
-                log.info('Reaping     %s' % '_' + os.path.basename(arf))
+            for fp in glob.glob(self.path + '_' + self.pfile.series_uid + '_*'):
+                log.info('Reaping     %s to %s' % (os.path.basename(fp), os.path.join(reap_path, '_' + self.basename + '_' + fp.rsplit('_', 1)[-1])))
+                shutil.copy2(fp, os.path.join(reap_path, '_' + self.basename + '_' + fp.rsplit('_', 1)[-1]))
         except KeyboardInterrupt:
             shutil.rmtree(reap_path)
             raise
@@ -138,13 +134,6 @@ class ReapPFile(object):
             self.needs_reaping = False
             log.info('Reaped      %s' % self)
 
-    def is_aux_file(self, filepath):
-        if open(filepath).read(32) == self.pfile._hdr.series.series_uid:
-            return True
-        try:
-            return (nimsdata.nimsraw.NIMSPFile(filepath)._hdr.series.series_uid == self.pfile._hdr.series.series_uid)
-        except nimsdata.nimsraw.NIMSPFileError:
-            return False
 
 class ArgumentParser(argparse.ArgumentParser):
 
