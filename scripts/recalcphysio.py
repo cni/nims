@@ -10,6 +10,9 @@ import time
 import shutil
 import nimsdata
 
+# Will recompute all the qa on a specified experiment (by exp_id)
+exp_id = 64730
+
 data_path = '/net/cnifs/cnifs/nims'
 tmpdir = '/tmp/physio%d' % int(time.time())
 os.mkdir(tmpdir)
@@ -17,7 +20,7 @@ db_uri = 'postgresql://nims:nims@cnifs.stanford.edu:5432/nims'
 
 init_model(sqlalchemy.create_engine(db_uri))
 
-sessions = Session.query.join(Subject,Session.subject).join(Experiment,Subject.experiment).filter(Experiment.id==12970).all()
+sessions = Session.query.join(Subject,Session.subject).join(Experiment,Subject.experiment).filter(Experiment.id==exp_id).all()
 sid = [s.id for s in sessions]
 exams = [Session.get(s).exam for s in sid]
 #exams = [4797, 4831, 4838, 4839]

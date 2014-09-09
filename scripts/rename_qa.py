@@ -1,5 +1,6 @@
 from nimsgears.model import *
 import transaction
+import sqlalchemy
 import os
 
 init_model(sqlalchemy.create_engine('postgresql://nims:nims@cnifs.stanford.edu:5432/nims'))
@@ -16,12 +17,18 @@ while go:
     for i,f in enumerate(d.filenames):
         fn,ext = os.path.splitext(f.encode())
         if fn=='qa_report':
-            new_name = d.container.name+'_qa'+ext
-            print(os.path.join(file_dir,f), os.path.join(file_dir,new_name))
-            os.rename(os.path.join(file_dir,f), os.path.join(file_dir,new_name))
-            d.filenames[i] = new_name.decode()
-            changed = True
-    if changed:
-        transaction.commit()
+            try:
+                new_name = d.container.name+'_qa'+ext
+                print(os.path.join(file_dir,f), os.path.join(file_dir,new_name))
+                os.rename(os.path.join(file_dir,f), os.path.join(file_dir,new_name))
+                changed = True
+            except:
+                print('FAILED!')
+    try:
+        d.filenames = [s.decode() for s in os.listdir(file_dir)]
+    except:
+        pass
+
+    transaction.commit()
 
 
