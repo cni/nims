@@ -19,6 +19,10 @@ import transaction
 
 import nimsutil
 import nimsdata
+import nimsdata.medimg.nimsdicom
+import nimsdata.medimg.nimspfile
+import nimsphysio  # for compatibility
+
 from nimsgears.model import *
 
 log = logging.getLogger('processor')
@@ -61,9 +65,9 @@ class Processor(object):
                 if job:
                     if isinstance(job.data_container, Epoch) and job.data_container.primary_dataset!=None:
                         ds = job.data_container.primary_dataset
-                        if ds.filetype == nimsdata.nimsdicom.NIMSDicom.filetype:
+                        if ds.filetype == nimsdata.medimg.nimsdicom.NIMSDicom.filetype:
                             pipeline_class = DicomPipeline
-                        elif ds.filetype == nimsdata.nimsraw.NIMSPFile.filetype:
+                        elif ds.filetype == nimsdata.medimg.nimspfile.NIMSPFile.filetype:
                             pipeline_class = PFilePipeline
 
                         pipeline = pipeline_class(job, self.nims_path, self.physio_path, self.tempdir, self.max_recon_jobs)
@@ -137,6 +141,8 @@ class Pipeline(threading.Thread):
 
     @abc.abstractmethod
     def find(self):
+        if self.physio_path is None: return
+
         self.clean(self.job.data_container, u'peripheral')
         transaction.commit()
         DBSession.add(self.job)
@@ -146,7 +152,7 @@ class Pipeline(threading.Thread):
         if dc.physio_recorded:
             physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.prescribed_duration, dc.psd.encode('utf-8'))
             if physio_files:
-                physio = nimsdata.nimsphysio.NIMSPhysio(physio_files, dc.tr, dc.num_timepoints)
+                physio = nimsphysio.NIMSPhysio(physio_files, dc.tr, dc.num_timepoints)
                 if physio.is_valid():
                     self.job.activity = u'valid physio found'
                     log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
@@ -171,7 +177,7 @@ class Pipeline(threading.Thread):
                         try:
                             reg_filename = '%s_physio_regressors.csv.gz' % self.job.data_container.name
                             physio.write_regressors(os.path.join(self.nims_path, dataset.relpath, reg_filename))
-                        except nimsdata.nimsphysio.NIMSPhysioError:
+                        except nimsphysio.NIMSPhysioError:
                             self.job.activity = u'error generating regressors from physio data'
                             log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                         else:
@@ -193,7 +199,6 @@ class Pipeline(threading.Thread):
         self.clean(self.job.data_container, u'derived')
         self.clean(self.job.data_container, u'web')
         self.clean(self.job.data_container, u'qa')
-        self.job.data_container.qa_status = u'rerun'
         self.job.activity = u'generating NIfTI / running recon'
         log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
@@ -212,45 +217,62 @@ class DicomPipeline(Pipeline):
         with nimsutil.TempDir(dir=self.tempdir) as outputdir:
             outbase = os.path.join(outputdir, ds.container.name)
             dcm_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
-            dcm_acq = nimsdata.nimsdicom.NIMSDicom(dcm_tgz)
-            conv_type, conv_file = dcm_acq.convert(outbase)
+            dcm_acq = nimsdata.parse(dcm_tgz, filetype='dicom', load_data=True)
 
-            if conv_type:
-                outputdir_list = os.listdir(outputdir)
-                self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
-                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                conv_ds = Dataset.at_path(self.nims_path, unicode(conv_type))
-                DBSession.add(self.job)
-                DBSession.add(self.job.data_container)
+            if dcm_acq.data is None:
+                self.job_activity = (u'dicom %s has no data' % dcm_tgz)
+                log.warn('%d %s %s' % (self.job.id, self.job, self.job.activity))
+            else:
+                if dcm_acq.is_screenshot:
+                    conv_files = nimsdata.write(dcm_acq, dcm_acq.data, outbase, filetype='png')
+                    if conv_files:
+                        outputdir_list = os.listdir(outputdir)
+                        self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
+                        log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                        conv_ds = Dataset.at_path(self.nims_path, u'bitmap')
+                        DBSession.add(self.job)
+                        DBSession.add(self.job.data_container)
+                        conv_ds.kind = u'derived'
+                        conv_ds.container = self.job.data_container
+                        filenames = []
+                        for f in outputdir_list:
+                            filenames.append(f)
+                            shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, conv_ds.relpath))
+                        conv_ds.filenames = filenames
+                        transaction.commit()
+                else:
+                    # to enable legacy NIMS v1 re-orientation, pass voxel_order='LPS' to nimsdata.write
+                    # conv_files = nimsdata.write(dcm_acq, dcm_acq.data, outbase, filetype='nifti', voxel_order='LPS')
+                    conv_files = nimsdata.write(dcm_acq, dcm_acq.data, outbase, filetype='nifti', voxel_order='LPS')
+                    if conv_files:
+                        # if nifti was successfully created
+                        outputdir_list = os.listdir(outputdir)
+                        self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
+                        log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                        conv_ds = Dataset.at_path(self.nims_path, u'nifti')
+                        DBSession.add(self.job)
+                        DBSession.add(self.job.data_container)
+                        conv_ds.kind = u'derived'
+                        conv_ds.container = self.job.data_container
+                        filenames = []
+                        for f in outputdir_list:
+                            filenames.append(f)
+                            shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, conv_ds.relpath))
+                        conv_ds.filenames = filenames
+                        transaction.commit()
+                        pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
+                        DBSession.add(self.job)
+                        DBSession.add(self.job.data_container)
+                        outpath = os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name)
+                        nims_montage = nimsdata.write(dcm_acq, dcm_acq.data, outpath, filetype='montage')
+                        self.job.activity = u'image pyramid generated'
+                        log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                        pyramid_ds.kind = u'web'
+                        pyramid_ds.container = self.job.data_container
+                        pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
+                        transaction.commit()
 
-                conv_ds.kind = u'derived'
-                conv_ds.container = self.job.data_container
-                filenames = []
-                for f in outputdir_list:
-                    filenames.append(f)
-                    shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, conv_ds.relpath))
-                conv_ds.filenames = filenames
-                transaction.commit()
-
-            if conv_type == 'nifti':
-                pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
-                DBSession.add(self.job)
-                DBSession.add(self.job.data_container)
-                nims_montage = nimsdata.nimsmontage.generate_montage(conv_file)
-                nims_montage.write_sqlite_pyramid(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
-                self.job.activity = u'image pyramid generated'
-                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                pyramid_ds.kind = u'web'
-                pyramid_ds.container = self.job.data_container
-                pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
-                transaction.commit()
-
-            if conv_type == 'bitmap':
-                # Hack to make sure screen-saves go to the end of the time-sorted list
-                DBSession.add(self.job)
-                DBSession.add(self.job.data_container)
-                self.job.data_container.timestamp = datetime.datetime.combine(date=self.job.data_container.timestamp.date(), time=datetime.time(23,59, 59))
-                transaction.commit()
+            DBSession.add(self.job)
 
         DBSession.add(self.job)
 
@@ -271,8 +293,8 @@ class PFilePipeline(Pipeline):
             # FIXME: if there are >1 pfiles, what to do? Try them all?
             for pfile in sorted(pfiles):
                 try:
-                    pf = nimsdata.nimsraw.NIMSPFile(os.path.join(self.nims_path, ds.relpath, pfile))
-                except nimsdata.nimsraw.NIMSPFileError:
+                    pf = nimsdata.parse(os.path.join(self.nims_path, ds.relpath, pfile), filetype='pfile', load_data=True)
+                except nimsdata.medimg.nimspfile.NIMSPFileError:
                     pf = None
                 else:
                     break
@@ -311,8 +333,8 @@ class PFilePipeline(Pipeline):
                 pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
                 DBSession.add(self.job)
                 DBSession.add(self.job.data_container)
-                nims_montage = nimsdata.nimsmontage.generate_montage(conv_file)
-                nims_montage.write_sqlite_pyramid(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
+                outpath = os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb')
+                nims_montage = nimsdata.write(pf, pf.data, outpath, filetype='montage')
                 self.job.activity = u'image pyramid generated'
                 log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                 pyramid_ds.kind = u'web'
@@ -329,7 +351,7 @@ class ArgumentParser(argparse.ArgumentParser):
         super(ArgumentParser, self).__init__()
         self.add_argument('db_uri', metavar='URI', help='database URI')
         self.add_argument('nims_path', metavar='DATA_PATH', help='data location')
-        self.add_argument('physio_path', metavar='PHYSIO_PATH', help='path to physio data')
+        self.add_argument('physio_path', metavar='PHYSIO_PATH', nargs='?', help='path to physio data')
         self.add_argument('-T', '--task', help='find|proc  (default is all)')
         self.add_argument('-e', '--filter', default=[], action='append', help='sqlalchemy filter expression')
         self.add_argument('-j', '--jobs', type=int, default=1, help='maximum number of concurrent threads')
@@ -345,7 +367,6 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     # workaround for http://bugs.python.org/issue7980
-    import datetime # used in nimsutil
     datetime.datetime.strptime('0', '%S')
 
     args = ArgumentParser().parse_args()

@@ -11,7 +11,7 @@ from tg import config, expose, flash, lurl, request, redirect, response
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 import webob.exc
 
-import nimsdata
+import nimsdata.medimg.nimsmontage
 import nimsutil
 from nimsgears.model import *
 
@@ -89,7 +89,7 @@ class RootController(BaseController):
         ds = Dataset.get(kwargs['dataset_id'])
         if user.has_access_to(ds):
             db_file = os.path.join(store_path, ds.relpath, ds.filenames[0])
-            return dict(zip(['dataset_id', 'tile_size', 'x_size', 'y_size'], (ds.id,) + nimsdata.nimsmontage.get_info(db_file)))
+            return dict(zip(['dataset_id', 'tile_size', 'x_size', 'y_size'], (ds.id,) + nimsdata.medimg.nimsmontage.get_info(db_file)))
 
     @expose('nimsgears.templates.qa_report', render_params={'doctype': None})
     def qa_report(self, **kwargs):
@@ -156,7 +156,7 @@ class RootController(BaseController):
             response.etag = args[0]
             response.cache_control = 'max-age = 86400'
             response.last_modified = ds.updatetime
-            return nimsdata.nimsmontage.get_tile(os.path.join(store_path, ds.relpath, ds.filenames[0]), z, x, y)
+            return nimsdata.medimg.nimsmontage.get_tile(os.path.join(store_path, ds.relpath, ds.filenames[0]), z, x, y)
 
     @expose(content_type='application/octet-stream')
     def file(self, **kwargs):

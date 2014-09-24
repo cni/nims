@@ -10,7 +10,7 @@ import sys
 import numpy
 import datetime
 
-import nimsdata
+import nimsdata.medimg.dcm.mr.generic_mr
 from nimsgears.model import *
 from nimsgears.controllers.nims import NimsController
 
@@ -97,7 +97,7 @@ class SearchController(NimsController):
         epoch_columns = [('Group', 'col_sunet'), ('Experiment', 'col_exp'), ('Date & Time', 'col_datetime'),
             ('Exam', 'col_exam'), ('Type Scan', 'col_scantype'), ('Description', 'col_desc')]
         dataset_columns = [('Data Type', 'col_type')]
-        scantype_values = [''] + sorted(nimsdata.nimsmrdata.scan_types.all)
+        scantype_values = [''] + sorted(nimsdata.medimg.dcm.mr.generic_mr.scan_types.all)
         psd_names_tuples = DBSession.query(Epoch.psd).distinct(Epoch.psd)
         psd_values = [''] + sorted([elem[0] for elem in psd_names_tuples])
         return dict(page='search',

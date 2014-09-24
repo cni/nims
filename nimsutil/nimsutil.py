@@ -7,7 +7,6 @@ import os
 import re
 import gzip
 import shutil
-import subprocess
 import string
 import tarfile
 import difflib
@@ -84,6 +83,21 @@ def parse_patient_id(patient_id, known_ids):
         exp_id = patient_id
     return (unicode(subj_code), unicode(lab_id), unicode(exp_id))
 
+def parse_patient_id__(subj_code, lab_id, exp_id, known_ids):
+    """
+    Accept a NIMS-formatted patient id and return lab id and experiment id.
+
+    We use fuzzy matching to find the best matching known lab id. If we can't
+    do so with high confidence, the lab id is set to 'unknown'.
+    """
+    lab_id_matches = difflib.get_close_matches(lab_id, known_ids, cutoff=0.8)
+    if len(lab_id_matches) == 1:
+        lab_id = lab_id_matches[0]
+    else:
+        exp_id = lab_id + '/' + exp_id
+        lab_id = 'unknown'
+    return (unicode(subj_code), unicode(lab_id), unicode(exp_id))
+
 
 def clean_string(string):
     """
@@ -158,7 +172,7 @@ def ldap_query(uid):
 def find_ge_physio(data_path, timestamp, psd_name):
     physio_files = os.listdir(data_path)
     if not physio_files:
-        raise Exception(msg='physio files unavailable')
+        raise Exception('physio files unavailable')
 
     physio_dict = {}
     leadtime = datetime.timedelta(days=1)
@@ -195,18 +209,12 @@ def hrsize(size):
 
 def gzip_inplace(path, mode=None):
     gzpath = path + '.gz'
-    # The following with pigz is ~8x faster than the python code
-    if os.path.isfile('/usr/bin/pigz'):
-        subprocess.call('pigz -4 -p4 %s' % path, shell=True)
-    elif os.path.isfile('/usr/bin/gzip') or os.path.isfile('/bin/gzip'):
-        subprocess.call('gzip -4 %s' % path, shell=True)
-    else:
-        with gzip.open(gzpath, 'wb', compresslevel=4) as gzfile:
-            with open(path) as pathfile:
-                gzfile.writelines(pathfile)
-        shutil.copystat(path, gzpath)
-        os.remove(path)
+    with gzip.open(gzpath, 'wb', compresslevel=4) as gzfile:
+        with open(path) as pathfile:
+            gzfile.writelines(pathfile)
+    shutil.copystat(path, gzpath)
     if mode: os.chmod(gzpath, mode)
+    os.remove(path)
 
 
 def redigest(path):
