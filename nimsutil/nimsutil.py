@@ -19,13 +19,14 @@ import logging, logging.handlers
 class TempDir(object):
 
     """Context managed temporary directory creation and automatic removal."""
-    def __init__(self, dir=None):
+    def __init__(self, dir=None, prefix='tmp'):
         self.dir = dir
+        self.prefix = prefix
         super(TempDir, self).__init__()
 
     def __enter__(self):
         """Create temporary directory on context entry, returning the path."""
-        self.temp_dir = tempfile.mkdtemp(dir=self.dir)
+        self.temp_dir = tempfile.mkdtemp(dir=self.dir, prefix=self.prefix)
         return self.temp_dir
 
     def __exit__(self, exc_type, exc_value, traceback):

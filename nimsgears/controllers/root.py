@@ -3,11 +3,13 @@
 
 import os
 import json
+import uuid
+import hashlib
 import datetime
 import tempfile
 import subprocess
 
-from tg import config, expose, flash, lurl, request, redirect, response
+from tg import abort, config, expose, flash, lurl, request, redirect, response
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 import webob.exc
 
@@ -257,3 +259,20 @@ class RootController(BaseController):
         tar_proc = subprocess.Popen('tar -chf - -C %s nims; rm -r %s' % (temp_dir, temp_dir), shell=True, stdout=subprocess.PIPE)
         response.content_disposition = 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
         return tar_proc.stdout
+
+    @expose()
+    def upload(self, filename='upload', **kwargs):
+        if 'Content-MD5' not in request.headers:
+            abort(400, 'Request must contain a valid "Content-MD5" header.')
+        stage_path = config.get('upload_path')
+        with nimsutil.TempDir(prefix='.tmp', dir=stage_path) as tempdir_path:
+            hash_ = hashlib.sha1()
+            upload_filepath = os.path.join(tempdir_path, filename)
+            with open(upload_filepath, 'wb') as upload_file:
+                for chunk in iter(lambda: request.body_file.read(2**20), ''):
+                    hash_.update(chunk)
+                    upload_file.write(chunk)
+            if hash_.hexdigest() != request.headers['Content-MD5']:
+                abort(400, 'Content-MD5 mismatch (or unset).')
+            print 'upload from %s: %s [%s]' % (request.user_agent, os.path.basename(upload_filepath), nimsutil.hrsize(request.content_length))
+            os.rename(upload_filepath, os.path.join(stage_path, str(uuid.uuid1()) + '_' + filename)) # add UUID to prevent clobbering files
