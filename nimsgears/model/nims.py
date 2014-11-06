@@ -509,7 +509,7 @@ class Subject(DataContainer):
 
     @classmethod
     def from_mrfile(cls, mrfile):
-        subj_code, group_name, exp_name = nimsutil.parse_patient_id__(mrfile.subj_code, mrfile.group_name, mrfile.project_name, ResearchGroup.all_ids())
+        subj_code, group_name, exp_name = nimsutil.parse_patient_id(mrfile.patient_id, ResearchGroup.all_ids())
         query = cls.query.join(Experiment, cls.experiment).filter(Experiment.name == exp_name)
         query = query.join(ResearchGroup, Experiment.owner).filter(ResearchGroup.gid == group_name)
         if subj_code:
@@ -605,7 +605,7 @@ class Session(DataContainer):
             # central authority and/or querying the schedule database. But for now,
             # just let the operator be None if the user isn't already in the system.
             operator = User.by_uid(unicode(mrfile.operator), create=False)
-            session = Session(uid=uid, exam=mrfile.exam_no if isinstance(mrfile.exam_no, int) else 0, subject=subject, operator=operator)
+            session = Session(uid=uid, exam=int(mrfile.exam_no) if isinstance(mrfile.exam_no, (unicode, int)) else 0, subject=subject, operator=operator)
         return session
 
     @classmethod
@@ -696,6 +696,7 @@ class Epoch(DataContainer):
     phase_encode_undersample = Field(Float)
     slice_encode_undersample = Field(Float)
     acquisition_matrix = Field(Unicode(255))
+    num_mux_cal_cycle = Field(Integer)
 
     session = ManyToOne('Session')
 
@@ -727,7 +728,7 @@ class Epoch(DataContainer):
                     flip_angle = mrfile.flip_angle,
                     pixel_bandwidth = mrfile.pixel_bandwidth,
                     num_slices = mrfile.num_slices,
-                    num_timepoints = mrfile.num_timepoints,
+                    num_timepoints = mrfile.num_timepoints or 1,
                     num_averages = mrfile.num_averages,
                     num_echos = mrfile.num_echos,
                     receive_coil_name = unicode(mrfile.receive_coil_name),
@@ -744,6 +745,7 @@ class Epoch(DataContainer):
                     phase_encode_undersample = mrfile.phase_encode_undersample,
                     slice_encode_undersample = mrfile.slice_encode_undersample,
                     acquisition_matrix = unicode(str(mrfile.acquisition_matrix)),
+                    num_mux_cal_cycle = mrfile.num_mux_cal_cycle if mrfile.filetype == u'pfile' else None,    # hack for pfile
                     qa_status = u'pending',
                     # to unpack fov, mm_per_vox, and acquisition_matrix: np.fromstring(str(mm)[1:-1],sep=',')
                     )

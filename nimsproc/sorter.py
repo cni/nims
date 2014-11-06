@@ -3,14 +3,17 @@
 # @author:  Gunnar Schaefer, Reno Bowen
 
 import os
+import glob
 import time
 import shutil
 import logging
+import tarfile
 import datetime
 import transaction
 
 import nimsdata
 import nimsgears.model
+import tempdir as tempfile
 
 log = logging.getLogger('sorter')
 
@@ -38,6 +41,14 @@ class Sorter(object):
                     if os.path.islink(stage_item):
                         os.remove(stage_item)
                     elif 'gephysio' in os.path.basename(stage_item): # HACK !!!!!!!!!!!!!!!! NIMS 1.0 cannot sort gephysio
+                        log.info('Unpacking    %s' % os.path.basename(stage_item))
+                        with tempfile.TemporaryDirectory() as tempdir_path:
+                            with tarfile.open(stage_item) as archive:
+                                archive.extractall(path=tempdir_path)
+                            physiodir_path = os.listdir(tempdir_path)[0]
+                            for f in os.listdir(os.path.join(tempdir_path, physiodir_path)):
+                                shutil.copy(os.path.join(tempdir_path, physiodir_path, f), os.path.join(self.nims_path, 'physio'))
+                        log.info('Unpacked    %s' % os.path.basename(stage_item))
                         os.remove(stage_item)
                     elif os.path.isfile(stage_item):
                         self.sort(stage_item)
@@ -54,7 +65,22 @@ class Sorter(object):
         filename = os.path.basename(filepath)
         try:
             log.info('Parsing     %s' % filename)
-            mrfile = nimsdata.parse(filepath)
+            if 'pfile' in filename:
+                with tempfile.TemporaryDirectory(dir=None) as tempdir_path:
+                    with tarfile.open(filepath) as archive:
+                        archive.extractall(path=tempdir_path)
+                    subdir = os.listdir(tempdir_path)[0]
+                    f = glob.glob(os.path.join(tempdir_path, subdir, 'P?????.7'))[0]
+                    try:
+                        mrfile = nimsdata.parse(f, filetype='pfile', full_parse=True)
+                    except Exception:
+                        pass
+            else:
+                mrfile = nimsdata.parse(filepath)
+                mrfile.num_mux_cal_cycle = None  # dcms will never have num_mux_cal_cycles
+                if mrfile.is_screenshot:
+                    mrfile.acq_no = 0
+                    mrfile.timestamp = datetime.datetime.strptime(datetime.datetime.strftime(mrfile.timestamp, '%Y%m%d') + '235959', '%Y%m%d%H%M%S')
         except nimsdata.NIMSDataError:
             log.warning('Cannot sort %s' % filename)
             if self.preserve_path:
