@@ -1,6 +1,8 @@
 NIMS: Neurobiological Image Management System
 =============================================
 
+**Legacy version of NIMS. All new development happening under @scitran.**
+
 NIMS is a scientific data management system, specifically designed for neuroimaging data. It is implemented in Python, based on TurboGears. NIMS is open-source software, released under the MIT license (see below for details).
 
 
