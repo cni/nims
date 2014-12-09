@@ -6,62 +6,56 @@ import numpy as np
 import nimsdata
 import shutil
 
-#in_dirs = ['/nimsfs_god/cni/huawu/20140725_1307_7515/7515_7_1_MUX3_ARC1_CAIPI_PEPolar0/','/nimsfs_god/cni/huawu/20140725_1307_7515/7515_8_1_MUX3_ARC1_CAIPI_PEPolar1/']
-#in_dirs = ['/nimsfs/cni/bobd/20140811_1031_7678/7678_5_1_DTI_2mm_b1000_60dir/','/nimsfs/cni/bobd/20140811_1031_7678/7678_7_1_DTI_2mm_b1000_60dir/']
-in_dirs = ['/nimsfs_god/cni/muxdwi/20140812_1306_7692/7692_4_1_DTI_2mm_pepolar0/','/nimsfs_god/cni/muxdwi/20140812_1306_7692/7692_5_1_DTI_2mm_pepolar1/']
-
-out_basename = '/net/predator/scratch/muxdwi_recon_test/7692'
+# d = Dataset.get()
+# d.filenames = sorted([os.path.basename(f).decode() for f in glob(os.path.join('/net/cnifs/cnifs/nims/',d.relpath,'*'))])
 
 class UnwarpEpi(object):
 
     def __init__(self, out_basename, num_vols=2):
-        self.readout_time1 = None
-        self.readout_time2 = None
-        self.num_cal1 = None
-        self.num_cal2 = None
-        self.pe_dir1 = None
-        self.pe_dir2 = None
         self.b0_file = out_basename+'_b0.nii.gz'
-        self.b0_unwarped = out_basename+'_b0_unwarped.nii.gz'
-        self.topup_base = out_basename+'_topup'
-        self.fieldmap = out_basename+'_field.nii.gz'
         self.acq_file = out_basename+'_acqparams.txt'
-        self.dwi_base = out_basename+'_dwi_all'
+        self.dwi_base = out_basename+'_dwi'
         self.index_file = out_basename+'_index.txt'
         self.bval_file = self.dwi_base+'.bval'
         self.bvec_file = self.dwi_base+'.bvec'
         self.topup_out = out_basename+'_topup'
+        self.movpar = None
+        self.fieldcoef = None
+        self.b0_unwarped = None
+        self.eddy_params = None
         self.eddy_out = self.dwi_base+'_ec'
         self.num_vols = num_vols
 
-    def load_metadata(self, pfile1, pfile2):
-        ''' Get some info from the p-file headers '''
-        pf1 = nimsdata.parse(pfile1)
-        pf2 = nimsdata.parse(pfile2)
-        self.readout_time1 = pf1.effective_echo_spacing * pf1.size[pf1.phase_encode]
-        self.readout_time2 = pf2.effective_echo_spacing * pf2.size[pf2.phase_encode]
-        self.num_cal1 = pf1.num_mux_cal_cycle
-        self.num_cal2 = pf2.num_mux_cal_cycle
-        self.pe_dir1 = -1 if np.bitwise_and(pf1._hdr.rec.dacq_ctrl,4)==4 else 1
-        self.pe_dir2 = -1 if np.bitwise_and(pf2._hdr.rec.dacq_ctrl,4)==4 else 1
-        # We could get what we need from the nifti and not use the p-file, but that's risky.
-        #ecsp1 = float([s for s in ni1.get_header().__getitem__('descrip').tostring().split(';') if s.startswith('ec=')][0].split('=')[1])
-        #readout_time1 = ecsp1 * ni1.shape[phase_dim1]
-
-    def prep_data(self, nifti1, bval1, bvec1, nifti2, bval2, bvec2):
+    def prep_data(self, nifti1, nifti2, bval1=None, bvec1=None, bval2=None, bvec2=None):
         ''' Load the reconstructed image files and generate the files that TOPUP needs. '''
         ni1 = nb.load(nifti1)
         ni2 = nb.load(nifti2)
+        ''' Get some info from the nifti headers '''
         phase_dim1 = ni1.get_header().get_dim_info()[1]
         phase_dim2 = ni2.get_header().get_dim_info()[1]
+        if int([s for s in ni1.get_header().__getitem__('descrip').tostring().split(';') if s.startswith('pe=')][0].split('=')[1][0])==1:
+            pe_dir1 = 1
+        else:
+            pe_dir1 = -1
+        if int([s for s in ni2.get_header().__getitem__('descrip').tostring().split(';') if s.startswith('pe=')][0].split('=')[1][0])==1:
+            pe_dir2 = 1
+        else:
+            pe_dir2 = -1
+        ecsp1 = float([s for s in ni1.get_header().__getitem__('descrip').tostring().split(';') if s.startswith('ec=')][0].split('=')[1])
+        readout_time1 = ecsp1 * ni1.shape[phase_dim1] / 1000. # its saved in ms, but we want secs
+        ecsp2 = float([s for s in ni2.get_header().__getitem__('descrip').tostring().split(';') if s.startswith('ec=')][0].split('=')[1])
+        readout_time2 = ecsp2 * ni2.shape[phase_dim1] / 1000.
 
-        bvals1 = np.loadtxt(bval1)
-        bvals2 = np.loadtxt(bval2)
-        bvecs1 = np.loadtxt(bvec1)
-        bvecs2 = np.loadtxt(bvec2)
-
-        nondwi1 = [im for i,im in enumerate(nb.four_to_three(ni1)) if bvals1[i]<10 and i<self.num_vols]
-        nondwi2 = [im for i,im in enumerate(nb.four_to_three(ni2)) if bvals2[i]<10 and i<self.num_vols]
+        if bval1!=None:
+            bvals1 = np.loadtxt(bval1)
+            bvals2 = np.loadtxt(bval2)
+            bvecs1 = np.loadtxt(bvec1)
+            bvecs2 = np.loadtxt(bvec2)
+            nondwi1 = [im for i,im in enumerate(nb.four_to_three(ni1)) if bvals1[i]<10 and i<self.num_vols]
+            nondwi2 = [im for i,im in enumerate(nb.four_to_three(ni2)) if bvals2[i]<10 and i<self.num_vols]
+        else:
+            nondwi1 = [im for i,im in enumerate(nb.four_to_three(ni1)) if i<self.num_vols]
+            nondwi2 = [im for i,im in enumerate(nb.four_to_three(ni2)) if i<self.num_vols]
 
         b0 = nb.concat_images(nondwi1+nondwi2)
         # Topup requires an even number of slices
@@ -73,16 +67,16 @@ class UnwarpEpi(object):
         nb.save(b0, self.b0_file)
         with open(self.acq_file, 'w') as f:
             for i in xrange(len(nondwi1)):
-                row = ['0','0','0',str(self.readout_time1),'\n']
-                row[phase_dim1] = str(self.pe_dir1)
+                row = ['0','0','0',str(readout_time1),'\n']
+                row[phase_dim1] = str(pe_dir1)
                 f.write(' '.join(row))
             for i in xrange(len(nondwi2)):
-                row = ['0','0','0',str(self.readout_time2),'\n']
-                row[phase_dim2] = str(self.pe_dir2)
+                row = ['0','0','0',str(readout_time2),'\n']
+                row[phase_dim2] = str(pe_dir2)
                 f.write(' '.join(row))
 
-        mux_ims1 = nb.four_to_three(ni1)[self.num_cal1:]
-        mux_ims2 = nb.four_to_three(ni2)[self.num_cal2:]
+        mux_ims1 = nb.four_to_three(ni1)[self.num_vols:]
+        mux_ims2 = nb.four_to_three(ni2)[self.num_vols:]
         all_ims = nb.concat_images(mux_ims1 + mux_ims2)
         if all_ims.shape[2]%2:
             d = all_ims.get_data()
@@ -95,25 +89,27 @@ class UnwarpEpi(object):
         with open(self.index_file, 'w') as f:
             f.write(' '.join(indices))
 
-        bvals = np.concatenate((bvals1[self.num_cal1:],bvals2[self.num_cal2:]), axis=0)
-        bvecs = np.concatenate((bvecs1[:,self.num_cal1:],bvecs2[:,self.num_cal2:]), axis=1)
-        with open(self.bval_file, 'w') as f:
-            f.write(' '.join(['%0.1f' % value for value in bvals]))
-        with open(self.bvec_file, 'w') as f:
-            f.write(' '.join(['%0.4f' % value for value in bvecs[0,:]]) + '\n')
-            f.write(' '.join(['%0.4f' % value for value in bvecs[1,:]]) + '\n')
-            f.write(' '.join(['%0.4f' % value for value in bvecs[2,:]]) + '\n')
+        if bval1!=None:
+            bvals = np.concatenate((bvals1[self.num_vols:],bvals2[self.num_vols:]), axis=0)
+            bvecs = np.concatenate((bvecs1[:,self.num_vols:],bvecs2[:,self.num_vols:]), axis=1)
+            with open(self.bval_file, 'w') as f:
+                f.write(' '.join(['%0.1f' % value for value in bvals]))
+            with open(self.bvec_file, 'w') as f:
+                f.write(' '.join(['%0.4f' % value for value in bvecs[0,:]]) + '\n')
+                f.write(' '.join(['%0.4f' % value for value in bvecs[1,:]]) + '\n')
+                f.write(' '.join(['%0.4f' % value for value in bvecs[2,:]]) + '\n')
 
     def run_topup(self):
         topup = fsl.TOPUP()
         topup.inputs.in_file = self.b0_file
         topup.inputs.encoding_file = self.acq_file
-        topup.inputs.out_corrected = self.b0_unwarped
-        topup.inputs.out_field = self.fieldmap
         topup.inputs.out_base = self.topup_out
         # The following doesn't seem to help. I guess topup isn't parallelized.
-        topup.inputs.environ = {'FSLPARALLEL':'condor', 'OMP_NUM_THREADS':'12'}
+        #topup.inputs.environ = {'FSLPARALLEL':'condor', 'OMP_NUM_THREADS':'12'}
         res = topup.run()
+        self.b0_unwarped = res.outputs.out_corrected
+        self.fieldcoef = res.outputs.out_fieldcoef
+        self.movpar = res.outputs.out_movpar
 
     def prep_ref_image(self, bet_frac=0.4):
         fsl.maths.MeanImage(in_file=self.b0_unwarped, dimension='T', out_file=self.b0_unwarped).run()
@@ -121,7 +117,16 @@ class UnwarpEpi(object):
         res = bet.run()
         self.mask_file = res.outputs.mask_file
 
-    def run_eddy(self):
+    def apply_topup(self):
+        applytopup = fsl.ApplyTOPUP()
+        applytopup.inputs.in_files = [ self.dwi_base+'.nii.gz' ]
+        applytopup.inputs.encoding_file = self.acq_file
+        applytopup.inputs.in_index = [ 1,2 ]
+        applytopup.inputs.in_topup = "my_topup_results"
+        # applytopup.cmdline
+        res = applytopup.run()
+
+    def run_eddy(self, num_threads=8):
         eddy = fsl.Eddy()
         eddy.inputs.in_file = self.dwi_base+'.nii.gz'
         eddy.inputs.in_mask = self.mask_file
@@ -131,22 +136,26 @@ class UnwarpEpi(object):
         eddy.inputs.in_bval = self.bval_file
         # BUG IN NIPYPE; the following is expecting an 'existing file', but must be passed the topup base name for eddy to run.
         # It looks like this was fixed recently. Until we get the updated version, use this work-around:
-        #eddy.inputs.in_topup = topup_out.outputs.out_fieldcoef
-        eddy.inputs.args = '--topup='+self.topup_out
+        #eddy.inputs.in_topup = self.topup_out
+        #eddy.inputs.args = '--topup='+self.topup_out
+        eddy.inputs.in_topup_movpar = self.movpar
+        eddy.inputs.in_topup_fieldcoef = self.fieldcoef
         eddy.inputs.out_base = self.eddy_out
-        eddy.inputs.environ = {'OMP_NUM_THREADS':'12'}
+        eddy.inputs.environ = {'OMP_NUM_THREADS':str(num_threads)}
         #print(eddy.cmdline)
         res = eddy.run()
+        self.eddy_params = res.outputs.out_parameter
 
     def reorient_bvecs(self):
         ''' Reorient the bvecs based on the rotation matricies from the motion correction.'''
-        eddy_params = np.loadtxt(self.eddy_out+'.eddy_parameters')
+        eddy_params = np.loadtxt(self.eddy_params) # +'.eddy_parameters')
         rot = eddy_params[:,3:6]
         bvecs = np.loadtxt(self.bvec_file)
         for i,r in enumerate(rot):
             R =   np.matrix([[1.,0,0], [0,np.cos(r[0]),np.sin(r[0])], [0,-np.sin(r[0]),np.cos(r[0])]])
             R = R*np.matrix([[np.cos(r[1]),0,np.sin(r[1])], [0,1,0], [-np.sin(r[1]),0,np.cos(r[1])]])
             R = R*np.matrix([[np.cos(r[2]),np.sin(r[2]),0], [-np.sin(r[2]),np.cos(r[2]),0], [0,0,1]])
+            R = np.linalg.inv(R)
             bvecs[:,i] = (R.T * np.matrix(bvecs[:,i]).T).T
         with open(self.eddy_out+'.bvec', 'w') as fp:
             fp.write(' '.join(['%0.4f' % bv for bv in bvecs[0,:]]) + '\n')
@@ -168,36 +177,24 @@ if __name__ == "__main__":
 
     arg_parser = argparse.ArgumentParser()
     arg_parser.description = """Run FSL's TOPUP and Eddy on reconstructed EPI data. Two datasets are needed, each with a different phase-encode readout direction (i.e., one with pepolar=0, and pepolar=1)"""
-    arg_parser.add_argument('nifti1', help='path to NIfTI file, or directory containing NIfTI and p-file')
-    arg_parser.add_argument('nifti2', help='path to another NIfTI file, or directory containing NIfTI and p-file')
-    arg_parser.add_argument('-1', '--pfile1', default=None, help='path to p-file corresponding to nifti1')
-    arg_parser.add_argument('-2', '--pfile2', default=None, help='path to p-file corresponding to nifti2')
+    arg_parser.add_argument('nifti1', help='path to NIfTI file')
+    arg_parser.add_argument('nifti2', help='path to another NIfTI file')
     arg_parser.add_argument('outbase', nargs='?', help='basename for output files (default=nifti1_nifti2_unwarped.nii.gz)')
     #arg_parser.add_argument('-a', '--average', default=False, action='store_true', help='average the two pe-polar datasets (default is to keep them separate)')
     arg_parser.add_argument('-f', '--bet_fraction', type=float, default=0.4, metavar='[0.4]', help='bet brain fraction (0-1; lower keeps more tissue)')
     arg_parser.add_argument('-n', '--num_vols', type=int, default=2, metavar='[2]', help='number of volumes to use for field-map estimation.')
+    arg_parser.add_argument('-t', '--num_threads', type=int, default=8, metavar='[8]', help='number of threads to use.')
     args = arg_parser.parse_args()
 
-    if os.path.isdir(args.nifti1):
-        ni1 = glob(os.path.join(args.nifti1,'*.nii.gz'))[0]
-        pf1 = glob(os.path.join(args.nifti1,'P*.7.gz'))[0]
-    else:
-        ni1 = args.nifti1
-        pf1 = args.pfile1
-
-    if os.path.isdir(args.nifti2):
-        ni2 = glob(os.path.join(args.nifti2,'*.nii.gz'))[0]
-        pf2 = glob(os.path.join(args.nifti2,'P*.7.gz'))[0]
-    else:
-        ni2 = args.nifti2
-        pf2 = args.pfile2
+    ni1 = args.nifti1
+    ni2 = args.nifti2
 
     fn,ext1 = os.path.splitext(ni1)
     nifti_base1,ext0 = os.path.splitext(fn)
     fn,ext1 = os.path.splitext(ni2)
     nifti_base2,ext0 = os.path.splitext(fn)
     if not args.outbase:
-        outbase = fn + os.path.basename(nifti_base2) + '_unwarped' + ext0 + ext1
+        outbase = nifti_base2 + '_unwarped'
     else:
         outbase = args.outbase
 
@@ -209,18 +206,21 @@ if __name__ == "__main__":
     start_time = time()
     unwarper = UnwarpEpi(outbase, args.num_vols)
     print 'Unwarping %s and %s...' % (ni1, ni2)
-    print 'Loading meta data...'
-    unwarper.load_metadata(pf1, pf2)
     print 'Preparing data...'
-    unwarper.prep_data(ni1, bval1, bvec1, ni2, bval2, bvec2)
+    if os.path.exists(bval1):
+        unwarper.prep_data(ni1, ni2, bval1, bvec1, bval2, bvec2)
+    else:
+        unwarper.prep_data(ni1, ni2)
+
     print 'Running TOPUP (SLOW)... (%0.1f minutes elapsed)' % ((time()-start_time)/60.,)
     unwarper.run_topup()
     print 'Preping the reference image... (%0.1f minutes elapsed)' % ((time()-start_time)/60.,)
     unwarper.prep_ref_image(args.bet_fraction)
-    print 'Running eddy (SLOW)... (%0.1f minutes elapsed)' % ((time()-start_time)/60.,)
-    unwarper.run_eddy()
-    print 'Reorienting the bvecs... (%0.1f minutes elapsed)' % ((time()-start_time)/60.,)
-    unwarper.reorient_bvecs()
+    if os.path.exists(bval1):
+        print 'Running eddy (SLOW)... (%0.1f minutes elapsed)' % ((time()-start_time)/60.,)
+        unwarper.run_eddy(num_threads=args.num_threads)
+        print 'Reorienting the bvecs... (%0.1f minutes elapsed)' % ((time()-start_time)/60.,)
+        unwarper.reorient_bvecs()
     print 'Finished in %0.1f minutes.' % ((time()-start_time)/60.,)
 
 
