@@ -10,7 +10,7 @@ import nibabel as nb
 import os
 import numpy as np
 from glob import glob
-from nipy.algorithms.registration import affine,FmriRealign4d
+from nipy.algorithms.registration import affine,Realign4d
 from dipy.segment.mask import median_otsu
 import sys
 import json
@@ -36,6 +36,8 @@ def add_subplot_axes(fig, ax, rect, axisbg='w'):
     width *= rect[2]
     height *= rect[3]  # <= Typo was here
     subax = fig.add_axes([x,y,width,height],axisbg=axisbg)
+
+
     x_labelsize = subax.get_xticklabels()[0].get_size()
     y_labelsize = subax.get_yticklabels()[0].get_size()
     x_labelsize *= rect[2]**0.5
@@ -124,7 +126,8 @@ def estimate_motion(nifti_image):
     # We want to use the middle time point as the reference. But the algorithm does't allow that, so fake it.
     ref_vol = nifti_image.shape[3]/2 + 1
     ims = nb.four_to_three(nifti_image)
-    reg = FmriRealign4d(nb.concat_images([ims[ref_vol]] + ims), 'ascending', time_interp=False)
+    reg = Realign4d(nb.concat_images([ims[ref_vol]] + ims)) # in the next release, we'll need to add tr=1.
+
     reg.estimate(loops=3) # default: loops=5
     aligned = reg.resample(0)[:,:,:,1:]
     sys.stdout = actualstdout
@@ -217,7 +220,7 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=4
             global_ts_aligned = brain_aligned.mean(0).mean(0).mean(0)
             global_trend = np.poly1d(np.polyfit(t[good_vols], global_ts_aligned[good_vols], 3))(t)
             tsnr = brain_aligned.mean(axis=3) / (brain_aligned - global_trend).std(axis=3)
-            median_tsnr = np.ma.median(tsnr)
+            median_tsnr = np.ma.median(tsnr)[0]
             # convert rotations to degrees
             transrot[:,3:] *= 180./np.pi
             qa_ds = Dataset.at_path(nimspath, u'json')
@@ -320,10 +323,10 @@ if __name__ == '__main__':
         generate_qa_report(args.epoch_id, args.nims_path, force=args.force, spike_thresh=args.spike_thresh, nskip=args.nskip)
     elif args.session_id or args.exam_num:
         if args.session_id:
-            s = Session.get(args.session_id)
+            sessions = [Session.get(args.session_id)]
         else:
-            s = Session.query.filter(Session.exam==args.exam_num).first()
-        epoch_ids = [e.id for e in s.epochs if e.scan_type==scan_type]
+            sessions = Session.query.filter(Session.exam==args.exam_num).all()
+        epoch_ids = [e.id for s in sessions for e in s.epochs if e.scan_type==scan_type]
         for eid in epoch_ids:
             generate_qa_report(eid, args.nims_path, force=args.force, spike_thresh=args.spike_thresh, nskip=args.nskip)
     else:
