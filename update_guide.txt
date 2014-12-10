@@ -1,0 +1,110 @@
+NIMS 1.0 to NIMS 1.1 Upgrade Guide
+==================================
+
+Upgrade is easier to do on a Monday morning, hopefully when no new data is being reaped/sorted/processed.
+
+
+1. Stop all processes.
+    - halt reapers, sorters, schedulers, processors, qa, nimsfs, etc
+    - this could involve halting processes across several different machines
+    - take note of the exact time processes were stopped, will need this to restart reaper at appropriate time.
+    - take note of the last run job numbers, will need this if any jobs must be rerun
+
+2. Close all connections to postgres DB.  Note that this command restarts the entire postgres DB.
+    - `/usr/local/etc/rc.d/postgresql restart`
+
+3. Update postgres DB to add new information that is needed for the new nimsdata and processor code.
+    - `cd ~/nims`
+    - `source ~/tg2env/bin/activate;`
+    - `psql -h postgres.example.com -p 5432 -U user db;`
+        - replace 'postgres.example.com' with the postgres server hostname
+        - replace '5432' with the postgres port
+        - replace 'user' with the postgres user
+        - replace 'db' with the nims database name
+    - `ALTER TABLE epoch ADD COLUMN num_mux_cal_cycle integer;`
+    - `ALTER TYPE dataset_qa_status ADD VALUE rerun;`
+    - `\dT+ dataset_qa_status`  check for 'rerun' in the 'Elements' column.
+    - `\d+ Epoch` check 'num_mux_cal_cycle' in the 'Column' column.
+    - `\q` quit psql`
+
+4. Stash any local changes, if necessary.
+    - `cd ~/nims`
+    - `git remote update`
+    - `git stash save 'pre-upgrade local changes'
+
+5. Upgrade nims code and nimsdata code.
+    - `cd ~/nims`
+    - `git checkout ksh-nims1.1`
+    - `git pull`
+    - `cd nimsdata`
+    - `git pull`
+    - `git submodule init`
+    - `git submodule update`
+
+6. Re-apply stashed code, if necessary
+    - `cd ~/nims`
+    - `git stash apply`
+    - if `git stash apply` successful, then `git stash drop`
+
+5. Update NFS mounts, if necessary.  This will depend how duties are divided between machines.
+    - reaper does not need NFS access to anything
+    - sorter needs NFS access to filesytem containing the files
+    - scheduler does not need NFS access to anything
+    - processors need NFS access to filesystem containing the files
+
+6. Clean the cache.
+    - clean contents of `/var/cache/nimsgears/`
+    - create cache subdirectories
+        - `/var/cache/nimsgears/sessions/`
+
+7. Restart processes using supplied tmux start scripts.  Some edits may be necessary.
+
+
+Oops Handling
+=============
+If some data was reaped and sorted with bad metadata, you will want to purge those specific
+database entries, datasets, and corresponding files.
+
+1. Stop the reaper.
+2. Reset the reaper datetime file to desired datetime.
+3. Stop sorter and scheduler.
+4. Remove the Epochs and Datasets database entries, and also delete the corresponding files.
+
+    import os
+    import shutil
+    import datetime
+    import transaction
+    from nimsgears.model import *
+    for j in Epoch.query.filter(Epoch.timestamp > datetime.datetime(2014,12,5,7,0,0)).all():
+        for i in j.datasets:
+            if os.path.exists(os.path.join('/cnifs/nims', i.relpath)):
+                print os.path.join('/cnifs/nims', i.relpath)
+                shutil.rmtree(os.path.join('/cnifs/nims', i.relpath))
+            i.delete
+        j.delete
+
+5. Remove the Session and Session Subject database entries.
+
+    for s in Session.query.filter(Session.timestamp > datetime.datetime(2014,12,5,7,0,0)).all():
+        s.subject.delete()
+        s.delete()
+
+6. Restart reaper, sorter scheduler
+
+
+Verifying the Upgrade
+=====================
+1. login
+2. inspect a few new datasets
+    - is exam number being set?
+    - is subject number being set?
+    - are jobs processing?
+3. inspect a few specific scan types
+    - localizers
+        - does image viewer work?
+        - does volume viewer work?
+    - anat (or any other single timepoint scan)
+        - does image viewer work?
+        - does volume viewer work?
+    - any scan type
+        - does downloading data work
