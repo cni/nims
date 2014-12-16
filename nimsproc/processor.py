@@ -294,6 +294,11 @@ class DicomPipeline(Pipeline):
                         DBSession.add(self.job.data_container)
                         conv_ds.kind = u'derived'
                         conv_ds.container = self.job.data_container
+                        conv_ds.container.size = dcm_acq.size
+                        conv_ds.container.mm_per_vox = dcm_acq.mm_per_vox
+                        conv_ds.container.num_slices = dcm_acq.num_slices
+                        conv_ds.container.num_timepoints = dcm_acq.num_timepoints
+                        conv_ds.container.duration = dcm_acq.duration
                         filenames = []
                         for f in outputdir_list:
                             filenames.append(f)
@@ -438,6 +443,11 @@ class PFilePipeline(Pipeline):
                     DBSession.add(self.job.data_container)
                     dataset.kind = u'derived'
                     dataset.container = self.job.data_container
+                    dataset.container.size = pf.size
+                    dataset.container.mm_per_vox = pf.mm_per_vox
+                    dataset.container.num_slices = pf.num_slices
+                    dataset.container.num_timepoints = pf.num_timepoints
+                    dataset.container.duration = pf.duration
                     filenames = []
                     for f in outputdir_list:
                         filenames.append(f)
