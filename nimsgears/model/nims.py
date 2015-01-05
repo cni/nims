@@ -293,7 +293,7 @@ class Message(Entity):
 class Job(Entity):
 
     timestamp = Field(DateTime, default=datetime.datetime.now)
-    status = Field(Enum(u'pending', u'running', u'done', u'failed', u'abandoned', name=u'job_status'))
+    status = Field(Enum(u'pending', u'running', u'done', u'failed', u'abandoned', 'rerun', name=u'job_status'))
     task = Field(Enum(u'find', u'proc', u'find&proc', name=u'job_task'))
     needs_rerun = Field(Boolean, default=False)
     progress = Field(Integer)
@@ -515,7 +515,7 @@ class Subject(DataContainer):
         if subj_code:
             subject = query.filter(cls.code==subj_code).first()
         elif mrfile.subj_firstname and mrfile.subj_lastname:
-            subject = query.filter(cls.firstname==mrfile.subj_firstname).filter(cls.lastname==mrfile.subj_lastname).filter(cls.dob==mrfile.subj_dob).first()
+            subject = query.filter(cls.firstname==unicode(mrfile.subj_firstname)).filter(cls.lastname==unicode(mrfile.subj_lastname)).filter(cls.dob==mrfile.subj_dob).first()
         else:
             subject = None
         if not subject:
@@ -525,8 +525,8 @@ class Subject(DataContainer):
                     experiment=experiment,
                     person=Person(),
                     code=subj_code[:31] or experiment.next_subject_code,
-                    firstname=mrfile.subj_firstname[:63],
-                    lastname=mrfile.subj_lastname[:63],
+                    firstname=(unicode(mrfile.subj_firstname) or u'')[:63],
+                    lastname=(unicode(mrfile.subj_lastname) or u'')[:63],
                     dob=mrfile.subj_dob,
                     )
         return subject
@@ -605,7 +605,7 @@ class Session(DataContainer):
             # central authority and/or querying the schedule database. But for now,
             # just let the operator be None if the user isn't already in the system.
             operator = User.by_uid(unicode(mrfile.operator), create=False)
-            session = Session(uid=uid, exam=mrfile.exam_no, subject=subject, operator=operator)
+            session = Session(uid=uid, exam=int(mrfile.exam_no) if isinstance(mrfile.exam_no, (unicode, int)) else 0, subject=subject, operator=operator)
         return session
 
     @classmethod
@@ -696,6 +696,7 @@ class Epoch(DataContainer):
     phase_encode_undersample = Field(Float)
     slice_encode_undersample = Field(Float)
     acquisition_matrix = Field(Unicode(255))
+    num_mux_cal_cycle = Field(Integer)
 
     session = ManyToOne('Session')
 
@@ -708,13 +709,13 @@ class Epoch(DataContainer):
         epoch = cls.query.filter_by(uid=uid).filter_by(acq=mrfile.acq_no).first()
         if not epoch:
             session = Session.from_mrfile(mrfile)
-            if session.timestamp is None or session.timestamp > mrfile.timestamp:
+            if session.timestamp is None or (mrfile.timestamp is not None and session.timestamp > mrfile.timestamp):
                 session.timestamp = mrfile.timestamp
             epoch = cls(
                     session = session,
                     timestamp = mrfile.timestamp,
-                    duration = datetime.timedelta(0, mrfile.duration),
-                    prescribed_duration = datetime.timedelta(0, mrfile.prescribed_duration),
+                    duration = datetime.timedelta(0, mrfile.duration or 0),
+                    prescribed_duration = datetime.timedelta(0, mrfile.prescribed_duration or 0),
                     uid = uid,
                     series = mrfile.series_no,
                     acq = mrfile.acq_no,
@@ -727,7 +728,7 @@ class Epoch(DataContainer):
                     flip_angle = mrfile.flip_angle,
                     pixel_bandwidth = mrfile.pixel_bandwidth,
                     num_slices = mrfile.num_slices,
-                    num_timepoints = mrfile.num_timepoints,
+                    num_timepoints = mrfile.num_timepoints or 1,
                     num_averages = mrfile.num_averages,
                     num_echos = mrfile.num_echos,
                     receive_coil_name = unicode(mrfile.receive_coil_name),
@@ -744,6 +745,7 @@ class Epoch(DataContainer):
                     phase_encode_undersample = mrfile.phase_encode_undersample,
                     slice_encode_undersample = mrfile.slice_encode_undersample,
                     acquisition_matrix = unicode(str(mrfile.acquisition_matrix)),
+                    num_mux_cal_cycle = mrfile.num_mux_cal_cycle if mrfile.filetype == u'pfile' else None,    # hack for pfile
                     qa_status = u'pending',
                     # to unpack fov, mm_per_vox, and acquisition_matrix: np.fromstring(str(mm)[1:-1],sep=',')
                     )
@@ -758,11 +760,11 @@ class Epoch(DataContainer):
 
     @property
     def name(self):
-        return '%d_%d_%d' % (self.session.exam, self.series, self.acq)
+        return '%d_%d%s' % (self.session.exam, self.series, '_%d' % self.acq if self.acq is not None else '')
 
     @property
     def dirname(self):
-        return '%d_%d_%s' % (self.series, self.acq, self.description)
+        return '%d%s_%s' % (self.series, '_%d' % self.acq if self.acq is not None else '', self.description)
 
     @property
     def contains_trash(self):

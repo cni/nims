@@ -62,7 +62,7 @@ class Scheduler(object):
                     log.info(u'Compressing %s %s' % (dc, ds.filetype))
                     dataset_path = os.path.join(self.nims_path, ds.relpath)
                     if ds.filetype == nimsdata.nimsdicom.NIMSDicom.filetype:
-                        arcdir = '%d_%d_%d_dicoms' % (dc.session.exam, dc.series, dc.acq)
+                        arcdir = '%s_%s_%s_dicoms' % (dc.session.exam, dc.series, dc.acq)
                         arcdir_path = os.path.join(dataset_path, arcdir)
                         os.mkdir(arcdir_path)
                         for filename in [f for f in os.listdir(dataset_path) if not f.startswith(arcdir)]:

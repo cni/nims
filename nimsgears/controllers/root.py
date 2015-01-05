@@ -3,15 +3,17 @@
 
 import os
 import json
+import uuid
+import hashlib
 import datetime
 import tempfile
 import subprocess
 
-from tg import config, expose, flash, lurl, request, redirect, response
+from tg import abort, config, expose, flash, lurl, request, redirect, response
 from tg.i18n import ugettext as _, lazy_ugettext as l_
 import webob.exc
 
-import nimsdata
+import nimsdata.medimg.nimsmontage
 import nimsutil
 from nimsgears.model import *
 
@@ -89,7 +91,7 @@ class RootController(BaseController):
         ds = Dataset.get(kwargs['dataset_id'])
         if user.has_access_to(ds):
             db_file = os.path.join(store_path, ds.relpath, ds.filenames[0])
-            return dict(zip(['dataset_id', 'tile_size', 'x_size', 'y_size'], (ds.id,) + nimsdata.nimsmontage.get_info(db_file)))
+            return dict(zip(['dataset_id', 'tile_size', 'x_size', 'y_size'], (ds.id,) + nimsdata.medimg.nimsmontage.get_info(db_file)))
 
     @expose('nimsgears.templates.qa_report', render_params={'doctype': None})
     def qa_report(self, **kwargs):
@@ -156,7 +158,7 @@ class RootController(BaseController):
             response.etag = args[0]
             response.cache_control = 'max-age = 86400'
             response.last_modified = ds.updatetime
-            return nimsdata.nimsmontage.get_tile(os.path.join(store_path, ds.relpath, ds.filenames[0]), z, x, y)
+            return nimsdata.medimg.nimsmontage.get_tile(os.path.join(store_path, ds.relpath, ds.filenames[0]), z, x, y)
 
     @expose(content_type='application/octet-stream')
     def file(self, **kwargs):
@@ -257,3 +259,20 @@ class RootController(BaseController):
         tar_proc = subprocess.Popen('tar -chf - -C %s nims; rm -r %s' % (temp_dir, temp_dir), shell=True, stdout=subprocess.PIPE)
         response.content_disposition = 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
         return tar_proc.stdout
+
+    @expose()
+    def upload(self, filename='upload', **kwargs):
+        if 'Content-MD5' not in request.headers:
+            abort(400, 'Request must contain a valid "Content-MD5" header.')
+        stage_path = config.get('upload_path')
+        with nimsutil.TempDir(prefix='.tmp', dir=stage_path) as tempdir_path:
+            hash_ = hashlib.sha1()
+            upload_filepath = os.path.join(tempdir_path, filename)
+            with open(upload_filepath, 'wb') as upload_file:
+                for chunk in iter(lambda: request.body_file.read(2**20), ''):
+                    hash_.update(chunk)
+                    upload_file.write(chunk)
+            if hash_.hexdigest() != request.headers['Content-MD5']:
+                abort(400, 'Content-MD5 mismatch (or unset).')
+            print 'upload from %s: %s [%s]' % (request.user_agent, os.path.basename(upload_filepath), nimsutil.hrsize(request.content_length))
+            os.rename(upload_filepath, os.path.join(stage_path, str(uuid.uuid1()) + '_' + filename)) # add UUID to prevent clobbering files

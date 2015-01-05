@@ -1,127 +1,125 @@
 #!/usr/bin/env python
 #
-# @author:  Reno Bowen
-#           Gunnar Schaefer
+# @author:  Gunnar Schaefer, Reno Bowen
 
 import os
+import glob
 import time
 import shutil
-import signal
 import logging
-import argparse
+import tarfile
 import datetime
-
-import sqlalchemy
 import transaction
 
-import nimsutil
 import nimsdata
-from nimsgears import model
+import nimsgears.model
+import tempdir as tempfile
 
 log = logging.getLogger('sorter')
 
+import warnings
+warnings.filterwarnings('error')
 
 class Sorter(object):
 
-    def __init__(self, db_uri, sort_path, preserve_path, nims_path, dir_mode, sleep_time):
+    def __init__(self, stage_path, preserve_path, nims_path, sleep_time):
         super(Sorter, self).__init__()
-        self.sort_path = nimsutil.make_joined_path(sort_path)
-        self.preserve_path = nimsutil.make_joined_path(preserve_path) if preserve_path else None
-        self.nims_path = nimsutil.make_joined_path(nims_path)
-        self.dir_mode = dir_mode
+        self.stage_path = stage_path
+        self.preserve_path = preserve_path
+        self.nims_path = nims_path
         self.sleep_time = sleep_time
         self.alive = True
-        model.init_model(sqlalchemy.create_engine(db_uri))
 
     def halt(self):
         self.alive = False
 
     def run(self):
-        """Insert files, if valid, into database and associated filesystem."""
         while self.alive:
-            stage_contents = [os.path.join(self.sort_path, sc) for sc in os.listdir(self.sort_path) if not sc.startswith('.')]
-            stage_contents = [sc for sc in stage_contents if os.path.isdir(sc)] # ignore toplevel files
-            if stage_contents:
-                sort_path = min(stage_contents, key=os.path.getmtime)   # oldest first
-                log.info('Sorting %s' % os.path.basename(sort_path))
-                for dirpath, dirnames, filenames in os.walk(sort_path, topdown=False):
-                    aux_paths = {}
-                    for aux_file in filter(lambda fn: fn.startswith('_'), filenames):
-                        main_file = aux_file.lstrip('_').rpartition('_')[0]
-                        aux_paths[main_file] = aux_paths.get(main_file, []) + [os.path.join(dirpath, aux_file)]
-                    filenames = filter(lambda fn: not fn.startswith('_'), filenames)
-                    if self.dir_mode and filenames and not dirnames:    # at lowest sub-directory
-                        self.sort_directory(dirpath, filenames, aux_paths)
+            stage_items = [os.path.join(self.stage_path, si) for si in os.listdir(self.stage_path) if not si.startswith('.')] # ignore dot files
+            if stage_items:
+                for stage_item in sorted(stage_items, key=os.path.getmtime): # oldest first
+                    if os.path.islink(stage_item):
+                        os.remove(stage_item)
+                    elif 'gephysio' in os.path.basename(stage_item): # HACK !!!!!!!!!!!!!!!! NIMS 1.0 cannot sort gephysio
+                        log.info('Unpacking    %s' % os.path.basename(stage_item))
+                        with tempfile.TemporaryDirectory() as tempdir_path:
+                            with tarfile.open(stage_item) as archive:
+                                archive.extractall(path=tempdir_path)
+                            physiodir_path = os.listdir(tempdir_path)[0]
+                            for f in os.listdir(os.path.join(tempdir_path, physiodir_path)):
+                                shutil.copy(os.path.join(tempdir_path, physiodir_path, f), os.path.join(self.nims_path, 'physio'))
+                        log.info('Unpacked    %s' % os.path.basename(stage_item))
+                        os.remove(stage_item)
+                    elif os.path.isfile(stage_item):
+                        self.sort(stage_item)
                     else:
-                        self.sort_files(dirpath, filenames, aux_paths)
-                log.info('Sorted  %s' % os.path.basename(sort_path))
+                        for subpath in [os.path.join(dirpath, fn) for (dirpath, _, filenames) in os.walk(stage_item) for fn in filenames]:
+                            if not os.path.islink(subpath) and not subpath.startswith('.'):
+                                self.sort(subpath)
+                        shutil.rmtree(stage_item)
             else:
-                log.debug('Waiting for work...')
+                log.debug('Waiting for data...')
                 time.sleep(self.sleep_time)
 
-    def sort_files(self, dirpath, filenames, aux_paths):
-        for filepath, filename in [(os.path.join(dirpath, fn), fn) for fn in filenames]:
-            log.debug('Sorting %s' % filename)
-            try:
-                mrfile = nimsdata.parse(filepath)
-            except nimsdata.NIMSDataError:
-                if self.preserve_path:
-                    preserve_path = nimsutil.make_joined_path(self.preserve_path, os.path.dirname(os.path.relpath(filepath, self.sort_path)))
-                    shutil.move(filepath, os.path.join(preserve_path, filename))
-            else:
-                dataset = model.Dataset.from_mrfile(mrfile, self.nims_path)
-                new_filenames = [filename]
-                shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
-                for aux_path in aux_paths.get(os.path.splitext(filename)[0] if dataset.compressed else filename, []):
-                    new_filenames.append(os.path.basename(aux_path))
-                    shutil.move(aux_path, os.path.join(self.nims_path, dataset.relpath, os.path.basename(aux_path)))
-                dataset.filenames = set(dataset.filenames + new_filenames)
-                dataset.updatetime = datetime.datetime.now()
-                dataset.untrash()
-                transaction.commit()
-        shutil.rmtree(dirpath)
-
-    def sort_directory(self, dirpath, filenames, aux_paths):
-        log.debug('Sorting %s in directory mode' % os.path.basename(dirpath))
+    def sort(self, filepath):
+        filename = os.path.basename(filepath)
         try:
-            mrfile = nimsdata.parse(os.path.join(dirpath, filenames[0]))
+            log.info('Parsing     %s' % filename)
+            if 'pfile' in filename:
+                with tempfile.TemporaryDirectory(dir=None) as tempdir_path:
+                    with tarfile.open(filepath) as archive:
+                        archive.extractall(path=tempdir_path)
+                    subdir = os.listdir(tempdir_path)[0]
+                    f = glob.glob(os.path.join(tempdir_path, subdir, 'P?????.7'))[0]
+                    try:
+                        mrfile = nimsdata.parse(f, filetype='pfile', full_parse=True)
+                    except Exception:
+                        pass
+            else:
+                mrfile = nimsdata.parse(filepath)
+                mrfile.num_mux_cal_cycle = None  # dcms will never have num_mux_cal_cycles
+                if mrfile.is_screenshot:
+                    mrfile.acq_no = 0
+                    mrfile.timestamp = datetime.datetime.strptime(datetime.datetime.strftime(mrfile.timestamp, '%Y%m%d') + '235959', '%Y%m%d%H%M%S')
         except nimsdata.NIMSDataError:
+            log.warning('Cannot sort %s' % filename)
             if self.preserve_path:
-                preserve_path = nimsutil.make_joined_path(self.preserve_path, os.path.relpath(dirpath, self.sort_path))
-                for filename in os.listdir(dirpath):
-                    shutil.move(os.path.join(dirpath, filename), os.path.join(preserve_path, filename))
+                preserve_path = os.path.join(self.preserve_path, os.path.relpath(filepath, self.stage_path).replace('/', '_'))
+                log.debug('Preserving  %s' % filename)
+                shutil.move(filepath, preserve_path)
         else:
-            dataset = model.Dataset.from_mrfile(mrfile, self.nims_path)
-            for filepath, aux_paths in [(os.path.join(dirpath, filename), aux_paths.get(filename, [])) for filename in filenames]:
-                shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, os.path.basename(filepath)))
-                for aux_path in aux_paths:
-                    shutil.move(aux_path, os.path.join(self.nims_path, dataset.relpath, os.path.basename(aux_path)))
+            log.info('Sorting     %s' % filename)
+            filename = '_'.join(filename.rsplit('_')[-4:])
+            dataset = nimsgears.model.Dataset.from_mrfile(mrfile, self.nims_path)
+            shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
+            dataset.filenames = [filename]
             dataset.updatetime = datetime.datetime.now()
             dataset.untrash()
             transaction.commit()
-        shutil.rmtree(dirpath)
-
-
-class ArgumentParser(argparse.ArgumentParser):
-
-    def __init__(self):
-        super(ArgumentParser, self).__init__()
-        self.add_argument('db_uri', help='database URI')
-        self.add_argument('sort_path', help='path to staging area')
-        self.add_argument('nims_path', help='data destination')
-        self.add_argument('-d', '--dirmode', action='store_true', help='assume files are pre-sorted by directory')
-        self.add_argument('-t', '--toplevel', action='store_true', help='handle toplevel files')
-        self.add_argument('-p', '--preserve_path', help='preserve unsortable files here')
-        self.add_argument('-s', '--sleeptime', type=int, default=10, help='time to sleep before checking for new files')
-        self.add_argument('-f', '--logfile', help='path to log file')
-        self.add_argument('-l', '--loglevel', default='info', help='log level (default: info)')
-        self.add_argument('-q', '--quiet', action='store_true', default=False, help='disable console logging')
 
 
 if __name__ == '__main__':
-    args = ArgumentParser().parse_args()
+    import signal
+    import argparse
+    import sqlalchemy
+
+    import nimsutil
+
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument('db_uri', help='database URI')
+    arg_parser.add_argument('stage_path', help='path to staging area')
+    arg_parser.add_argument('nims_path', help='data destination')
+    arg_parser.add_argument('-t', '--toplevel', action='store_true', help='handle toplevel files')
+    arg_parser.add_argument('-p', '--preserve_path', help='preserve unsortable files here')
+    arg_parser.add_argument('-s', '--sleeptime', type=int, default=10, help='time to sleep before checking for new files')
+    arg_parser.add_argument('-f', '--logfile', help='path to log file')
+    arg_parser.add_argument('-l', '--loglevel', default='info', help='log level (default: info)')
+    arg_parser.add_argument('-q', '--quiet', action='store_true', default=False, help='disable console logging')
+    args = arg_parser.parse_args()
+
     nimsutil.configure_log(args.logfile, not args.quiet, args.loglevel)
-    sorter = Sorter(args.db_uri, args.sort_path, args.preserve_path, args.nims_path, args.dirmode, args.sleeptime)
+    nimsgears.model.init_model(sqlalchemy.create_engine(args.db_uri))
+    sorter = Sorter(args.stage_path, args.preserve_path, args.nims_path, args.sleeptime)
 
     def term_handler(signum, stack):
         sorter.halt()

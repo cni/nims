@@ -5,6 +5,7 @@
 
 import os
 import abc
+import glob
 import time
 import shutil
 import signal
@@ -13,12 +14,17 @@ import tarfile
 import argparse
 import datetime
 import threading
+import numpy as np
 
 import sqlalchemy
 import transaction
 
 import nimsutil
 import nimsdata
+import nimsdata.medimg.nimsdicom
+import nimsdata.medimg.nimspfile
+import nimsphysio
+
 from nimsgears.model import *
 
 log = logging.getLogger('processor')
@@ -61,9 +67,9 @@ class Processor(object):
                 if job:
                     if isinstance(job.data_container, Epoch) and job.data_container.primary_dataset!=None:
                         ds = job.data_container.primary_dataset
-                        if ds.filetype == nimsdata.nimsdicom.NIMSDicom.filetype:
+                        if ds.filetype == nimsdata.medimg.nimsdicom.NIMSDicom.filetype:
                             pipeline_class = DicomPipeline
-                        elif ds.filetype == nimsdata.nimsraw.NIMSPFile.filetype:
+                        elif ds.filetype == nimsdata.medimg.nimspfile.NIMSPFile.filetype:
                             pipeline_class = PFilePipeline
 
                         pipeline = pipeline_class(job, self.nims_path, self.physio_path, self.tempdir, self.max_recon_jobs)
@@ -108,21 +114,16 @@ class Pipeline(threading.Thread):
 
     def run(self):
         DBSession.add(self.job)
-        self.job.activity = u'started'
+        self.job.activity = u'started %s' % self.job.data_container.primary_dataset.filetype
         log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
         DBSession.add(self.job)
         try:
             if self.job.task == u'find&proc':
-                self.find()
-                self.process()
-            elif self.job.task == u'find':
-                self.find()
-            elif self.job.task == u'proc':
-                self.process()
+                self.process()  # process now includes find.
         except Exception as ex:
             self.job.status = u'failed'
-            self.job.activity = u'failed: %s' % ex
+            self.job.activity = (u'failed: %s' % ex)[:255]
             log.warning(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         else:
             self.job.status = u'done'
@@ -136,24 +137,43 @@ class Pipeline(threading.Thread):
             ds.delete()
 
     @abc.abstractmethod
-    def find(self):
+    def find(self, slice_order, num_slices):
+        """
+        Locate physio and generate physio regressors.
+
+        Find is called from within each pipeline's process() method after the file's slice_order
+        and num_slices attributes have been set, but before preparing the data to be written out.
+        This will use the num_slice and slice_order to create an array of the slice numbers in the
+        sequence they were acquired. Nimsphysio will use both the current data containers metadata,
+        like timestamp and duration, and metadata obtained by parsing the primary dataset file to
+        determine if physio is valid.
+
+        This method should never raise any exceptions.
+
+        Parameters
+        ----------
+        slice_order : int
+            integer that corresponds to the appropriate NIFTI slice order code. 0 for unknown.
+        num_slices : int
+            number of slices
+
+        """
         self.clean(self.job.data_container, u'peripheral')
         transaction.commit()
         DBSession.add(self.job)
 
+        if self.physio_path is None: return             # can't search w/o phys path
+        if not slice_order or not num_slices: return    # need both slice order AND num_slices to create regressors
+        if self.job.data_container.scanner_name == 'IRC MRC35068': return   # hack to ignore Davis files
+
         dc = self.job.data_container
-        ds = self.job.data_container.primary_dataset
         if dc.physio_recorded:
             physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.prescribed_duration, dc.psd.encode('utf-8'))
             if physio_files:
-                physio = nimsdata.nimsphysio.NIMSPhysio(physio_files, dc.tr, dc.num_timepoints)
+                physio = nimsphysio.NIMSPhysio(physio_files, dc.tr, dc.num_timepoints, nimsdata.medimg.medimg.get_slice_order(slice_order, num_slices))
                 if physio.is_valid():
                     self.job.activity = u'valid physio found'
                     log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                    # Computing the slice-order can be expensive, so we didn't do it when we instantiated.
-                    # But now that we know physio is valid, we need to do it.
-                    ni = nimsdata.parse(os.path.join(self.nims_path, ds.primary_file_relpath))
-                    physio.slice_order = ni.get_slice_order() # TODO: should probably write a set method
                     dataset = Dataset.at_path(self.nims_path, u'physio')
                     DBSession.add(self.job)
                     DBSession.add(self.job.data_container)
@@ -171,7 +191,9 @@ class Pipeline(threading.Thread):
                         try:
                             reg_filename = '%s_physio_regressors.csv.gz' % self.job.data_container.name
                             physio.write_regressors(os.path.join(self.nims_path, dataset.relpath, reg_filename))
-                        except nimsdata.nimsphysio.NIMSPhysioError:
+                            self.job.activity = u'physio regressors %s written' % reg_filename
+                            log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                        except nimsphysio.NIMSPhysioError:
                             self.job.activity = u'error generating regressors from physio data'
                             log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                         else:
@@ -193,8 +215,7 @@ class Pipeline(threading.Thread):
         self.clean(self.job.data_container, u'derived')
         self.clean(self.job.data_container, u'web')
         self.clean(self.job.data_container, u'qa')
-        self.job.data_container.qa_status = u'rerun'
-        self.job.activity = u'generating NIfTI / running recon'
+        self.job.activity = u'reading data / preparing to run recon'
         log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
         transaction.commit()
         DBSession.add(self.job)
@@ -202,123 +223,251 @@ class Pipeline(threading.Thread):
 
 class DicomPipeline(Pipeline):
 
-    def find(self):
-        return super(DicomPipeline, self).find()
+    def find(self, slice_order, num_slices):
+        return super(DicomPipeline, self).find(slice_order, num_slices)
 
     def process(self):
+        """"
+        Convert a dicom file.
+
+        Parse a dicom file and load the data. If an error occurs during parsing, no exception gets raised,
+        instead the exception is saved into dataset.failure_reason.  This is to allow find() to attempt to
+        locate physio, even if the input dicom files could not be loaded.  After the locating physio has been
+        attempted, the DicomPipeline will attempt to convert the dataset into various output files.
+
+        Parameters
+        ---------
+        None : NoneType
+            The DicomPipeline works has a job and dataset assigned to it.  No additional parameters are required.
+
+        """
         super(DicomPipeline, self).process()
 
         ds = self.job.data_container.primary_dataset
         with nimsutil.TempDir(dir=self.tempdir) as outputdir:
             outbase = os.path.join(outputdir, ds.container.name)
             dcm_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
-            dcm_acq = nimsdata.nimsdicom.NIMSDicom(dcm_tgz)
-            conv_type, conv_file = dcm_acq.convert(outbase)
+            dcm_acq = nimsdata.parse(dcm_tgz, filetype='dicom', load_data=True)   # store exception for later...
 
-            if conv_type:
-                outputdir_list = os.listdir(outputdir)
-                self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
+            # if physio was not found, wait 30 seconds and search again.
+            # this should only run when the job activity is u'no physio files found'
+            # if physio not recorded, or physio invalid, don't try again
+            try:
+                self.find(dcm_acq.slice_order, dcm_acq.num_slices)
+            except Exception as e:
+                # this catches some of the non-image scans that do not have
+                # dcm_acq.slice_order and/or dcm_acq.num_slices
+                log.info(str(e))  # do we need this logging message?
+            if self.job.activity == u'no physio files found':
+                self.job.activity = u'no physio files found; searching again in 30 seconds'
                 log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                conv_ds = Dataset.at_path(self.nims_path, unicode(conv_type))
-                DBSession.add(self.job)
-                DBSession.add(self.job.data_container)
+                time.sleep(30)
+                try:
+                    self.find(dcm_acq.slice_order, dcm_acq.num_slices)
+                except Exception as e:
+                    # this catches some of the non-image scans that do not have
+                    # dcm_acq.slice_order and/or dcm_acq.num_slices
+                    log.info(str(e))  # do we need this logging message?
 
-                conv_ds.kind = u'derived'
-                conv_ds.container = self.job.data_container
-                filenames = []
-                for f in outputdir_list:
-                    filenames.append(f)
-                    shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, conv_ds.relpath))
-                conv_ds.filenames = filenames
+            if dcm_acq.failure_reason:   # implies dcm_acq.data = None
+                # if dcm_acq.failure_reason is set, job has failed
+                # raising an error should cause job.status should to end up 'failed'
+                self.job.activity = (u'load dicom data failed; %s' % str(dcm_acq.failure_reason))
                 transaction.commit()
-
-            if conv_type == 'nifti':
-                pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
                 DBSession.add(self.job)
-                DBSession.add(self.job.data_container)
-                nims_montage = nimsdata.nimsmontage.generate_montage(conv_file)
-                nims_montage.write_sqlite_pyramid(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
-                self.job.activity = u'image pyramid generated'
-                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                pyramid_ds.kind = u'web'
-                pyramid_ds.container = self.job.data_container
-                pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
-                transaction.commit()
+                raise dcm_acq.failure_reason
 
-            if conv_type == 'bitmap':
-                # Hack to make sure screen-saves go to the end of the time-sorted list
-                DBSession.add(self.job)
-                DBSession.add(self.job.data_container)
-                self.job.data_container.timestamp = datetime.datetime.combine(date=self.job.data_container.timestamp.date(), time=datetime.time(23,59, 59))
+            if dcm_acq.is_non_image:    # implies dcm_acq.data = None
+                # non-image is an "expected" outcome, job has succeeded
+                # no error should be raised, job status should end up 'done'
+                self.job.activity = (u'dicom %s is a non-image type' % dcm_tgz)
                 transaction.commit()
+            else:
+                if dcm_acq.is_screenshot:
+                    conv_files = nimsdata.write(dcm_acq, dcm_acq.data, outbase, filetype='png')
+                    if conv_files:
+                        outputdir_list = os.listdir(outputdir)
+                        self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
+                        log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                        conv_ds = Dataset.at_path(self.nims_path, u'bitmap')
+                        DBSession.add(self.job)
+                        DBSession.add(self.job.data_container)
+                        conv_ds.kind = u'derived'
+                        conv_ds.container = self.job.data_container
+                        conv_ds.container.size = dcm_acq.size
+                        conv_ds.container.mm_per_vox = dcm_acq.mm_per_vox
+                        conv_ds.container.num_slices = dcm_acq.num_slices
+                        conv_ds.container.num_timepoints = dcm_acq.num_timepoints
+                        conv_ds.container.duration = dcm_acq.duration
+                        filenames = []
+                        for f in outputdir_list:
+                            filenames.append(f)
+                            shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, conv_ds.relpath))
+                        conv_ds.filenames = filenames
+                        transaction.commit()
+                else:
+                    conv_files = nimsdata.write(dcm_acq, dcm_acq.data, outbase, filetype='nifti')
+                    if conv_files:
+                        # if nifti was successfully created
+                        outputdir_list = os.listdir(outputdir)
+                        self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
+                        log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                        conv_ds = Dataset.at_path(self.nims_path, u'nifti')
+                        DBSession.add(self.job)
+                        DBSession.add(self.job.data_container)
+                        conv_ds.kind = u'derived'
+                        conv_ds.container = self.job.data_container
+                        filenames = []
+                        for f in outputdir_list:
+                            filenames.append(f)
+                            shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, conv_ds.relpath))
+                        conv_ds.filenames = filenames
+                        transaction.commit()
+                        pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
+                        DBSession.add(self.job)
+                        DBSession.add(self.job.data_container)
+                        outpath = os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name)
+                        voxel_order = None if dcm_acq.is_localizer else 'LPS'
+                        nims_montage = nimsdata.write(dcm_acq, dcm_acq.data, outpath, filetype='montage', voxel_order=voxel_order)
+                        self.job.activity = (u'generated %s' % (', '.join([os.path.basename(f) for f in nims_montage])))[:255]
+                        log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                        pyramid_ds.kind = u'web'
+                        pyramid_ds.container = self.job.data_container
+                        pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
+                        transaction.commit()
+
+            DBSession.add(self.job)
 
         DBSession.add(self.job)
 
 
 class PFilePipeline(Pipeline):
 
-    def find(self):
-        return super(PFilePipeline, self).find()
+    def find(self, slice_order, num_slices):
+        return super(PFilePipeline, self).find(slice_order, num_slices)
 
     def process(self):
+        """"
+        Convert a pfile.
+
+        Extracts a pfile.tgz into a temporary directory and full_parses the pfile.7.  If an error occurs
+        during parsing, no exception gets raised, instead the exception is saved into dataset.failure_reason.
+        This is to allow find() to attempt to locate physio, even if the input pfile not be loaded.  After
+        locating physio has been attempted, the PFilePipeline will attempt to convert the dataset into
+        a nifti, and then a montage.
+
+        Parameters
+        ---------
+        None : NoneType
+            The PFilePipeline works has a job and dataset assigned to it.  No additional parameters are required.
+
+        """
         super(PFilePipeline, self).process()
 
         ds = self.job.data_container.primary_dataset
+
         with nimsutil.TempDir(dir=self.tempdir) as outputdir:
-            pf = None
-            pfiles = [f for f in os.listdir(os.path.join(self.nims_path, ds.relpath)) if not f.startswith('_') and 'refscan' not in f]
-            # Try them in numerical order.
-            # FIXME: if there are >1 pfiles, what to do? Try them all?
-            for pfile in sorted(pfiles):
-                try:
-                    pf = nimsdata.nimsraw.NIMSPFile(os.path.join(self.nims_path, ds.relpath, pfile))
-                except nimsdata.nimsraw.NIMSPFileError:
-                    pf = None
-                else:
-                    break
+            log.debug('unpacking and full parsing')
+            outbase = os.path.join(outputdir, ds.container.name)
+            pfile_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
+            with tarfile.open(pfile_tgz) as archive:
+                archive.extractall(path=outputdir)
+            temp_datadir = os.path.join(outputdir, os.listdir(outputdir)[0])
+            temp_pfile = os.path.join(temp_datadir, glob.glob(os.path.join(temp_datadir, 'P?????.7'))[0])
 
-            if pf is not None:
-                criteria = pf.prep_convert()
-                if criteria != None:
-                    q = Epoch.query.filter(Epoch.session==self.job.data_container.session).filter(Epoch.trashtime == None)
-                    for fieldname,value in criteria.iteritems():
-                        q = q.filter(getattr(Epoch,fieldname)==unicode(value))
-                    epochs = [e for e in q.all() if e!=self.job.data_container]
-                    aux_files = [os.path.join(self.nims_path, e.primary_dataset.relpath, f) for e in epochs for f in e.primary_dataset.filenames if f.startswith('P')]
-                    self.job.activity = (u'Found %d aux files: %s' % (len(aux_files), (', '.join([os.path.basename(f) for f in aux_files]))))[:255]
+            # perform full parse, which doesn't attempt to load the data
+            pf = nimsdata.parse(temp_pfile, filetype='pfile', ignore_json=True, load_data=False, full_parse=True, tempdir=outputdir, num_jobs=self.max_recon_jobs)
+
+            try:
+                self.find(pf.slice_order, pf.num_slices)
+            except Exception as exc:  # XXX, specific exceptions
+                pass
+
+            # MUX HACK, identify a group of aux candidates and determine the single best aux_file.
+            # Certain mux_epi scans will return a dictionary of parameters to use as query filters to
+            # help locate an aux_file that contains necessary calibration scans.
+            criteria = pf.prep_convert()
+            aux_file = None
+            if criteria is not None:  # if criteria: this is definitely mux of some sort
+                log.debug('pfile aux criteria %s' % str(criteria.keys()))
+                q = Epoch.query.filter(Epoch.session==self.job.data_container.session).filter(Epoch.trashtime==None)
+                for fieldname, value in criteria.iteritems():
+                    q = q.filter(getattr(Epoch, fieldname)==unicode(value))  # filter by psd_name
+
+                if pf.num_mux_cal_cycle >= 2:
+                    log.debug('looking for num_bands = 1')
+                    epochs = [e for e in q.all() if (e != self.job.data_container and e.num_bands == 1)]
+                else:
+                    log.debug('looking for num_mux_cal_cycle >= 2')
+                    epochs = [e for e in q.all() if (e != self.job.data_container and e.num_mux_cal_cycle >= 2)]
+                log.debug('candidates: %s' % str([e.primary_dataset.filenames for e in epochs]))
+
+                # which epoch has the closest series number
+                series_num_diff = np.array([e.series for e in epochs]) - pf.series_no
+                closest = np.min(np.abs(series_num_diff))==np.abs(series_num_diff)
+                # there may be more than one. We prefer the prior scan.
+                closest = np.where(np.min(series_num_diff[closest])==series_num_diff)[0][0]
+                candidate = epochs[closest]
+                aux_file = os.path.join(self.nims_path, candidate.primary_dataset.relpath, candidate.primary_dataset.filenames[0])
+                log.debug('identified aux_file: %s' % os.path.basename(aux_file))
+
+                self.job.activity = (u'Found aux file: %s' % os.path.basename(aux_file))[:255]
+                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+
+            else:
+                log.debug('no special criteria')
+                aux_file = None
+
+            pf.load_data(aux_file=aux_file)  # don't monopolize system resources
+            if pf.failure_reason:   # implies pf.data = None
+                self.job.activity = (u'error loading pfile: %s' % str(pf.failure_reason))
+                transaction.commit()
+                DBSession.add(self.job)
+                raise pf.failure_reason
+
+            # attempt to write nifti, if write fails, let exception bubble up to pipeline process()
+            # exception will cause job to be marked as 'fail'
+            if pf.is_non_image:    # implies dcm_acq.data = None
+                # non-image is an "expected" outcome, job has succeeded
+                # no error should be raised, job status should end up 'done'
+                self.job.activity = (u'pfile %s is a non-image type' % pfile_tgz)
+                transaction.commit()
+            else:
+                conv_file = nimsdata.write(pf, pf.data, outbase, filetype='nifti')
+                if conv_file:
+                    outputdir_list = [f for f in os.listdir(outputdir) if not os.path.isdir(os.path.join(outputdir, f))]
+                    self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
                     log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                else:
-                    aux_files = None
+                    dataset = Dataset.at_path(self.nims_path, u'nifti')
+                    DBSession.add(self.job)
+                    DBSession.add(self.job.data_container)
+                    dataset.kind = u'derived'
+                    dataset.container = self.job.data_container
+                    dataset.container.size = pf.size
+                    dataset.container.mm_per_vox = pf.mm_per_vox
+                    dataset.container.num_slices = pf.num_slices
+                    dataset.container.num_timepoints = pf.num_timepoints
+                    dataset.container.duration = pf.duration
+                    filenames = []
+                    for f in outputdir_list:
+                        filenames.append(f)
+                        shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, dataset.relpath))
+                    dataset.filenames = filenames
+                    transaction.commit()
 
-                conv_type, conv_file = pf.convert(os.path.join(outputdir, ds.container.name), self.tempdir, self.max_recon_jobs, aux_files)
+                    pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
+                    DBSession.add(self.job)
+                    DBSession.add(self.job.data_container)
+                    outpath = os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name)
+                    nims_montage = nimsdata.write(pf, pf.data, outpath, filetype='montage')
+                    self.job.activity = u'generated image pyramid %s' % nims_montage
+                    log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                    pyramid_ds.kind = u'web'
+                    pyramid_ds.container = self.job.data_container
+                    pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
+                    transaction.commit()
 
-            if conv_file:
-                outputdir_list = os.listdir(outputdir)
-                self.job.activity = (u'generated %s' % (', '.join([f for f in outputdir_list])))[:255]
-                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                dataset = Dataset.at_path(self.nims_path, u'nifti')
-                DBSession.add(self.job)
-                DBSession.add(self.job.data_container)
-                dataset.kind = u'derived'
-                dataset.container = self.job.data_container
-                filenames = []
-                for f in outputdir_list:
-                    filenames.append(f)
-                    shutil.copy2(os.path.join(outputdir, f), os.path.join(self.nims_path, dataset.relpath))
-                dataset.filenames = filenames
-                transaction.commit()
-
-                pyramid_ds = Dataset.at_path(self.nims_path, u'img_pyr')
-                DBSession.add(self.job)
-                DBSession.add(self.job.data_container)
-                nims_montage = nimsdata.nimsmontage.generate_montage(conv_file)
-                nims_montage.write_sqlite_pyramid(os.path.join(self.nims_path, pyramid_ds.relpath, self.job.data_container.name+'.pyrdb'))
-                self.job.activity = u'image pyramid generated'
-                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
-                pyramid_ds.kind = u'web'
-                pyramid_ds.container = self.job.data_container
-                pyramid_ds.filenames = os.listdir(os.path.join(self.nims_path, pyramid_ds.relpath))
-                transaction.commit()
+            DBSession.add(self.job)
 
         DBSession.add(self.job)
 
@@ -329,7 +478,7 @@ class ArgumentParser(argparse.ArgumentParser):
         super(ArgumentParser, self).__init__()
         self.add_argument('db_uri', metavar='URI', help='database URI')
         self.add_argument('nims_path', metavar='DATA_PATH', help='data location')
-        self.add_argument('physio_path', metavar='PHYSIO_PATH', help='path to physio data')
+        self.add_argument('physio_path', metavar='PHYSIO_PATH', nargs='?', help='path to physio data')
         self.add_argument('-T', '--task', help='find|proc  (default is all)')
         self.add_argument('-e', '--filter', default=[], action='append', help='sqlalchemy filter expression')
         self.add_argument('-j', '--jobs', type=int, default=1, help='maximum number of concurrent threads')
@@ -345,7 +494,6 @@ class ArgumentParser(argparse.ArgumentParser):
 
 if __name__ == '__main__':
     # workaround for http://bugs.python.org/issue7980
-    import datetime # used in nimsutil
     datetime.datetime.strptime('0', '%S')
 
     args = ArgumentParser().parse_args()
@@ -359,3 +507,4 @@ if __name__ == '__main__':
 
     processor.run()
     log.warning('Process halted')
+
