@@ -354,6 +354,7 @@ class PFilePipeline(Pipeline):
         during parsing, no exception gets raised, instead the exception is saved into dataset.failure_reason.
         This is to allow find() to attempt to locate physio, even if the input pfile not be loaded.  After
         locating physio has been attempted, the PFilePipeline will attempt to convert the dataset into
+
         a nifti, and then a montage.
 
         Parameters
@@ -367,16 +368,22 @@ class PFilePipeline(Pipeline):
         ds = self.job.data_container.primary_dataset
 
         with nimsutil.TempDir(dir=self.tempdir) as outputdir:
-            log.debug('unpacking and full parsing')
+            log.debug('parsing')
             outbase = os.path.join(outputdir, ds.container.name)
-            pfile_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
-            with tarfile.open(pfile_tgz) as archive:
-                archive.extractall(path=outputdir)
-            temp_datadir = os.path.join(outputdir, os.listdir(outputdir)[0])
-            temp_pfile = os.path.join(temp_datadir, glob.glob(os.path.join(temp_datadir, 'P?????.7'))[0])
+            pfile_tgz = glob.glob(os.path.join(self.nims_path, ds.relpath, '*_pfile.tgz'))
+            pfile_7gz = glob.glob(os.path.join(self.nims_path, ds.relpath, 'P?????.7*'))
+            if pfile_tgz:
+                log.debug('input format: tgz')
+                with tarfile.open(pfile_tgz[0]) as archive:
+                    archive.extractall(path=outputdir)
+                temp_datadir = os.path.join(outputdir, os.listdir(outputdir)[0])
+                input_pfile = os.path.join(temp_datadir, glob.glob(os.path.join(temp_datadir, 'P?????.7'))[0])
+            elif pfile_7gz:
+                log.debug('input format: directory')
+                input_pfile = pfile_7gz[0]
 
             # perform full parse, which doesn't attempt to load the data
-            pf = nimsdata.parse(temp_pfile, filetype='pfile', ignore_json=True, load_data=False, full_parse=True, tempdir=outputdir, num_jobs=self.max_recon_jobs)
+            pf = nimsdata.parse(input_pfile, filetype='pfile', ignore_json=True, load_data=False, full_parse=True, tempdir=outputdir, num_jobs=self.max_recon_jobs)
 
             try:
                 self.find(pf.slice_order, pf.num_slices)
@@ -408,7 +415,14 @@ class PFilePipeline(Pipeline):
                 # there may be more than one. We prefer the prior scan.
                 closest = np.where(np.min(series_num_diff[closest])==series_num_diff)[0][0]
                 candidate = epochs[closest]
-                aux_file = os.path.join(self.nims_path, candidate.primary_dataset.relpath, candidate.primary_dataset.filenames[0])
+                # auxfile could be either P7.gz with adjacent files or a pfile tgz
+                aux_tgz = glob.glob(os.path.join(self.nims_path, candidate.primary_dataset.relpath, '*_pfile.tgz'))
+                aux_7gz = glob.glob(os.path.join(self.nims_path, candidate.primary_dataset.relpath, 'P?????.7*'))
+                if aux_tgz:
+                    aux_file = aux_tgz[0]
+                elif aux_7gz:
+                    aux_file = aux_7gz[0]
+                # aux_file = os.path.join(self.nims_path, candidate.primary_dataset.relpath, candidate.primary_dataset.filenames[0])
                 log.debug('identified aux_file: %s' % os.path.basename(aux_file))
 
                 self.job.activity = (u'Found aux file: %s' % os.path.basename(aux_file))[:255]
@@ -430,7 +444,7 @@ class PFilePipeline(Pipeline):
             if pf.is_non_image:    # implies dcm_acq.data = None
                 # non-image is an "expected" outcome, job has succeeded
                 # no error should be raised, job status should end up 'done'
-                self.job.activity = (u'pfile %s is a non-image type' % pfile_tgz)
+                self.job.activity = (u'pfile %s is a non-image type' % input_pfile)
                 transaction.commit()
             else:
                 conv_file = nimsdata.write(pf, pf.data, outbase, filetype='nifti')
@@ -447,7 +461,7 @@ class PFilePipeline(Pipeline):
                     dataset.container.mm_per_vox = pf.mm_per_vox
                     dataset.container.num_slices = pf.num_slices
                     dataset.container.num_timepoints = pf.num_timepoints
-                    dataset.container.duration = pf.duration
+                    dataset.container.duration = datetime.timedelta(seconds=pf.duration)
                     filenames = []
                     for f in outputdir_list:
                         filenames.append(f)
