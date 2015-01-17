@@ -247,7 +247,7 @@ class DicomPipeline(Pipeline):
         with nimsutil.TempDir(dir=self.tempdir) as outputdir:
             outbase = os.path.join(outputdir, ds.container.name)
             dcm_tgz = os.path.join(self.nims_path, ds.relpath, os.listdir(os.path.join(self.nims_path, ds.relpath))[0])
-            dcm_acq = nimsdata.parse(dcm_tgz, filetype='dicom', load_data=True)   # store exception for later...
+            dcm_acq = nimsdata.parse(dcm_tgz, filetype='dicom', load_data=True, ignore_json=True)   # store exception for later...
 
             # if physio was not found, wait 30 seconds and search again.
             # this should only run when the job activity is u'no physio files found'
