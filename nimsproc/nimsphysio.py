@@ -181,6 +181,10 @@ class NIMSPhysio(nimsdata.NIMSReader):
         pass
 
     @property
+    def nims_metadata_status(self):
+        return self.metadata_status
+
+    @property
     def nims_group_id(self):
         return self.group
 
