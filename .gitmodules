@@ -1,3 +1,4 @@
-[submodule "nimsdata"]
+[submodule "data"]
 	path = nimsdata
-	url = git@github.com:scitran/nimsdata.git
+	url = https://github.com/scitran/data.git
+	branch = nimsdata
