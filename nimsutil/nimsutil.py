@@ -110,7 +110,7 @@ def clean_string(string):
     For example:
         '-__-&&&HELLO GOOD ((    SIR  )))___----   ' returns 'HELLO_GOOD_SIR'
     """
-    string = re.sub(r'[^A-Za-z0-9 _-]', '', string)
+    string = re.sub(r'[^A-Za-z0-9 _-]', '', string or '')
     string = re.sub(r'[ _-]+', '_', string).strip('_')
     return unicode(string)
 
