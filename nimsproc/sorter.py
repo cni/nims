@@ -20,6 +20,31 @@ log = logging.getLogger('sorter')
 import warnings
 warnings.filterwarnings('error')
 
+
+def write_json_file(path, object_):
+    with open(path, 'w') as json_file:
+        json.dump(object_, json_file, default=datetime_encoder)
+        json_file.write('\n')
+
+
+def write_digest_file(path):
+    digest_path = os.path.join(path, 'DIGEST.txt')
+
+
+def create_archive(path, content, arcname, **kwargs):
+    # write digest file
+    digest_filepath = os.path.join(content, 'DIGEST.txt')
+    open(digest_filepath, 'w').close() # touch file, so that it's included in the digest
+    filenames = sorted(os.listdir(content), key=lambda fn: (fn.endswith('.json') and 1) or (fn.endswith('.txt') and 2) or fn)
+    with open(digest_filepath, 'w') as digest_file:
+        digest_file.write('\n'.join(filenames) + '\n')
+    # create archive
+    with tarfile.open(path, 'w:gz', **kwargs) as archive:
+        archive.add(content, arcname, recursive=False) # add the top-level directory
+        for fn in filenames:
+            archive.add(os.path.join(content, fn), os.path.join(arcname, fn))
+
+
 class Sorter(object):
 
     def __init__(self, stage_path, preserve_path, nims_path, sleep_time):
@@ -41,14 +66,14 @@ class Sorter(object):
                     if os.path.islink(stage_item):
                         os.remove(stage_item)
                     elif 'gephysio' in os.path.basename(stage_item): # HACK !!!!!!!!!!!!!!!! NIMS 1.0 cannot sort gephysio
-                        log.info('Unpacking    %s' % os.path.basename(stage_item))
+                        log.info('Unpacking   %s' % os.path.basename(stage_item))
                         with tempfile.TemporaryDirectory() as tempdir_path:
                             with tarfile.open(stage_item) as archive:
                                 archive.extractall(path=tempdir_path)
                             physiodir_path = os.listdir(tempdir_path)[0]
                             for f in os.listdir(os.path.join(tempdir_path, physiodir_path)):
                                 shutil.copy(os.path.join(tempdir_path, physiodir_path, f), os.path.join(self.nims_path, 'physio'))
-                        log.info('Unpacked    %s' % os.path.basename(stage_item))
+                        log.info('Done        %s' % os.path.basename(stage_item))
                         os.remove(stage_item)
                     elif os.path.isfile(stage_item):
                         self.sort(stage_item)
@@ -61,41 +86,95 @@ class Sorter(object):
                 log.debug('Waiting for data...')
                 time.sleep(self.sleep_time)
 
+    def preserve(self, filepath):
+        if self.preserve_path:
+            preserve_path = os.path.join(self.preserve_path, os.path.relpath(filepath, self.stage_path).replace('/', '_'))
+            log.debug('Preserving  %s' % os.path.basename(filepath))
+            shutil.move(filepath, preserve_path)
+
+
     def sort(self, filepath):
+        """
+        Revised sorter to handle multiple pfile acquisitions from a single series.
+        Expects tgz file to contain METADATA.json and DIGEST.txt as the first files
+        in the archive.
+        """
         filename = os.path.basename(filepath)
-        try:
+        if 'pfile' in filename:
             log.info('Parsing     %s' % filename)
-            if 'pfile' in filename:
-                with tempfile.TemporaryDirectory(dir=None) as tempdir_path:
-                    with tarfile.open(filepath) as archive:
-                        archive.extractall(path=tempdir_path)
-                    subdir = os.listdir(tempdir_path)[0]
-                    f = glob.glob(os.path.join(tempdir_path, subdir, 'P?????.7'))[0]
-                    try:
-                        mrfile = nimsdata.parse(f, filetype='pfile', full_parse=True)
-                    except Exception:
-                        pass
-            else:
+            with tempfile.TemporaryDirectory(dir=None) as tempdir_path:
+                with tarfile.open(filepath) as archive:
+                    archive.extractall(path=tempdir_path)
+                newdata_dir = os.path.join(tempdir_path, os.listdir(tempdir_path)[0])
+                try:
+                    new_digest = open(os.path.join(newdata_dir, 'DIGEST.txt')).read()
+                except IOError:
+                    log.debug('%s has no digest' % filepath)
+                    new_digest = None
+                pfile = glob.glob(os.path.join(newdata_dir, 'P?????.7'))[0]
+                try:
+                    mrfile = nimsdata.parse(pfile, filetype='pfile', full_parse=True)
+                except nimsdata.NIMSDataError:
+                    self.preserve(filepath)
+                else:
+                    log.info('Sorting     %s' % filename)
+                    filename = '_'.join(filename.rsplit('_')[-4:])
+                    dataset = nimsgears.model.Dataset.from_mrfile(mrfile, self.nims_path)
+                    existing_pf = glob.glob(os.path.join(self.nims_path, dataset.relpath, '*pfile.tgz'))
+                    if not existing_pf:
+                        shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
+                    else:
+                        orig_pf = existing_pf[0]
+                        with tarfile.open(orig_pf) as orig_archive:
+                            for ti in orig_archive:
+                                if 'DIGEST.txt' in ti.name:
+                                    orig_digest = orig_archive.extractfile(ti).read()
+                                    break
+                            else:
+                                log.debug('no digest')
+                                orig_digest = None
+                        if (new_digest is None or orig_digest is None) or (new_digest != orig_digest):
+                            log.debug('repacking')
+                            with tempfile.TemporaryDirectory(dir=tempdir_path) as combined_dir:
+                                with tarfile.open(orig_pf) as orig_archive:
+                                    orig_archive.extractall(path=combined_dir)
+                                combineddata_dir = os.path.join(combined_dir, os.listdir(combined_dir)[0])
+                                for f in glob.glob(os.path.join(newdata_dir, '*')):
+                                    fn = os.path.basename(f)
+                                    log.debug('MOVING %s into %s' % (f, os.path.join(combineddata_dir, fn)))
+                                    shutil.move(f, os.path.join(combineddata_dir, fn))
+                                log.debug(os.listdir(combineddata_dir))
+                                outpath = os.path.join(tempdir_path, filename)
+                                create_archive(outpath, combineddata_dir, os.path.basename(combineddata_dir), compresslevel=6)
+                                shutil.move(outpath, os.path.join(self.nims_path, dataset.relpath, filename))
+                            os.remove(filepath)
+                        else:
+                            shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
+
+                    log.debug('file sorted into to %s' % os.path.join(self.nims_path, dataset.relpath, filename))
+                    dataset.filenames = [filename]
+                    dataset.updatetime = datetime.datetime.now()
+                    dataset.untrash()
+                    transaction.commit()
+        else:
+            try:
                 mrfile = nimsdata.parse(filepath)
+            except nimsdata.NIMSDataError:
+                self.preserve(filepath)
+            else:
                 mrfile.num_mux_cal_cycle = None  # dcms will never have num_mux_cal_cycles
                 if mrfile.is_screenshot:
                     mrfile.acq_no = 0
                     mrfile.timestamp = datetime.datetime.strptime(datetime.datetime.strftime(mrfile.timestamp, '%Y%m%d') + '235959', '%Y%m%d%H%M%S')
-        except nimsdata.NIMSDataError:
-            log.warning('Cannot sort %s' % filename)
-            if self.preserve_path:
-                preserve_path = os.path.join(self.preserve_path, os.path.relpath(filepath, self.stage_path).replace('/', '_'))
-                log.debug('Preserving  %s' % filename)
-                shutil.move(filepath, preserve_path)
-        else:
-            log.info('Sorting     %s' % filename)
-            filename = '_'.join(filename.rsplit('_')[-4:])
-            dataset = nimsgears.model.Dataset.from_mrfile(mrfile, self.nims_path)
-            shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
-            dataset.filenames = [filename]
-            dataset.updatetime = datetime.datetime.now()
-            dataset.untrash()
-            transaction.commit()
+                log.info('Sorting     %s' % filename)
+                filename = '_'.join(filename.rsplit('_')[-4:])
+                dataset = nimsgears.model.Dataset.from_mrfile(mrfile, self.nims_path)
+                shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
+                dataset.filenames = [filename]
+                dataset.updatetime = datetime.datetime.now()
+                dataset.untrash()
+                transaction.commit()
+        log.info('Done        %s' % filename)
 
 
 if __name__ == '__main__':
