@@ -381,6 +381,9 @@ class PFilePipeline(Pipeline):
             elif pfile_7gz:
                 log.debug('input format: directory')
                 input_pfile = pfile_7gz[0]
+            else:
+                log.warning('no pfile input found in %s' % os.path.join(self.nims_path, ds.relpath))
+                raise Exception('no pfile input found in %s' % os.path.join(self.nims_path, ds.relpath))
 
             # perform full parse, which doesn't attempt to load the data
             pf = nimsdata.parse(input_pfile, filetype='pfile', ignore_json=True, load_data=False, full_parse=True, tempdir=outputdir, num_jobs=self.max_recon_jobs)
