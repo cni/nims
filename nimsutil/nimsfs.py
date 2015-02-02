@@ -100,7 +100,7 @@ def get_user(username):
     return user
 
 @memoize()
-def get_groups(username):
+def get_groups(username, rawdir=False):
     if username==None:
         experiments = (Experiment.query.all())
     else:
@@ -109,7 +109,10 @@ def get_groups(username):
                        .filter(Access.user==user)
                        .filter(Access.privilege>=AccessPrivilege.value(u'Anon-Read'))
                        .all())
-    return sorted(set([e.owner.gid.encode() for e in experiments])) + ['README.txt']
+    extra = ['README.txt']
+    if rawdir:
+        extra = extra + ['raw']
+    return sorted(set([e.owner.gid.encode() for e in experiments])) + extra
 
 @memoize()
 def get_experiments(username, group_name, trash=False):
@@ -263,6 +266,15 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
 
         init_model(sqlalchemy.create_engine(self.db_uri))
 
+    def get_path(self, path):
+        cur_path = path.split('/')
+        if self.hide_raw and len(cur_path)>1 and cur_path[1]=='raw':
+            cur_path.pop(1)
+            hide_raw = False
+        else:
+            hide_raw = True
+        return(cur_path,hide_raw)
+
     def get_username(self, uid):
         if self.god_mode:
             username = None
@@ -295,10 +307,10 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
                 mode = stat.S_IFREG | 0444
                 nlink = 1
                 username = self.get_username(uid)
-                cur_path = path.split('/')
+                cur_path,hide_raw = self.get_path(path)
                 sz = 1
                 if len(cur_path) == 6:
-                    files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath, self.hide_raw)
+                    files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath, hide_raw)
                     fname = next((f[1] for f in files if f[0]==cur_path[5]), None)
                     if fname:
                         sz = os.path.getsize(fname)
@@ -323,9 +335,9 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
     def readdir(self, path, fh):
         uid, gid, pid = fuse.fuse_get_context()
         username = self.get_username(uid)
-        cur_path = path.split('/')
+        cur_path,hide_raw = self.get_path(path)
         if len(cur_path) < 2 or not cur_path[1]:
-            dirs = get_groups(username)
+            dirs = get_groups(username, hide_raw)
         elif len(cur_path) < 3:
             dirs = get_experiments(username, cur_path[1])
         elif len(cur_path) < 4:
@@ -334,9 +346,9 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
             dirs = get_epochs(username, cur_path[1], cur_path[2], cur_path[3])
         elif len(cur_path) == 5:
             if cur_path[4][-1]=='?':
-                dirs = [d[1] for d in get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4][:-1], self.datapath, self.hide_raw)]
+                dirs = [d[1] for d in get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4][:-1], self.datapath, hide_raw)]
             else:
-                dirs = [d[0] for d in get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath, self.hide_raw)]
+                dirs = [d[0] for d in get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath, hide_raw)]
         else:
             dirs = []
         return ['.','..'] + dirs
@@ -348,11 +360,11 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         if flags & access_flags != os.O_RDONLY:
             raise fuse.FuseOSError(errno.EACCES)
         else:
-            cur_path = path.split('/')
+            cur_path,hide_raw = self.get_path(path)
             if len(cur_path) == 6:
                 uid, gid, pid = fuse.fuse_get_context()
                 username = self.get_username(uid)
-                files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath, self.hide_raw)
+                files = get_datasets(username, cur_path[1], cur_path[2], cur_path[3], cur_path[4], self.datapath, hide_raw)
                 fname = next((f[1] for f in files if f[0]==cur_path[5]), None)
                 if fname:
                     self.gzfile = None
