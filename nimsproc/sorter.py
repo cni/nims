@@ -152,6 +152,7 @@ class Sorter(object):
                             shutil.move(filepath, os.path.join(self.nims_path, dataset.relpath, filename))
 
                     log.debug('file sorted into to %s' % os.path.join(self.nims_path, dataset.relpath, filename))
+                    dataset.container.num_mux_cal_cycle = mrfile.num_mux_cal_cycle
                     dataset.filenames = [filename]
                     dataset.updatetime = datetime.datetime.now()
                     dataset.untrash()
