@@ -257,7 +257,7 @@ class RootController(BaseController):
                         f.write(str(s) + '\n')
                 raise
         tar_proc = subprocess.Popen('tar -chf - -C %s nims; rm -r %s' % (temp_dir, temp_dir), shell=True, stdout=subprocess.PIPE)
-        response.content_disposition = 'attachment; filename=%s_%s' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+        response.content_disposition = 'attachment; filename=%s_%s.tar' % ('nims', datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
         return tar_proc.stdout
 
     @expose()
