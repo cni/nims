@@ -235,7 +235,7 @@ def get_datasets(username, group_name, exp_name, session_name, epoch_name, datap
 
 class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
 
-    def __init__(self, datapath, db_uri, god_mode=False, hide_raw=False, local_names=False):
+    def __init__(self, datapath, db_uri, god_mode=False, raw_dir=False, local_names=False):
         ''' datapath: the path to the nims data. All data must be readable by
                       the user running nimsfs.
             db_uri: the database URI for quering the nims db. The machine where
@@ -243,9 +243,10 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
             god_mode: a flag used mostly for debugging. All access control is disabled.
                       Obvioulsy, only superusers should have access to nimsfs running
                       in this mode.
-            hide_raw: flag determining whether raw data files are shown. If true, the data
-                      shown are comparable to what a user would get from a nims download
-                      when "include raw" is unchecked.
+            raw_dir : flag determining whether raw data files are exposed. Raw data are
+                      filtered from the normal directory tree. However, if this flag is
+                      true, a 'raw' directory is added at the group level and the full
+                      tree is exposed there, including raw data files.
             local_names: a flag indicating that we should use the local password file
                          to map uid's to usernames. If false, then the uid will be passed
                          straight to nims for the user look-up. This is useful when the
@@ -258,7 +259,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         self.datapath = datapath
         self.db_uri = db_uri
         self.god_mode = god_mode
-        self.hide_raw = hide_raw
+        self.raw_dir = raw_dir
         self.local_names = local_names
         #self.rwlock = threading.Lock()
         self.gzfile = None
@@ -268,7 +269,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
 
     def get_path(self, path):
         cur_path = path.split('/')
-        if self.hide_raw and len(cur_path)>1 and cur_path[1]=='raw':
+        if self.raw_dir and len(cur_path)>1 and cur_path[1]=='raw':
             cur_path.pop(1)
             hide_raw = False
         else:
@@ -337,7 +338,7 @@ class Nimsfs(fuse.LoggingMixIn, fuse.Operations):
         username = self.get_username(uid)
         cur_path,hide_raw = self.get_path(path)
         if len(cur_path) < 2 or not cur_path[1]:
-            dirs = get_groups(username, hide_raw)
+            dirs = get_groups(username, self.raw_dir)
         elif len(cur_path) < 3:
             dirs = get_experiments(username, cur_path[1])
         elif len(cur_path) < 4:
@@ -425,8 +426,8 @@ class ArgumentParser(argparse.ArgumentParser):
         self.description = """Mount a NIMS filesystem. This exposes the NIMS file structure as a reqular filesystem using fuse."""
         self.add_argument('-n', '--no_allow_other', action='store_true', help='Use this flag to disable the "allow_other" option. (For normal use, be sure to enable allow_other in /etc/fuse.conf)')
         self.add_argument('-d', '--debug', action='store_true', help='start the filesystem in debug mode')
-        self.add_argument('-g', '--god', action='store_true', help='God mode-- NO ACCESS CONTROL! (implies hide_raw=False)')
-        self.add_argument('-r', '--hide_raw', action='store_true', help='Don''t show or allow access to raw data (no effect for god mode)')
+        self.add_argument('-g', '--god', action='store_true', help='God mode-- NO ACCESS CONTROL!')
+        self.add_argument('-r', '--raw_dir', action='store_true', help='Expose raw data files in a top-level "raw" directory')
         self.add_argument('-l', '--localname', action='store_true', help='Use the local password file to map uid to NIMS username. (Otherwise, uids are sent straight to NIMS.)')
         uri = 'postgresql://nims:nims@cnifs.stanford.edu:5432/nims'
         self.add_argument('-u', '--uri', metavar='URI', default=uri, help='URI pointing to the NIMS database. (Default=%s)' % uri)
@@ -438,8 +439,7 @@ if __name__ == '__main__':
     args = ArgumentParser().parse_args()
     if args.god:
         print "WARNING: Starting god-mode. All access control disabled!"
-        args.hide_raw = False
-    fuse = fuse.FUSE(Nimsfs(datapath=args.datapath, db_uri=args.uri, god_mode=args.god, hide_raw=args.hide_raw, local_names=args.localname),
+    fuse = fuse.FUSE(Nimsfs(datapath=args.datapath, db_uri=args.uri, god_mode=args.god, raw_dir=args.raw_dir, local_names=args.localname),
                      args.mountpoint,
                      debug=args.debug,
                      nothreads=True,

@@ -1,0 +1,13 @@
+NIMSfs User Guide
+=================
+
+Basic usage
+
+
+Magics
+* leagacy filenames: is the epoch is %, then legacy filenames are used and all datasets are shown in a flat file structure.
+
+* filetype magic: if the epoch name is %t, then filenames will be based on the NIMS filetype. E.g.:
+  $ ls /nimsfs/cni/muxt1/20140116_1218_6120/%t
+  0002_01_calibration.nii.gz  0005_01_anatomy.nii.gz  0011_01_anatomy.nii.gz  0015_01_anatomy_t1w.nii.gz
+
