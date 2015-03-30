@@ -435,7 +435,11 @@ class PFilePipeline(Pipeline):
                 log.debug('no special criteria')
                 aux_file = None
 
-            pf.load_data(aux_file=aux_file)  # don't monopolize system resources
+            # provide aux_files and db_description to pfile.load_data.  aux_file will be used for calibration scan,
+            # db_desc passes the database description to the pfile.load_data fxn, allowing pfile.load_data() to
+            # make additional decisions based on the description stored in the database.
+            # This allows user-edits to the description to affect jobs.
+            pf.load_data(aux_file=aux_file, db_desc=self.job.data_container.description)
             if pf.failure_reason:   # implies pf.data = None
                 self.job.activity = (u'error loading pfile: %s' % str(pf.failure_reason))
                 transaction.commit()
