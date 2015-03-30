@@ -3,6 +3,9 @@
 # @author:  Bob Dougherty
 #
 
+import matplotlib
+matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
+import matplotlib.pyplot as plt
 import transaction
 import sqlalchemy
 from nimsgears.model import *
@@ -18,9 +21,6 @@ import argparse
 import time
 import shutil
 import multiprocessing
-import matplotlib
-matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
-import matplotlib.pyplot as plt
 
 qa_version = 1.0
 
@@ -126,7 +126,7 @@ def estimate_motion(nifti_image):
     # We want to use the middle time point as the reference. But the algorithm does't allow that, so fake it.
     ref_vol = nifti_image.shape[3]/2 + 1
     ims = nb.four_to_three(nifti_image)
-    reg = Realign4d(nb.concat_images([ims[ref_vol]] + ims)) # in the next release, we'll need to add tr=1.
+    reg = Realign4d(nb.concat_images([ims[ref_vol]] + ims), tr=1.) # in the next release, we'll need to add tr=1.
 
     reg.estimate(loops=3) # default: loops=5
     aligned = reg.resample(0)[:,:,:,1:]
