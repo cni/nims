@@ -3,7 +3,6 @@
 from nipype.interfaces import fsl
 import nibabel as nb
 import numpy as np
-import nimsdata
 import shutil
 
 # d = Dataset.get()
