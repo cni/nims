@@ -168,11 +168,16 @@ class Pipeline(threading.Thread):
 
         dc = self.job.data_container
         if dc.physio_recorded:
-            physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.prescribed_duration, dc.psd.encode('utf-8'))
+            # 2015.02.03 RFD: apparently the old rule was incorrect. The physio files are not timestamped
+            # sometime after the Rxed duration, but rather sometime after the actual duration! We don't yet
+            # know the actual duration, so we'll just make shit up and hope for the best.
+            physio_lag = datetime.timedelta(seconds=30)
+            physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+physio_lag, dc.psd.encode('utf-8'))
+            #physio_files = nimsutil.find_ge_physio(self.physio_path, dc.timestamp+dc.prescribed_duration, dc.psd.encode('utf-8'))
             if physio_files:
                 physio = nimsphysio.NIMSPhysio(physio_files, dc.tr, dc.num_timepoints, nimsdata.medimg.medimg.get_slice_order(slice_order, num_slices))
                 if physio.is_valid():
-                    self.job.activity = u'valid physio found'
+                    self.job.activity = u'valid physio found (%s...)' % os.path.basename(physio_files[0])
                     log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
                     dataset = Dataset.at_path(self.nims_path, u'physio')
                     DBSession.add(self.job)
