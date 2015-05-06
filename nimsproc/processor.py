@@ -417,6 +417,15 @@ class PFilePipeline(Pipeline):
                     epochs = [e for e in q.all() if (e != self.job.data_container and e.num_mux_cal_cycle >= 2)]
                 log.debug('candidates: %s' % str([e.primary_dataset.filenames for e in epochs]))
 
+                # REALLY BAD MUX HACK!
+                # prefer pe0 scans. Ideally, we'd check the pfile headers and find matching pepolar scans.
+                # But that would take forever, so we'll assume target scans are always pe0 and further assume that
+                # the pepolar is correctly indicated in the description.
+                epochs_pe0 = [e for e in epochs if 'pe0' in e.description]
+                if len(epochs_pe0)>0:
+                    epochs = epochs_pe0
+                log.debug('Selecting only epochs with "pe0" in the description')
+
                 # which epoch has the closest series number
                 series_num_diff = np.array([e.series for e in epochs]) - pf.series_no
                 closest = np.min(np.abs(series_num_diff))==np.abs(series_num_diff)
