@@ -424,7 +424,13 @@ class PFilePipeline(Pipeline):
                 epochs_pe0 = [e for e in epochs if 'pe0' in e.description]
                 if len(epochs_pe0)>0:
                     epochs = epochs_pe0
-                log.debug('Selecting only epochs with "pe0" in the description')
+                    log.debug('Selecting only epochs with "pe0" in the description')
+                else:
+                    epochs_pe0 = [e for e in epochs if not 'pe1' in e.description]
+                    if len(epochs_pe0)>0:
+                        epochs = epochs_pe0
+                        log.debug('Selecting only epochs without "pe1" in the description')
+                    # At this point, just give up, use them all, and hope for the best.
 
                 # which epoch has the closest series number
                 series_num_diff = np.array([e.series for e in epochs]) - pf.series_no
