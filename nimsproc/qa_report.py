@@ -5,10 +5,6 @@
 
 import matplotlib
 matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
-import matplotlib.pyplot as plt
-import transaction
-import sqlalchemy
-from nimsgears.model import *
 import nibabel as nb
 import os
 import numpy as np
@@ -20,7 +16,6 @@ import json
 import argparse
 import time
 import shutil
-import multiprocessing
 
 qa_version = 1.0
 
@@ -36,8 +31,6 @@ def add_subplot_axes(fig, ax, rect, axisbg='w'):
     width *= rect[2]
     height *= rect[3]  # <= Typo was here
     subax = fig.add_axes([x,y,width,height],axisbg=axisbg)
-
-
     x_labelsize = subax.get_xticklabels()[0].get_size()
     y_labelsize = subax.get_yticklabels()[0].get_size()
     x_labelsize *= rect[2]**0.5
@@ -47,6 +40,7 @@ def add_subplot_axes(fig, ax, rect, axisbg='w'):
     return subax
 
 def plot_data(ts_z, abs_md, rel_md, tsnr, num_spikes, spike_thresh, outfile):
+    import matplotlib.pyplot as plt
     '''Plot the per-slice z-score timeseries represented by t_z.'''
     c = np.vstack((np.linspace(0,1.,ts_z.shape[0]), np.linspace(1,0,ts_z.shape[0]), np.ones((2,ts_z.shape[0])))).T
     sl_num = np.tile(range(ts_z.shape[0]), (ts_z.shape[1], 1)).T
@@ -81,23 +75,26 @@ def plot_data(ts_z, abs_md, rel_md, tsnr, num_spikes, spike_thresh, outfile):
     plt.tight_layout()
     plt.savefig(outfile, bbox_inches='tight')
 
-def mask(d, raw_d=None, nskip=3):
+def mask(d, raw_d=None, nskip=3, mask_bad_end_vols=False):
     mn = d[:,:,:,nskip:].mean(3)
     masked_data, mask = median_otsu(mn, 3, 2)
     mask = np.concatenate((np.tile(True, (d.shape[0], d.shape[1], d.shape[2], nskip)),
                            np.tile(np.expand_dims(mask==False, 3), (1,1,1,d.shape[3]-nskip))),
                            axis=3)
-    # Some runs have corrupt volumes at the end (e.g., mux scans that are stopped prematurely). Mask those too.
-    # But... motion correction might have interpolated the empty slices such that they aren't exactly zero.
-    # So use the raw data to find these bad volumes.
-    if raw_d!=None:
-        slice_max = raw_d.max(0).max(0)
-    else:
-        slice_max = d.max(0).max(0)
-    bad = np.any(slice_max==0, axis=0)
-    # We don't want to miss a bad volume somewhere in the middle, as that could be a valid artifact.
-    # So, only mask bad vols that are contiguous to the end.
-    mask_vols = np.array([np.all(bad[i:]) for i in range(bad.shape[0])])
+    if mask_bad_end_vols:
+        # Some runs have corrupt volumes at the end (e.g., mux scans that are stopped prematurely). Mask those too.
+        # But... motion correction might have interpolated the empty slices such that they aren't exactly zero.
+        # So use the raw data to find these bad volumes.
+        # 2015.10.29 RFD: this caused problems with some non-mux EPI scans that (inexplicably)
+        # have empty slices at the top of the brain. So we'll disable it for now.
+        if raw_d!=None:
+            slice_max = raw_d.max(0).max(0)
+        else:
+            slice_max = d.max(0).max(0)
+        bad = np.any(slice_max==0, axis=0)
+        # We don't want to miss a bad volume somewhere in the middle, as that could be a valid artifact.
+        # So, only mask bad vols that are contiguous to the end.
+        mask_vols = np.array([np.all(bad[i:]) for i in range(bad.shape[0])])
     # Mask out the skip volumes at the beginning
     mask_vols[0:nskip] = True
     mask[:,:,:,mask_vols] = True
@@ -126,7 +123,7 @@ def estimate_motion(nifti_image):
     # We want to use the middle time point as the reference. But the algorithm does't allow that, so fake it.
     ref_vol = nifti_image.shape[3]/2 + 1
     ims = nb.four_to_three(nifti_image)
-    reg = Realign4d(nb.concat_images([ims[ref_vol]] + ims), tr=1.) # in the next release, we'll need to add tr=1.
+    reg = Realign4d(nb.concat_images([ims[ref_vol]] + ims)) # in the next release, we'll need to add tr=1.
 
     reg.estimate(loops=3) # default: loops=5
     aligned = reg.resample(0)[:,:,:,1:]
@@ -162,7 +159,28 @@ def estimate_motion(nifti_image):
         prev_T = T
     return aligned,np.array(abs_disp),np.array(rel_disp),np.array(transrot)
 
+def compute_qa(ni, tr, spike_thresh=6., nskip=4):
+    brain,good_vols = mask(ni.get_data(), nskip=nskip)
+    t = np.arange(0.,brain.shape[3]) * tr
+    # Get the global mean signal and subtract it out for spike detection
+    global_ts = brain.mean(0).mean(0).mean(0)
+    # Simple z-score-based spike detection
+    spike_inds,t_z = find_spikes(brain - global_ts, spike_thresh)
+    # Compute temporal snr on motion-corrected data,
+    aligned,abs_disp,rel_disp,transrot = estimate_motion(ni)
+    brain_aligned = np.ma.masked_array(aligned.get_data(), brain.mask)
+    # Remove slow-drift (3rd-order polynomial) from the variance
+    global_ts_aligned = brain_aligned.mean(0).mean(0).mean(0)
+    global_trend = np.poly1d(np.polyfit(t[good_vols], global_ts_aligned[good_vols], 3))(t)
+    tsnr = brain_aligned.mean(axis=3) / (brain_aligned - global_trend).std(axis=3)
+    # convert rotations to degrees
+    transrot[:,3:] *= 180./np.pi
+    return transrot,abs_disp,rel_disp,tsnr,global_ts,t_z,spike_inds
+
 def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=4):
+    import transaction
+    import sqlalchemy
+    from nimsgears.model import *
     # Note: the caller may have locked the db, so we should be sure to commit the transaction asap.
     start_secs = time.time()
     epoch = Epoch.get(epoch_id)
@@ -204,25 +222,9 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=4
             epoch.qa_status = u'abandoned'
         else:
             qa_file_name = epoch.name + u'_qa'
-            print("%s epoch id %d (%s) QA: finding spikes..." % (time.asctime(), epoch_id, str(epoch)))
-            brain,good_vols = mask(ni.get_data(), nskip=nskip)
-            t = np.arange(0.,brain.shape[3]) * tr
-            # Get the global mean signal and subtract it out for spike detection
-            global_ts = brain.mean(0).mean(0).mean(0)
-            # Simple z-score-based spike detection
-            spike_inds,t_z = find_spikes(brain - global_ts, spike_thresh)
-
-            # Compute temporal snr on motion-corrected data,
-            print("%s epoch id %d (%s) QA: estimating motion..." % (time.asctime(), epoch_id, str(epoch)))
-            aligned,abs_disp,rel_disp,transrot = estimate_motion(ni)
-            brain_aligned = np.ma.masked_array(aligned.get_data(), brain.mask)
-            # Remove slow-drift (3rd-order polynomial) from the variance
-            global_ts_aligned = brain_aligned.mean(0).mean(0).mean(0)
-            global_trend = np.poly1d(np.polyfit(t[good_vols], global_ts_aligned[good_vols], 3))(t)
-            tsnr = brain_aligned.mean(axis=3) / (brain_aligned - global_trend).std(axis=3)
+            print("%s epoch id %d (%s) QA: computing report..." % (time.asctime(), epoch_id, str(epoch)))
+            transrot,abs_disp,rel_disp,tsnr,global_ts,t_z,spike_inds = compute_qa(ni, tr, spike_thresh, nskip)
             median_tsnr = np.ma.median(tsnr)[0]
-            # convert rotations to degrees
-            transrot[:,3:] *= 180./np.pi
             qa_ds = Dataset.at_path(nimspath, u'json')
             qa_ds.filenames = [qa_file_name + u'.json', qa_file_name + u'.png']
             qa_ds.kind = u'qa'
@@ -255,6 +257,9 @@ def generate_qa_report(epoch_id, nimspath, force=False, spike_thresh=6., nskip=4
     return
 
 def clean_up(nims_path):
+    import transaction
+    import sqlalchemy
+    from nimsgears.model import *
     ep = Epoch.query.filter((Epoch.qa_status==u'done')).filter(Epoch.scan_type==scan_type).order_by(Epoch.timestamp.desc()).all()
     eids = [e.id for e in ep]
     for eid in eids:
@@ -275,7 +280,10 @@ def clean_up(nims_path):
         transaction.commit()
     return
 
-def run_a_job(nims_path, scan_type, spike_thresh, nskip):
+def run_a_job(nims_path, scan_type, spike_thresh, nskip, lock=True):
+    import transaction
+    import sqlalchemy
+    from nimsgears.model import *
     # Get the latest functional epoch without qa and try it. (.desc() means descending order)
     # We need to lock the column so that another process doesn't pick this one up before we have a chance to
     # commit the transaction that marks it as 'running'.
@@ -284,9 +292,11 @@ def run_a_job(nims_path, scan_type, spike_thresh, nskip):
                         .filter(Epoch.scan_type==scan_type)
                         .filter(Epoch.trashtime==None)
                         .filter(Dataset.filetype==u'nifti')
-                        .order_by(Epoch.timestamp.desc())
-                        .with_lockmode('update')
-                        .first())
+                        .order_by(Epoch.timestamp.desc()))
+    if lock:
+        epoch = epoch.with_lockmode('update').first()
+    else:
+        epoch = epoch.first()
     if epoch:
         epoch_id = epoch.id
         # Set force=True here so that any old QA files will be cleaned up. We've already filtered by
@@ -315,6 +325,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-j', '--jobs', type=int, default=4, metavar='[4]', help='Number of jobs to run in parallel.')
 
 if __name__ == '__main__':
+    import multiprocessing
     args = ArgumentParser().parse_args()
     init_model(sqlalchemy.create_engine(args.db_uri))
     scan_type = u'functional'
@@ -333,7 +344,7 @@ if __name__ == '__main__':
         # Run continuously, doing QA on the latest epoch without QA.
         while True:
             if args.jobs==1:
-                run_a_job(args.nims_path, scan_type=scan_type, spike_thresh=args.spike_thresh, nskip=args.nskip)
+                run_a_job(args.nims_path, scan_type=scan_type, spike_thresh=args.spike_thresh, nskip=args.nskip, lock=False)
             else:
                 if len(multiprocessing.active_children())<args.jobs:
                     t = multiprocessing.Process(target=run_a_job, args=(args.nims_path, scan_type, args.spike_thresh, args.nskip))
