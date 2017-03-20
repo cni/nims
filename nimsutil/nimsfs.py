@@ -429,7 +429,7 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('-g', '--god', action='store_true', help='God mode-- NO ACCESS CONTROL!')
         self.add_argument('-r', '--raw_dir', action='store_true', help='Expose raw data files in a top-level "raw" directory')
         self.add_argument('-l', '--localname', action='store_true', help='Use the local password file to map uid to NIMS username. (Otherwise, uids are sent straight to NIMS.)')
-        uri = 'postgresql://nims:nims@cnifs.stanford.edu:5432/nims'
+        uri = 'postgresql://nims:nims@cni.stanford.edu:5432/nims'
         self.add_argument('-u', '--uri', metavar='URI', default=uri, help='URI pointing to the NIMS database. (Default=%s)' % uri)
         self.add_argument('datapath', help='path to NIMS data')
         self.add_argument('mountpoint', help='mountpoint for NIMSfs')

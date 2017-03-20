@@ -371,6 +371,7 @@ class PFilePipeline(Pipeline):
         super(PFilePipeline, self).process()
 
         ds = self.job.data_container.primary_dataset
+        log.info('Processing ' + ds.container.description)
 
         with nimsutil.TempDir(dir=self.tempdir) as outputdir:
             log.debug('parsing')
@@ -379,8 +380,10 @@ class PFilePipeline(Pipeline):
             pfile_7gz = glob.glob(os.path.join(self.nims_path, ds.relpath, 'P?????.7*'))
             if pfile_tgz:
                 log.debug('input format: tgz')
-                with tarfile.open(pfile_tgz[0]) as archive:
-                    archive.extractall(path=outputdir)
+                from subprocess import call
+                call(['tar', '--use-compress-program=pigz', '-xf', pfile_tgz[0], '-C', outputdir])
+                #with tarfile.open(pfile_tgz[0]) as archive:
+                #    archive.extractall(path=outputdir)
                 temp_datadir = os.path.join(outputdir, os.listdir(outputdir)[0])
                 input_pfile = os.path.join(temp_datadir, glob.glob(os.path.join(temp_datadir, 'P?????.7'))[0])
             elif pfile_7gz:
@@ -391,7 +394,14 @@ class PFilePipeline(Pipeline):
                 raise Exception('no pfile input found in %s' % os.path.join(self.nims_path, ds.relpath))
 
             # perform full parse, which doesn't attempt to load the data
-            pf = nimsdata.parse(input_pfile, filetype='pfile', ignore_json=True, load_data=False, full_parse=True, tempdir=outputdir, num_jobs=self.max_recon_jobs)
+            if ds.container.description.lower().endswith('_ssg') or ds.container.description.lower().endswith('_sbref'):
+                recon_type = 'split-slice-grappa_sense1'
+            elif 'sense1' in ds.container.description.lower():
+                recon_type = '1Dgrappa_sense1'
+            else:
+                recon_type = None
+            log.info('Selecting recon_type %s...' % recon_type)
+            pf = nimsdata.parse(input_pfile, filetype='pfile', ignore_json=True, load_data=False, full_parse=True, tempdir=outputdir, num_jobs=self.max_recon_jobs, recon_type=recon_type)
 
             try:
                 self.find(pf.slice_order, pf.num_slices)
@@ -401,58 +411,60 @@ class PFilePipeline(Pipeline):
             # MUX HACK, identify a group of aux candidates and determine the single best aux_file.
             # Certain mux_epi scans will return a dictionary of parameters to use as query filters to
             # help locate an aux_file that contains necessary calibration scans.
-            criteria = pf.prep_convert()
             aux_file = None
-            if criteria is not None:  # if criteria: this is definitely mux of some sort
-                log.debug('pfile aux criteria %s' % str(criteria.keys()))
-                q = Epoch.query.filter(Epoch.session==self.job.data_container.session).filter(Epoch.trashtime==None)
-                for fieldname, value in criteria.iteritems():
-                    q = q.filter(getattr(Epoch, fieldname)==unicode(value))  # filter by psd_name
+            if pf.psd_type=='muxepi' and pf.num_bands>1:
+                q = Epoch.query.filter(Epoch.session==self.job.data_container.session).filter(Epoch.trashtime==None).filter(Epoch.psd.startswith(u'mux')).filter(Epoch.size_x==pf.size[0]).filter(Epoch.size_y==pf.size[1])
 
-                if pf.num_mux_cal_cycle >= 2:
-                    log.debug('looking for num_bands = 1')
-                    epochs = [e for e in q.all() if (e != self.job.data_container and e.num_bands == 1)]
+                log.info('looking for single-band mux calibration scans...')
+                epochs = [e for e in q.all() if e!=self.job.data_container and e.num_bands==1 ]
+                if len(epochs)==0:
+                    if pf.num_mux_cal_cycle<2:
+                        epochs = [e for e in q.all() if e!=self.job.data_container and e.num_mux_cal_cycle>=2]
+                        log.info('No single-band scan found; %d mux candidates found...' % len(epochs))
+                    else:
+                        log.info('No single-band cal scan found-- using internal calibration.')
                 else:
-                    log.debug('looking for num_mux_cal_cycle >= 2')
-                    epochs = [e for e in q.all() if (e != self.job.data_container and e.num_mux_cal_cycle >= 2)]
-                log.debug('candidates: %s' % str([e.primary_dataset.filenames for e in epochs]))
+                    log.info('Single-band calibration candidates: %s' % str([e.primary_dataset.filenames for e in epochs]))
 
                 # REALLY BAD MUX HACK!
                 # prefer pe0 scans. Ideally, we'd check the pfile headers and find matching pepolar scans.
                 # But that would take forever, so we'll assume target scans are always pe0 and further assume that
                 # the pepolar is correctly indicated in the description.
-                epochs_pe0 = [e for e in epochs if 'pe0' in e.description]
-                if len(epochs_pe0)>0:
-                    epochs = epochs_pe0
+                epochs_pe_match = [e for e in epochs if (not 'pe1' in e.description and pf.phase_encode_direction==0) or ('pe1' in e.description and pf.phase_encode_direction==1)]
+                if len(epochs_pe_match)>0:
+                    epochs = epochs_pe_match
                     log.debug('Selecting only epochs with "pe0" in the description')
                 else:
-                    epochs_pe0 = [e for e in epochs if not 'pe1' in e.description]
-                    if len(epochs_pe0)>0:
-                        epochs = epochs_pe0
-                        log.debug('Selecting only epochs without "pe1" in the description')
-                    # At this point, just give up, use them all, and hope for the best.
+                    epochs = []
+                    #epochs_pe0 = [e for e in epochs if not 'pe1' in e.description]
+                    #if len(epochs_pe0)>0:
+                    #    epochs = epochs_pe0
+                    #    log.debug('Selecting only epochs without "pe1" in the description')
 
-                # which epoch has the closest series number
-                series_num_diff = np.array([e.series for e in epochs]) - pf.series_no
-                closest = np.min(np.abs(series_num_diff))==np.abs(series_num_diff)
-                # there may be more than one. We prefer the prior scan.
-                closest = np.where(np.min(series_num_diff[closest])==series_num_diff)[0][0]
-                candidate = epochs[closest]
-                # auxfile could be either P7.gz with adjacent files or a pfile tgz
-                aux_tgz = glob.glob(os.path.join(self.nims_path, candidate.primary_dataset.relpath, '*_pfile.tgz'))
-                aux_7gz = glob.glob(os.path.join(self.nims_path, candidate.primary_dataset.relpath, 'P?????.7*'))
-                if aux_tgz:
-                    aux_file = aux_tgz[0]
-                elif aux_7gz:
-                    aux_file = aux_7gz[0]
-                # aux_file = os.path.join(self.nims_path, candidate.primary_dataset.relpath, candidate.primary_dataset.filenames[0])
-                log.debug('identified aux_file: %s' % os.path.basename(aux_file))
+                if len(epochs)>0:
+                    # which epoch has the closest series number
+                    series_num_diff = np.array([e.series for e in epochs]) - pf.series_no
+                    closest = np.min(np.abs(series_num_diff))==np.abs(series_num_diff)
+                    # there may be more than one. We prefer the prior scan.
+                    closest = np.where(np.min(series_num_diff[closest])==series_num_diff)[0][0]
+                    candidate = epochs[closest]
+                    # auxfile could be either P7.gz with adjacent files or a pfile tgz
+                    aux_tgz = glob.glob(os.path.join(self.nims_path, candidate.primary_dataset.relpath, '*_pfile.tgz'))
+                    aux_7gz = glob.glob(os.path.join(self.nims_path, candidate.primary_dataset.relpath, 'P?????.7*'))
+                    if aux_tgz:
+                        aux_file = aux_tgz[0]
+                    elif aux_7gz:
+                        aux_file = aux_7gz[0]
+                    # aux_file = os.path.join(self.nims_path, candidate.primary_dataset.relpath, candidate.primary_dataset.filenames[0])
+                    log.info('identified aux_file: %s' % os.path.basename(aux_file))
 
-                self.job.activity = (u'Found aux file: %s' % os.path.basename(aux_file))[:255]
-                log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                    self.job.activity = (u'Found aux file: %s' % os.path.basename(aux_file))[:255]
+                    log.info(u'%d %s %s' % (self.job.id, self.job, self.job.activity))
+                else:
+                    log.info('no matching external cal scans found.')
+                    aux_file = None
 
             else:
-                log.debug('no special criteria')
                 aux_file = None
 
             # provide aux_files and db_description to pfile.load_data.  aux_file will be used for calibration scan,

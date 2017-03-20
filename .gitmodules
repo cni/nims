@@ -1,3 +1,4 @@
 [submodule "nimsdata"]
 	path = nimsdata
 	url = https://github.com/cni/nimsdata
+	branch = nims_integration
