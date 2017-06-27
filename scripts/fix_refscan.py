@@ -55,6 +55,8 @@ def fix_refscans(epochs):
             if os.path.exists(bad_refscan) or os.path.exists(os.path.join(bad_dir, pfile_name+'_ref.dat')):
                 print('refscan or ref.dat exists in %s! Refusing to overwrite.' % bad_dir)
             else:
+                if os.path.splitext(good_ref)[1] == '.dat':
+                    bad_refscan = os.path.join(bad_dir, pfile_name+'_ref.dat')
                 cmd = 'cp ' + good_ref + ' ' + bad_refscan
                 print(cmd)
                 check_call(shlex.split(cmd))
