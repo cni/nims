@@ -21,7 +21,8 @@ See:
 import gzip
 import json
 import logging
-import nibabel
+import nibabel as nib
+from nibabel.spatialimages import HeaderDataError
 import tarfile
 import zipfile
 import argparse
@@ -29,7 +30,11 @@ import datetime
 import warnings
 import itertools
 import numpy as np
-import bson.json_util
+from scipy.stats import zscore
+from bson import loads as bloads
+
+import os
+import sys
 
 from nimsdata import nimsdata
 
@@ -70,7 +75,7 @@ class NIMSPhysio(nimsdata.NIMSReader):
     state = ['orig']
 
     # TODO: simplify init to take no args. We need to add the relevant info to the json file.
-    def __init__(self, filenames, tr=2, nframes=100, slice_order=None, nslices=1, card_dt=0.01, resp_dt=0.04):
+    def __init__(self, filenames, tr=2, nframes=100, slice_onsets=None, slice_window=None, card_dt=0.01, resp_dt=0.04):
         # does not use super(NIMSPhysio, self).__init__(filename) because nimsphysio expects a LIST of inputs
         self._schema_init(self.project_properties)
         self._schema_init(self.session_properties)
@@ -88,12 +93,16 @@ class NIMSPhysio(nimsdata.NIMSReader):
         self.format_str = 'ge'
         self.tr = float(tr)
         self.nframes = nframes
-        if slice_order == None:
-            # Infer a standard GE interleave slice order
-            self.slice_order = np.array(range(0, nslices, 2) + range(1, nslices, 2))
-            log.warning('No explicit slice order set; inferring interleaved.')
-        else:
-            self.slice_order = np.array(slice_order)
+        self.slice_onsets = slice_onsets
+        self.slice_window = slice_window
+        if slice_window is None:
+            windows = np.diff(sorted(set(slice_onsets)))
+            if len(windows): # if slice timing corrected, only 1 unique slice time, no differences
+                assert all(np.allclose(x, windows[0]) for x in windows), \
+                    'appears that there is variability in the gap between slice onsets, please provide a window.'
+                self.slice_window = windows[0] 
+            else:
+                self.slice_window = 0
         self.card_wave = None
         self.card_trig = None
         self.card_dt = float(card_dt)
@@ -125,10 +134,10 @@ class NIMSPhysio(nimsdata.NIMSReader):
 
     def read_ge_data(self, filename):
         archive = None
-        if isinstance(filename, basestring):
+        if isinstance(filename, str):
             with open(filename, 'rb') as fp:
                 magic = fp.read(4)
-            if magic == '\x50\x4b\x03\x04':
+            if magic in ['\x50\x4b\x03\x04', b'PK\x03\x04']:
                 archive = zipfile.ZipFile(filename)
                 files = [(fn, archive.open(fn)) for fn in archive.namelist()]
             elif magic[:2] == '\x1f\x8b':
@@ -152,7 +161,7 @@ class NIMSPhysio(nimsdata.NIMSReader):
                     break
             else:
                 if fn.endswith('_physio.json'):
-                    metadata = json.load(fd, object_hook=bson.json_util.object_hook)
+                    metadata = bloads(fd)
                     for f in self.required_metadata_fields:
                         if f not in metadata:
                             raise NIMSPhysioError('incomplete json file')
@@ -163,7 +172,7 @@ class NIMSPhysio(nimsdata.NIMSReader):
         if archive:
             archive.close()
 
-        if self.resp_wave!=None and self.card_wave!=None:
+        if (self.resp_wave is not None) and (self.card_wave is not None):
             # move time zero to correspond to the start of the fMRI data
             offset = self.resp_dt * self.resp_wave.size - self.scan_duration
             self.resp_time = self.resp_dt * np.arange(self.resp_wave.size) - offset
@@ -327,7 +336,7 @@ class NIMSPhysio(nimsdata.NIMSReader):
         card_trig = self.card_trig_chopped
 
         t_win = 6 * 0.5 # 6-sec window for computing RV & HR, default
-        nslc = len(self.slice_order)
+        nslc = len(self.slice_onsets)
 
         # Find the derivative of the respiration waveform
         # shift to zero-min
@@ -337,7 +346,7 @@ class NIMSPhysio(nimsdata.NIMSReader):
         # calculate the derivative
         # first, filter respiratory signal - just in case
         f_cutoff = 1. # max allowable freq
-        fs = 1. / self.resp_dt;
+        fs = 1. / self.resp_dt
         wn = f_cutoff / (fs / 2)
         ntaps = 20
         b = scipy.signal.firwin(ntaps, wn)
@@ -350,15 +359,11 @@ class NIMSPhysio(nimsdata.NIMSReader):
         self.phases = np.zeros((nslc, self.nframes, 2))
         for sl in range(nslc):
             # times (for each frame) at which this slice was acquired (midpoint):
-            cur_slice_acq = (sl==self.slice_order).nonzero()[0][0]
-            slice_times = np.arange((self.tr/nslc)*(cur_slice_acq+0.5), self.scan_duration, self.tr)
+            slice_times = np.arange(self.slice_onsets[sl]+(self.slice_window/2), self.scan_duration, self.tr)
             for fr in range(self.nframes):
                 # cardiac
                 prev_trigs = np.nonzero(card_trig < slice_times[fr])[0]
-                if prev_trigs.size == 0:
-                    t1 = 0.
-                else:
-                    t1 = card_trig[prev_trigs[-1]]
+                t1 = 0. if prev_trigs.size == 0 else card_trig[prev_trigs[-1]]
                 next_trigs = np.nonzero(card_trig > slice_times[fr])[0]
                 if next_trigs.size == 0:
                     t2 = self.nframes*self.tr
@@ -368,7 +373,7 @@ class NIMSPhysio(nimsdata.NIMSReader):
 
                 # respiration: (based on amplitude histogram)
                 # find the closest index in resp waveform
-                iphys = np.min((np.max((0, np.round(slice_times[fr] / self.resp_dt))), drdt.size-1))
+                iphys = int(np.min((np.max((0, np.round(slice_times[fr] / self.resp_dt))), drdt.size-1)))
                 amp = resp_wave[iphys]
                 dbins = np.abs(amp-bins)
                 thisBin = dbins.argmin()  #closest resp_wave histo bin
@@ -409,13 +414,12 @@ class NIMSPhysio(nimsdata.NIMSReader):
         t = np.arange(0, 40-self.tr, self.tr) # 40-sec impulse response
         for sl in range(nslc):
             # times (for each frame) at which this slice was acquired (midpoint):
-            cur_slice_acq = (sl==self.slice_order).nonzero()[0][0]
-            slice_times = np.arange((self.tr/nslc)*(cur_slice_acq+0.5), self.scan_duration, self.tr)
+            slice_times = np.arange(self.slice_onsets[sl]+(self.slice_window/2), self.scan_duration, self.tr)
             # make slice RV*RRF regressor
             rv = np.zeros(self.nframes)
             for tp in range(self.nframes):
-                i1 = max(0, np.floor((slice_times[tp] - t_win) / self.resp_dt))
-                i2 = min(resp_wave.size, np.floor((slice_times[tp] + t_win) / self.resp_dt))
+                i1 = int(max(0, np.floor((slice_times[tp] - t_win) / self.resp_dt))) 
+                i2 = int(min(resp_wave.size, np.floor((slice_times[tp] + t_win) / self.resp_dt)))
                 if i2 < i1:
                     raise NIMSPhysioError('Respiration data is shorter than the scan duration.')
                 rv[tp] = np.std(resp_wave[i1:i2])
@@ -436,10 +440,7 @@ class NIMSPhysio(nimsdata.NIMSReader):
                 for tp in range(self.nframes):
                     inds = np.nonzero(np.logical_and(card_trig >= (slice_times[tp]-t_win), card_trig <= (slice_times[tp]+t_win)))[0]
                     if inds.size < 2:
-                        if tp==0:
-                            hr[tp] = 60
-                        else:
-                            hr[tp] = hr[tp-1]
+                        hr[tp] = 60 if tp==0 else hr[tp-1]
                     else:
                         hr[tp] = (inds[-1] - inds[0]) * 60. / (card_trig[inds[-1]] - card_trig[inds[0]])  # bpm
             else:
@@ -477,28 +478,28 @@ class NIMSPhysio(nimsdata.NIMSReader):
                 self.regressors[:,reg,sl] -= np.polyval(np.polyfit(x, self.regressors[:,reg,sl], 2), x)
 
 
-    def denoise_image(self, regressors):
+    def denoise_image(self, d, regressors):
         """
         correct the image data: slice-wise
         FIXME: NOT TESTED
         """
-        PCT_VAR_REDUCED = zeros(npix_x,npix_y,nslc)
         nslc = d.shape[2]
         self.nframes = d.shape[3]
         npix_x = d.shape[0]
         npix_y = d.shape[1]
+        PCT_VAR_REDUCED = np.zeros((npix_x,npix_y,nslc))
         d_corrected = np.zeros(d.shape)
         for jj in range(nslc):
             slice_data = np.squeeze(d[:,:,jj,:])
             Y_slice = slice_data.reshape((npix_x*npix_y, self.nframes)).transpose() #ntime x nvox
-            t = np.arange(self.nframes).transpose()
+            t = np.arange(self.nframes)[:, np.newaxis] #  shape=(nTRs, 1)
             # design matrix
-            XX = np.array((t, t**2., REGRESSORS[:,:,jj]))
-            XX = np.concatenate((np.ones((XX.shape[0],1)), np.zscore(XX)))
-            Betas = np.pinv(XX) * Y_slice
-            Y_slice_corr = Y_slice - XX[:,3:-1] * Betas[3:-1,:] # keep
+            XX = np.hstack([t, t**2, regressors[:,:,jj]])
+            XX = np.hstack([np.ones((XX.shape[0],1)), zscore(XX, 0)])
+            Betas = np.matmul(np.linalg.pinv(XX), Y_slice)
+            Y_slice_corr = Y_slice - np.matmul(XX[:,3:-1], Betas[3:-1,:])
             # calculate percent variance reduction
-            var_reduced = (np.var(Y_slice,0,1) - np.var(Y_slice_corr,0,1)) / np.var(Y_slice,0,1)
+            var_reduced = (np.var(Y_slice, axis=0, ddof=1) - np.var(Y_slice_corr, axis=0, ddof=1)) / np.var(Y_slice, axis=0, ddof=1)
             PCT_VAR_REDUCED[:,:,jj] = var_reduced.transpose().reshape((npix_x, npix_y))
             # fill corrected volume
             V_slice_corr = Y_slice_corr.transpose()
@@ -513,7 +514,7 @@ class NIMSPhysio(nimsdata.NIMSReader):
         with file(filename, 'w') as outfile:
             # Write a little header behind comments
             # Any line starting with "#" will be ignored by numpy.loadtxt
-            outfile.write('# slice_order = [ %s ]\n' % ','.join([str(d) for d in self.slice_order]))
+            outfile.write('# slice_onests = [ %s ]\n' % ','.join(str(d) for d in self.slice_onsets))
             outfile.write('# Full array shape: {0}\n'.format(self.regressors.shape))
             outfile.write('# time x regressor for each slice in the acquired volume\n')
             outfile.write('# regressors: [ %s ]\n' % ','.join(self.regressor_names))
@@ -525,12 +526,12 @@ class NIMSPhysio(nimsdata.NIMSReader):
     def _write_regressors(self, fileobj, header_notes=''):
         # Write a little header behind comments
         # Any line starting with "#" will be ignored by numpy.loadtxt
-        fileobj.write('#slice_order = [ %s ]\n' % ','.join([str(d) for d in self.slice_order]))
+        fileobj.write('#slice_onsets = [ %s ]\n' % ','.join(str(d) for d in self.slice_onsets))
         if header_notes:
             fileobj.write('#' + header_notes + '\n')
         # print out all the column headings:
-        nslices = len(self.slice_order)
-        fileobj.write('#' + ','.join([h[0]+h[1] for h in itertools.product(['slice'+str(s) for s in range(nslices)], self.regressor_names)]) + '\n')
+        nslices = len(self.slice_onsets)
+        fileobj.write('#' + ','.join(h[0]+h[1] for h in itertools.product(['slice'+str(s) for s in range(nslices)], self.regressor_names)) + '\n')
         new_shape = (self.regressors.shape[0], self.regressors.shape[1]*self.regressors.shape[2])
         np.savetxt(fileobj, self.regressors.reshape(new_shape, order='F'), fmt='%0.5f', delimiter=',')
         #d = {key: value for (key, value) in sequence}
@@ -545,7 +546,7 @@ class NIMSPhysio(nimsdata.NIMSReader):
             with gzip.open(filename, 'wb') as fp:
                 self._write_regressors(fp)
         else:
-            with file(filename, 'w') as fp:
+            with open(filename, 'w') as fp:
                 self._write_regressors(fp)
 
     def write_raw_data(self, filename):
@@ -590,26 +591,43 @@ class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):
         super(ArgumentParser, self).__init__()
         self.description = """ Processes physio data to make them amenable to retroicor."""
-        self.add_argument('physio_file', help='path to physio data')
-        self.add_argument('outbase', help='basename for output files')
+        self.add_argument('--physio_file', help='path to physio data')
+        self.add_argument('--outbase', help='basename for output files')
         self.add_argument('-n', '--nifti_file', help='path to corresponding nifti file')
         # TODO: allow tr, nframes, and nslices to be entered as args if no nifti is provided
         # TODO: allow user to specify custom slice orders
         self.add_argument('-p', '--preprocess', action='store_true', help='Also save pre-processed physio data')
+        self.add_argument('--slice_window', default=None, help='include slice window (in s) for corrected data')
+        self.add_argument('--corrected_slice_onset', default=0, help='for stc data, the reference onset time')
 
 
 if __name__ == '__main__':
     args = ArgumentParser().parse_args()
     logging.basicConfig(level=logging.DEBUG)
     if args.nifti_file:
-        ni = nibabel.load(args.nifti_file)
-        slice_order = np.argsort(ni.get_header().get_slice_times())
-        phys = NIMSPhysio(args.physio_file, tr=ni.get_header().get_zooms()[3], nframes=ni.shape[3], slice_order=slice_order)
+        niimg = nib.load(args.nifti_file)
+        try:
+            slice_onsets = niimg.header.get_slice_times() #change to support multiband
+        except HeaderDataError:  # if data is slice time corrected, may not be in header
+            print('assuming slice-timing-corrected data, using single slice')
+            slice_onsets = [args.corrected_slice_onset] * niimg.shape[2]
+        phys = NIMSPhysio(
+            args.physio_file,
+            tr=niimg.header.get_zooms()[3],
+            nframes=niimg.shape[3],
+            slice_onsets=slice_onsets,
+            slice_window=args.slice_window
+        )
     else:
         log.warning('regressors will not be valid!')
         phys = NIMSPhysio(args.physio_file)
     if args.preprocess:
         np.savetxt(args.outbase + '_resp.txt', phys.resp_wave)
         np.savetxt(args.outbase + '_pulse.txt', phys.card_trig)
-        np.savetxt(args.outbase + '_slice.txt', phys.slice_order)
+        np.savetxt(args.outbase + '_slice_onsets.txt', phys.slice_onsets)
+    print('saving regressors out to %s_reg.tst' % args.outbase)
     phys.write_regressors(args.outbase + '_reg.txt')
+    if args.nifti_file:
+       d_corrected, PCT_VAR_REDUCED = phys.denoise_image(niimg.get_fdata(), phys.regressors)
+       np.save(args.outbase+'_pct_var_reduced.npy', PCT_VAR_REDUCED)
+       nib.save(nib.Nifti1Image(d_corrected, niimg.affine, niimg.header), args.outbase+'_prepoc-physio_bold.nii.gz')
