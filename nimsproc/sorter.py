@@ -69,7 +69,26 @@ class Sorter(object):
                         log.info('Unpacking   %s' % os.path.basename(stage_item))
                         with tempfile.TemporaryDirectory() as tempdir_path:
                             with tarfile.open(stage_item) as archive:
-                                archive.extractall(path=tempdir_path)
+                                def is_within_directory(directory, target):
+                                    
+                                    abs_directory = os.path.abspath(directory)
+                                    abs_target = os.path.abspath(target)
+                                
+                                    prefix = os.path.commonprefix([abs_directory, abs_target])
+                                    
+                                    return prefix == abs_directory
+                                
+                                def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+                                
+                                    for member in tar.getmembers():
+                                        member_path = os.path.join(path, member.name)
+                                        if not is_within_directory(path, member_path):
+                                            raise Exception("Attempted Path Traversal in Tar File")
+                                
+                                    tar.extractall(path, members, numeric_owner=numeric_owner) 
+                                    
+                                
+                                safe_extract(archive, path=tempdir_path)
                             physiodir_path = os.listdir(tempdir_path)[0]
                             for f in os.listdir(os.path.join(tempdir_path, physiodir_path)):
                                 shutil.copy(os.path.join(tempdir_path, physiodir_path, f), os.path.join(self.nims_path, 'physio'))
@@ -104,7 +123,26 @@ class Sorter(object):
             log.info('Parsing     %s' % filename)
             with tempfile.TemporaryDirectory(dir=None) as tempdir_path:
                 with tarfile.open(filepath) as archive:
-                    archive.extractall(path=tempdir_path)
+                    def is_within_directory(directory, target):
+                        
+                        abs_directory = os.path.abspath(directory)
+                        abs_target = os.path.abspath(target)
+                    
+                        prefix = os.path.commonprefix([abs_directory, abs_target])
+                        
+                        return prefix == abs_directory
+                    
+                    def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+                    
+                        for member in tar.getmembers():
+                            member_path = os.path.join(path, member.name)
+                            if not is_within_directory(path, member_path):
+                                raise Exception("Attempted Path Traversal in Tar File")
+                    
+                        tar.extractall(path, members, numeric_owner=numeric_owner) 
+                        
+                    
+                    safe_extract(archive, path=tempdir_path)
                 newdata_dir = os.path.join(tempdir_path, os.listdir(tempdir_path)[0])
                 try:
                     new_digest = open(os.path.join(newdata_dir, 'DIGEST.txt')).read()
@@ -137,7 +175,26 @@ class Sorter(object):
                             log.debug('repacking')
                             with tempfile.TemporaryDirectory(dir=tempdir_path) as combined_dir:
                                 with tarfile.open(orig_pf) as orig_archive:
-                                    orig_archive.extractall(path=combined_dir)
+                                    def is_within_directory(directory, target):
+                                        
+                                        abs_directory = os.path.abspath(directory)
+                                        abs_target = os.path.abspath(target)
+                                    
+                                        prefix = os.path.commonprefix([abs_directory, abs_target])
+                                        
+                                        return prefix == abs_directory
+                                    
+                                    def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+                                    
+                                        for member in tar.getmembers():
+                                            member_path = os.path.join(path, member.name)
+                                            if not is_within_directory(path, member_path):
+                                                raise Exception("Attempted Path Traversal in Tar File")
+                                    
+                                        tar.extractall(path, members, numeric_owner=numeric_owner) 
+                                        
+                                    
+                                    safe_extract(orig_archive, path=combined_dir)
                                 combineddata_dir = os.path.join(combined_dir, os.listdir(combined_dir)[0])
                                 for f in glob.glob(os.path.join(newdata_dir, '*')):
                                     fn = os.path.basename(f)
